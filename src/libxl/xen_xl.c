@@ -106,6 +106,7 @@ xenParseXLOS(virConf *conf, virDomainDef *def, virCaps *caps)
         g_autofree char *bios = NULL;
         g_autofree char *bios_path = NULL;
         g_autofree char *boot = NULL;
+        g_autofree char *slic = NULL;
         int val = 0;
 
         if (xenConfigGetString(conf, "bios", &bios, NULL) < 0)
@@ -133,8 +134,15 @@ xenParseXLOS(virConf *conf, virDomainDef *def, virCaps *caps)
             }
         }
 
-        if (xenConfigCopyStringOpt(conf, "acpi_firmware", &def->os.slic_table) < 0)
+        if (xenConfigCopyStringOpt(conf, "acpi_firmware", &slic) < 0)
             return -1;
+        if (slic != NULL) {
+            def->os.nacpiTables = 1;
+            def->os.acpiTables = g_new0(virDomainOSACPITableDef *, 1);
+            def->os.acpiTables[0] = g_new0(virDomainOSACPITableDef, 1);
+            def->os.acpiTables[0]->type = VIR_DOMAIN_OS_ACPI_TABLE_TYPE_RAWSET;
+            def->os.acpiTables[0]->path = g_steal_pointer(&slic);
+        }
 
         if (xenConfigCopyStringOpt(conf, "kernel", &def->os.kernel) < 0)
             return -1;
@@ -861,9 +869,7 @@ xenParseXLUSBController(virConf *conf, virDomainDef *def)
             else
                 usbctrl_type = VIR_DOMAIN_CONTROLLER_MODEL_USB_QUSB2;
 
-            if (!(controller = virDomainControllerDefNew(VIR_DOMAIN_CONTROLLER_TYPE_USB)))
-                return -1;
-
+            controller = virDomainControllerDefNew(VIR_DOMAIN_CONTROLLER_TYPE_USB);
             controller->type = VIR_DOMAIN_CONTROLLER_TYPE_USB;
             controller->model = usbctrl_type;
             controller->opts.usbopts.ports = usbctrl_ports;
@@ -924,9 +930,7 @@ xenParseXLUSB(virConf *conf, virDomainDef *def)
                 key = nextkey;
             }
 
-            if (!(hostdev = virDomainHostdevDefNew()))
-               return -1;
-
+            hostdev = virDomainHostdevDefNew();
             hostdev->managed = false;
             hostdev->source.subsys.type = VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_USB;
             hostdev->source.subsys.u.usb.bus = busNum;
@@ -1134,8 +1138,9 @@ xenFormatXLOS(virConf *conf, virDomainDef *def)
                 return -1;
         }
 
-        if (def->os.slic_table &&
-            xenConfigSetString(conf, "acpi_firmware", def->os.slic_table) < 0)
+        if (def->os.nacpiTables &&
+            xenConfigSetString(conf, "acpi_firmware",
+                               def->os.acpiTables[0]->path) < 0)
             return -1;
 
         if (def->os.kernel &&

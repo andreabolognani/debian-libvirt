@@ -1973,7 +1973,7 @@ virSecurityDACRestoreAllLabel(virSecurityManager *mgr,
 
     for (i = 0; i < def->ngraphics; i++) {
         if (virSecurityDACRestoreGraphicsLabel(mgr, def, def->graphics[i]) < 0)
-            return -1;
+            rc = -1;
     }
 
     for (i = 0; i < def->ninputs; i++) {
@@ -2021,7 +2021,7 @@ virSecurityDACRestoreAllLabel(virSecurityManager *mgr,
         case VIR_DOMAIN_LAUNCH_SECURITY_NONE:
         case VIR_DOMAIN_LAUNCH_SECURITY_LAST:
             virReportEnumRangeError(virDomainLaunchSecurity, def->sec->sectype);
-            return -1;
+            rc = -1;
         }
     }
 
@@ -2046,13 +2046,18 @@ virSecurityDACRestoreAllLabel(virSecurityManager *mgr,
         virSecurityDACRestoreFileLabel(mgr, def->os.initrd) < 0)
         rc = -1;
 
+    if (def->os.shim &&
+        virSecurityDACRestoreFileLabel(mgr, def->os.shim) < 0)
+        rc = -1;
+
     if (def->os.dtb &&
         virSecurityDACRestoreFileLabel(mgr, def->os.dtb) < 0)
         rc = -1;
 
-    if (def->os.slic_table &&
-        virSecurityDACRestoreFileLabel(mgr, def->os.slic_table) < 0)
-        rc = -1;
+    for (i = 0; i < def->os.nacpiTables; i++) {
+        if (virSecurityDACRestoreFileLabel(mgr, def->os.acpiTables[i]->path) < 0)
+            rc = -1;
+    }
 
     if (def->pstore &&
         virSecurityDACRestoreFileLabel(mgr, def->pstore->path) < 0)
@@ -2294,17 +2299,24 @@ virSecurityDACSetAllLabel(virSecurityManager *mgr,
                                    user, group, true) < 0)
         return -1;
 
+    if (def->os.shim &&
+        virSecurityDACSetOwnership(mgr, NULL,
+                                   def->os.shim,
+                                   user, group, true) < 0)
+        return -1;
+
     if (def->os.dtb &&
         virSecurityDACSetOwnership(mgr, NULL,
                                    def->os.dtb,
                                    user, group, true) < 0)
         return -1;
 
-    if (def->os.slic_table &&
-        virSecurityDACSetOwnership(mgr, NULL,
-                                   def->os.slic_table,
-                                   user, group, true) < 0)
-        return -1;
+    for (i = 0; i < def->os.nacpiTables; i++) {
+        if (virSecurityDACSetOwnership(mgr, NULL,
+                                       def->os.acpiTables[i]->path,
+                                       user, group, true) < 0)
+            return -1;
+    }
 
     if (def->pstore &&
         virSecurityDACSetOwnership(mgr, NULL,

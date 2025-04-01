@@ -43,6 +43,7 @@
 #include "virfilecache.h"
 #include "virfirmware.h"
 #include "virinhibitor.h"
+#include "domain_driver.h"
 
 #define QEMU_DRIVER_NAME "QEMU"
 
@@ -99,6 +100,7 @@ struct _virQEMUDriverConfig {
     char *slirpStateDir;
     char *passtStateDir;
     char *dbusStateDir;
+    char *rdpStateDir;
     /* These two directories are ones QEMU processes use (so must match
      * the QEMU user/group */
     char *libDir;
@@ -135,6 +137,11 @@ struct _virQEMUDriverConfig {
     char *spicePassword;
     bool spiceAutoUnixSocket;
 
+    char *rdpTLSx509certdir;
+    char *rdpListen;
+    char *rdpUsername;
+    char *rdpPassword;
+
     bool chardevTLS;
     char *chardevTLSx509certdir;
     bool chardevTLSx509verify;
@@ -163,6 +170,9 @@ struct _virQEMUDriverConfig {
     unsigned int remotePortMin;
     unsigned int remotePortMax;
 
+    unsigned int rdpPortMin;
+    unsigned int rdpPortMax;
+
     unsigned int webSocketPortMin;
     unsigned int webSocketPortMax;
 
@@ -173,6 +183,7 @@ struct _virQEMUDriverConfig {
     char *prHelperName;
     char *slirpHelperName;
     char *dbusDaemonName;
+    char *qemuRdpName;
 
     bool macFilter;
 
@@ -193,14 +204,20 @@ struct _virQEMUDriverConfig {
     bool securityDefaultConfined;
     bool securityRequireConfined;
 
-    char *saveImageFormat;
-    char *dumpImageFormat;
-    char *snapshotImageFormat;
+    int saveImageFormat;
+    int dumpImageFormat;
+    int snapshotImageFormat;
 
     char *autoDumpPath;
     bool autoDumpBypassCache;
     bool autoStartBypassCache;
     unsigned int autoStartDelayMS;
+    virDomainDriverAutoShutdownScope autoShutdownTrySave;
+    virDomainDriverAutoShutdownScope autoShutdownTryShutdown;
+    virDomainDriverAutoShutdownScope autoShutdownPoweroff;
+    unsigned int autoShutdownWait;
+    bool autoShutdownRestore;
+    bool autoSaveBypassCache;
 
     char *lockManagerName;
 
@@ -304,6 +321,9 @@ struct _virQEMUDriver {
 
     /* Immutable pointer, immutable object */
     virPortAllocatorRange *webSocketPorts;
+
+    /* Immutable pointer, immutable object */
+    virPortAllocatorRange *rdpPorts;
 
     /* Immutable pointer, immutable object */
     virPortAllocatorRange *migrationPorts;

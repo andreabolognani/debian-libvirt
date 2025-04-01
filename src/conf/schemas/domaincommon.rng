@@ -71,6 +71,7 @@
       </zeroOrMore>
       <ref name="os"/>
       <ref name="clock"/>
+      <ref name="throttlegroups"/>
       <ref name="resources"/>
       <ref name="features"/>
       <ref name="events"/>
@@ -1553,6 +1554,11 @@
         </element>
       </optional>
       <optional>
+        <element name="shim">
+          <text/>
+        </element>
+      </optional>
+      <optional>
         <element name="dtb">
           <ref name="absFilePath"/>
         </element>
@@ -1624,7 +1630,10 @@
         <ref name="encryption"/>
       </optional>
       <optional>
-        <ref name="diskIoTune"/>
+        <choice>
+          <ref name="throttlefilters"/>
+          <ref name="diskIoTune"/>
+        </choice>
       </optional>
       <optional>
         <ref name="alias"/>
@@ -3059,6 +3068,9 @@
             <optional>
               <ref name="driverIOThread"/>
             </optional>
+            <optional>
+              <ref name="iothreadMapping"/>
+            </optional>
             <ref name="virtioOptions"/>
           </element>
         </optional>
@@ -3832,6 +3844,11 @@
               <ref name="virYesNo"/>
             </attribute>
           </optional>
+          <optional>
+            <attribute name="currentAddress">
+              <ref name="uniMacAddr"/>
+            </attribute>
+          </optional>
           <empty/>
         </element>
       </optional>
@@ -4533,6 +4550,16 @@
           <optional>
             <attribute name="listen">
               <ref name="addrIPorName"/>
+            </attribute>
+          </optional>
+          <optional>
+            <attribute name="username">
+              <text/>
+            </attribute>
+          </optional>
+          <optional>
+            <attribute name="passwd">
+              <text/>
             </attribute>
           </optional>
           <ref name="listenElements"/>
@@ -6852,6 +6879,37 @@
       </interleave>
     </element>
   </define>
+  <define name="throttlegroup">
+    <element name="throttlegroup">
+      <ref name="iotune"/>
+    </element>
+  </define>
+  <!--
+      A set of optional throttlegroups
+    -->
+  <define name="throttlegroups">
+    <optional>
+      <element name="throttlegroups">
+        <zeroOrMore>
+          <ref name="throttlegroup"/>
+        </zeroOrMore>
+      </element>
+    </optional>
+  </define>
+  <!--
+      A set of throttlefilters to reference throttlegroups
+    -->
+  <define name="throttlefilters">
+    <element name="throttlefilters">
+      <zeroOrMore>
+        <element name="throttlefilter">
+          <attribute name="group">
+            <data type="string"/>
+          </attribute>
+        </element>
+      </zeroOrMore>
+    </element>
+  </define>
   <!--
       A set of optional features: PAE, APIC, ACPI, GIC, TCG,
       HyperV Enlightenment, KVM features, paravirtual spinlocks and HAP support
@@ -7180,7 +7238,12 @@
       <zeroOrMore>
         <element name="table">
           <attribute name="type">
-            <value>slic</value>
+            <choice>
+              <value>raw</value>
+              <value>rawset</value>
+              <value>slic</value>
+              <value>msdm</value>
+            </choice>
           </attribute>
           <ref name="absFilePath"/>
         </element>
@@ -7834,134 +7897,138 @@
     </element>
   </define>
 
+  <define name="iotune">
+    <interleave>
+      <choice>
+        <element name="total_bytes_sec">
+          <data type="unsignedLong"/>
+        </element>
+        <group>
+          <interleave>
+            <optional>
+              <element name="read_bytes_sec">
+                <data type="unsignedLong"/>
+              </element>
+            </optional>
+            <optional>
+              <element name="write_bytes_sec">
+                <data type="unsignedLong"/>
+              </element>
+            </optional>
+          </interleave>
+        </group>
+      </choice>
+      <choice>
+        <element name="total_iops_sec">
+          <data type="unsignedLong"/>
+        </element>
+        <group>
+          <interleave>
+            <optional>
+              <element name="read_iops_sec">
+                <data type="unsignedLong"/>
+              </element>
+            </optional>
+            <optional>
+              <element name="write_iops_sec">
+                <data type="unsignedLong"/>
+              </element>
+            </optional>
+          </interleave>
+        </group>
+      </choice>
+      <choice>
+        <element name="total_bytes_sec_max">
+          <data type="unsignedLong"/>
+        </element>
+        <group>
+          <interleave>
+            <optional>
+              <element name="read_bytes_sec_max">
+                <data type="unsignedLong"/>
+              </element>
+            </optional>
+            <optional>
+              <element name="write_bytes_sec_max">
+                <data type="unsignedLong"/>
+              </element>
+            </optional>
+          </interleave>
+        </group>
+      </choice>
+      <choice>
+        <element name="total_iops_sec_max">
+          <data type="unsignedLong"/>
+        </element>
+        <group>
+          <interleave>
+            <optional>
+              <element name="read_iops_sec_max">
+                <data type="unsignedLong"/>
+              </element>
+            </optional>
+            <optional>
+              <element name="write_iops_sec_max">
+                <data type="unsignedLong"/>
+              </element>
+            </optional>
+          </interleave>
+        </group>
+      </choice>
+      <optional>
+        <element name="size_iops_sec">
+          <data type="unsignedLong"/>
+        </element>
+      </optional>
+      <optional>
+        <element name="group_name">
+          <text/>
+        </element>
+      </optional>
+      <choice>
+        <element name="total_bytes_sec_max_length">
+          <data type="unsignedLong"/>
+        </element>
+        <group>
+          <interleave>
+            <optional>
+              <element name="read_bytes_sec_max_length">
+                <data type="unsignedLong"/>
+              </element>
+            </optional>
+            <optional>
+              <element name="write_bytes_sec_max_length">
+                <data type="unsignedLong"/>
+              </element>
+            </optional>
+          </interleave>
+        </group>
+      </choice>
+      <choice>
+        <element name="total_iops_sec_max_length">
+          <data type="unsignedLong"/>
+        </element>
+        <group>
+          <interleave>
+            <optional>
+              <element name="read_iops_sec_max_length">
+                <data type="unsignedLong"/>
+              </element>
+            </optional>
+            <optional>
+              <element name="write_iops_sec_max_length">
+                <data type="unsignedLong"/>
+              </element>
+            </optional>
+          </interleave>
+        </group>
+      </choice>
+    </interleave>
+  </define>
+
   <define name="diskIoTune">
     <element name="iotune">
-      <interleave>
-        <choice>
-          <element name="total_bytes_sec">
-            <data type="unsignedLong"/>
-          </element>
-          <group>
-            <interleave>
-              <optional>
-                <element name="read_bytes_sec">
-                  <data type="unsignedLong"/>
-                </element>
-              </optional>
-              <optional>
-                <element name="write_bytes_sec">
-                  <data type="unsignedLong"/>
-                </element>
-              </optional>
-            </interleave>
-          </group>
-        </choice>
-        <choice>
-          <element name="total_iops_sec">
-            <data type="unsignedLong"/>
-          </element>
-          <group>
-            <interleave>
-              <optional>
-                <element name="read_iops_sec">
-                  <data type="unsignedLong"/>
-                </element>
-              </optional>
-              <optional>
-                <element name="write_iops_sec">
-                  <data type="unsignedLong"/>
-                </element>
-              </optional>
-            </interleave>
-          </group>
-        </choice>
-        <choice>
-          <element name="total_bytes_sec_max">
-            <data type="unsignedLong"/>
-          </element>
-          <group>
-            <interleave>
-              <optional>
-                <element name="read_bytes_sec_max">
-                  <data type="unsignedLong"/>
-                </element>
-              </optional>
-              <optional>
-                <element name="write_bytes_sec_max">
-                  <data type="unsignedLong"/>
-                </element>
-              </optional>
-            </interleave>
-          </group>
-        </choice>
-        <choice>
-          <element name="total_iops_sec_max">
-            <data type="unsignedLong"/>
-          </element>
-          <group>
-            <interleave>
-              <optional>
-                <element name="read_iops_sec_max">
-                  <data type="unsignedLong"/>
-                </element>
-              </optional>
-              <optional>
-                <element name="write_iops_sec_max">
-                  <data type="unsignedLong"/>
-                </element>
-              </optional>
-            </interleave>
-          </group>
-        </choice>
-        <optional>
-          <element name="size_iops_sec">
-            <data type="unsignedLong"/>
-          </element>
-        </optional>
-        <optional>
-          <element name="group_name">
-            <text/>
-          </element>
-        </optional>
-        <choice>
-          <element name="total_bytes_sec_max_length">
-            <data type="unsignedLong"/>
-          </element>
-          <group>
-            <interleave>
-              <optional>
-                <element name="read_bytes_sec_max_length">
-                  <data type="unsignedLong"/>
-                </element>
-              </optional>
-              <optional>
-                <element name="write_bytes_sec_max_length">
-                  <data type="unsignedLong"/>
-                </element>
-              </optional>
-            </interleave>
-          </group>
-        </choice>
-        <choice>
-          <element name="total_iops_sec_max_length">
-            <data type="unsignedLong"/>
-          </element>
-          <group>
-            <interleave>
-              <optional>
-                <element name="read_iops_sec_max_length">
-                  <data type="unsignedLong"/>
-                </element>
-              </optional>
-              <optional>
-                <element name="write_iops_sec_max_length">
-                  <data type="unsignedLong"/>
-                </element>
-              </optional>
-            </interleave>
-          </group>
-        </choice>
-      </interleave>
+      <ref name="iotune"/>
     </element>
   </define>
 

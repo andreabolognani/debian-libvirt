@@ -701,6 +701,8 @@ static int
 qemuValidateDomainDefBoot(const virDomainDef *def,
                           virQEMUCaps *qemuCaps)
 {
+    size_t i;
+
     if (def->os.bootloader || def->os.bootloaderArgs) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                        _("bootloader is not supported by QEMU"));
@@ -738,6 +740,34 @@ qemuValidateDomainDefBoot(const virDomainDef *def,
 
         if (qemuValidateDomainDefNvram(def, qemuCaps) < 0)
             return -1;
+    }
+
+    for (i = 0; i < def->os.nacpiTables; i++) {
+        switch (def->os.acpiTables[i]->type) {
+        case VIR_DOMAIN_OS_ACPI_TABLE_TYPE_RAW:
+        case VIR_DOMAIN_OS_ACPI_TABLE_TYPE_SLIC:
+        case VIR_DOMAIN_OS_ACPI_TABLE_TYPE_MSDM:
+            break;
+
+        case VIR_DOMAIN_OS_ACPI_TABLE_TYPE_RAWSET:
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                           _("ACPI table type '%1$s' is not supported"),
+                           virDomainOsACPITableTypeToString(def->os.acpiTables[i]->type));
+            return -1;
+
+        default:
+        case VIR_DOMAIN_OS_ACPI_TABLE_TYPE_LAST:
+            virReportEnumRangeError(virDomainOsACPITable,
+                                    def->os.acpiTables[i]->type);
+            return -1;
+        }
+    }
+
+    if (def->os.shim &&
+        !virQEMUCapsGet(qemuCaps, QEMU_CAPS_MACHINE_SHIM)) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("shim is not supported by this QEMU binary"));
+        return -1;
     }
 
     return 0;
@@ -1820,12 +1850,6 @@ qemuValidateDomainDeviceDefNetwork(const virDomainNetDef *net,
         return -1;
     }
 
-    if (net->type == VIR_DOMAIN_NET_TYPE_VHOSTUSER &&
-        net->backend.type == VIR_DOMAIN_NET_BACKEND_PASST) {
-        if (qemuValidateDomainDefVhostUserRequireSharedMemory(def, "interface type=\"vhostuser\" backend type=\"passt\"") < 0)
-            return -1;
-    }
-
     if (net->type == VIR_DOMAIN_NET_TYPE_VDPA) {
         if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_NETDEV_VHOST_VDPA)) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
@@ -1849,6 +1873,9 @@ qemuValidateDomainDeviceDefNetwork(const virDomainNetDef *net,
                            _("'reconnect' attribute is not supported when source mode='server' for <interface type='vhostuser'>"));
             return -1;
         }
+
+        if (qemuValidateDomainDefVhostUserRequireSharedMemory(def, "interface") < 0)
+            return -1;
     }
 
     if (!virDomainNetIsVirtioModel(net)) {
@@ -2126,7 +2153,7 @@ qemuValidateDomainChrSourceDef(const virDomainChrSourceDef *def,
 
     case VIR_DOMAIN_CHR_TYPE_SPICEVMC:
     case VIR_DOMAIN_CHR_TYPE_SPICEPORT:
-        if (!virDomainDefHasSpiceGraphics(vmdef)) {
+        if (!virDomainDefHasGraphics(vmdef, VIR_DOMAIN_GRAPHICS_TYPE_SPICE)) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                            _("chardev '%1$s' not supported without spice graphics"),
                            virDomainChrTypeToString(def->type));
@@ -3630,9 +3657,10 @@ qemuValidateDomainDeviceDefControllerIDE(const virDomainControllerDef *controlle
  */
 static int
 qemuValidateCheckSCSIControllerIOThreads(const virDomainControllerDef *controller,
-                                         const virDomainDef *def)
+                                         const virDomainDef *def,
+                                         virQEMUCaps *qemuCaps)
 {
-    if (!controller->iothread)
+    if (controller->iothread == 0 && !controller->iothreads)
         return 0;
 
     if (controller->info.type != VIR_DOMAIN_DEVICE_ADDRESS_TYPE_NONE &&
@@ -3643,8 +3671,20 @@ qemuValidateCheckSCSIControllerIOThreads(const virDomainControllerDef *controlle
        return -1;
     }
 
-    /* Can we find the controller iothread in the iothreadid list? */
-    if (!virDomainIOThreadIDFind(def, controller->iothread)) {
+    if (controller->iothreads) {
+        if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_VIRTIO_SCSI_IOTHREAD_MAPPING)) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("IOThread mapping for virtio-scsi controllers is not available with this QEMU binary"));
+            return -1;
+        }
+
+        if (qemuDomainValidateIothreadMapping(def, controller->iothreads,
+                                              controller->queues) < 0)
+            return -1;
+    }
+
+    if (controller->iothread > 0 &&
+        !virDomainIOThreadIDFind(def, controller->iothread)) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                        _("controller iothread '%1$u' not defined in iothreadid"),
                        controller->iothread);
@@ -3657,13 +3697,15 @@ qemuValidateCheckSCSIControllerIOThreads(const virDomainControllerDef *controlle
 
 static int
 qemuValidateDomainDeviceDefControllerSCSI(const virDomainControllerDef *controller,
-                                          const virDomainDef *def)
+                                          const virDomainDef *def,
+                                          virQEMUCaps *qemuCaps)
 {
     switch ((virDomainControllerModelSCSI) controller->model) {
         case VIR_DOMAIN_CONTROLLER_MODEL_SCSI_VIRTIO_SCSI:
         case VIR_DOMAIN_CONTROLLER_MODEL_SCSI_VIRTIO_TRANSITIONAL:
         case VIR_DOMAIN_CONTROLLER_MODEL_SCSI_VIRTIO_NON_TRANSITIONAL:
-            if (qemuValidateCheckSCSIControllerIOThreads(controller, def) < 0)
+            if (qemuValidateCheckSCSIControllerIOThreads(controller, def,
+                                                         qemuCaps) < 0)
                 return -1;
             break;
 
@@ -4337,7 +4379,8 @@ qemuValidateDomainDeviceDefController(const virDomainControllerDef *controller,
         break;
 
     case VIR_DOMAIN_CONTROLLER_TYPE_SCSI:
-        ret = qemuValidateDomainDeviceDefControllerSCSI(controller, def);
+        ret = qemuValidateDomainDeviceDefControllerSCSI(controller, def,
+                                                        qemuCaps);
         break;
 
     case VIR_DOMAIN_CONTROLLER_TYPE_PCI:
@@ -4458,16 +4501,38 @@ qemuValidateDomainDeviceDefDBusGraphics(const virDomainGraphicsDef *graphics,
 
 
 static int
+qemuValidateDomainDeviceDefRDPGraphics(const virDomainGraphicsDef *graphics)
+{
+    if (graphics->data.rdp.replaceUser) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("RDP doesn't support 'replaceUser'"));
+        return -1;
+    }
+    if (graphics->data.rdp.multiUser) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("RDP doesn't support 'multiUser'"));
+        return -1;
+    }
+    if (graphics->data.rdp.auth.expires) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("RDP password expiration isn't supported"));
+        return -1;
+    }
+
+    return 0;
+}
+
+
+static int
 qemuValidateDomainDeviceDefGraphics(const virDomainGraphicsDef *graphics,
                                     const virDomainDef *def,
                                     virQEMUDriver *driver,
                                     virQEMUCaps *qemuCaps)
 {
+    g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
     virDomainCapsDeviceGraphics graphicsCaps = { 0 };
-    bool have_egl_headless = false;
-    size_t i;
 
-    virQEMUCapsFillDomainDeviceGraphicsCaps(qemuCaps, &graphicsCaps);
+    virQEMUCapsFillDomainDeviceGraphicsCaps(cfg, qemuCaps, &graphicsCaps);
 
     if (!VIR_DOMAIN_CAPS_ENUM_IS_SET(graphicsCaps.type, graphics->type)) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
@@ -4476,18 +4541,11 @@ qemuValidateDomainDeviceDefGraphics(const virDomainGraphicsDef *graphics,
         return -1;
     }
 
-    for (i = 0; i < def->ngraphics; i++) {
-        if (def->graphics[i]->type == VIR_DOMAIN_GRAPHICS_TYPE_EGL_HEADLESS) {
-            have_egl_headless = true;
-            break;
-        }
-    }
-
     /* Only VNC and SPICE can be paired with egl-headless, the other types
      * either don't make sense to pair with egl-headless or aren't even
      * supported by QEMU.
      */
-    if (have_egl_headless) {
+    if (virDomainDefHasGraphics(def, VIR_DOMAIN_GRAPHICS_TYPE_EGL_HEADLESS)) {
         if (graphics->type != VIR_DOMAIN_GRAPHICS_TYPE_EGL_HEADLESS &&
             graphics->type != VIR_DOMAIN_GRAPHICS_TYPE_VNC &&
             graphics->type != VIR_DOMAIN_GRAPHICS_TYPE_SPICE) {
@@ -4537,8 +4595,13 @@ qemuValidateDomainDeviceDefGraphics(const virDomainGraphicsDef *graphics,
 
         break;
 
-    case VIR_DOMAIN_GRAPHICS_TYPE_SDL:
     case VIR_DOMAIN_GRAPHICS_TYPE_RDP:
+        if (qemuValidateDomainDeviceDefRDPGraphics(graphics) < 0)
+            return -1;
+
+        break;
+
+    case VIR_DOMAIN_GRAPHICS_TYPE_SDL:
     case VIR_DOMAIN_GRAPHICS_TYPE_DESKTOP:
     case VIR_DOMAIN_GRAPHICS_TYPE_LAST:
         break;
@@ -4551,7 +4614,6 @@ qemuValidateDomainDeviceDefGraphics(const virDomainGraphicsDef *graphics,
 static int
 qemuValidateDomainDeviceDefFS(virDomainFSDef *fs,
                               const virDomainDef *def,
-                              virQEMUDriver *driver G_GNUC_UNUSED,
                               virQEMUCaps *qemuCaps)
 {
     if (fs->type != VIR_DOMAIN_FS_TYPE_MOUNT) {
@@ -4711,7 +4773,7 @@ qemuValidateDomainDeviceDefAudio(virDomainAudioDef *audio,
         break;
 
     case VIR_DOMAIN_AUDIO_TYPE_SPICE:
-        if (!virDomainDefHasSpiceGraphics(def)) {
+        if (!virDomainDefHasGraphics(def, VIR_DOMAIN_GRAPHICS_TYPE_SPICE)) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                            _("Spice audio is not supported without spice graphics"));
             return -1;
@@ -5517,7 +5579,7 @@ qemuValidateDomainDeviceDef(const virDomainDeviceDef *dev,
         return qemuValidateDomainDeviceDefIOMMU(dev->data.iommu, def, qemuCaps);
 
     case VIR_DOMAIN_DEVICE_FS:
-        return qemuValidateDomainDeviceDefFS(dev->data.fs, def, driver, qemuCaps);
+        return qemuValidateDomainDeviceDefFS(dev->data.fs, def, qemuCaps);
 
     case VIR_DOMAIN_DEVICE_NVRAM:
         return qemuValidateDomainDeviceDefNVRAM(dev->data.nvram, def, qemuCaps);

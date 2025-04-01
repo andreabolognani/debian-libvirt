@@ -127,6 +127,14 @@ VIR_ENUM_IMPL(qemuNumaPolicy,
               "restrictive",
 );
 
+VIR_ENUM_DECL(qemuACPITableSIG);
+VIR_ENUM_IMPL(qemuACPITableSIG,
+              VIR_DOMAIN_OS_ACPI_TABLE_TYPE_LAST,
+              "", /* raw */
+              "", /* rawset */
+              "SLIC",
+              "MSDM");
+
 
 const char *
 qemuAudioDriverTypeToString(virDomainAudioType type)
@@ -176,26 +184,12 @@ qemuOnOffAuto(virTristateSwitch s)
 
 static int
 qemuBuildObjectCommandlineFromJSON(virCommand *cmd,
-                                   virJSONValue *props,
-                                   virQEMUCaps *qemuCaps)
+                                   virJSONValue *props)
 {
     g_autofree char *arg = NULL;
 
-    if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_OBJECT_JSON)) {
-        if (!(arg = virJSONValueToString(props, false)))
-            return -1;
-    } else {
-        const char *type = virJSONValueObjectGetString(props, "qom-type");
-        g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
-
-        virBufferAsprintf(&buf, "%s,", type);
-
-        if (virQEMUBuildCommandLineJSON(props, &buf, "qom-type",
-                                        virQEMUBuildCommandLineJSONArrayBitmap) < 0)
-            return -1;
-
-        arg = virBufferContentAndReset(&buf);
-    }
+    if (!(arg = virJSONValueToString(props, false)))
+        return -1;
 
     virCommandAddArgList(cmd, "-object", arg, NULL);
     return 0;
@@ -329,7 +323,7 @@ qemuBuildMasterKeyCommandLine(virCommand *cmd,
                                      NULL) < 0)
         return -1;
 
-    if (qemuBuildObjectCommandlineFromJSON(cmd, props, priv->qemuCaps) < 0)
+    if (qemuBuildObjectCommandlineFromJSON(cmd, props) < 0)
         return -1;
 
     return 0;
@@ -1215,7 +1209,6 @@ qemuBuildSecretInfoProps(qemuDomainSecretInfo *secinfo,
  * qemuBuildObjectSecretCommandLine:
  * @cmd: the command to modify
  * @secinfo: pointer to the secret info object
- * @qemuCaps: qemu capabilities
  *
  * If the secinfo is available and associated with an AES secret,
  * then format the command line for the secret object. This object
@@ -1226,15 +1219,14 @@ qemuBuildSecretInfoProps(qemuDomainSecretInfo *secinfo,
  */
 static int
 qemuBuildObjectSecretCommandLine(virCommand *cmd,
-                                 qemuDomainSecretInfo *secinfo,
-                                 virQEMUCaps *qemuCaps)
+                                 qemuDomainSecretInfo *secinfo)
 {
     g_autoptr(virJSONValue) props = NULL;
 
     if (qemuBuildSecretInfoProps(secinfo, &props) < 0)
         return -1;
 
-    if (qemuBuildObjectCommandlineFromJSON(cmd, props, qemuCaps) < 0)
+    if (qemuBuildObjectCommandlineFromJSON(cmd, props) < 0)
         return -1;
 
     return 0;
@@ -1281,7 +1273,6 @@ qemuBuildTLSx509BackendProps(const char *tlspath,
  * @certEncSecretAlias: alias of a 'secret' object for decrypting TLS private key
  *                      (optional)
  * @alias: TLS object alias
- * @qemuCaps: capabilities
  *
  * Create the command line for a TLS object
  *
@@ -1293,8 +1284,7 @@ qemuBuildTLSx509CommandLine(virCommand *cmd,
                             bool isListen,
                             bool verifypeer,
                             const char *certEncSecretAlias,
-                            const char *alias,
-                            virQEMUCaps *qemuCaps)
+                            const char *alias)
 {
     g_autoptr(virJSONValue) props = NULL;
 
@@ -1302,7 +1292,7 @@ qemuBuildTLSx509CommandLine(virCommand *cmd,
                                      certEncSecretAlias, &props) < 0)
         return -1;
 
-    if (qemuBuildObjectCommandlineFromJSON(cmd, props, qemuCaps) < 0)
+    if (qemuBuildObjectCommandlineFromJSON(cmd, props) < 0)
         return -1;
 
     return 0;
@@ -1329,8 +1319,7 @@ qemuBuildChardevCommand(virCommand *cmd,
              * functions can just check the config fields */
             if (chrSourcePriv->secinfo) {
                 if (qemuBuildObjectSecretCommandLine(cmd,
-                                                     chrSourcePriv->secinfo,
-                                                     qemuCaps) < 0)
+                                                     chrSourcePriv->secinfo) < 0)
                     return -1;
 
                 tlsCertEncSecAlias = chrSourcePriv->secinfo->alias;
@@ -1343,7 +1332,7 @@ qemuBuildChardevCommand(virCommand *cmd,
                                             dev->data.tcp.listen,
                                             chrSourcePriv->tlsVerify,
                                             tlsCertEncSecAlias,
-                                            objalias, qemuCaps) < 0) {
+                                            objalias) < 0) {
                 return -1;
             }
 
@@ -1973,13 +1962,12 @@ qemuBuildFloppyCommandLineControllerOptions(virCommand *cmd,
 
 static int
 qemuBuildObjectCommandline(virCommand *cmd,
-                           virJSONValue *objProps,
-                           virQEMUCaps *qemuCaps)
+                           virJSONValue *objProps)
 {
     if (!objProps)
         return 0;
 
-    if (qemuBuildObjectCommandlineFromJSON(cmd, objProps, qemuCaps) < 0)
+    if (qemuBuildObjectCommandlineFromJSON(cmd, objProps) < 0)
         return -1;
 
     return 0;
@@ -1994,15 +1982,15 @@ qemuBuildBlockStorageSourceAttachDataCommandline(virCommand *cmd,
     char *tmp;
     size_t i;
 
-    if (qemuBuildObjectCommandline(cmd, data->prmgrProps, qemuCaps) < 0 ||
-        qemuBuildObjectCommandline(cmd, data->authsecretProps, qemuCaps) < 0 ||
-        qemuBuildObjectCommandline(cmd, data->httpcookiesecretProps, qemuCaps) < 0 ||
-        qemuBuildObjectCommandline(cmd, data->tlsKeySecretProps, qemuCaps) < 0 ||
-        qemuBuildObjectCommandline(cmd, data->tlsProps, qemuCaps) < 0)
+    if (qemuBuildObjectCommandline(cmd, data->prmgrProps) < 0 ||
+        qemuBuildObjectCommandline(cmd, data->authsecretProps) < 0 ||
+        qemuBuildObjectCommandline(cmd, data->httpcookiesecretProps) < 0 ||
+        qemuBuildObjectCommandline(cmd, data->tlsKeySecretProps) < 0 ||
+        qemuBuildObjectCommandline(cmd, data->tlsProps) < 0)
         return -1;
 
     for (i = 0; i < data->encryptsecretCount; ++i) {
-        if (qemuBuildObjectCommandline(cmd, data->encryptsecretProps[i], qemuCaps) < 0) {
+        if (qemuBuildObjectCommandline(cmd, data->encryptsecretProps[i]) < 0) {
             return -1;
         }
     }
@@ -2039,6 +2027,90 @@ qemuBuildBlockStorageSourceAttachDataCommandline(virCommand *cmd,
 
         virCommandAddArgList(cmd, "-blockdev", tmp, NULL);
         VIR_FREE(tmp);
+    }
+
+    return 0;
+}
+
+
+static inline bool
+qemuDiskConfigThrottleGroupEnabled(const virDomainThrottleGroupDef *group)
+{
+    return !!group->group_name &&
+           virDomainBlockIoTuneInfoHasAny(group);
+}
+
+
+/**
+ * qemuBuildThrottleGroupCommandLine:
+ * @cmd: the command to modify
+ * @def: domain definition
+ *
+ * build throttle group object in json format
+ */
+static int
+qemuBuildThrottleGroupCommandLine(virCommand *cmd,
+                                  const virDomainDef *def)
+{
+    size_t i;
+
+    for (i = 0; i < def->nthrottlegroups; i++) {
+        g_autoptr(virJSONValue) props = NULL;
+        g_autoptr(virJSONValue) limits = virJSONValueNewObject();
+        virDomainThrottleGroupDef *group = def->throttlegroups[i];
+        /* prefix group name with "throttle-" in QOM */
+        g_autofree char *prefixed_group_name = g_strdup_printf("throttle-%s", group->group_name);
+
+        if (!qemuDiskConfigThrottleGroupEnabled(group))
+            continue;
+
+        if (qemuMonitorThrottleGroupLimits(limits, group) < 0)
+            return -1;
+
+        if (qemuMonitorCreateObjectProps(&props, "throttle-group", prefixed_group_name,
+                                         "a:limits", &limits,
+                                         NULL) < 0)
+            return -1;
+
+        if (qemuBuildObjectCommandlineFromJSON(cmd, props) < 0)
+            return -1;
+    }
+
+    return 0;
+}
+
+
+static int
+qemuBuildBlockThrottleFilterCommandline(virCommand *cmd,
+                                        qemuBlockThrottleFilterAttachData *data)
+{
+    if (data->filterProps) {
+        g_autofree char *tmp = NULL;
+        if (!(tmp = virJSONValueToString(data->filterProps, false)))
+            return -1;
+
+        virCommandAddArgList(cmd, "-blockdev", tmp, NULL);
+    }
+
+    return 0;
+}
+
+
+static int
+qemuBuildDiskThrottleFiltersCommandLine(virCommand *cmd,
+                                        virDomainDiskDef *disk)
+{
+    g_autoptr(qemuBlockThrottleFiltersData) data = NULL;
+    size_t i;
+
+    data = qemuBuildThrottleFiltersAttachPrepareBlockdev(disk);
+    if (!data)
+        return -1;
+
+    for (i = 0; i < data->nfilterdata; i++) {
+        if (qemuBuildBlockThrottleFilterCommandline(cmd,
+                                                    data->filterdata[i]) < 0)
+            return -1;
     }
 
     return 0;
@@ -2100,6 +2172,9 @@ qemuBuildDiskCommandLine(virCommand *cmd,
     g_autoptr(virJSONValue) devprops = NULL;
 
     if (qemuBuildDiskSourceCommandLine(cmd, disk, qemuCaps) < 0)
+        return -1;
+
+    if (qemuBuildDiskThrottleFiltersCommandLine(cmd, disk) < 0)
         return -1;
 
     /* SD cards are currently instantiated via -drive if=sd, so the -device
@@ -2510,6 +2585,7 @@ qemuBuildControllerSCSIDevProps(virDomainControllerDef *def,
                                 virQEMUCaps *qemuCaps)
 {
     g_autoptr(virJSONValue) props = NULL;
+    g_autoptr(virJSONValue) iothreadsMapping = NULL;
     g_autofree char *iothread = NULL;
     const char *driver = NULL;
 
@@ -2521,6 +2597,10 @@ qemuBuildControllerSCSIDevProps(virDomainControllerDef *def,
                                               qemuCaps)))
             return NULL;
 
+        if (def->iothreads &&
+            !(iothreadsMapping = qemuBuildIothreadMappingProps(def->iothreads)))
+            return NULL;
+
         if (def->iothread > 0)
             iothread = g_strdup_printf("iothread%u", def->iothread);
 
@@ -2528,6 +2608,7 @@ qemuBuildControllerSCSIDevProps(virDomainControllerDef *def,
                                   "S:iothread", iothread,
                                   "s:id", def->info.alias,
                                   "p:num_queues", def->queues,
+                                  "A:iothread-vq-mapping", &iothreadsMapping,
                                   "p:cmd_per_lun", def->cmd_per_lun,
                                   "p:max_sectors", def->max_sectors,
                                   "T:ioeventfd", def->ioeventfd,
@@ -3447,11 +3528,10 @@ qemuBuildMemoryDimmBackendStr(virCommand *cmd,
         return -1;
 
     if (tcProps &&
-        qemuBuildObjectCommandlineFromJSON(cmd, tcProps,
-                                           priv->qemuCaps) < 0)
+        qemuBuildObjectCommandlineFromJSON(cmd, tcProps) < 0)
         return -1;
 
-    if (qemuBuildObjectCommandlineFromJSON(cmd, props, priv->qemuCaps) < 0)
+    if (qemuBuildObjectCommandlineFromJSON(cmd, props) < 0)
         return -1;
 
     return 0;
@@ -4252,7 +4332,7 @@ qemuBuildInputCommandLine(virCommand *cmd,
             if (!(props = qemuBuildInputEvdevProps(input)))
                 return -1;
 
-            if (qemuBuildObjectCommandlineFromJSON(cmd, props, qemuCaps) < 0)
+            if (qemuBuildObjectCommandlineFromJSON(cmd, props) < 0)
                 return -1;
         } else {
             g_autoptr(virJSONValue) props = NULL;
@@ -5376,7 +5456,7 @@ qemuBuildRNGCommandLine(virCommand *cmd,
         if (qemuBuildRNGBackendProps(rng, &props) < 0)
             return -1;
 
-        if (qemuBuildObjectCommandlineFromJSON(cmd, props, qemuCaps) < 0)
+        if (qemuBuildObjectCommandlineFromJSON(cmd, props) < 0)
             return -1;
 
         /* add the device */
@@ -5995,6 +6075,7 @@ qemuBuildBootCommandLine(virCommand *cmd,
 {
     g_auto(virBuffer) boot_buf = VIR_BUFFER_INITIALIZER;
     g_autofree char *boot_opts_str = NULL;
+    size_t i;
 
     if (def->os.bootmenu) {
         if (def->os.bootmenu == VIR_TRISTATE_BOOL_YES)
@@ -6026,13 +6107,18 @@ qemuBuildBootCommandLine(virCommand *cmd,
         virCommandAddArgList(cmd, "-initrd", def->os.initrd, NULL);
     if (def->os.cmdline)
         virCommandAddArgList(cmd, "-append", def->os.cmdline, NULL);
+    if (def->os.shim)
+        virCommandAddArgList(cmd, "-shim", def->os.shim, NULL);
     if (def->os.dtb)
         virCommandAddArgList(cmd, "-dtb", def->os.dtb, NULL);
-    if (def->os.slic_table) {
+    for (i = 0; i < def->os.nacpiTables; i++) {
         g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
+        const char *sig = qemuACPITableSIGTypeToString(def->os.acpiTables[i]->type);
         virCommandAddArg(cmd, "-acpitable");
-        virBufferAddLit(&buf, "sig=SLIC,file=");
-        virQEMUBuildBufferEscapeComma(&buf, def->os.slic_table);
+        if (*sig != '\0')
+            virBufferAsprintf(&buf, "sig=%s,", sig);
+        virBufferAddLit(&buf, "file=");
+        virQEMUBuildBufferEscapeComma(&buf, def->os.acpiTables[i]->path);
         virCommandAddArgBuffer(cmd, &buf);
     }
 
@@ -7229,11 +7315,10 @@ qemuBuildMemCommandLineMemoryDefaultBackend(virCommand *cmd,
         return -1;
 
     if (tcProps &&
-        qemuBuildObjectCommandlineFromJSON(cmd, tcProps,
-                                           priv->qemuCaps) < 0)
+        qemuBuildObjectCommandlineFromJSON(cmd, tcProps) < 0)
         return -1;
 
-    if (qemuBuildObjectCommandlineFromJSON(cmd, props, priv->qemuCaps) < 0)
+    if (qemuBuildObjectCommandlineFromJSON(cmd, props) < 0)
         return -1;
 
     return 0;
@@ -7302,8 +7387,7 @@ qemuBuildMemCommandLine(virCommand *cmd,
 
 static int
 qemuBuildIOThreadCommandLine(virCommand *cmd,
-                             const virDomainDef *def,
-                             virQEMUCaps *qemuCaps)
+                             const virDomainDef *def)
 {
     size_t i;
 
@@ -7338,7 +7422,7 @@ qemuBuildIOThreadCommandLine(virCommand *cmd,
                                   NULL) < 0)
             return -1;
 
-        if (qemuBuildObjectCommandlineFromJSON(cmd, props, qemuCaps) < 0)
+        if (qemuBuildObjectCommandlineFromJSON(cmd, props) < 0)
             return -1;
     }
 
@@ -7351,7 +7435,7 @@ qemuBuildIOThreadCommandLine(virCommand *cmd,
                                          NULL) < 0)
             return -1;
 
-        if (qemuBuildObjectCommandlineFromJSON(cmd, props, qemuCaps) < 0)
+        if (qemuBuildObjectCommandlineFromJSON(cmd, props) < 0)
             return -1;
     }
 
@@ -7583,12 +7667,10 @@ qemuBuildNumaCommandLine(virQEMUDriverConfig *cfg,
                 goto cleanup;
 
             if (tcProps &&
-                qemuBuildObjectCommandlineFromJSON(cmd, tcProps,
-                                                   priv->qemuCaps) < 0)
+                qemuBuildObjectCommandlineFromJSON(cmd, tcProps) < 0)
                 goto cleanup;
 
-            if (qemuBuildObjectCommandlineFromJSON(cmd, nodeBackends[i],
-                                                   priv->qemuCaps) < 0)
+            if (qemuBuildObjectCommandlineFromJSON(cmd, nodeBackends[i]) < 0)
                 goto cleanup;
         }
 
@@ -8032,7 +8114,6 @@ static int
 qemuBuildGraphicsVNCCommandLine(virQEMUDriverConfig *cfg,
                                 const virDomainDef *def,
                                 virCommand *cmd,
-                                virQEMUCaps *qemuCaps,
                                 virDomainGraphicsDef *graphics)
 {
     g_autofree char *audioid = qemuGetAudioIDString(def, graphics->data.vnc.audioId);
@@ -8103,8 +8184,7 @@ qemuBuildGraphicsVNCCommandLine(virQEMUDriverConfig *cfg,
 
         if (gfxPriv->secinfo) {
             if (qemuBuildObjectSecretCommandLine(cmd,
-                                                 gfxPriv->secinfo,
-                                                 qemuCaps) < 0)
+                                                 gfxPriv->secinfo) < 0)
                 return -1;
             secretAlias = gfxPriv->secinfo->alias;
         }
@@ -8114,8 +8194,7 @@ qemuBuildGraphicsVNCCommandLine(virQEMUDriverConfig *cfg,
                                         true,
                                         cfg->vncTLSx509verify,
                                         secretAlias,
-                                        gfxPriv->tlsAlias,
-                                        qemuCaps) < 0)
+                                        gfxPriv->tlsAlias) < 0)
             return -1;
 
         virBufferAsprintf(&opt, ",tls-creds=%s", gfxPriv->tlsAlias);
@@ -8424,7 +8503,7 @@ qemuBuildGraphicsCommandLine(virQEMUDriverConfig *cfg,
             break;
         case VIR_DOMAIN_GRAPHICS_TYPE_VNC:
             if (qemuBuildGraphicsVNCCommandLine(cfg, def, cmd,
-                                                qemuCaps, graphics) < 0)
+                                                graphics) < 0)
                 return -1;
 
             break;
@@ -8446,6 +8525,7 @@ qemuBuildGraphicsCommandLine(virQEMUDriverConfig *cfg,
 
             break;
         case VIR_DOMAIN_GRAPHICS_TYPE_RDP:
+            break;
         case VIR_DOMAIN_GRAPHICS_TYPE_DESKTOP:
             return -1;
         case VIR_DOMAIN_GRAPHICS_TYPE_LAST:
@@ -9026,7 +9106,7 @@ qemuBuildShmemCommandLine(virCommand *cmd,
         if (!(memProps = qemuBuildShmemBackendMemProps(shmem)))
             return -1;
 
-        if (qemuBuildObjectCommandlineFromJSON(cmd, memProps, qemuCaps) < 0)
+        if (qemuBuildObjectCommandlineFromJSON(cmd, memProps) < 0)
             return -1;
 
         G_GNUC_FALLTHROUGH;
@@ -9647,7 +9727,7 @@ qemuBuildSEVCommandLine(virDomainObj *vm, virCommand *cmd,
                                      NULL) < 0)
         return -1;
 
-    if (qemuBuildObjectCommandlineFromJSON(cmd, props, priv->qemuCaps) < 0)
+    if (qemuBuildObjectCommandlineFromJSON(cmd, props) < 0)
         return -1;
 
     return 0;
@@ -9655,12 +9735,10 @@ qemuBuildSEVCommandLine(virDomainObj *vm, virCommand *cmd,
 
 
 static int
-qemuBuildSEVSNPCommandLine(virDomainObj *vm,
-                           virCommand *cmd,
+qemuBuildSEVSNPCommandLine(virCommand *cmd,
                            virDomainSEVSNPDef *def)
 {
     g_autoptr(virJSONValue) props = NULL;
-    qemuDomainObjPrivate *priv = vm->privateData;
     virTristateBool vcek_disabled = VIR_TRISTATE_BOOL_ABSENT;
 
     VIR_DEBUG("policy=0x%llx cbitpos=%d reduced_phys_bits=%d",
@@ -9687,7 +9765,7 @@ qemuBuildSEVSNPCommandLine(virDomainObj *vm,
                                      NULL) < 0)
         return -1;
 
-    if (qemuBuildObjectCommandlineFromJSON(cmd, props, priv->qemuCaps) < 0)
+    if (qemuBuildObjectCommandlineFromJSON(cmd, props) < 0)
         return -1;
 
     return 0;
@@ -9695,16 +9773,15 @@ qemuBuildSEVSNPCommandLine(virDomainObj *vm,
 
 
 static int
-qemuBuildPVCommandLine(virDomainObj *vm, virCommand *cmd)
+qemuBuildPVCommandLine(virCommand *cmd)
 {
     g_autoptr(virJSONValue) props = NULL;
-    qemuDomainObjPrivate *priv = vm->privateData;
 
     if (qemuMonitorCreateObjectProps(&props, "s390-pv-guest", "lsec0",
                                      NULL) < 0)
         return -1;
 
-    if (qemuBuildObjectCommandlineFromJSON(cmd, props, priv->qemuCaps) < 0)
+    if (qemuBuildObjectCommandlineFromJSON(cmd, props) < 0)
         return -1;
 
     return 0;
@@ -9721,13 +9798,13 @@ qemuBuildSecCommandLine(virDomainObj *vm, virCommand *cmd,
     switch (sec->sectype) {
     case VIR_DOMAIN_LAUNCH_SECURITY_SEV:
         return qemuBuildSEVCommandLine(vm, cmd, &sec->data.sev);
-        break;
+
     case VIR_DOMAIN_LAUNCH_SECURITY_SEV_SNP:
-        return qemuBuildSEVSNPCommandLine(vm, cmd, &sec->data.sev_snp);
-        break;
+        return qemuBuildSEVSNPCommandLine(cmd, &sec->data.sev_snp);
+
     case VIR_DOMAIN_LAUNCH_SECURITY_PV:
-        return qemuBuildPVCommandLine(vm, cmd);
-        break;
+        return qemuBuildPVCommandLine(cmd);
+
     case VIR_DOMAIN_LAUNCH_SECURITY_NONE:
     case VIR_DOMAIN_LAUNCH_SECURITY_LAST:
         virReportEnumRangeError(virDomainLaunchSecurity, sec->sectype);
@@ -9883,7 +9960,7 @@ qemuBuildManagedPRCommandLine(virCommand *cmd,
     if (!(props = qemuBuildPRManagedManagerInfoProps(priv)))
         return -1;
 
-    if (qemuBuildObjectCommandlineFromJSON(cmd, props, priv->qemuCaps) < 0)
+    if (qemuBuildObjectCommandlineFromJSON(cmd, props) < 0)
         return -1;
 
     return 0;
@@ -9970,7 +10047,7 @@ qemuBuildDBusVMStateCommandLine(virCommand *cmd,
     if (!(props = qemuBuildDBusVMStateInfoProps(driver, vm)))
         return -1;
 
-    if (qemuBuildObjectCommandlineFromJSON(cmd, props, priv->qemuCaps) < 0)
+    if (qemuBuildObjectCommandlineFromJSON(cmd, props) < 0)
         return -1;
 
     priv->dbusVMState = true;
@@ -9998,6 +10075,7 @@ qemuBuildCommandLineValidate(virQEMUDriver *driver,
     int spice = 0;
     int egl_headless = 0;
     int dbus = 0;
+    int rdp = 0;
 
     if (!driver->privileged) {
         /* If we have no cgroups then we can have no tunings that
@@ -10046,15 +10124,17 @@ qemuBuildCommandLineValidate(virQEMUDriver *driver,
             ++dbus;
             break;
         case VIR_DOMAIN_GRAPHICS_TYPE_RDP:
+            ++rdp;
+            break;
         case VIR_DOMAIN_GRAPHICS_TYPE_DESKTOP:
         case VIR_DOMAIN_GRAPHICS_TYPE_LAST:
             break;
         }
     }
 
-    if (sdl > 1 || vnc > 1 || spice > 1 || egl_headless > 1 || dbus > 1) {
+    if (sdl > 1 || vnc > 1 || spice > 1 || egl_headless > 1 || dbus > 1 || rdp > 1) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("only 1 graphics device of each type (sdl, vnc, spice, headless, dbus) is supported"));
+                       _("only 1 graphics device of each type (sdl, vnc, spice, headless, dbus, rdp) is supported"));
         return -1;
     }
 
@@ -10074,7 +10154,7 @@ qemuBuildCommandLineValidate(virQEMUDriver *driver,
 static int
 qemuBuildSeccompSandboxCommandLine(virCommand *cmd,
                                    virQEMUDriverConfig *cfg,
-                                   virQEMUCaps *qemuCaps G_GNUC_UNUSED)
+                                   virQEMUCaps *qemuCaps)
 {
     if (cfg->seccompSandbox == 0) {
         if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_SECCOMP_SANDBOX))
@@ -10220,7 +10300,7 @@ qemuBuildCryptoCommandLine(virCommand *cmd,
         if (qemuBuildCryptoBackendProps(crypto, &props) < 0)
             return -1;
 
-        if (qemuBuildObjectCommandlineFromJSON(cmd, props, qemuCaps) < 0)
+        if (qemuBuildObjectCommandlineFromJSON(cmd, props) < 0)
             return -1;
 
         /* add the device */
@@ -10277,7 +10357,7 @@ qemuBuildPstoreCommandLine(virCommand *cmd,
     if (qemuBuildDeviceAddressProps(devProps, def, &pstore->info) < 0)
         return -1;
 
-    if (qemuBuildObjectCommandlineFromJSON(cmd, memProps, qemuCaps) < 0 ||
+    if (qemuBuildObjectCommandlineFromJSON(cmd, memProps) < 0 ||
         qemuBuildDeviceCommandlineFromJSON(cmd, devProps, def, qemuCaps) < 0)
         return -1;
 
@@ -10325,8 +10405,7 @@ VIR_ENUM_IMPL(qemuCommandDeprecationBehavior,
 static void
 qemuBuildCompatDeprecatedCommandLine(virCommand *cmd,
                                      virQEMUDriverConfig *cfg,
-                                     virDomainDef *def,
-                                     virQEMUCaps *qemuCaps)
+                                     virDomainDef *def)
 {
     g_autoptr(virJSONValue) props = NULL;
     g_autofree char *propsstr = NULL;
@@ -10350,13 +10429,6 @@ qemuBuildCompatDeprecatedCommandLine(virCommand *cmd,
 
     if (behavior == QEMU_COMMAND_DEPRECATION_BEHAVIOR_NONE)
         return;
-
-    /* we don't try to enable this feature at all if qemu doesn't support it,
-     * so that a downgrade of qemu version doesn't impact startup of the VM */
-    if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_COMPAT_DEPRECATED)) {
-        VIR_DEBUG("-compat not supported for VM '%s'", def->name);
-        return;
-    }
 
     switch (behavior) {
     case QEMU_COMMAND_DEPRECATION_BEHAVIOR_OMIT:
@@ -10441,7 +10513,7 @@ qemuBuildCommandLine(virDomainObj *vm,
     if (qemuBuildNameCommandLine(cmd, cfg, def) < 0)
         return NULL;
 
-    qemuBuildCompatDeprecatedCommandLine(cmd, cfg, def, qemuCaps);
+    qemuBuildCompatDeprecatedCommandLine(cmd, cfg, def);
 
     virCommandAddArg(cmd, "-S"); /* freeze CPUs during startup */
 
@@ -10475,7 +10547,10 @@ qemuBuildCommandLine(virDomainObj *vm,
     if (qemuBuildSmpCommandLine(cmd, def, qemuCaps) < 0)
         return NULL;
 
-    if (qemuBuildIOThreadCommandLine(cmd, def, qemuCaps) < 0)
+    if (qemuBuildIOThreadCommandLine(cmd, def) < 0)
+        return NULL;
+
+    if (qemuBuildThrottleGroupCommandLine(cmd, def) < 0)
         return NULL;
 
     if (virDomainNumaGetNodeCount(def->numa) &&
@@ -11039,6 +11114,87 @@ qemuBuildStorageSourceChainAttachPrepareBlockdevOne(qemuBlockStorageSourceChainD
     VIR_APPEND_ELEMENT(data->srcdata, data->nsrcdata, elem);
 
     return 0;
+}
+
+
+/**
+ * qemuBuildThrottleFiltersAttachPrepareBlockdevOne:
+ * @data: filter chain data, which consists of array of filters and size of such array
+ * @throttlefilter: new filter to be added into filter array
+ * @parentNodeName: parent nodename for this new throttlefilter
+ *
+ * Build filter node chain to provide more flexibility for block disk I/O limits
+ */
+static int
+qemuBuildThrottleFiltersAttachPrepareBlockdevOne(qemuBlockThrottleFiltersData *data,
+                                                 virDomainThrottleFilterDef *throttlefilter,
+                                                 const char *parentNodeName)
+{
+    g_autoptr(qemuBlockThrottleFilterAttachData) elem = NULL;
+
+    if (!(elem = qemuBlockThrottleFilterAttachPrepareBlockdev(throttlefilter, parentNodeName)))
+        return -1;
+
+    VIR_APPEND_ELEMENT(data->filterdata, data->nfilterdata, elem);
+    return 0;
+}
+
+
+/**
+ * qemuBuildThrottleFiltersAttachPrepareBlockdev:
+ * @disk: domain disk
+ *
+ * Build filter node chain to provide more flexibility for block disk I/O limits
+ */
+qemuBlockThrottleFiltersData *
+qemuBuildThrottleFiltersAttachPrepareBlockdev(virDomainDiskDef *disk)
+{
+    g_autoptr(qemuBlockThrottleFiltersData) data = NULL;
+    size_t i;
+    const char *parentNodeName = NULL;
+    qemuDomainDiskPrivate *priv = QEMU_DOMAIN_DISK_PRIVATE(disk);
+
+    data = g_new0(qemuBlockThrottleFiltersData, 1);
+    /* if copy_on_read is enabled, put throttle chain on top of it */
+    if (disk->copy_on_read == VIR_TRISTATE_SWITCH_ON) {
+       parentNodeName = priv->nodeCopyOnRead;
+    } else {
+        parentNodeName = qemuBlockStorageSourceGetEffectiveNodename(disk->src);
+
+    }
+    /* build filterdata, which contains all filters info and sequence info through parentNodeName */
+    for (i = 0; i < disk->nthrottlefilters; i++) {
+        if (qemuBuildThrottleFiltersAttachPrepareBlockdevOne(data, disk->throttlefilters[i], parentNodeName) < 0)
+            return NULL;
+        parentNodeName = disk->throttlefilters[i]->nodename;
+    }
+
+    return g_steal_pointer(&data);
+}
+
+
+/**
+ * qemuBuildThrottleFiltersDetachPrepareBlockdev:
+ * @disk: domain disk
+ *
+ * Build filters data for later "blockdev-del"
+ */
+qemuBlockThrottleFiltersData *
+qemuBuildThrottleFiltersDetachPrepareBlockdev(virDomainDiskDef *disk)
+{
+    g_autoptr(qemuBlockThrottleFiltersData) data = g_new0(qemuBlockThrottleFiltersData, 1);
+    size_t i;
+
+    /* build filterdata, which contains filters info and sequence info */
+    for (i = 0; i < disk->nthrottlefilters; i++) {
+        g_autoptr(qemuBlockThrottleFilterAttachData) elem = g_new0(qemuBlockThrottleFilterAttachData, 1);
+        /* ignore other fields since the following info are enough for "blockdev-del" */
+        elem->filterNodeName = qemuBlockThrottleFilterGetNodename(disk->throttlefilters[i]);
+        elem->filterAttached = true;
+
+        VIR_APPEND_ELEMENT(data->filterdata, data->nfilterdata, elem);
+    }
+    return g_steal_pointer(&data);
 }
 
 

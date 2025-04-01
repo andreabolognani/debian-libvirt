@@ -35,10 +35,12 @@
 #include "qemu_capabilities.h"
 #include "qemu_migration_params.h"
 #include "qemu_nbdkit.h"
+#include "qemu_rdp.h"
 #include "qemu_slirp.h"
 #include "qemu_fd.h"
 #include "virchrdev.h"
 #include "virobject.h"
+#include "virgdbus.h"
 #include "virdomainmomentobjlist.h"
 #include "virenum.h"
 #include "vireventthread.h"
@@ -240,6 +242,7 @@ struct _qemuDomainObjPrivate {
     /* running backup job */
     virDomainBackupDef *backup;
 
+    GDBusConnection *dbusConnection;
     bool dbusDaemonRunning;
 
     /* list of Ids to migrate */
@@ -417,6 +420,7 @@ struct _qemuDomainGraphicsPrivate {
 
     char *tlsAlias;
     qemuDomainSecretInfo *secinfo;
+    qemuRdp *rdp;
 };
 
 
@@ -1054,10 +1058,6 @@ qemuDomainValidateActualNetDef(const virDomainNetDef *net,
                                virQEMUCaps *qemuCaps);
 
 int
-qemuDomainSupportsCheckpointsBlockjobs(virDomainObj *vm)
-    G_GNUC_WARN_UNUSED_RESULT;
-
-int
 qemuDomainMakeCPUMigratable(virArch arch,
                             virCPUDef *cpu,
                             virCPUDef *origCPU);
@@ -1132,7 +1132,8 @@ qemuDomainRefreshStatsSchema(virDomainObj *dom);
 int
 qemuDomainSyncRxFilter(virDomainObj *vm,
                        virDomainNetDef *def,
-                       virDomainAsyncJob asyncJob);
+                       virDomainAsyncJob asyncJob,
+                       virObjectEvent **event);
 
 int
 qemuDomainSchedCoreStart(virQEMUDriverConfig *cfg,

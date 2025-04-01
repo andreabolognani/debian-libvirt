@@ -1090,24 +1090,15 @@ qemuDomainDefBootPostParse(virDomainDef *def,
 }
 
 
-static int
+static void
 qemuDomainDefAddImplicitInputDevice(virDomainDef *def,
                                     virQEMUCaps *qemuCaps)
 {
     if (virQEMUCapsSupportsI8042(qemuCaps, def) &&
         def->features[VIR_DOMAIN_FEATURE_PS2] != VIR_TRISTATE_SWITCH_OFF) {
-        if (virDomainDefMaybeAddInput(def,
-                                      VIR_DOMAIN_INPUT_TYPE_MOUSE,
-                                      VIR_DOMAIN_INPUT_BUS_PS2) < 0)
-            return -1;
-
-        if (virDomainDefMaybeAddInput(def,
-                                      VIR_DOMAIN_INPUT_TYPE_KBD,
-                                      VIR_DOMAIN_INPUT_BUS_PS2) < 0)
-            return -1;
+        virDomainDefMaybeAddInput(def, VIR_DOMAIN_INPUT_TYPE_MOUSE, VIR_DOMAIN_INPUT_BUS_PS2);
+        virDomainDefMaybeAddInput(def, VIR_DOMAIN_INPUT_TYPE_KBD, VIR_DOMAIN_INPUT_BUS_PS2);
     }
-
-    return 0;
 }
 
 
@@ -1202,8 +1193,7 @@ qemuDomainDefAddDefaultDevices(virQEMUDriver *driver,
     bool addIOMMU = false;
 
     /* add implicit input devices */
-    if (qemuDomainDefAddImplicitInputDevice(def, qemuCaps) < 0)
-        return -1;
+    qemuDomainDefAddImplicitInputDevice(def, qemuCaps);
 
     /* Add implicit PCI root controller if the machine has one */
     switch (def->os.arch) {
@@ -1342,15 +1332,11 @@ qemuDomainDefAddDefaultDevices(virQEMUDriver *driver,
         break;
     }
 
-    if (addDefaultUSB &&
-        virDomainControllerFind(def, VIR_DOMAIN_CONTROLLER_TYPE_USB, 0) < 0 &&
-        virDomainDefAddUSBController(def, 0, usbModel) < 0)
-        return -1;
+    if (addDefaultUSB && virDomainControllerFind(def, VIR_DOMAIN_CONTROLLER_TYPE_USB, 0) < 0)
+        virDomainDefAddUSBController(def, 0, usbModel);
 
-    if (addImplicitSATA &&
-        virDomainDefMaybeAddController(
-            def, VIR_DOMAIN_CONTROLLER_TYPE_SATA, 0, -1) < 0)
-        return -1;
+    if (addImplicitSATA)
+        virDomainDefMaybeAddController(def, VIR_DOMAIN_CONTROLLER_TYPE_SATA, 0, -1);
 
     pciRoot = virDomainControllerFind(def, VIR_DOMAIN_CONTROLLER_TYPE_PCI, 0);
 
@@ -1365,9 +1351,9 @@ qemuDomainDefAddDefaultDevices(virQEMUDriver *driver,
                                virDomainControllerModelPCITypeToString(def->controllers[pciRoot]->model));
                 return -1;
             }
-        } else if (!virDomainDefAddController(def, VIR_DOMAIN_CONTROLLER_TYPE_PCI, 0,
-                                              VIR_DOMAIN_CONTROLLER_MODEL_PCI_ROOT)) {
-            return -1;
+        } else {
+            virDomainDefAddController(def, VIR_DOMAIN_CONTROLLER_TYPE_PCI, 0,
+                                      VIR_DOMAIN_CONTROLLER_MODEL_PCI_ROOT);
         }
     }
 
@@ -1386,9 +1372,9 @@ qemuDomainDefAddDefaultDevices(virQEMUDriver *driver,
                                virDomainControllerModelPCITypeToString(def->controllers[pciRoot]->model));
                 return -1;
             }
-        } else if (!virDomainDefAddController(def, VIR_DOMAIN_CONTROLLER_TYPE_PCI, 0,
-                                             VIR_DOMAIN_CONTROLLER_MODEL_PCIE_ROOT)) {
-            return -1;
+        } else {
+            virDomainDefAddController(def, VIR_DOMAIN_CONTROLLER_TYPE_PCI, 0,
+                                      VIR_DOMAIN_CONTROLLER_MODEL_PCIE_ROOT);
         }
     }
 
@@ -1420,19 +1406,11 @@ qemuDomainDefAddDefaultDevices(virQEMUDriver *driver,
             addDefaultUSBMouse = false;
     }
 
-    if (addDefaultUSBKBD &&
-        def->ngraphics > 0 &&
-        virDomainDefMaybeAddInput(def,
-                                  VIR_DOMAIN_INPUT_TYPE_KBD,
-                                  VIR_DOMAIN_INPUT_BUS_USB) < 0)
-        return -1;
+    if (addDefaultUSBKBD && def->ngraphics > 0)
+        virDomainDefMaybeAddInput(def, VIR_DOMAIN_INPUT_TYPE_KBD, VIR_DOMAIN_INPUT_BUS_USB);
 
-    if (addDefaultUSBMouse &&
-        def->ngraphics > 0 &&
-        virDomainDefMaybeAddInput(def,
-                                  VIR_DOMAIN_INPUT_TYPE_MOUSE,
-                                  VIR_DOMAIN_INPUT_BUS_USB) < 0)
-        return -1;
+    if (addDefaultUSBMouse && def->ngraphics > 0)
+        virDomainDefMaybeAddInput(def, VIR_DOMAIN_INPUT_TYPE_MOUSE, VIR_DOMAIN_INPUT_BUS_USB);
 
     if (addPanicDevice) {
         virDomainPanicModel defaultModel = qemuDomainDefaultPanicModel(def);

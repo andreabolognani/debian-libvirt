@@ -53,14 +53,19 @@ struct _qemuProcessIncomingDef {
     char *address; /* address where QEMU is supposed to listen */
     char *uri; /* used when calling migrate-incoming QMP command */
     int fd; /* for fd:N URI */
+    qemuFDPass *fdPassMigrate; /* for file:/dev/fdset/n,offset=x URI */
     const char *path; /* path associated with fd */
 };
 
-qemuProcessIncomingDef *qemuProcessIncomingDefNew(virQEMUCaps *qemuCaps,
-                                                    const char *listenAddress,
-                                                    const char *migrateFrom,
-                                                    int fd,
-                                                    const char *path);
+qemuProcessIncomingDef *qemuProcessIncomingDefNew(virQEMUDriver *driver,
+                                                  virDomainObj *vm,
+                                                  const char *listenAddress,
+                                                  const char *migrateFrom,
+                                                  int *fd,
+                                                  const char *path,
+                                                  virQEMUSaveData *data,
+                                                  qemuMigrationParams *migParams);
+
 void qemuProcessIncomingDefFree(qemuProcessIncomingDef *inc);
 
 int qemuProcessBeginJob(virDomainObj *vm,
@@ -83,10 +88,11 @@ int qemuProcessStart(virConnectPtr conn,
                      virDomainObj *vm,
                      virCPUDef *updatedCPU,
                      virDomainAsyncJob asyncJob,
-                     const char *migrateFrom,
+                     qemuProcessIncomingDef *incoming,
                      int stdin_fd,
                      const char *stdin_path,
                      virDomainMomentObj *snapshot,
+                     qemuMigrationParams *migParams,
                      virNetDevVPortProfileOp vmop,
                      unsigned int flags);
 
@@ -97,6 +103,7 @@ int qemuProcessStartWithMemoryState(virConnectPtr conn,
                                     const char *path,
                                     virDomainMomentObj *snapshot,
                                     virQEMUSaveData *data,
+                                    qemuMigrationParams *migParams,
                                     virDomainAsyncJob asyncJob,
                                     unsigned int start_flags,
                                     const char *reason,

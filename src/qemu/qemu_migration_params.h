@@ -42,6 +42,7 @@ typedef enum {
     QEMU_MIGRATION_CAP_ZERO_COPY_SEND,
     QEMU_MIGRATION_CAP_POSTCOPY_PREEMPT,
     QEMU_MIGRATION_CAP_SWITCHOVER_ACK,
+    QEMU_MIGRATION_CAP_MAPPED_RAM,
 
     QEMU_MIGRATION_CAP_LAST
 } qemuMigrationCapability;
@@ -65,6 +66,7 @@ typedef enum {
     QEMU_MIGRATION_PARAM_MULTIFD_ZLIB_LEVEL,
     QEMU_MIGRATION_PARAM_MULTIFD_ZSTD_LEVEL,
     QEMU_MIGRATION_PARAM_AVAIL_SWITCHOVER_BANDWIDTH,
+    QEMU_MIGRATION_PARAM_DIRECT_IO,
 
     QEMU_MIGRATION_PARAM_LAST
 } qemuMigrationParam;
@@ -85,6 +87,12 @@ qemuMigrationParamsFromFlags(virTypedParameterPtr params,
                              int nparams,
                              unsigned int flags,
                              qemuMigrationParty party);
+
+qemuMigrationParams *
+qemuMigrationParamsForSave(virTypedParameterPtr params,
+                           int nparams,
+                           bool sparse,
+                           unsigned int flags);
 
 int
 qemuMigrationParamsDump(qemuMigrationParams *migParams,
@@ -136,6 +144,15 @@ int
 qemuMigrationParamsGetULL(qemuMigrationParams *migParams,
                           qemuMigrationParam param,
                           unsigned long long *value);
+
+int
+qemuMigrationParamsGetBool(qemuMigrationParams *migParams,
+                           qemuMigrationParam param,
+                           bool *value);
+
+bool
+qemuMigrationParamsCapEnabled(qemuMigrationParams *migParams,
+                              qemuMigrationCapability cap);
 
 void
 qemuMigrationParamsSetBlockDirtyBitmapMapping(qemuMigrationParams *migParams,

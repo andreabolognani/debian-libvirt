@@ -1038,6 +1038,7 @@ qemuDomainGraphicsPrivateDispose(void *obj)
 
     g_free(priv->tlsAlias);
     g_clear_pointer(&priv->secinfo, qemuDomainSecretInfoFree);
+    g_clear_pointer(&priv->rdp, qemuRdpFree);
 }
 
 
@@ -2236,6 +2237,33 @@ qemuStorageSourcePrivateDataFormat(virStorageSource *src,
 
 
 static int
+virDomainDiskThrottleFilterNodeNamesParse(xmlXPathContextPtr ctxt,
+                                          virDomainDiskDef *def)
+{
+    size_t i;
+    int n = 0;
+    g_autofree xmlNodePtr *nodes = NULL;
+    g_autoptr(GHashTable) throttleFiltersMap = virHashNew(g_free);
+
+    if ((n = virXPathNodeSet("./nodenames/nodename[@type='throttle-filter']", ctxt, &nodes)) < 0)
+        return -1;
+
+    for (i = 0; i < n; i++) {
+        g_hash_table_insert(throttleFiltersMap, virXMLPropString(nodes[i], "group"), virXMLPropString(nodes[i], "name"));
+    }
+
+    for (i = 0; i < def->nthrottlefilters; i++) {
+        char *nodename = g_hash_table_lookup(throttleFiltersMap, def->throttlefilters[i]->group_name);
+        if (nodename) {
+            qemuBlockThrottleFilterSetNodename(def->throttlefilters[i], g_strdup(nodename));
+        }
+    }
+
+    return 0;
+}
+
+
+static int
 qemuDomainDiskPrivateParse(xmlXPathContextPtr ctxt,
                            virDomainDiskDef *disk)
 {
@@ -2243,6 +2271,9 @@ qemuDomainDiskPrivateParse(xmlXPathContextPtr ctxt,
 
     priv->qomName = virXPathString("string(./qom/@name)", ctxt);
     priv->nodeCopyOnRead = virXPathString("string(./nodenames/nodename[@type='copyOnRead']/@name)", ctxt);
+
+    if (virDomainDiskThrottleFilterNodeNamesParse(ctxt, disk) < 0)
+        return -1;
 
     return 0;
 }
@@ -2253,14 +2284,27 @@ qemuDomainDiskPrivateFormat(virDomainDiskDef *disk,
                             virBuffer *buf)
 {
     qemuDomainDiskPrivate *priv = QEMU_DOMAIN_DISK_PRIVATE(disk);
+    size_t i;
 
     virBufferEscapeString(buf, "<qom name='%s'/>\n", priv->qomName);
 
-    if (priv->nodeCopyOnRead) {
+    if (priv->nodeCopyOnRead || disk->nthrottlefilters > 0) {
         virBufferAddLit(buf, "<nodenames>\n");
         virBufferAdjustIndent(buf, 2);
-        virBufferEscapeString(buf, "<nodename type='copyOnRead' name='%s'/>\n",
-                              priv->nodeCopyOnRead);
+        if (priv->nodeCopyOnRead)
+            virBufferEscapeString(buf, "<nodename type='copyOnRead' name='%s'/>\n",
+                                  priv->nodeCopyOnRead);
+        if (disk->nthrottlefilters > 0) {
+            for (i = 0; i < disk->nthrottlefilters; i++) {
+
+                if (disk->throttlefilters[i]->nodename)
+                    virBufferEscapeString(buf, "<nodename type='throttle-filter' name='%s' ",
+                                          disk->throttlefilters[i]->nodename);
+
+                if (disk->throttlefilters[i]->group_name)
+                    virBufferEscapeString(buf, "group='%s'/>\n", disk->throttlefilters[i]->group_name);
+            }
+        }
         virBufferAdjustIndent(buf, -2);
         virBufferAddLit(buf, "</nodenames>\n");
     }
@@ -6291,7 +6335,8 @@ qemuDomainDetermineDiskChain(virQEMUDriver *driver,
  * @disk: disk definition object
  *
  * Returns the pointer to the node-name of the topmost layer used by @disk as
- * backend. Currently returns the nodename of the copy-on-read filter if enabled
+ * backend. Currently returns the nodename of top throttle filter if enabled
+ * or the nodename of the copy-on-read filter if enabled
  * or the nodename of the top image's format driver. Empty disks return NULL.
  * This must be used only with disks instantiated via -blockdev (thus not
  * for SD cards).
@@ -6303,6 +6348,10 @@ qemuDomainDiskGetTopNodename(virDomainDiskDef *disk)
 
     if (virStorageSourceIsEmpty(disk->src))
         return NULL;
+
+    /* If disk has throttles, take top throttle node name */
+    if (disk->nthrottlefilters > 0)
+        return disk->throttlefilters[disk->nthrottlefilters - 1]->nodename;
 
     if (disk->copy_on_read == VIR_TRISTATE_SWITCH_ON)
         return priv->nodeCopyOnRead;
@@ -9706,6 +9755,22 @@ qemuDomainPrepareStorageSourceBlockdevNodename(virDomainDiskDef *disk,
 }
 
 
+static void
+qemuDomainPrepareThrottleFilterBlockdev(virDomainThrottleFilterDef *filter,
+                                        qemuDomainObjPrivate *priv)
+{
+    g_autofree char *nodenameprefix = NULL;
+
+    /* skip setting throttle filter nodename if it's set by parsing statusxml */
+    if (filter->nodename) {
+        return;
+    }
+    nodenameprefix = g_strdup_printf("libvirt-%u", qemuDomainStorageIDNew(priv));
+
+    qemuBlockThrottleFilterSetNodename(filter, g_strdup_printf("%s-filter", nodenameprefix));
+}
+
+
 int
 qemuDomainPrepareStorageSourceBlockdev(virDomainDiskDef *disk,
                                        virStorageSource *src,
@@ -9729,6 +9794,7 @@ qemuDomainPrepareDiskSourceBlockdev(virDomainDiskDef *disk,
 {
     qemuDomainDiskPrivate *diskPriv = QEMU_DOMAIN_DISK_PRIVATE(disk);
     virStorageSource *n;
+    size_t i;
 
     if (disk->copy_on_read == VIR_TRISTATE_SWITCH_ON &&
         !diskPriv->nodeCopyOnRead)
@@ -9741,6 +9807,10 @@ qemuDomainPrepareDiskSourceBlockdev(virDomainDiskDef *disk,
         if (n->dataFileStore &&
             qemuDomainPrepareStorageSourceBlockdev(disk, n->dataFileStore, priv, cfg) < 0)
             return -1;
+    }
+
+    for (i = 0; i < disk->nthrottlefilters; i++) {
+        qemuDomainPrepareThrottleFilterBlockdev(disk->throttlefilters[i], priv);
     }
 
     return 0;
@@ -10168,29 +10238,6 @@ qemuDomainDefHasManagedPR(virDomainObj *vm)
     return jobPR;
 }
 
-
-/**
- * qemuDomainSupportsCheckpointsBlockjobs:
- * @vm: domain object
- *
- * Checks whether a block job is supported in possible combination with
- * checkpoints (qcow2 bitmaps). Returns -1 if unsupported and reports an error
- * 0 in case everything is supported.
- */
-int
-qemuDomainSupportsCheckpointsBlockjobs(virDomainObj *vm)
-{
-    qemuDomainObjPrivate *priv = vm->privateData;
-
-    if (!virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_INCREMENTAL_BACKUP) &&
-        virDomainListCheckpoints(vm->checkpoints, NULL, NULL, NULL, 0) > 0) {
-        virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
-                       _("cannot perform block operations while checkpoint exists"));
-        return -1;
-    }
-
-    return 0;
-}
 
 /**
  * qemuDomainInitializePflashStorageSource:
@@ -11025,14 +11072,29 @@ syncNicRxFilterMulticast(char *ifname,
 }
 
 
+/**
+ * qemuDomainSyncRxFilter:
+ * @vm: domain object
+ * @def: domain interface definition
+ * @asyncJob: async job type
+ *
+ * Fetch new state of RX Filter and set host side of the interface
+ * accordingly (e.g. reflect MAC address change on macvtap).
+ *
+ * Reflect changed MAC address in the domain definition.
+ *
+ * Returns: 0 on success, -1 on error.
+ */
 int
 qemuDomainSyncRxFilter(virDomainObj *vm,
                        virDomainNetDef *def,
-                       virDomainAsyncJob asyncJob)
+                       virDomainAsyncJob asyncJob,
+                       virObjectEvent **event)
 {
     qemuDomainObjPrivate *priv = vm->privateData;
     g_autoptr(virNetDevRxFilter) guestFilter = NULL;
     g_autoptr(virNetDevRxFilter) hostFilter = NULL;
+    virMacAddr *oldMac = NULL;
     int rc;
 
     if (qemuDomainObjEnterMonitorAsync(vm, asyncJob) < 0)
@@ -11076,6 +11138,37 @@ qemuDomainSyncRxFilter(virDomainObj *vm,
             virNetDevBandwidthUpdateFilter(brname, &guestFilter->mac,
                                            def->data.network.actual->class_id) < 0)
             return -1;
+    }
+
+    if (def->currentAddress)
+        oldMac = def->currentAddress;
+    else
+        oldMac = &def->mac;
+
+    if (virMacAddrCmp(oldMac, &guestFilter->mac)) {
+        if (event) {
+            char oldMACStr[VIR_MAC_STRING_BUFLEN] = { 0 };
+            char newMACStr[VIR_MAC_STRING_BUFLEN] = { 0 };
+
+            virMacAddrFormat(oldMac, oldMACStr);
+            virMacAddrFormat(&guestFilter->mac, newMACStr);
+
+            *event = virDomainEventNICMACChangeNewFromObj(vm,
+                                                          def->info.alias,
+                                                          oldMACStr,
+                                                          newMACStr);
+        }
+
+        /* Reflect changed MAC address in the domain XML. */
+        if (virMacAddrCmp(&def->mac, &guestFilter->mac)) {
+            if (!def->currentAddress) {
+                def->currentAddress = g_new0(virMacAddr, 1);
+            }
+
+            virMacAddrSet(def->currentAddress, &guestFilter->mac);
+        } else {
+            VIR_FREE(def->currentAddress);
+        }
     }
 
     return 0;

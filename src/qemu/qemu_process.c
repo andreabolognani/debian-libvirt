@@ -2969,18 +2969,29 @@ qemuProcessInitPasswords(virQEMUDriver *driver,
 
     for (i = 0; i < vm->def->ngraphics; ++i) {
         virDomainGraphicsDef *graphics = vm->def->graphics[i];
-        if (graphics->type == VIR_DOMAIN_GRAPHICS_TYPE_VNC) {
-            ret = qemuDomainChangeGraphicsPasswords(vm,
-                                                    VIR_DOMAIN_GRAPHICS_TYPE_VNC,
-                                                    &graphics->data.vnc.auth,
-                                                    cfg->vncPassword,
-                                                    asyncJob);
-        } else if (graphics->type == VIR_DOMAIN_GRAPHICS_TYPE_SPICE) {
-            ret = qemuDomainChangeGraphicsPasswords(vm,
-                                                    VIR_DOMAIN_GRAPHICS_TYPE_SPICE,
-                                                    &graphics->data.spice.auth,
-                                                    cfg->spicePassword,
-                                                    asyncJob);
+
+        switch (graphics->type) {
+        case VIR_DOMAIN_GRAPHICS_TYPE_VNC:
+            ret = qemuDomainChangeGraphicsPasswords(
+                vm, VIR_DOMAIN_GRAPHICS_TYPE_VNC, &graphics->data.vnc.auth, NULL,
+                cfg->vncPassword, asyncJob);
+            break;
+        case VIR_DOMAIN_GRAPHICS_TYPE_SPICE:
+            ret = qemuDomainChangeGraphicsPasswords(
+                vm, VIR_DOMAIN_GRAPHICS_TYPE_SPICE, &graphics->data.spice.auth,
+                NULL, cfg->spicePassword, asyncJob);
+            break;
+        case VIR_DOMAIN_GRAPHICS_TYPE_RDP:
+            ret = qemuDomainChangeGraphicsPasswords(
+                vm, VIR_DOMAIN_GRAPHICS_TYPE_RDP, &graphics->data.rdp.auth,
+                cfg->rdpUsername, cfg->rdpPassword, asyncJob);
+            break;
+        case VIR_DOMAIN_GRAPHICS_TYPE_SDL:
+        case VIR_DOMAIN_GRAPHICS_TYPE_DESKTOP:
+        case VIR_DOMAIN_GRAPHICS_TYPE_EGL_HEADLESS:
+        case VIR_DOMAIN_GRAPHICS_TYPE_DBUS:
+        case VIR_DOMAIN_GRAPHICS_TYPE_LAST:
+            break;
         }
 
         if (ret < 0)
@@ -4259,6 +4270,30 @@ qemuProcessSPICEAllocatePorts(virQEMUDriver *driver,
     return 0;
 }
 
+static int
+qemuProcessRDPAllocatePorts(virQEMUDriver *driver,
+                            virDomainGraphicsDef *graphics,
+                            bool allocate)
+{
+    unsigned short port;
+
+    if (!allocate) {
+        if (graphics->data.rdp.autoport)
+            graphics->data.rdp.port = 3389;
+
+        return 0;
+    }
+
+    if (graphics->data.rdp.autoport) {
+        if (virPortAllocatorAcquire(driver->rdpPorts, &port) < 0)
+            return -1;
+        graphics->data.rdp.port = port;
+        graphics->data.rdp.portReserved = true;
+    }
+
+    return 0;
+}
+
 
 static int
 qemuProcessVerifyHypervFeatures(virDomainDef *def,
@@ -4709,7 +4744,10 @@ qemuPrepareNVRAMFile(virQEMUDriver *driver,
         return -1;
     }
 
-    if (loader->nvram->format != loader->nvramTemplateFormat) {
+    /* If 'nvramTemplateFormat' is empty it means that it's a user-provided
+     * template which we couldn't verify. Assume the user knows what they're doing */
+    if (loader->nvramTemplateFormat != VIR_STORAGE_FILE_NONE &&
+        loader->nvram->format != loader->nvramTemplateFormat) {
         virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
                        _("conversion of the nvram template to another target format is not supported"));
         return -1;
@@ -4824,6 +4862,7 @@ qemuProcessIncomingDefFree(qemuProcessIncomingDef *inc)
 
     g_free(inc->address);
     g_free(inc->uri);
+    qemuFDPassFree(inc->fdPassMigrate);
     g_free(inc);
 }
 
@@ -4837,26 +4876,57 @@ qemuProcessIncomingDefFree(qemuProcessIncomingDef *inc)
  * qemuProcessIncomingDefFree will NOT close it.
  */
 qemuProcessIncomingDef *
-qemuProcessIncomingDefNew(virQEMUCaps *qemuCaps,
+qemuProcessIncomingDefNew(virQEMUDriver *driver,
+                          virDomainObj *vm,
                           const char *listenAddress,
                           const char *migrateFrom,
-                          int fd,
-                          const char *path)
+                          int *fd,
+                          const char *path,
+                          virQEMUSaveData *data,
+                          qemuMigrationParams *migParams)
 {
+    g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
+    qemuDomainObjPrivate *priv = vm->privateData;
     qemuProcessIncomingDef *inc = NULL;
 
-    if (qemuMigrationDstCheckProtocol(qemuCaps, migrateFrom) < 0)
+    if (qemuMigrationDstCheckProtocol(priv->qemuCaps, migrateFrom) < 0)
         return NULL;
 
     inc = g_new0(qemuProcessIncomingDef, 1);
 
     inc->address = g_strdup(listenAddress);
 
-    inc->uri = qemuMigrationDstGetURI(migrateFrom, fd);
+    if (data && data->header.format == QEMU_SAVE_FORMAT_SPARSE) {
+        size_t offset = sizeof(virQEMUSaveHeader) + data->header.data_len;
+        bool directio = false;
+
+        inc->fdPassMigrate = qemuFDPassNew("libvirt-incoming-migrate", priv);
+        /* When using directio with mapped-ram, qemu needs an fd without
+         * O_DIRECT set for reading small bits of unaligned state. */
+        if (qemuMigrationParamsGetBool(migParams, QEMU_MIGRATION_PARAM_DIRECT_IO, &directio) < 0)
+            goto error;
+
+        if (directio) {
+            VIR_AUTOCLOSE bufferedFd = -1;
+
+            if ((bufferedFd = qemuDomainOpenFile(cfg, NULL, path, O_RDONLY, NULL)) < 0)
+                goto error;
+
+            qemuFDPassAddFD(inc->fdPassMigrate, &bufferedFd, "-buffered-fd");
+            qemuFDPassAddFD(inc->fdPassMigrate, fd, "direct-io-fd");
+        } else {
+            qemuFDPassAddFD(inc->fdPassMigrate, fd, "-buffered-fd");
+        }
+        inc->uri = g_strdup_printf("file:%s,offset=%#zx",
+                                   qemuFDPassGetPath(inc->fdPassMigrate), offset);
+    } else {
+        inc->uri = qemuMigrationDstGetURI(migrateFrom, *fd);
+    }
+
     if (!inc->uri)
         goto error;
 
-    inc->fd = fd;
+    inc->fd = *fd;
     inc->path = path;
 
     return inc;
@@ -4964,8 +5034,16 @@ qemuProcessGraphicsReservePorts(virDomainGraphicsDef *graphics,
         }
         break;
 
-    case VIR_DOMAIN_GRAPHICS_TYPE_SDL:
     case VIR_DOMAIN_GRAPHICS_TYPE_RDP:
+        if (!graphics->data.rdp.autoport ||
+            reconnect) {
+            if (virPortAllocatorSetUsed(graphics->data.rdp.port) < 0)
+                return -1;
+            graphics->data.rdp.portReserved = true;
+        }
+        break;
+
+    case VIR_DOMAIN_GRAPHICS_TYPE_SDL:
     case VIR_DOMAIN_GRAPHICS_TYPE_DESKTOP:
     case VIR_DOMAIN_GRAPHICS_TYPE_EGL_HEADLESS:
     case VIR_DOMAIN_GRAPHICS_TYPE_DBUS:
@@ -5004,8 +5082,12 @@ qemuProcessGraphicsAllocatePorts(virQEMUDriver *driver,
             return -1;
         break;
 
-    case VIR_DOMAIN_GRAPHICS_TYPE_SDL:
     case VIR_DOMAIN_GRAPHICS_TYPE_RDP:
+        if (qemuProcessRDPAllocatePorts(driver, graphics, allocate) < 0)
+            return -1;
+        break;
+
+    case VIR_DOMAIN_GRAPHICS_TYPE_SDL:
     case VIR_DOMAIN_GRAPHICS_TYPE_DESKTOP:
     case VIR_DOMAIN_GRAPHICS_TYPE_EGL_HEADLESS:
     case VIR_DOMAIN_GRAPHICS_TYPE_DBUS:
@@ -5172,8 +5254,11 @@ qemuProcessGraphicsSetupListen(virQEMUDriver *driver,
         listenAddr = cfg->spiceListen;
         break;
 
-    case VIR_DOMAIN_GRAPHICS_TYPE_SDL:
     case VIR_DOMAIN_GRAPHICS_TYPE_RDP:
+        listenAddr = cfg->rdpListen;
+        break;
+
+    case VIR_DOMAIN_GRAPHICS_TYPE_SDL:
     case VIR_DOMAIN_GRAPHICS_TYPE_DESKTOP:
     case VIR_DOMAIN_GRAPHICS_TYPE_EGL_HEADLESS:
     case VIR_DOMAIN_GRAPHICS_TYPE_DBUS:
@@ -5406,53 +5491,20 @@ qemuProcessMakeDir(virQEMUDriver *driver,
 }
 
 
-static void
-qemuProcessStartWarnShmem(virDomainObj *vm)
+static bool
+virDomainDefHasDBus(const virDomainDef *def, bool p2p)
 {
-    size_t i;
-    bool check_shmem = false;
-    bool shmem = vm->def->nshmems;
+    size_t i = 0;
 
-    /*
-     * For vhost-user to work, the domain has to have some type of
-     * shared memory configured.  We're not the proper ones to judge
-     * whether shared hugepages or shm are enough and will be in the
-     * future, so we'll just warn in case neither is configured.
-     * Moreover failing would give the false illusion that libvirt is
-     * really checking that everything works before running the domain
-     * and not only we are unable to do that, but it's also not our
-     * aim to do so.
-     */
-    for (i = 0; i < vm->def->nnets; i++) {
-        if (virDomainNetGetActualType(vm->def->nets[i]) ==
-                                      VIR_DOMAIN_NET_TYPE_VHOSTUSER) {
-            check_shmem = true;
-            break;
+    for (i = 0; i < def->ngraphics; i++) {
+        virDomainGraphicsDef *graphics = def->graphics[i];
+
+        if (graphics->type == VIR_DOMAIN_GRAPHICS_TYPE_DBUS) {
+            return graphics->data.dbus.p2p == p2p;
         }
     }
 
-    if (!check_shmem)
-        return;
-
-    /*
-     * This check is by no means complete.  We merely check
-     * whether there are *some* hugepages enabled and *some* NUMA
-     * nodes with shared memory access.
-     */
-    if (!shmem && vm->def->mem.nhugepages) {
-        for (i = 0; i < virDomainNumaGetNodeCount(vm->def->numa); i++) {
-            if (virDomainNumaGetNodeMemoryAccessMode(vm->def->numa, i) ==
-                VIR_DOMAIN_MEMORY_ACCESS_SHARED) {
-                shmem = true;
-                break;
-            }
-        }
-    }
-
-    if (!shmem) {
-        VIR_WARN("Detected vhost-user interface without any shared memory, "
-                 "the interface might not be operational");
-    }
+    return false;
 }
 
 
@@ -5474,8 +5526,30 @@ qemuProcessStartValidateGraphics(virDomainObj *vm)
             }
             break;
 
-        case VIR_DOMAIN_GRAPHICS_TYPE_SDL:
         case VIR_DOMAIN_GRAPHICS_TYPE_RDP:
+            if (graphics->nListens > 1) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                               _("qemu-rdp does not support multiple listens for one graphics device."));
+                return -1;
+            }
+            if (graphics->data.rdp.multiUser) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                               _("qemu-rdp doesn't support the 'multiUser' attribute."));
+                return -1;
+            }
+            if (graphics->data.rdp.replaceUser) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                               _("qemu-rdp doesn't support the 'replaceUser' attribute."));
+                return -1;
+            }
+            if (!virDomainDefHasDBus(vm->def, false)) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                               _("qemu-rdp support requires a D-Bus bus graphics device."));
+                return -1;
+            }
+            break;
+
+        case VIR_DOMAIN_GRAPHICS_TYPE_SDL:
         case VIR_DOMAIN_GRAPHICS_TYPE_DESKTOP:
         case VIR_DOMAIN_GRAPHICS_TYPE_EGL_HEADLESS:
         case VIR_DOMAIN_GRAPHICS_TYPE_DBUS:
@@ -5689,10 +5763,6 @@ qemuProcessStartValidate(virQEMUDriver *driver,
 
     if (qemuProcessStartValidateTSC(driver, vm) < 0)
         return -1;
-
-    VIR_DEBUG("Checking for any possible (non-fatal) issues");
-
-    qemuProcessStartWarnShmem(vm);
 
     return 0;
 }
@@ -5982,6 +6052,41 @@ qemuProcessPrepareHostNetwork(virDomainObj *vm)
             if (qemuInterfacePrepareSlirp(priv->driver, net) < 0)
                 return -1;
         }
+
+    }
+
+    return 0;
+}
+
+
+static int
+qemuPrepareGraphicsRdp(virQEMUDriver *driver,
+                       virDomainGraphicsDef *gfx)
+{
+    g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
+    qemuRdp *rdp;
+
+    if (!(rdp = qemuRdpNewForHelper(cfg->qemuRdpName)))
+        return -1;
+
+    QEMU_DOMAIN_GRAPHICS_PRIVATE(gfx)->rdp = rdp;
+
+    return 0;
+}
+
+
+static int
+qemuProcessPrepareGraphics(virDomainObj *vm)
+{
+    qemuDomainObjPrivate *priv = vm->privateData;
+    size_t i;
+
+    for (i = 0; i < vm->def->ngraphics; i++) {
+        virDomainGraphicsDef *gfx = vm->def->graphics[i];
+
+        if (gfx->type == VIR_DOMAIN_GRAPHICS_TYPE_RDP &&
+            qemuPrepareGraphicsRdp(priv->driver, gfx) < 0)
+            return -1;
 
     }
 
@@ -7460,6 +7565,10 @@ qemuProcessPrepareHost(virQEMUDriver *driver,
     if (qemuProcessPrepareHostNetwork(vm) < 0)
         return -1;
 
+    VIR_DEBUG("Preparing graphics");
+    if (qemuProcessPrepareGraphics(vm) < 0)
+        return -1;
+
     /* Must be run before security labelling */
     VIR_DEBUG("Preparing host devices");
     if (!cfg->relaxedACS)
@@ -7928,8 +8037,11 @@ qemuProcessLaunch(virConnectPtr conn,
                                      &nnicindexes, &nicindexes)))
         goto cleanup;
 
-    if (incoming && incoming->fd != -1)
-        virCommandPassFD(cmd, incoming->fd, 0);
+    if (incoming) {
+        if (incoming->fd != -1)
+            virCommandPassFD(cmd, incoming->fd, 0);
+        qemuFDPassTransferCommand(incoming->fdPassMigrate, cmd);
+    }
 
     /* now that we know it is about to start call the hook if present */
     if (qemuProcessStartHook(driver, vm,
@@ -8250,7 +8362,7 @@ qemuProcessRefreshRxFilters(virDomainObj *vm,
             continue;
         }
 
-        if (qemuDomainSyncRxFilter(vm, def, asyncJob) < 0)
+        if (qemuDomainSyncRxFilter(vm, def, asyncJob, NULL) < 0)
             return -1;
     }
 
@@ -8344,15 +8456,15 @@ qemuProcessStart(virConnectPtr conn,
                  virDomainObj *vm,
                  virCPUDef *updatedCPU,
                  virDomainAsyncJob asyncJob,
-                 const char *migrateFrom,
+                 qemuProcessIncomingDef *incoming,
                  int migrateFd,
                  const char *migratePath,
                  virDomainMomentObj *snapshot,
+                 qemuMigrationParams *migParams,
                  virNetDevVPortProfileOp vmop,
                  unsigned int flags)
 {
     qemuDomainObjPrivate *priv = vm->privateData;
-    qemuProcessIncomingDef *incoming = NULL;
     unsigned int stopFlags;
     bool relabel = false;
     bool relabelSavedState = false;
@@ -8360,11 +8472,11 @@ qemuProcessStart(virConnectPtr conn,
     int rv;
 
     VIR_DEBUG("conn=%p driver=%p vm=%p name=%s id=%d asyncJob=%s "
-              "migrateFrom=%s migrateFd=%d migratePath=%s "
+              "incoming=%p migrateFd=%d migratePath=%s "
               "snapshot=%p vmop=%d flags=0x%x",
               conn, driver, vm, vm->def->name, vm->def->id,
               virDomainAsyncJobTypeToString(asyncJob),
-              NULLSTR(migrateFrom), migrateFd, NULLSTR(migratePath),
+              incoming, migrateFd, NULLSTR(migratePath),
               snapshot, vmop, flags);
 
     virCheckFlagsGoto(VIR_QEMU_PROCESS_START_COLD |
@@ -8373,19 +8485,12 @@ qemuProcessStart(virConnectPtr conn,
                       VIR_QEMU_PROCESS_START_GEN_VMID |
                       VIR_QEMU_PROCESS_START_RESET_NVRAM, cleanup);
 
-    if (!migrateFrom && !snapshot)
+    if (!incoming && !snapshot)
         flags |= VIR_QEMU_PROCESS_START_NEW;
 
     if (qemuProcessInit(driver, vm, updatedCPU,
-                        asyncJob, !!migrateFrom, flags) < 0)
+                        asyncJob, !!incoming, flags) < 0)
         goto cleanup;
-
-    if (migrateFrom) {
-        incoming = qemuProcessIncomingDefNew(priv->qemuCaps, NULL, migrateFrom,
-                                             migrateFd, migratePath);
-        if (!incoming)
-            goto stop;
-    }
 
     if (qemuProcessPrepareDomain(driver, vm, flags) < 0)
         goto stop;
@@ -8409,7 +8514,7 @@ qemuProcessStart(virConnectPtr conn,
     relabel = true;
 
     if (incoming) {
-        if (qemuMigrationDstRun(vm, incoming->uri, asyncJob) < 0)
+        if (qemuMigrationDstRun(vm, incoming->uri, asyncJob, migParams, 0) < 0)
             goto stop;
     } else {
         /* Refresh state of devices from QEMU. During migration this happens
@@ -8439,14 +8544,13 @@ qemuProcessStart(virConnectPtr conn,
         qemuSecurityRestoreSavedStateLabel(driver->securityManager,
                                            vm->def, migratePath) < 0)
         VIR_WARN("failed to restore save state label on %s", migratePath);
-    qemuProcessIncomingDefFree(incoming);
     return ret;
 
  stop:
     stopFlags = 0;
     if (!relabel)
         stopFlags |= VIR_QEMU_PROCESS_STOP_NO_RELABEL;
-    if (migrateFrom)
+    if (incoming)
         stopFlags |= VIR_QEMU_PROCESS_STOP_MIGRATED;
     if (priv->mon)
         qemuMonitorSetDomainLog(priv->mon, NULL, NULL, NULL);
@@ -8464,6 +8568,7 @@ qemuProcessStart(virConnectPtr conn,
  * @path: path to memory state file
  * @snapshot: internal snapshot to load when starting QEMU process or NULL
  * @data: data from memory state file or NULL
+ * @migParams: Migration params to use on restore or NULL
  * @asyncJob: type of asynchronous job
  * @start_flags: flags to start QEMU process with
  * @reason: audit log reason
@@ -8490,6 +8595,7 @@ qemuProcessStartWithMemoryState(virConnectPtr conn,
                                 const char *path,
                                 virDomainMomentObj *snapshot,
                                 virQEMUSaveData *data,
+                                qemuMigrationParams *migParams,
                                 virDomainAsyncJob asyncJob,
                                 unsigned int start_flags,
                                 const char *reason,
@@ -8500,8 +8606,9 @@ qemuProcessStartWithMemoryState(virConnectPtr conn,
     VIR_AUTOCLOSE intermediatefd = -1;
     g_autoptr(virCommand) cmd = NULL;
     g_autofree char *errbuf = NULL;
-    const char *migrateFrom = NULL;
+    qemuProcessIncomingDef *incoming = NULL;
     int rc = 0;
+    int ret = -1;
 
     if (data) {
         if (virSaveCookieParseString(data->cookie, (virObject **)&cookie,
@@ -8512,9 +8619,14 @@ qemuProcessStartWithMemoryState(virConnectPtr conn,
                                             &errbuf, &cmd) < 0) {
             return -1;
         }
-
-        migrateFrom = "stdio";
     }
+
+    /* The fd passed to qemuProcessIncomingDefNew is used to create the migration
+     * URI, so it must be called after starting the decompression program.
+     */
+    incoming = qemuProcessIncomingDefNew(driver, vm, NULL, "stdio", fd, path, data, migParams);
+    if (!incoming)
+        return -1;
 
     /* No cookie means libvirt which saved the domain was too old to mess up
      * the CPU definitions.
@@ -8526,8 +8638,8 @@ qemuProcessStartWithMemoryState(virConnectPtr conn,
         priv->disableSlirp = true;
 
     if (qemuProcessStart(conn, driver, vm, cookie ? cookie->cpu : NULL,
-                         asyncJob, migrateFrom, *fd, path, snapshot,
-                         VIR_NETDEV_VPORT_PROFILE_OP_RESTORE,
+                         asyncJob, incoming, *fd, path, snapshot,
+                         migParams, VIR_NETDEV_VPORT_PROFILE_OP_RESTORE,
                          start_flags) == 0)
         *started = true;
 
@@ -8538,14 +8650,17 @@ qemuProcessStartWithMemoryState(virConnectPtr conn,
 
     virDomainAuditStart(vm, reason, *started);
     if (!*started || rc < 0)
-        return -1;
+        goto cleanup;
 
     /* qemuProcessStart doesn't unset the qemu error reporting infrastructure
      * in case of migration (which is used in this case) so we need to reset it
      * so that the handle to virtlogd is not held open unnecessarily */
     qemuMonitorSetDomainLog(qemuDomainGetMonitor(vm), NULL, NULL, NULL);
+    ret = 0;
 
-    return 0;
+ cleanup:
+    qemuProcessIncomingDefFree(incoming);
+    return ret;
 }
 
 
@@ -9032,6 +9147,12 @@ void qemuProcessStop(virQEMUDriver *driver,
                 graphics->data.spice.tlsPortReserved = false;
             }
         }
+        if (graphics->type == VIR_DOMAIN_GRAPHICS_TYPE_RDP) {
+            if (graphics->data.rdp.portReserved) {
+                virPortAllocatorRelease(graphics->data.rdp.port);
+                graphics->data.rdp.portReserved = false;
+            }
+        }
     }
 
     for (i = 0; i < vm->ndeprecations; i++)
@@ -9454,6 +9575,9 @@ qemuProcessReconnect(void *opaque)
         goto error;
 
     if (qemuDomainObjStartWorker(obj) < 0)
+        goto error;
+
+    if (priv->dbusDaemonRunning && !qemuDBusConnect(driver, obj))
         goto error;
 
     VIR_DEBUG("Reconnect monitor to def=%p name='%s'", obj, obj->def->name);

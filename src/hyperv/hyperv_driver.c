@@ -1169,35 +1169,29 @@ hypervDomainAttachSyntheticEthernetAdapter(virDomainPtr domain,
 /*
  * Functions for deserializing device entries
  */
-static int
+static void
 hypervDomainDefAppendController(virDomainDef *def,
                                 int idx,
                                 virDomainControllerType controllerType)
 {
-    virDomainControllerDef *controller = NULL;
-
-    if (!(controller = virDomainControllerDefNew(controllerType)))
-        return -1;
+    virDomainControllerDef *controller = virDomainControllerDefNew(controllerType);
 
     controller->idx = idx;
-
     VIR_APPEND_ELEMENT(def->controllers, def->ncontrollers, controller);
-
-    return 0;
 }
 
 
-static int
+static void
 hypervDomainDefAppendIDEController(virDomainDef *def)
 {
-    return hypervDomainDefAppendController(def, 0, VIR_DOMAIN_CONTROLLER_TYPE_IDE);
+    hypervDomainDefAppendController(def, 0, VIR_DOMAIN_CONTROLLER_TYPE_IDE);
 }
 
 
-static int
+static void
 hypervDomainDefAppendSCSIController(virDomainDef *def, int idx)
 {
-    return hypervDomainDefAppendController(def, idx, VIR_DOMAIN_CONTROLLER_TYPE_SCSI);
+    hypervDomainDefAppendController(def, idx, VIR_DOMAIN_CONTROLLER_TYPE_SCSI);
 }
 
 
@@ -1464,18 +1458,12 @@ hypervDomainDefParseStorage(hypervPrivate *priv,
             ideChannels[channel] = entry;
             if (!hasIdeController) {
                 /* Hyper-V represents its PIIX4 controller's two channels as separate objects. */
-                if (hypervDomainDefAppendIDEController(def) < 0) {
-                    virReportError(VIR_ERR_INTERNAL_ERROR, "%s", _("Could not add IDE controller"));
-                    return -1;
-                }
+                hypervDomainDefAppendIDEController(def);
                 hasIdeController = true;
             }
         } else if (entry->data->ResourceType == MSVM_RASD_RESOURCETYPE_PARALLEL_SCSI_HBA) {
             scsiControllers[scsi_idx++] = entry;
-            if (hypervDomainDefAppendSCSIController(def, scsi_idx - 1) < 0) {
-                virReportError(VIR_ERR_INTERNAL_ERROR, "%s", _("Could not parse SCSI controller"));
-                return -1;
-            }
+            hypervDomainDefAppendSCSIController(def, scsi_idx - 1);
         }
 
         entry = entry->next;

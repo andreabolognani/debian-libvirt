@@ -522,6 +522,11 @@ static const vshCmdOptDef opts_attach_disk[] = {
      .type = VSH_OT_STRING,
      .help = N_("host socket for source of disk device")
     },
+    {.name = "throttle-groups",
+     .type = VSH_OT_STRING,
+     .completer = virshDomainThrottleGroupsCompleter,
+     .help = N_("comma separated list of throttle groups to be applied")
+    },
     VIRSH_COMMON_OPT_DOMAIN_PERSISTENT,
     VIRSH_COMMON_OPT_DOMAIN_CONFIG,
     VIRSH_COMMON_OPT_DOMAIN_LIVE,
@@ -611,6 +616,7 @@ cmdAttachDisk(vshControl *ctl, const vshCmd *cmd)
     const char *host_name = NULL;
     const char *host_transport = NULL;
     const char *host_socket = NULL;
+    const char *throttle_groups_str = NULL;
     int ret;
     unsigned int flags = VIR_DOMAIN_AFFECT_CURRENT;
     const char *stype = NULL;
@@ -665,7 +671,8 @@ cmdAttachDisk(vshControl *ctl, const vshCmd *cmd)
         vshCommandOptString(ctl, cmd, "source-protocol", &source_protocol) < 0 ||
         vshCommandOptString(ctl, cmd, "source-host-name", &host_name) < 0 ||
         vshCommandOptString(ctl, cmd, "source-host-transport", &host_transport) < 0 ||
-        vshCommandOptString(ctl, cmd, "source-host-socket", &host_socket) < 0)
+        vshCommandOptString(ctl, cmd, "source-host-socket", &host_socket) < 0 ||
+        vshCommandOptString(ctl, cmd, "throttle-groups", &throttle_groups_str) < 0)
         return false;
 
     if (stype &&
@@ -755,6 +762,18 @@ cmdAttachDisk(vshControl *ctl, const vshCmd *cmd)
     if (targetbus)
         virBufferAsprintf(&diskChildBuf, " bus='%s'", targetbus);
     virBufferAddLit(&diskChildBuf, "/>\n");
+
+    if (throttle_groups_str) {
+        g_auto(GStrv) throttle_groups = g_strsplit(throttle_groups_str, ",", 0);
+        g_auto(virBuffer) throttleChildBuf = VIR_BUFFER_INIT_CHILD(&diskChildBuf);
+        char **iter;
+        for (iter = throttle_groups; *iter != NULL; iter++) {
+            g_auto(virBuffer) throttleAttrBuf = VIR_BUFFER_INITIALIZER;
+            virBufferAsprintf(&throttleAttrBuf, " group='%s'", *iter);
+            virXMLFormatElement(&throttleChildBuf, "throttlefilter", &throttleAttrBuf, NULL);
+        }
+        virXMLFormatElement(&diskChildBuf, "throttlefilters", NULL, &throttleChildBuf);
+    }
 
     if (mode)
         virBufferAsprintf(&diskChildBuf, "<%s/>\n", mode);
@@ -1070,7 +1089,6 @@ cmdAttachInterface(vshControl *ctl, const vshCmd *cmd)
         vshError(ctl, _("No support for %1$s in command 'attach-interface'"),
                  type);
         return false;
-        break;
     }
 
     if (target != NULL)
@@ -1158,6 +1176,10 @@ static const vshCmdOptDef opts_autostart[] = {
      .type = VSH_OT_BOOL,
      .help = N_("disable autostarting")
     },
+    {.name = "once",
+     .type = VSH_OT_BOOL,
+     .help = N_("control next boot state")
+    },
     {.name = NULL}
 };
 
@@ -1167,24 +1189,41 @@ cmdAutostart(vshControl *ctl, const vshCmd *cmd)
     g_autoptr(virshDomain) dom = NULL;
     const char *name;
     int autostart;
+    int once;
 
     if (!(dom = virshCommandOptDomain(ctl, cmd, &name)))
         return false;
 
     autostart = !vshCommandOptBool(cmd, "disable");
+    once = vshCommandOptBool(cmd, "once");
 
-    if (virDomainSetAutostart(dom, autostart) < 0) {
+    if (once) {
+        if (virDomainSetAutostartOnce(dom, autostart) < 0) {
+            if (autostart)
+                vshError(ctl, _("Failed to mark domain '%1$s' as autostarted on next boot"), name);
+            else
+                vshError(ctl, _("Failed to unmark domain '%1$s' as autostarted on next boot"), name);
+            return false;
+        }
+
         if (autostart)
-            vshError(ctl, _("Failed to mark domain '%1$s' as autostarted"), name);
+            vshPrintExtra(ctl, _("Domain '%1$s' marked as autostarted on next boot\n"), name);
         else
-            vshError(ctl, _("Failed to unmark domain '%1$s' as autostarted"), name);
-        return false;
-    }
+            vshPrintExtra(ctl, _("Domain '%1$s' unmarked as autostarted on next boot\n"), name);
+    } else {
+        if (virDomainSetAutostart(dom, autostart) < 0) {
+            if (autostart)
+                vshError(ctl, _("Failed to mark domain '%1$s' as autostarted"), name);
+            else
+                vshError(ctl, _("Failed to unmark domain '%1$s' as autostarted"), name);
+            return false;
+        }
 
-    if (autostart)
-        vshPrintExtra(ctl, _("Domain '%1$s' marked as autostarted\n"), name);
-    else
-        vshPrintExtra(ctl, _("Domain '%1$s' unmarked as autostarted\n"), name);
+        if (autostart)
+            vshPrintExtra(ctl, _("Domain '%1$s' marked as autostarted\n"), name);
+        else
+            vshPrintExtra(ctl, _("Domain '%1$s' unmarked as autostarted\n"), name);
+    }
 
     return true;
 }
@@ -1197,6 +1236,160 @@ static const vshCmdInfo info_blkdeviotune = {
     .desc = N_("Set or query disk I/O parameters such as block throttling."),
 };
 
+#define VSH_OPTS_IOTUNE \
+    {.name = "total_bytes_sec", \
+     .type = VSH_OT_ALIAS, \
+     .help = "total-bytes-sec" \
+    }, \
+    {.name = "total-bytes-sec", \
+     .type = VSH_OT_INT, \
+     .help = N_("total throughput limit, as scaled integer (default bytes)") \
+    }, \
+    {.name = "read_bytes_sec", \
+     .type = VSH_OT_ALIAS, \
+     .help = "read-bytes-sec" \
+    }, \
+    {.name = "read-bytes-sec", \
+     .type = VSH_OT_INT, \
+     .help = N_("read throughput limit, as scaled integer (default bytes)") \
+    }, \
+    {.name = "write_bytes_sec", \
+     .type = VSH_OT_ALIAS, \
+     .help = "write-bytes-sec" \
+    }, \
+    {.name = "write-bytes-sec", \
+     .type = VSH_OT_INT, \
+     .help =  N_("write throughput limit, as scaled integer (default bytes)") \
+    }, \
+    {.name = "total_iops_sec", \
+     .type = VSH_OT_ALIAS, \
+     .help = "total-iops-sec" \
+    }, \
+    {.name = "total-iops-sec", \
+     .type = VSH_OT_INT, \
+     .help = N_("total I/O operations limit per second") \
+    }, \
+    {.name = "read_iops_sec", \
+     .type = VSH_OT_ALIAS, \
+     .help = "read-iops-sec" \
+    }, \
+    {.name = "read-iops-sec", \
+     .type = VSH_OT_INT, \
+     .help = N_("read I/O operations limit per second") \
+    }, \
+    {.name = "write_iops_sec", \
+     .type = VSH_OT_ALIAS, \
+     .help = "write-iops-sec" \
+    }, \
+    {.name = "write-iops-sec", \
+     .type = VSH_OT_INT, \
+     .help = N_("write I/O operations limit per second") \
+    }, \
+    {.name = "total_bytes_sec_max", \
+     .type = VSH_OT_ALIAS, \
+     .help = "total-bytes-sec-max" \
+    }, \
+    {.name = "total-bytes-sec-max", \
+     .type = VSH_OT_INT, \
+     .help = N_("total max, as scaled integer (default bytes)") \
+    }, \
+    {.name = "read_bytes_sec_max", \
+     .type = VSH_OT_ALIAS, \
+     .help = "read-bytes-sec-max" \
+    }, \
+    {.name = "read-bytes-sec-max", \
+     .type = VSH_OT_INT, \
+     .help = N_("read max, as scaled integer (default bytes)") \
+    }, \
+    {.name = "write_bytes_sec_max", \
+     .type = VSH_OT_ALIAS, \
+     .help = "write-bytes-sec-max" \
+    }, \
+    {.name = "write-bytes-sec-max", \
+     .type = VSH_OT_INT, \
+     .help = N_("write max, as scaled integer (default bytes)") \
+    }, \
+    {.name = "total_iops_sec_max", \
+     .type = VSH_OT_ALIAS, \
+     .help = "total-iops-sec-max" \
+    }, \
+    {.name = "total-iops-sec-max", \
+     .type = VSH_OT_INT, \
+     .help = N_("total I/O operations max") \
+    }, \
+    {.name = "read_iops_sec_max", \
+     .type = VSH_OT_ALIAS, \
+     .help = "read-iops-sec-max" \
+    }, \
+    {.name = "read-iops-sec-max", \
+     .type = VSH_OT_INT, \
+     .help = N_("read I/O operations max") \
+    }, \
+    {.name = "write_iops_sec_max", \
+     .type = VSH_OT_ALIAS, \
+     .help = "write-iops-sec-max" \
+    }, \
+    {.name = "write-iops-sec-max", \
+     .type = VSH_OT_INT, \
+     .help = N_("write I/O operations max") \
+    }, \
+    {.name = "size_iops_sec", \
+     .type = VSH_OT_ALIAS, \
+     .help = "size-iops-sec" \
+    }, \
+    {.name = "size-iops-sec", \
+     .type = VSH_OT_INT, \
+     .help = N_("I/O size in bytes") \
+    }, \
+    {.name = "total_bytes_sec_max_length", \
+     .type = VSH_OT_ALIAS, \
+     .help = "total-bytes-sec-max-length" \
+    }, \
+    {.name = "total-bytes-sec-max-length", \
+     .type = VSH_OT_INT, \
+     .help = N_("duration in seconds to allow total max bytes") \
+    }, \
+    {.name = "read_bytes_sec_max_length", \
+     .type = VSH_OT_ALIAS, \
+     .help = "read-bytes-sec-max-length" \
+    }, \
+    {.name = "read-bytes-sec-max-length", \
+     .type = VSH_OT_INT, \
+     .help = N_("duration in seconds to allow read max bytes") \
+    }, \
+    {.name = "write_bytes_sec_max_length", \
+     .type = VSH_OT_ALIAS, \
+     .help = "write-bytes-sec-max-length" \
+    }, \
+    {.name = "write-bytes-sec-max-length", \
+     .type = VSH_OT_INT, \
+     .help = N_("duration in seconds to allow write max bytes") \
+    }, \
+    {.name = "total_iops_sec_max_length", \
+     .type = VSH_OT_ALIAS, \
+     .help = "total-iops-sec-max-length" \
+    }, \
+    {.name = "total-iops-sec-max-length", \
+     .type = VSH_OT_INT, \
+     .help = N_("duration in seconds to allow total I/O operations max") \
+    }, \
+    {.name = "read_iops_sec_max_length", \
+     .type = VSH_OT_ALIAS, \
+     .help = "read-iops-sec-max-length" \
+    }, \
+    {.name = "read-iops-sec-max-length", \
+     .type = VSH_OT_INT, \
+     .help = N_("duration in seconds to allow read I/O operations max") \
+    }, \
+    {.name = "write_iops_sec_max_length", \
+     .type = VSH_OT_ALIAS, \
+     .help = "write-iops-sec-max-length" \
+    }, \
+    {.name = "write-iops-sec-max-length", \
+     .type = VSH_OT_INT, \
+     .help = N_("duration in seconds to allow write I/O operations max") \
+    } \
+
 static const vshCmdOptDef opts_blkdeviotune[] = {
     VIRSH_COMMON_OPT_DOMAIN_FULL(0),
     {.name = "device",
@@ -1205,110 +1398,6 @@ static const vshCmdOptDef opts_blkdeviotune[] = {
      .required = true,
      .completer = virshDomainDiskTargetCompleter,
      .help = N_("block device")
-    },
-    {.name = "total_bytes_sec",
-     .type = VSH_OT_ALIAS,
-     .help = "total-bytes-sec"
-    },
-    {.name = "total-bytes-sec",
-     .type = VSH_OT_INT,
-     .help = N_("total throughput limit, as scaled integer (default bytes)")
-    },
-    {.name = "read_bytes_sec",
-     .type = VSH_OT_ALIAS,
-     .help = "read-bytes-sec"
-    },
-    {.name = "read-bytes-sec",
-     .type = VSH_OT_INT,
-     .help = N_("read throughput limit, as scaled integer (default bytes)")
-    },
-    {.name = "write_bytes_sec",
-     .type = VSH_OT_ALIAS,
-     .help = "write-bytes-sec"
-    },
-    {.name = "write-bytes-sec",
-     .type = VSH_OT_INT,
-     .help =  N_("write throughput limit, as scaled integer (default bytes)")
-    },
-    {.name = "total_iops_sec",
-     .type = VSH_OT_ALIAS,
-     .help = "total-iops-sec"
-    },
-    {.name = "total-iops-sec",
-     .type = VSH_OT_INT,
-     .help = N_("total I/O operations limit per second")
-    },
-    {.name = "read_iops_sec",
-     .type = VSH_OT_ALIAS,
-     .help = "read-iops-sec"
-    },
-    {.name = "read-iops-sec",
-     .type = VSH_OT_INT,
-     .help = N_("read I/O operations limit per second")
-    },
-    {.name = "write_iops_sec",
-     .type = VSH_OT_ALIAS,
-     .help = "write-iops-sec"
-    },
-    {.name = "write-iops-sec",
-     .type = VSH_OT_INT,
-     .help = N_("write I/O operations limit per second")
-    },
-    {.name = "total_bytes_sec_max",
-     .type = VSH_OT_ALIAS,
-     .help = "total-bytes-sec-max"
-    },
-    {.name = "total-bytes-sec-max",
-     .type = VSH_OT_INT,
-     .help = N_("total max, as scaled integer (default bytes)")
-    },
-    {.name = "read_bytes_sec_max",
-     .type = VSH_OT_ALIAS,
-     .help = "read-bytes-sec-max"
-    },
-    {.name = "read-bytes-sec-max",
-     .type = VSH_OT_INT,
-     .help = N_("read max, as scaled integer (default bytes)")
-    },
-    {.name = "write_bytes_sec_max",
-     .type = VSH_OT_ALIAS,
-     .help = "write-bytes-sec-max"
-    },
-    {.name = "write-bytes-sec-max",
-     .type = VSH_OT_INT,
-     .help = N_("write max, as scaled integer (default bytes)")
-    },
-    {.name = "total_iops_sec_max",
-     .type = VSH_OT_ALIAS,
-     .help = "total-iops-sec-max"
-    },
-    {.name = "total-iops-sec-max",
-     .type = VSH_OT_INT,
-     .help = N_("total I/O operations max")
-    },
-    {.name = "read_iops_sec_max",
-     .type = VSH_OT_ALIAS,
-     .help = "read-iops-sec-max"
-    },
-    {.name = "read-iops-sec-max",
-     .type = VSH_OT_INT,
-     .help = N_("read I/O operations max")
-    },
-    {.name = "write_iops_sec_max",
-     .type = VSH_OT_ALIAS,
-     .help = "write-iops-sec-max"
-    },
-    {.name = "write-iops-sec-max",
-     .type = VSH_OT_INT,
-     .help = N_("write I/O operations max")
-    },
-    {.name = "size_iops_sec",
-     .type = VSH_OT_ALIAS,
-     .help = "size-iops-sec"
-    },
-    {.name = "size-iops-sec",
-     .type = VSH_OT_INT,
-     .help = N_("I/O size in bytes")
     },
     {.name = "group_name",
      .type = VSH_OT_ALIAS,
@@ -1319,59 +1408,13 @@ static const vshCmdOptDef opts_blkdeviotune[] = {
      .completer = virshCompleteEmpty,
      .help = N_("group name to share I/O quota between multiple drives")
     },
-    {.name = "total_bytes_sec_max_length",
-     .type = VSH_OT_ALIAS,
-     .help = "total-bytes-sec-max-length"
-    },
-    {.name = "total-bytes-sec-max-length",
-     .type = VSH_OT_INT,
-     .help = N_("duration in seconds to allow total max bytes")
-    },
-    {.name = "read_bytes_sec_max_length",
-     .type = VSH_OT_ALIAS,
-     .help = "read-bytes-sec-max-length"
-    },
-    {.name = "read-bytes-sec-max-length",
-     .type = VSH_OT_INT,
-     .help = N_("duration in seconds to allow read max bytes")
-    },
-    {.name = "write_bytes_sec_max_length",
-     .type = VSH_OT_ALIAS,
-     .help = "write-bytes-sec-max-length"
-    },
-    {.name = "write-bytes-sec-max-length",
-     .type = VSH_OT_INT,
-     .help = N_("duration in seconds to allow write max bytes")
-    },
-    {.name = "total_iops_sec_max_length",
-     .type = VSH_OT_ALIAS,
-     .help = "total-iops-sec-max-length"
-    },
-    {.name = "total-iops-sec-max-length",
-     .type = VSH_OT_INT,
-     .help = N_("duration in seconds to allow total I/O operations max")
-    },
-    {.name = "read_iops_sec_max_length",
-     .type = VSH_OT_ALIAS,
-     .help = "read-iops-sec-max-length"
-    },
-    {.name = "read-iops-sec-max-length",
-     .type = VSH_OT_INT,
-     .help = N_("duration in seconds to allow read I/O operations max")
-    },
-    {.name = "write_iops_sec_max_length",
-     .type = VSH_OT_ALIAS,
-     .help = "write-iops-sec-max-length"
-    },
-    {.name = "write-iops-sec-max-length",
-     .type = VSH_OT_INT,
-     .help = N_("duration in seconds to allow write I/O operations max")
-    },
+    VSH_OPTS_IOTUNE,
     VIRSH_COMMON_OPT_DOMAIN_CONFIG,
     VIRSH_COMMON_OPT_DOMAIN_LIVE,
     VIRSH_COMMON_OPT_DOMAIN_CURRENT,
     {.name = NULL}
 };
+
 
 static bool
 cmdBlkdeviotune(vshControl *ctl, const vshCmd *cmd)
@@ -1508,6 +1551,348 @@ cmdBlkdeviotune(vshControl *ctl, const vshCmd *cmd)
     vshError(ctl, "%s", _("Unable to parse integer parameter"));
     goto cleanup;
 }
+
+
+/*
+ * "domthrottlegrouplist" command
+ */
+static const vshCmdInfo info_domthrottlegrouplist = {
+    .help = N_("list all domain throttlegroups."),
+    .desc = N_("Get the summary of throttle groups for a domain."),
+};
+
+
+static const vshCmdOptDef opts_domthrottlegrouplist[] = {
+    VIRSH_COMMON_OPT_DOMAIN_FULL(0),
+    {.name = "inactive",
+     .type = VSH_OT_BOOL,
+     .help = N_("get inactive rather than running configuration")
+    },
+    {.name = NULL}
+};
+
+
+static bool
+cmdThrottleGroupList(vshControl *ctl,
+                     const vshCmd *cmd)
+{
+    unsigned int flags = 0;
+    g_autoptr(xmlDoc) xml = NULL;
+    g_autoptr(xmlXPathContext) ctxt = NULL;
+    g_auto(GStrv) groupNames = NULL;
+    char **n;
+    g_autoptr(vshTable) table = NULL;
+
+    if (vshCommandOptBool(cmd, "inactive"))
+        flags |= VIR_DOMAIN_XML_INACTIVE;
+
+    if (virshDomainGetXML(ctl, cmd, flags, &xml, &ctxt) < 0)
+        return false;
+
+    if (!(table = vshTableNew(_("Name"), NULL)))
+        return false;
+
+    if (!(groupNames = virshGetThrottleGroupNames(ctxt)))
+        return false;
+
+    for (n = groupNames; *n; n++) {
+        if (vshTableRowAppend(table, *n, NULL) < 0)
+            return false;
+    }
+
+    vshTablePrintToStdout(table, ctl);
+
+    return true;
+}
+
+
+/*
+ * "domthrottlegroupset" command
+ */
+static const vshCmdInfo info_domthrottlegroupset = {
+    .help = N_("Add or update a throttling group."),
+    .desc = N_("Add or updte a throttling group."),
+};
+
+
+static const vshCmdOptDef opts_domthrottlegroupset[] = {
+    VIRSH_COMMON_OPT_DOMAIN_FULL(0),
+    {.name = "group-name",
+     .type = VSH_OT_STRING,
+     .positional = true,
+     .required = true,
+     .completer = virshDomainThrottleGroupCompleter,
+     .help = N_("throttle group name")
+    },
+    VSH_OPTS_IOTUNE,
+    VIRSH_COMMON_OPT_DOMAIN_CONFIG,
+    VIRSH_COMMON_OPT_DOMAIN_LIVE,
+    VIRSH_COMMON_OPT_DOMAIN_CURRENT,
+    {.name = NULL}
+};
+#undef VSH_OPTS_IOTUNE
+
+
+static bool
+cmdThrottleGroupSet(vshControl *ctl,
+                    const vshCmd *cmd)
+{
+    g_autoptr(virshDomain) dom = NULL;
+    const char *group_name = NULL;
+    unsigned long long value;
+    int nparams = 0;
+    int maxparams = 0;
+    virTypedParameterPtr params = NULL;
+    unsigned int flags = VIR_DOMAIN_AFFECT_CURRENT;
+    int rv = 0;
+    bool current = vshCommandOptBool(cmd, "current");
+    bool config = vshCommandOptBool(cmd, "config");
+    bool live = vshCommandOptBool(cmd, "live");
+    bool ret = false;
+
+    VSH_EXCLUSIVE_OPTIONS_VAR(current, live);
+    VSH_EXCLUSIVE_OPTIONS_VAR(current, config);
+
+    if (config)
+        flags |= VIR_DOMAIN_AFFECT_CONFIG;
+    if (live)
+        flags |= VIR_DOMAIN_AFFECT_LIVE;
+
+    if (!(dom = virshCommandOptDomain(ctl, cmd, NULL)))
+        goto cleanup;
+
+
+#define VSH_SET_THROTTLE_GROUP_SCALED(PARAM, CONST) \
+    if ((rv = vshCommandOptScaledInt(ctl, cmd, #PARAM, &value, \
+                                     1, ULLONG_MAX)) < 0) { \
+        goto interror; \
+    } else if (rv > 0) { \
+        if (virTypedParamsAddULLong(&params, &nparams, &maxparams, \
+                                    VIR_DOMAIN_BLOCK_IOTUNE_##CONST, \
+                                    value) < 0) \
+            goto save_error; \
+    }
+
+    VSH_SET_THROTTLE_GROUP_SCALED(total-bytes-sec, TOTAL_BYTES_SEC);
+    VSH_SET_THROTTLE_GROUP_SCALED(read-bytes-sec, READ_BYTES_SEC);
+    VSH_SET_THROTTLE_GROUP_SCALED(write-bytes-sec, WRITE_BYTES_SEC);
+    VSH_SET_THROTTLE_GROUP_SCALED(total-bytes-sec-max, TOTAL_BYTES_SEC_MAX);
+    VSH_SET_THROTTLE_GROUP_SCALED(read-bytes-sec-max, READ_BYTES_SEC_MAX);
+    VSH_SET_THROTTLE_GROUP_SCALED(write-bytes-sec-max, WRITE_BYTES_SEC_MAX);
+#undef VSH_SET_THROTTLE_GROUP_SCALED
+
+#define VSH_SET_THROTTLE_GROUP(PARAM, CONST) \
+    if ((rv = vshCommandOptULongLong(ctl, cmd, #PARAM, &value)) < 0) { \
+        goto interror; \
+    } else if (rv > 0) { \
+        if (virTypedParamsAddULLong(&params, &nparams, &maxparams, \
+                                    VIR_DOMAIN_BLOCK_IOTUNE_##CONST, \
+                                    value) < 0) \
+            goto save_error; \
+    }
+
+    VSH_SET_THROTTLE_GROUP(total-iops-sec, TOTAL_IOPS_SEC);
+    VSH_SET_THROTTLE_GROUP(read-iops-sec, READ_IOPS_SEC);
+    VSH_SET_THROTTLE_GROUP(write-iops-sec, WRITE_IOPS_SEC);
+    VSH_SET_THROTTLE_GROUP(total-iops-sec-max, TOTAL_IOPS_SEC_MAX);
+    VSH_SET_THROTTLE_GROUP(read-iops-sec-max, READ_IOPS_SEC_MAX);
+    VSH_SET_THROTTLE_GROUP(write-iops-sec-max, WRITE_IOPS_SEC_MAX);
+    VSH_SET_THROTTLE_GROUP(size-iops-sec, SIZE_IOPS_SEC);
+
+    VSH_SET_THROTTLE_GROUP(total-bytes-sec-max-length, TOTAL_BYTES_SEC_MAX_LENGTH);
+    VSH_SET_THROTTLE_GROUP(read-bytes-sec-max-length, READ_BYTES_SEC_MAX_LENGTH);
+    VSH_SET_THROTTLE_GROUP(write-bytes-sec-max-length, WRITE_BYTES_SEC_MAX_LENGTH);
+    VSH_SET_THROTTLE_GROUP(total-iops-sec-max-length, TOTAL_IOPS_SEC_MAX_LENGTH);
+    VSH_SET_THROTTLE_GROUP(read-iops-sec-max-length, READ_IOPS_SEC_MAX_LENGTH);
+    VSH_SET_THROTTLE_GROUP(write-iops-sec-max-length, WRITE_IOPS_SEC_MAX_LENGTH);
+#undef VSH_SET_THROTTLE_GROUP
+
+    if (vshCommandOptString(ctl, cmd, "group-name", &group_name) < 0) {
+        goto cleanup;
+    }
+
+    if (group_name) {
+        if (virTypedParamsAddString(&params, &nparams, &maxparams,
+                                    VIR_DOMAIN_BLOCK_IOTUNE_GROUP_NAME,
+                                    group_name) < 0)
+            goto save_error;
+    }
+
+    if (virDomainSetThrottleGroup(dom, group_name, params, nparams, flags) < 0)
+        goto error;
+    vshPrintExtra(ctl, "%s", _("Throttle group set successfully\n"));
+
+    ret = true;
+
+ cleanup:
+    virTypedParamsFree(params, nparams);
+    return ret;
+
+ save_error:
+    vshSaveLibvirtError();
+ error:
+    vshError(ctl, "%s", _("Unable to set throttle group"));
+    goto cleanup;
+
+ interror:
+    vshError(ctl, "%s", _("Unable to parse integer parameter"));
+    goto cleanup;
+}
+
+
+/*
+ * "domthrottlegroupdel" command
+ */
+static const vshCmdInfo info_domthrottlegroupdel = {
+    .help = N_("Delete a throttling group."),
+    .desc = N_("Delete a throttling group."),
+};
+
+
+static const vshCmdOptDef opts_domthrottlegroupdel[] = {
+    VIRSH_COMMON_OPT_DOMAIN_FULL(0),
+    {.name = "group-name",
+     .type = VSH_OT_STRING,
+     .positional = true,
+     .required = true,
+     .completer = virshDomainThrottleGroupCompleter,
+     .help = N_("throttle group name")
+    },
+    VIRSH_COMMON_OPT_DOMAIN_CONFIG,
+    VIRSH_COMMON_OPT_DOMAIN_LIVE,
+    VIRSH_COMMON_OPT_DOMAIN_CURRENT,
+    {.name = NULL}
+};
+
+
+static bool
+cmdThrottleGroupDel(vshControl *ctl,
+                    const vshCmd *cmd)
+{
+    g_autoptr(virshDomain) dom = NULL;
+    const char *group_name = NULL;
+    bool config = vshCommandOptBool(cmd, "config");
+    bool live = vshCommandOptBool(cmd, "live");
+    bool current = vshCommandOptBool(cmd, "current");
+    unsigned int flags = VIR_DOMAIN_AFFECT_CURRENT;
+
+    VSH_EXCLUSIVE_OPTIONS_VAR(current, live);
+    VSH_EXCLUSIVE_OPTIONS_VAR(current, config);
+
+    if (config)
+        flags |= VIR_DOMAIN_AFFECT_CONFIG;
+    if (live)
+        flags |= VIR_DOMAIN_AFFECT_LIVE;
+
+    if (!(dom = virshCommandOptDomain(ctl, cmd, NULL)))
+        return false;
+
+    if (vshCommandOptString(ctl, cmd, "group-name", &group_name) < 0) {
+        return false;
+    }
+
+    if (virDomainDelThrottleGroup(dom, group_name, flags) < 0)
+        return false;
+    vshPrintExtra(ctl, "%s", _("Throttle group deleted successfully\n"));
+
+    return true;
+}
+
+
+/*
+ * "domthrottlegroupinfo" command
+ */
+static const vshCmdInfo info_domthrottlegroupinfo = {
+    .help = N_("Get a throttling group."),
+    .desc = N_("Get a throttling group."),
+};
+
+
+static const vshCmdOptDef opts_domthrottlegroupinfo[] = {
+    VIRSH_COMMON_OPT_DOMAIN_FULL(0),
+    {.name = "group-name",
+     .type = VSH_OT_STRING,
+     .positional = true,
+     .required = true,
+     .completer = virshDomainThrottleGroupCompleter,
+     .help = N_("throttle group name")
+    },
+    {.name = "inactive",
+     .type = VSH_OT_BOOL,
+     .help = N_("get inactive rather than running configuration")
+    },
+    {.name = NULL}
+};
+
+
+#define PARSE_THROTTLE_GROUP(val) \
+    do { \
+        g_autofree char *str = virXPathString("string(./" #val ")", ctxt); \
+        if (str) \
+            vshPrint(ctl, "%-15s: %s\n", #val, str); \
+    } while (false)
+
+static bool
+cmdThrottleGroupInfo(vshControl *ctl,
+                     const vshCmd *cmd)
+{
+    const char *group_name = NULL;
+    unsigned int flags = 0;
+    g_autoptr(xmlDoc) xml = NULL;
+    g_autoptr(xmlXPathContext) ctxt = NULL;
+    g_autofree xmlNodePtr *node = NULL;
+    int n = 0;
+    size_t i;
+
+    if (vshCommandOptBool(cmd, "inactive"))
+        flags |= VIR_DOMAIN_XML_INACTIVE;
+
+    if (vshCommandOptString(ctl, cmd, "group-name", &group_name) < 0)
+        return false;
+
+    if (virshDomainGetXML(ctl, cmd, flags, &xml, &ctxt) < 0)
+        return false;
+
+    if ((n = virXPathNodeSet("/domain/throttlegroups/throttlegroup", ctxt, &node)) < 0)
+        return false;
+
+    for (i = 0; i < n; i++) {
+        g_autofree char *name = NULL;
+        VIR_XPATH_NODE_AUTORESTORE(ctxt);
+        ctxt->node = node[i];
+
+        name = virXPathString("string(./group_name)", ctxt);
+
+        if (STRNEQ_NULLABLE(group_name, name))
+            continue;
+
+        PARSE_THROTTLE_GROUP(total_bytes_sec);
+        PARSE_THROTTLE_GROUP(read_bytes_sec);
+        PARSE_THROTTLE_GROUP(write_bytes_sec);
+        PARSE_THROTTLE_GROUP(total_iops_sec);
+        PARSE_THROTTLE_GROUP(read_iops_sec);
+        PARSE_THROTTLE_GROUP(write_iops_sec);
+
+        PARSE_THROTTLE_GROUP(total_bytes_sec_max);
+        PARSE_THROTTLE_GROUP(read_bytes_sec_max);
+        PARSE_THROTTLE_GROUP(write_bytes_sec_max);
+        PARSE_THROTTLE_GROUP(total_iops_sec_max);
+        PARSE_THROTTLE_GROUP(read_iops_sec_max);
+        PARSE_THROTTLE_GROUP(write_iops_sec_max);
+
+        PARSE_THROTTLE_GROUP(size_iops_sec);
+
+        PARSE_THROTTLE_GROUP(total_bytes_sec_max_length);
+        PARSE_THROTTLE_GROUP(read_bytes_sec_max_length);
+        PARSE_THROTTLE_GROUP(write_bytes_sec_max_length);
+        PARSE_THROTTLE_GROUP(total_iops_sec_max_length);
+        PARSE_THROTTLE_GROUP(read_iops_sec_max_length);
+        PARSE_THROTTLE_GROUP(write_iops_sec_max_length);
+    }
+
+    return true;
+}
+#undef PARSE_THROTTLE_GROUP
 
 /*
  * "blkiotune" command
@@ -4145,6 +4530,14 @@ static const vshCmdOptDef opts_save[] = {
      .type = VSH_OT_BOOL,
      .help = N_("avoid file system cache when saving")
     },
+    {.name = "parallel-channels",
+     .type = VSH_OT_INT,
+     .help = N_("number of IO channels to use for parallel save")
+    },
+    {.name = "image-format",
+     .type = VSH_OT_STRING,
+     .help = N_("format of the save image file")
+    },
     {.name = "xml",
      .type = VSH_OT_STRING,
      .unwanted_positional = true,
@@ -4175,8 +4568,13 @@ doSave(void *opaque)
     g_autoptr(virshDomain) dom = NULL;
     const char *name = NULL;
     const char *to = NULL;
+    virTypedParameterPtr params = NULL;
+    int nparams = 0;
+    int maxparams = 0;
+    int nchannels = 0;
     unsigned int flags = 0;
     const char *xmlfile = NULL;
+    const char *format = NULL;
     g_autofree char *xml = NULL;
     int rc;
 #ifndef WIN32
@@ -4188,15 +4586,29 @@ doSave(void *opaque)
         goto out_sig;
 #endif /* !WIN32 */
 
-    if (vshCommandOptString(ctl, cmd, "file", &to) < 0)
-        goto out;
-
     if (vshCommandOptBool(cmd, "bypass-cache"))
         flags |= VIR_DOMAIN_SAVE_BYPASS_CACHE;
     if (vshCommandOptBool(cmd, "running"))
         flags |= VIR_DOMAIN_SAVE_RUNNING;
     if (vshCommandOptBool(cmd, "paused"))
         flags |= VIR_DOMAIN_SAVE_PAUSED;
+
+    if (vshCommandOptString(ctl, cmd, "file", &to) < 0)
+        goto out;
+
+    if ((rc = vshCommandOptInt(ctl, cmd, "parallel-channels", &nchannels)) < 0)
+        goto out;
+    if (rc == 1 &&
+        virTypedParamsAddInt(&params, &nparams, &maxparams,
+                             VIR_DOMAIN_SAVE_PARAM_PARALLEL_CHANNELS, nchannels) < 0)
+        goto out;
+
+    if (vshCommandOptString(ctl, cmd, "image-format", &format) < 0)
+        goto out;
+    if (format &&
+        virTypedParamsAddString(&params, &nparams, &maxparams,
+                                VIR_DOMAIN_SAVE_PARAM_IMAGE_FORMAT, format) < 0)
+        goto out;
 
     if (vshCommandOptString(ctl, cmd, "xml", &xmlfile) < 0)
         goto out;
@@ -4210,7 +4622,19 @@ doSave(void *opaque)
         goto out;
     }
 
-    if (flags || xml) {
+    if (nparams > 0) {
+        if (to &&
+            virTypedParamsAddString(&params, &nparams, &maxparams,
+                                    VIR_DOMAIN_SAVE_PARAM_FILE, to) < 0)
+            goto out;
+
+        if (xml &&
+            virTypedParamsAddString(&params, &nparams, &maxparams,
+                                    VIR_DOMAIN_SAVE_PARAM_DXML, xml) < 0)
+            goto out;
+
+        rc = virDomainSaveParams(dom, params, nparams, flags);
+    } else if (flags || xml) {
         rc = virDomainSaveFlags(dom, to, xml, flags);
     } else {
         rc = virDomainSave(dom, to);
@@ -4224,6 +4648,8 @@ doSave(void *opaque)
     data->ret = 0;
 
  out:
+    virTypedParamsFree(params, nparams);
+
 #ifndef WIN32
     pthread_sigmask(SIG_SETMASK, &oldsigmask, NULL);
  out_sig:
@@ -5247,6 +5673,10 @@ static const vshCmdOptDef opts_restore[] = {
      .type = VSH_OT_BOOL,
      .help = N_("avoid file system cache when restoring")
     },
+    {.name = "parallel-channels",
+     .type = VSH_OT_INT,
+     .help = N_("number of IO channels to use for parallel restore")
+    },
     {.name = "xml",
      .type = VSH_OT_STRING,
      .unwanted_positional = true,
@@ -5276,10 +5706,11 @@ cmdRestore(vshControl *ctl, const vshCmd *cmd)
     const char *xmlfile = NULL;
     g_autofree char *xml = NULL;
     virshControl *priv = ctl->privData;
+    virTypedParameterPtr params = NULL;
+    int nparams = 0;
+    int maxparams = 0;
+    int nchannels = 0;
     int rc;
-
-    if (vshCommandOptString(ctl, cmd, "file", &from) < 0)
-        return false;
 
     if (vshCommandOptBool(cmd, "bypass-cache"))
         flags |= VIR_DOMAIN_SAVE_BYPASS_CACHE;
@@ -5290,6 +5721,9 @@ cmdRestore(vshControl *ctl, const vshCmd *cmd)
     if (vshCommandOptBool(cmd, "reset-nvram"))
         flags |= VIR_DOMAIN_SAVE_RESET_NVRAM;
 
+    if (vshCommandOptString(ctl, cmd, "file", &from) < 0)
+        return false;
+
     if (vshCommandOptString(ctl, cmd, "xml", &xmlfile) < 0)
         return false;
 
@@ -5297,7 +5731,26 @@ cmdRestore(vshControl *ctl, const vshCmd *cmd)
         virFileReadAll(xmlfile, VSH_MAX_XML_FILE, &xml) < 0)
         return false;
 
-    if (flags || xml) {
+    if ((rc = vshCommandOptInt(ctl, cmd, "parallel-channels", &nchannels)) < 0)
+        return false;
+    if (rc == 1 &&
+        virTypedParamsAddInt(&params, &nparams, &maxparams,
+                             VIR_DOMAIN_SAVE_PARAM_PARALLEL_CHANNELS, nchannels) < 0)
+        return false;
+
+    if (nparams > 0) {
+        if (from &&
+            virTypedParamsAddString(&params, &nparams, &maxparams,
+                                    VIR_DOMAIN_SAVE_PARAM_FILE, from) < 0)
+            return false;
+
+        if (xml &&
+            virTypedParamsAddString(&params, &nparams, &maxparams,
+                                    VIR_DOMAIN_SAVE_PARAM_DXML, xml) < 0)
+            return false;
+
+        rc = virDomainRestoreParams(priv->conn, params, nparams, flags);
+    } else if (flags || xml) {
         rc = virDomainRestoreFlags(priv->conn, from, xml, flags);
     } else {
         rc = virDomainRestore(priv->conn, from);
@@ -13095,6 +13548,10 @@ static const vshCmdOptDef opts_guestinfo[] = {
      .type = VSH_OT_BOOL,
      .help = N_("report interface information"),
     },
+    {.name = "load",
+     .type = VSH_OT_BOOL,
+     .help = N_("report load averages information"),
+    },
     {.name = NULL}
 };
 
@@ -13122,6 +13579,8 @@ cmdGuestInfo(vshControl *ctl, const vshCmd *cmd)
         types |= VIR_DOMAIN_GUEST_INFO_DISKS;
     if (vshCommandOptBool(cmd, "interface"))
         types |= VIR_DOMAIN_GUEST_INFO_INTERFACES;
+    if (vshCommandOptBool(cmd, "load"))
+        types |= VIR_DOMAIN_GUEST_INFO_LOAD;
 
     if (!(dom = virshCommandOptDomain(ctl, cmd, NULL)))
         return false;
@@ -13431,6 +13890,30 @@ const vshCmdDef domManagementCmds[] = {
      .handler = cmdBlkdeviotune,
      .opts = opts_blkdeviotune,
      .info = &info_blkdeviotune,
+     .flags = 0
+    },
+    {.name = "domthrottlegroupset",
+     .handler = cmdThrottleGroupSet,
+     .opts = opts_domthrottlegroupset,
+     .info = &info_domthrottlegroupset,
+     .flags = 0
+    },
+    {.name = "domthrottlegroupdel",
+     .handler = cmdThrottleGroupDel,
+     .opts = opts_domthrottlegroupdel,
+     .info = &info_domthrottlegroupdel,
+     .flags = 0
+    },
+    {.name = "domthrottlegroupinfo",
+     .handler = cmdThrottleGroupInfo,
+     .opts = opts_domthrottlegroupinfo,
+     .info = &info_domthrottlegroupinfo,
+     .flags = 0
+    },
+    {.name = "domthrottlegrouplist",
+     .handler = cmdThrottleGroupList,
+     .opts = opts_domthrottlegrouplist,
+     .info = &info_domthrottlegrouplist,
      .flags = 0
     },
     {.name = "blkiotune",

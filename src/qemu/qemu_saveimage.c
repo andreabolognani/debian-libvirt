@@ -37,25 +37,6 @@
 
 VIR_LOG_INIT("qemu.qemu_saveimage");
 
-typedef enum {
-    QEMU_SAVE_FORMAT_RAW = 0,
-    QEMU_SAVE_FORMAT_GZIP = 1,
-    QEMU_SAVE_FORMAT_BZIP2 = 2,
-    /*
-     * Deprecated by xz and never used as part of a release
-     * QEMU_SAVE_FORMAT_LZMA
-     */
-    QEMU_SAVE_FORMAT_XZ = 3,
-    QEMU_SAVE_FORMAT_LZOP = 4,
-    QEMU_SAVE_FORMAT_ZSTD = 5,
-    /* Note: add new members only at the end.
-       These values are used in the on-disk format.
-       Do not change or re-use numbers. */
-
-    QEMU_SAVE_FORMAT_LAST
-} virQEMUSaveFormat;
-
-VIR_ENUM_DECL(qemuSaveFormat);
 VIR_ENUM_IMPL(qemuSaveFormat,
               QEMU_SAVE_FORMAT_LAST,
               "raw",
@@ -64,6 +45,7 @@ VIR_ENUM_IMPL(qemuSaveFormat,
               "xz",
               "lzop",
               "zstd",
+              "sparse",
 );
 
 static inline void
@@ -366,7 +348,8 @@ qemuSaveImageDecompressionStart(virQEMUSaveData *data,
     if (header->version != 2)
         return 0;
 
-    if (header->format == QEMU_SAVE_FORMAT_RAW)
+    if (header->format == QEMU_SAVE_FORMAT_RAW ||
+        header->format == QEMU_SAVE_FORMAT_SPARSE)
         return 0;
 
     if (!(cmd = qemuSaveImageGetCompressionCommand(header->format)))
@@ -443,6 +426,51 @@ qemuSaveImageDecompressionStop(virCommand *cmd,
 }
 
 
+static int
+qemuSaveImageCreateFd(virQEMUDriver *driver,
+                      virDomainObj *vm,
+                      const char *path,
+                      virFileWrapperFd **wrapperFd,
+                      bool sparse,
+                      bool *needUnlink,
+                      unsigned int flags)
+{
+    g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
+    int ret = -1;
+    VIR_AUTOCLOSE fd = -1;
+    int directFlag = 0;
+    unsigned int wrapperFlags = VIR_FILE_WRAPPER_NON_BLOCKING;
+
+    if (!sparse && flags & VIR_DOMAIN_SAVE_BYPASS_CACHE) {
+        wrapperFlags |= VIR_FILE_WRAPPER_BYPASS_CACHE;
+        directFlag = virFileDirectFdFlag();
+        if (directFlag < 0) {
+            virReportError(VIR_ERR_OPERATION_FAILED, "%s",
+                           _("bypass cache unsupported by this system"));
+            return -1;
+        }
+    }
+
+    fd = virQEMUFileOpenAs(cfg->user, cfg->group, false, path,
+                           O_WRONLY | O_TRUNC | O_CREAT | directFlag,
+                           needUnlink);
+
+    if (fd < 0)
+        return -1;
+
+    if (qemuSecuritySetImageFDLabel(driver->securityManager, vm->def, fd) < 0)
+        return -1;
+
+    if (!sparse && !(*wrapperFd = virFileWrapperFdNew(&fd, path, wrapperFlags)))
+        return -1;
+
+    ret = fd;
+    fd = -1;
+
+    return ret;
+}
+
+
 /* Helper function to execute a migration to file with a correct save header
  * the caller needs to make sure that the processors are stopped and do all other
  * actions besides saving memory */
@@ -452,6 +480,7 @@ qemuSaveImageCreate(virQEMUDriver *driver,
                     const char *path,
                     virQEMUSaveData *data,
                     virCommand *compressor,
+                    qemuMigrationParams *saveParams,
                     unsigned int flags,
                     virDomainAsyncJob asyncJob)
 {
@@ -459,38 +488,20 @@ qemuSaveImageCreate(virQEMUDriver *driver,
     bool needUnlink = false;
     int ret = -1;
     int fd = -1;
-    int directFlag = 0;
     virFileWrapperFd *wrapperFd = NULL;
-    unsigned int wrapperFlags = VIR_FILE_WRAPPER_NON_BLOCKING;
+    bool sparse = data->header.format == QEMU_SAVE_FORMAT_SPARSE;
 
     /* Obtain the file handle.  */
-    if ((flags & VIR_DOMAIN_SAVE_BYPASS_CACHE)) {
-        wrapperFlags |= VIR_FILE_WRAPPER_BYPASS_CACHE;
-        directFlag = virFileDirectFdFlag();
-        if (directFlag < 0) {
-            virReportError(VIR_ERR_OPERATION_FAILED, "%s",
-                           _("bypass cache unsupported by this system"));
-            goto cleanup;
-        }
-    }
+    fd = qemuSaveImageCreateFd(driver, vm, path, &wrapperFd, sparse, &needUnlink, flags);
 
-    fd = virQEMUFileOpenAs(cfg->user, cfg->group, false, path,
-                           O_WRONLY | O_TRUNC | O_CREAT | directFlag,
-                           &needUnlink);
     if (fd < 0)
-        goto cleanup;
-
-    if (qemuSecuritySetImageFDLabel(driver->securityManager, vm->def, fd) < 0)
-        goto cleanup;
-
-    if (!(wrapperFd = virFileWrapperFdNew(&fd, path, wrapperFlags)))
         goto cleanup;
 
     if (virQEMUSaveDataWrite(data, fd, path) < 0)
         goto cleanup;
 
     /* Perform the migration */
-    if (qemuMigrationSrcToFile(driver, vm, fd, compressor, asyncJob) < 0)
+    if (qemuMigrationSrcToFile(driver, vm, path, &fd, compressor, saveParams, flags, asyncJob) < 0)
         goto cleanup;
 
     /* Touch up file header to mark image complete. */
@@ -498,14 +509,18 @@ qemuSaveImageCreate(virQEMUDriver *driver,
     /* Reopen the file to touch up the header, since we aren't set
      * up to seek backwards on wrapperFd.  The reopened fd will
      * trigger a single page of file system cache pollution, but
-     * that's acceptable.  */
-    if (VIR_CLOSE(fd) < 0) {
-        virReportSystemError(errno, _("unable to close %1$s"), path);
-        goto cleanup;
-    }
+     * that's acceptable.
+     * If using mapped-ram, the fd was passed to qemu, so no need
+     * to close it.  */
+    if (!sparse) {
+        if (VIR_CLOSE(fd) < 0) {
+            virReportSystemError(errno, _("unable to close %1$s"), path);
+            goto cleanup;
+        }
 
-    if (qemuDomainFileWrapperFDClose(vm, wrapperFd) < 0)
-        goto cleanup;
+        if (qemuDomainFileWrapperFDClose(vm, wrapperFd) < 0)
+            goto cleanup;
+    }
 
     if ((fd = qemuDomainOpenFile(cfg, vm->def, path, O_WRONLY, NULL)) < 0 ||
         virQEMUSaveDataFinish(data, &fd, path) < 0)
@@ -527,81 +542,40 @@ qemuSaveImageCreate(virQEMUDriver *driver,
 
 
 /* qemuSaveImageGetCompressionProgram:
- * @imageFormat: String representation from qemu.conf of the image format
- *               being used (dump, save, or snapshot).
+ * @format: Integer representation of the image format being used
+ *          (dump, save, or snapshot).
  * @compresspath: Pointer to a character string to store the fully qualified
  *                path from virFindFileInPath.
  * @styleFormat: String representing the style of format (dump, save, snapshot)
- * @use_raw_on_fail: Boolean indicating how to handle the error path. For
- *                   callers that are OK with invalid data or inability to
- *                   find the compression program, just return a raw format
- *                   and let the path remain as NULL.
  *
- * Returns:
- *    virQEMUSaveFormat    - Integer representation of the save image
- *                           format to be used for particular style
- *                           (e.g. dump, save, or snapshot).
- *    QEMU_SAVE_FORMAT_RAW - If there is no qemu.conf imageFormat value or
- *                           no there was an error, then just return RAW
- *                           indicating none.
+ * Returns -1 on failure, 0 on success.
  */
 int
-qemuSaveImageGetCompressionProgram(const char *imageFormat,
+qemuSaveImageGetCompressionProgram(int format,
                                    virCommand **compressor,
-                                   const char *styleFormat,
-                                   bool use_raw_on_fail)
+                                   const char *styleFormat)
 {
-    int ret;
+    const char *imageFormat = qemuSaveFormatTypeToString(format);
     const char *prog;
 
     *compressor = NULL;
 
-    if (!imageFormat)
-        return QEMU_SAVE_FORMAT_RAW;
+    if (format == QEMU_SAVE_FORMAT_RAW || format == QEMU_SAVE_FORMAT_SPARSE)
+        return 0;
 
-    if ((ret = qemuSaveFormatTypeFromString(imageFormat)) < 0)
-        goto error;
-
-    if (ret == QEMU_SAVE_FORMAT_RAW)
-        return QEMU_SAVE_FORMAT_RAW;
-
-    if (!(prog = virFindFileInPath(imageFormat)))
-        goto error;
+    if (!(prog = virFindFileInPath(imageFormat))) {
+        virReportError(VIR_ERR_OPERATION_FAILED,
+                       _("Compression program for %1$s image format in configuration file isn't available"),
+                       styleFormat);
+        return -1;
+    }
 
     *compressor = virCommandNew(prog);
     virCommandAddArg(*compressor, "-c");
-    if (ret == QEMU_SAVE_FORMAT_XZ)
+    if (format == QEMU_SAVE_FORMAT_XZ)
         virCommandAddArg(*compressor, "-3");
 
-    return ret;
-
- error:
-    if (ret < 0) {
-        if (use_raw_on_fail)
-            VIR_WARN("Invalid %s image format specified in "
-                     "configuration file, using raw",
-                     styleFormat);
-        else
-            virReportError(VIR_ERR_OPERATION_FAILED,
-                           _("Invalid %1$s image format specified in configuration file"),
-                           styleFormat);
-    } else {
-        if (use_raw_on_fail)
-            VIR_WARN("Compression program for %s image format in "
-                     "configuration file isn't available, using raw",
-                     styleFormat);
-        else
-            virReportError(VIR_ERR_OPERATION_FAILED,
-                           _("Compression program for %1$s image format in configuration file isn't available"),
-                           styleFormat);
-    }
-
-    /* Use "raw" as the format if the specified format is not valid,
-     * or the compress program is not available. */
-    if (use_raw_on_fail)
-        return QEMU_SAVE_FORMAT_RAW;
-
-    return -1;
+    return 0;
 }
 
 
@@ -683,6 +657,7 @@ qemuSaveImageGetMetadata(virQEMUDriver *driver,
  * @driver: qemu driver data
  * @path: path of the save image
  * @bypass_cache: bypass cache when opening the file
+ * @sparse: Image contains mapped-ram save format
  * @wrapperFd: returns the file wrapper structure
  * @open_write: open the file for writing (for updates)
  *
@@ -692,6 +667,7 @@ int
 qemuSaveImageOpen(virQEMUDriver *driver,
                   const char *path,
                   bool bypass_cache,
+                  bool sparse,
                   virFileWrapperFd **wrapperFd,
                   bool open_write)
 {
@@ -713,15 +689,18 @@ qemuSaveImageOpen(virQEMUDriver *driver,
     if ((fd = qemuDomainOpenFile(cfg, NULL, path, oflags, NULL)) < 0)
         return -1;
 
-    if (bypass_cache &&
-        !(*wrapperFd = virFileWrapperFdNew(&fd, path,
-                                           VIR_FILE_WRAPPER_BYPASS_CACHE)))
-        return -1;
+    /* If sparse, no need for the iohelper or positioning the file pointer. */
+    if (!sparse) {
+        if (bypass_cache &&
+            !(*wrapperFd = virFileWrapperFdNew(&fd, path,
+                                               VIR_FILE_WRAPPER_BYPASS_CACHE)))
+            return -1;
 
-    /* Read the header to position the file pointer for QEMU. Unfortunately we
-     * can't use lseek with virFileWrapperFD. */
-    if (qemuSaveImageReadHeader(fd, NULL) < 0)
-        return -1;
+        /* Read the header to position the file pointer for QEMU. Unfortunately we
+         * can't use lseek with virFileWrapperFD. */
+        if (qemuSaveImageReadHeader(fd, NULL) < 0)
+            return -1;
+    }
 
     ret = fd;
     fd = -1;
@@ -737,6 +716,7 @@ qemuSaveImageStartVM(virConnectPtr conn,
                      int *fd,
                      virQEMUSaveData *data,
                      const char *path,
+                     qemuMigrationParams *restoreParams,
                      bool start_paused,
                      bool reset_nvram,
                      virDomainAsyncJob asyncJob)
@@ -753,8 +733,8 @@ qemuSaveImageStartVM(virConnectPtr conn,
         start_flags |= VIR_QEMU_PROCESS_START_RESET_NVRAM;
 
     if (qemuProcessStartWithMemoryState(conn, driver, vm, fd, path, NULL, data,
-                                        asyncJob, start_flags, "restored",
-                                        &started) < 0) {
+                                        restoreParams, asyncJob, start_flags,
+                                        "restored", &started) < 0) {
         goto cleanup;
     }
 

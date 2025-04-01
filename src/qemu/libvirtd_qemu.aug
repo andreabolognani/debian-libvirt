@@ -50,6 +50,11 @@ module Libvirtd_qemu =
                  | bool_entry "spice_sasl"
                  | str_entry "spice_sasl_dir"
 
+   let rdp_entry = str_entry "rdp_listen"
+                 | str_entry "rdp_tls_x509_cert_dir"
+                 | str_entry "rdp_username"
+                 | str_entry "rdp_password"
+
    let chardev_entry = bool_entry "chardev_tls"
                  | str_entry "chardev_tls_x509_cert_dir"
                  | bool_entry "chardev_tls_x509_verify"
@@ -98,11 +103,18 @@ module Libvirtd_qemu =
                  | bool_entry "auto_dump_bypass_cache"
                  | bool_entry "auto_start_bypass_cache"
                  | int_entry "auto_start_delay"
+                 | str_entry "auto_shutdown_try_save"
+                 | str_entry "auto_shutdown_try_shutdown"
+                 | str_entry "auto_shutdown_poweroff"
+                 | int_entry "auto_shutdown_wait"
+                 | bool_entry "auto_shutdown_restore"
+                 | bool_entry "auto_save_bypass_cache"
 
    let process_entry = str_entry "hugetlbfs_mount"
                  | str_entry "bridge_helper"
                  | str_entry "pr_helper"
                  | str_entry "slirp_helper"
+                 | str_entry "qemu_rdp"
                  | str_entry "dbus_daemon"
                  | bool_entry "set_process_name"
                  | int_entry "max_processes"
@@ -156,6 +168,7 @@ module Libvirtd_qemu =
    let entry = default_tls_entry
              | vnc_entry
              | spice_entry
+             | rdp_entry
              | chardev_entry
              | migrate_entry
              | backup_entry

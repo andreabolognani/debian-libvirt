@@ -1082,7 +1082,6 @@ qemuSnapshotPrepare(virDomainObj *vm,
     }
 
     /* Handle interlocking with 'checkpoints':
-     * - if the VM is online use qemuDomainSupportsCheckpointsBlockjobs
      * - if the VM is offline disallow external snapshots as the support for
      *   propagating bitmaps into the would-be-created overlay is not yet implemented
      */
@@ -1093,9 +1092,6 @@ qemuSnapshotPrepare(virDomainObj *vm,
                            _("support for offline external snapshots while checkpoint exists was not yet implemented"));
             return -1;
         }
-    } else {
-        if (qemuDomainSupportsCheckpointsBlockjobs(vm) < 0)
-            return -1;
     }
 
     /* Alter flags to let later users know what we learned.  */
@@ -1597,7 +1593,6 @@ qemuSnapshotCreateActiveExternal(virQEMUDriver *driver,
     bool memory_existing = false;
     bool thaw = false;
     bool pmsuspended = false;
-    int format;
     g_autoptr(virCommand) compressor = NULL;
     virQEMUSaveData *data = NULL;
     g_autoptr(GHashTable) blockNamedNodeData = NULL;
@@ -1662,6 +1657,8 @@ qemuSnapshotCreateActiveExternal(virQEMUDriver *driver,
 
     /* do the memory snapshot if necessary */
     if (memory) {
+        g_autoptr(qemuMigrationParams) snap_params = NULL;
+
         /* check if migration is possible */
         if (!qemuMigrationSrcIsAllowed(vm, false, VIR_ASYNC_JOB_SNAPSHOT, 0))
             goto cleanup;
@@ -1674,9 +1671,8 @@ qemuSnapshotCreateActiveExternal(virQEMUDriver *driver,
                                           JOB_MASK(VIR_JOB_SUSPEND) |
                                           JOB_MASK(VIR_JOB_MIGRATION_OP)));
 
-        if ((format = qemuSaveImageGetCompressionProgram(cfg->snapshotImageFormat,
-                                                         &compressor,
-                                                         "snapshot", false)) < 0)
+        if (qemuSaveImageGetCompressionProgram(cfg->snapshotImageFormat,
+                                               &compressor, "snapshot") < 0)
             goto cleanup;
 
         if (!(xml = qemuDomainDefFormatLive(driver, priv->qemuCaps,
@@ -1687,14 +1683,17 @@ qemuSnapshotCreateActiveExternal(virQEMUDriver *driver,
 
         if (!(data = virQEMUSaveDataNew(xml,
                                         (qemuDomainSaveCookie *) snapdef->cookie,
-                                        resume, format, driver->xmlopt)))
+                                        resume, cfg->snapshotImageFormat, driver->xmlopt)))
             goto cleanup;
         xml = NULL;
 
         memory_existing = virFileExists(snapdef->memorysnapshotfile);
 
+        if (!(snap_params = qemuMigrationParamsNew()))
+            goto cleanup;
+
         if ((ret = qemuSaveImageCreate(driver, vm, snapdef->memorysnapshotfile,
-                                       data, compressor, 0,
+                                       data, compressor, snap_params, 0,
                                        VIR_ASYNC_JOB_SNAPSHOT)) < 0)
             goto cleanup;
 
@@ -2205,6 +2204,8 @@ qemuSnapshotRevertValidate(virDomainObj *vm,
                            virDomainSnapshotDef *snapdef,
                            unsigned int flags)
 {
+    size_t i;
+
     if (!vm->persistent &&
         snapdef->state != VIR_DOMAIN_SNAPSHOT_RUNNING &&
         snapdef->state != VIR_DOMAIN_SNAPSHOT_PAUSED &&
@@ -2229,6 +2230,22 @@ qemuSnapshotRevertValidate(virDomainObj *vm,
             virReportError(VIR_ERR_SNAPSHOT_REVERT_RISKY, "%s",
                            _("snapshot without memory state, removal of existing managed saved state strongly recommended to avoid corruption"));
             return -1;
+        }
+    }
+
+    /* Reverting to external snapshot creates overlay files for every disk and
+     * it would fail for non-file based disks.
+     * See qemuSnapshotRevertExternalPrepare for more details. */
+    if (virDomainSnapshotIsExternal(snap)) {
+        for (i = 0; i < snap->def->dom->ndisks; i++) {
+            virDomainDiskDef *disk = snap->def->dom->disks[i];
+
+            if (disk->src->type != VIR_STORAGE_TYPE_FILE) {
+                virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
+                               _("source disk for '%1$s' is not a regular file, reverting to snapshot is not supported"),
+                               disk->dst);
+                return -1;
+            }
         }
     }
 
@@ -2383,6 +2400,9 @@ qemuSnapshotRevertExternalPrepare(virDomainObj *vm,
     if (virDomainMomentDefPostParse(&tmpsnapdef->parent) < 0)
         return -1;
 
+    /* Force default location to be external in order to create overlay files
+     * for every disk. In qemuSnapshotRevertValidate we make sure that each
+     * disk is regular file otherwise this would fail. */
     if (virDomainSnapshotAlignDisks(tmpsnapdef, domdef,
                                     VIR_DOMAIN_SNAPSHOT_LOCATION_EXTERNAL,
                                     false, true) < 0) {
@@ -2410,7 +2430,7 @@ qemuSnapshotRevertExternalPrepare(virDomainObj *vm,
             return -1;
 
         memdata->fd = qemuSaveImageOpen(driver, memdata->path,
-                                        false, NULL, false);
+                                        false, false, NULL, false);
         if (memdata->fd < 0)
             return -1;
 
@@ -2650,7 +2670,7 @@ qemuSnapshotRevertActive(virDomainObj *vm,
 
     if (qemuProcessStartWithMemoryState(snapshot->domain->conn, driver, vm,
                                         &memdata.fd, memdata.path, loadSnap,
-                                        memdata.data, VIR_ASYNC_JOB_SNAPSHOT,
+                                        memdata.data, NULL, VIR_ASYNC_JOB_SNAPSHOT,
                                         start_flags, "from-snapshot",
                                         &started) < 0) {
         if (started) {
@@ -2804,7 +2824,7 @@ qemuSnapshotRevertInactive(virDomainObj *vm,
 
         rc = qemuProcessStart(snapshot->domain->conn, driver, vm, NULL,
                               VIR_ASYNC_JOB_SNAPSHOT, NULL, -1, NULL, NULL,
-                              VIR_NETDEV_VPORT_PROFILE_OP_CREATE,
+                              NULL, VIR_NETDEV_VPORT_PROFILE_OP_CREATE,
                               start_flags);
         virDomainAuditStart(vm, "from-snapshot", rc >= 0);
         if (rc < 0) {
@@ -3280,7 +3300,7 @@ qemuSnapshotDeleteExternalPrepare(virDomainObj *vm,
 
         if (!virDomainObjIsActive(vm)) {
             if (qemuProcessStart(NULL, driver, vm, NULL, VIR_ASYNC_JOB_SNAPSHOT,
-                                 NULL, -1, NULL, NULL,
+                                 NULL, -1, NULL, NULL, NULL,
                                  VIR_NETDEV_VPORT_PROFILE_OP_CREATE,
                                  VIR_QEMU_PROCESS_START_PAUSED) < 0) {
                 return -1;
@@ -3494,7 +3514,7 @@ qemuSnapshotDeleteBlockJobIsRunning(qemuBlockjobState state)
 
 /* When finishing or aborting qemu blockjob we only need to know if the
  * job is still active or not. */
-static int
+static bool
 qemuSnapshotDeleteBlockJobIsActive(qemuBlockjobState state)
 {
     switch (state) {
@@ -3504,7 +3524,7 @@ qemuSnapshotDeleteBlockJobIsActive(qemuBlockjobState state)
     case QEMU_BLOCKJOB_STATE_ABORTING:
     case QEMU_BLOCKJOB_STATE_PENDING:
     case QEMU_BLOCKJOB_STATE_PIVOTING:
-        return 1;
+        return true;
 
     case QEMU_BLOCKJOB_STATE_COMPLETED:
     case QEMU_BLOCKJOB_STATE_FAILED:
@@ -3514,7 +3534,7 @@ qemuSnapshotDeleteBlockJobIsActive(qemuBlockjobState state)
         break;
     }
 
-    return 0;
+    return false;
 }
 
 
@@ -3542,17 +3562,13 @@ static int
 qemuSnapshotDeleteBlockJobFinishing(virDomainObj *vm,
                                     qemuBlockJobData *job)
 {
-    int rc;
     qemuBlockJobUpdate(vm, job, VIR_ASYNC_JOB_SNAPSHOT);
 
-    while ((rc = qemuSnapshotDeleteBlockJobIsActive(job->state)) > 0) {
+    while (qemuSnapshotDeleteBlockJobIsActive(job->state)) {
         if (qemuDomainObjWait(vm) < 0)
             return -1;
         qemuBlockJobUpdate(vm, job, VIR_ASYNC_JOB_SNAPSHOT);
     }
-
-    if (rc < 0)
-        return -1;
 
     return 0;
 }

@@ -52,6 +52,12 @@ bool virTPMHasSwtpm(void)
 }
 
 
+/* Enough to tell capabilities code that qemu-rdp is usable */
+bool qemuRdpAvailable(const char *helper G_GNUC_UNUSED)
+{
+    return true;
+}
+
 
 bool
 virTPMSwtpmSetupCapsGet(virTPMSwtpmSetupFeature cap)
@@ -330,6 +336,8 @@ int qemuTestDriverInit(virQEMUDriver *driver)
     cfg->passtStateDir = g_strdup("/var/run/libvirt/qemu/passt");
     VIR_FREE(cfg->dbusStateDir);
     cfg->dbusStateDir = g_strdup("/var/run/libvirt/qemu/dbus");
+    VIR_FREE(cfg->rdpStateDir);
+    cfg->rdpStateDir = g_strdup("/var/run/libvirt/qemu/rdp");
 
     if (!g_mkdtemp(statedir)) {
         fprintf(stderr, "Cannot create fake stateDir");
@@ -380,6 +388,8 @@ int qemuTestDriverInit(virQEMUDriver *driver)
     cfg->vncTLSx509certdir = g_strdup("/etc/pki/libvirt-vnc");
     VIR_FREE(cfg->spiceTLSx509certdir);
     cfg->spiceTLSx509certdir = g_strdup("/etc/pki/libvirt-spice");
+    VIR_FREE(cfg->rdpTLSx509certdir);
+    cfg->rdpTLSx509certdir = g_strdup("/etc/pki/libvirt-rdp");
     VIR_FREE(cfg->chardevTLSx509certdir);
     cfg->chardevTLSx509certdir = g_strdup("/etc/pki/libvirt-chardev");
     VIR_FREE(cfg->vxhsTLSx509certdir);
@@ -754,6 +764,9 @@ testQemuInfoSetArgs(testQemuInfo *info,
         if (info->args.invalidarg)
             break;
     }
+
+    if (!info->args.capsvariant)
+        info->args.capsvariant = "";
 }
 
 
@@ -912,9 +925,6 @@ testQemuInfoInitArgs(testQemuInfo *info)
         return 0;
 
     info->args.newargs = false;
-
-    if (!info->args.capsvariant)
-        info->args.capsvariant = "";
 
     if (info->args.invalidarg) {
         fprintf(stderr, "Invalid argument encountered by 'testQemuInfoSetArgs'\n");

@@ -801,8 +801,7 @@ prlsdkAddDomainHardDisksInfo(struct _vzDriver *driver, PRL_HANDLE sdkdom, virDom
             if (prlsdkGetFSInfo(hdd, fs) < 0)
                 goto error;
 
-            if (virDomainFSInsert(def, fs) < 0)
-                goto error;
+            virDomainFSInsert(def, fs);
 
             fs = NULL;
             PrlHandle_Free(hdd);
@@ -1849,15 +1848,8 @@ prlsdkLoadDomain(struct _vzDriver *driver,
         int bus = IS_CT(def) ? VIR_DOMAIN_INPUT_BUS_PARALLELS :
                                VIR_DOMAIN_INPUT_BUS_PS2;
 
-        if (virDomainDefMaybeAddInput(def,
-                                      VIR_DOMAIN_INPUT_TYPE_MOUSE,
-                                      bus) < 0)
-            return NULL;
-
-        if (virDomainDefMaybeAddInput(def,
-                                      VIR_DOMAIN_INPUT_TYPE_KBD,
-                                      bus) < 0)
-            return NULL;
+        virDomainDefMaybeAddInput(def, VIR_DOMAIN_INPUT_TYPE_MOUSE, bus);
+        virDomainDefMaybeAddInput(def, VIR_DOMAIN_INPUT_TYPE_KBD, bus);
     }
 
     if (!dom) {

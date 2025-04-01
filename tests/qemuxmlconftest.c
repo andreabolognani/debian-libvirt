@@ -1006,14 +1006,18 @@ testRun(const char *name,
     va_end(ap);
 
     info->infile = g_strdup_printf("%s/qemuxmlconfdata/%s.xml", abs_srcdir, info->name);
+
     if (info->flags & (FLAG_EXPECT_FAILURE | FLAG_EXPECT_PARSE_ERROR)) {
-        info->errfile = g_strdup_printf("%s/qemuxmlconfdata/%s%s.err", abs_srcdir, info->name, suffix);
+        info->errfile = g_strdup_printf("%s/qemuxmlconfdata/%s%s%s.err",
+                                        abs_srcdir, info->name, suffix, info->args.capsvariant);
     } else {
-        info->outfile = g_strdup_printf("%s/qemuxmlconfdata/%s%s.args", abs_srcdir, info->name, suffix);
+        info->outfile = g_strdup_printf("%s/qemuxmlconfdata/%s%s%s.args",
+                                        abs_srcdir, info->name, suffix, info->args.capsvariant);
     }
 
     if (!(info->flags & FLAG_EXPECT_PARSE_ERROR))
-        info->out_xml_inactive = g_strdup_printf("%s/qemuxmlconfdata/%s%s.xml", abs_srcdir, info->name, suffix);
+        info->out_xml_inactive = g_strdup_printf("%s/qemuxmlconfdata/%s%s%s.xml",
+                                                 abs_srcdir, info->name, suffix, info->args.capsvariant);
 
     virTestRunLog(ret, name_parse, testXMLParse, info);
     virTestRunLog(ret, name_xml, testCompareDef2XML, info);
@@ -1504,7 +1508,6 @@ mymain(void)
     DO_TEST_CAPS_LATEST("hyperv");
     DO_TEST_CAPS_LATEST("hyperv-off");
     DO_TEST_CAPS_LATEST("hyperv-panic");
-    DO_TEST_CAPS_VER("hyperv-passthrough", "6.1.0");
     DO_TEST_CAPS_LATEST("hyperv-passthrough");
     DO_TEST_CAPS_LATEST("hyperv-stimer-direct");
 
@@ -1579,7 +1582,6 @@ mymain(void)
     /* 'gluster' protocol backend was deprecated in qemu-9.2 */
     DO_TEST_CAPS_VER("disk-network-gluster", "9.1.0");
     DO_TEST_CAPS_LATEST("disk-network-rbd");
-    DO_TEST_CAPS_VER_PARSE_ERROR("disk-network-rbd-encryption", "6.0.0");
     DO_TEST_CAPS_LATEST("disk-network-rbd-encryption");
     DO_TEST_CAPS_VER_PARSE_ERROR("disk-network-rbd-encryption-layering", "7.2.0");
     DO_TEST_CAPS_LATEST("disk-network-rbd-encryption-layering");
@@ -1587,15 +1589,13 @@ mymain(void)
     DO_TEST_CAPS_LATEST("disk-network-rbd-encryption-luks-any");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("disk-encryption-wrong");
     DO_TEST_CAPS_LATEST("disk-network-rbd-no-colon");
-    /* qemu-6.0 is the last qemu version supporting sheepdog */
-    DO_TEST_CAPS_VER("disk-network-sheepdog", "6.0.0");
+    DO_TEST_CAPS_LATEST_PARSE_ERROR("disk-network-sheepdog");
     DO_TEST_CAPS_LATEST("disk-network-source-auth");
     DO_TEST_CAPS_LATEST("disk-network-source-curl");
     DO_TEST_CAPS_LATEST("disk-network-nfs");
     driver.config->vxhsTLS = 1;
     driver.config->nbdTLSx509secretUUID = g_strdup("6fd3f62d-9fe7-4a4e-a869-7acd6376d8ea");
     driver.config->vxhsTLSx509secretUUID = g_strdup("6fd3f62d-9fe7-4a4e-a869-7acd6376d8ea");
-    DO_TEST_CAPS_VER("disk-network-tlsx509-nbd", "5.2.0");
     DO_TEST_CAPS_LATEST("disk-network-tlsx509-nbd");
     DO_TEST_CAPS_VER_PARSE_ERROR("disk-network-tlsx509-nbd-hostname", "6.2.0");
     DO_TEST_CAPS_LATEST("disk-network-tlsx509-nbd-hostname");
@@ -1671,7 +1671,6 @@ mymain(void)
     DO_TEST_CAPS_LATEST("encrypted-disk-usage");
     DO_TEST_CAPS_LATEST("luks-disks");
     DO_TEST_CAPS_LATEST("luks-disks-source");
-    DO_TEST_CAPS_VER("luks-disks-source-qcow2", "5.2.0");
     DO_TEST_CAPS_LATEST("luks-disks-source-qcow2");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("luks-disk-invalid");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("luks-disks-source-both");
@@ -1691,7 +1690,6 @@ mymain(void)
     DO_TEST_CAPS_LATEST_NBDKIT("disk-network-ssh-key", QEMU_NBDKIT_CAPS_PLUGIN_SSH);
     driver.config->storageUseNbdkit = 0;
 
-    DO_TEST_CAPS_VER("disk-virtio-scsi-reservations", "5.2.0");
     DO_TEST_CAPS_LATEST("disk-virtio-scsi-reservations");
 
     DO_TEST_CAPS_LATEST("graphics-egl-headless");
@@ -1717,7 +1715,6 @@ mymain(void)
     driver.config->vncTLSx509verify = 1;
     DO_TEST_CAPS_LATEST("graphics-vnc-tls");
     driver.config->vncTLSx509secretUUID = g_strdup("6fd3f62d-9fe7-4a4e-a869-7acd6376d8ea");
-    DO_TEST_CAPS_VER("graphics-vnc-tls-secret", "5.2.0");
     DO_TEST_CAPS_LATEST("graphics-vnc-tls-secret");
     VIR_FREE(driver.config->vncTLSx509secretUUID);
     driver.config->vncSASL = driver.config->vncTLSx509verify = driver.config->vncTLS = 0;
@@ -1756,6 +1753,8 @@ mymain(void)
     DO_TEST_CAPS_LATEST("graphics-dbus-chardev");
     DO_TEST_CAPS_LATEST("graphics-dbus-usbredir");
 
+    DO_TEST_CAPS_LATEST("graphics-rdp");
+
     DO_TEST_CAPS_LATEST("input-usbmouse");
     DO_TEST_CAPS_LATEST("input-usbtablet");
 
@@ -1778,7 +1777,6 @@ mymain(void)
     DO_TEST_CAPS_LATEST("misc-disable-s3");
     DO_TEST_CAPS_LATEST("misc-disable-suspends");
     DO_TEST_CAPS_LATEST("misc-enable-s4");
-    DO_TEST_CAPS_VER("misc-no-reboot", "5.2.0");
     DO_TEST_CAPS_LATEST("misc-no-reboot");
     DO_TEST_CAPS_LATEST("misc-uuid");
 
@@ -2189,8 +2187,8 @@ mymain(void)
     DO_TEST_CAPS_LATEST("iothreads-ids-partial");
     DO_TEST_CAPS_LATEST("iothreads-ids-pool-sizes");
     DO_TEST_CAPS_LATEST("iothreads-disk");
-    DO_TEST_CAPS_VER("iothreads-virtio-scsi-pci", "5.2.0");
     DO_TEST_CAPS_LATEST("iothreads-virtio-scsi-pci");
+    DO_TEST_CAPS_LATEST("iothreads-virtio-scsi-mapping");
     DO_TEST_CAPS_ARCH_LATEST("iothreads-virtio-scsi-ccw", "s390x");
 
     DO_TEST_CAPS_LATEST("cpu-topology1");
@@ -2208,9 +2206,7 @@ mymain(void)
     DO_TEST_CAPS_ARCH_LATEST_FULL("cpu-no-removed-features", "x86_64", ARG_CAPS_HOST_CPU_MODEL, QEMU_CPU_DEF_HASWELL);
 
     /* EPYC-Milan became available in qemu-6.0, use it for the fallback tests */
-    DO_TEST_CAPS_VER_FAILURE("cpu-nofallback", "5.2.0");
     DO_TEST_CAPS_VER("cpu-nofallback", "8.0.0");
-    DO_TEST_CAPS_VER("cpu-fallback", "5.2.0");
     DO_TEST_CAPS_VER("cpu-fallback", "8.0.0");
 
     DO_TEST_CAPS_LATEST("cpu-numa1");
@@ -2224,9 +2220,6 @@ mymain(void)
 
     /* host-model cpu expansion depends on the cpu reported by qemu and thus
      * we invoke it for all real capability dumps we have */
-    DO_TEST_CAPS_VER("cpu-host-model-kvm", "5.2.0");
-    DO_TEST_CAPS_VER("cpu-host-model-kvm", "6.0.0");
-    DO_TEST_CAPS_VER("cpu-host-model-kvm", "6.1.0");
     DO_TEST_CAPS_VER("cpu-host-model-kvm", "6.2.0");
     DO_TEST_CAPS_VER("cpu-host-model-kvm", "7.0.0");
     DO_TEST_CAPS_VER("cpu-host-model-kvm", "7.1.0");
@@ -2234,9 +2227,6 @@ mymain(void)
     DO_TEST_CAPS_VER("cpu-host-model-kvm", "8.0.0");
     DO_TEST_CAPS_VER("cpu-host-model-kvm", "8.1.0");
 
-    DO_TEST_CAPS_VER("cpu-host-model-tcg", "5.2.0");
-    DO_TEST_CAPS_VER("cpu-host-model-tcg", "6.0.0");
-    DO_TEST_CAPS_VER("cpu-host-model-tcg", "6.1.0");
     DO_TEST_CAPS_VER("cpu-host-model-tcg", "6.2.0");
     DO_TEST_CAPS_VER("cpu-host-model-tcg", "7.0.0");
     DO_TEST_CAPS_VER("cpu-host-model-tcg", "7.1.0");
@@ -2244,9 +2234,6 @@ mymain(void)
     DO_TEST_CAPS_VER("cpu-host-model-tcg", "8.0.0");
     DO_TEST_CAPS_VER("cpu-host-model-tcg", "8.1.0");
 
-    DO_TEST_CAPS_VER("cpu-host-model-fallback-kvm", "5.2.0");
-    DO_TEST_CAPS_VER("cpu-host-model-fallback-kvm", "6.0.0");
-    DO_TEST_CAPS_VER("cpu-host-model-fallback-kvm", "6.1.0");
     DO_TEST_CAPS_VER("cpu-host-model-fallback-kvm", "6.2.0");
     DO_TEST_CAPS_VER("cpu-host-model-fallback-kvm", "7.0.0");
     DO_TEST_CAPS_VER("cpu-host-model-fallback-kvm", "7.1.0");
@@ -2254,9 +2241,6 @@ mymain(void)
     DO_TEST_CAPS_VER("cpu-host-model-fallback-kvm", "8.0.0");
     DO_TEST_CAPS_VER("cpu-host-model-fallback-kvm", "8.1.0");
 
-    DO_TEST_CAPS_VER("cpu-host-model-fallback-tcg", "5.2.0");
-    DO_TEST_CAPS_VER("cpu-host-model-fallback-tcg", "6.0.0");
-    DO_TEST_CAPS_VER("cpu-host-model-fallback-tcg", "6.1.0");
     DO_TEST_CAPS_VER("cpu-host-model-fallback-tcg", "6.2.0");
     DO_TEST_CAPS_VER("cpu-host-model-fallback-tcg", "7.0.0");
     DO_TEST_CAPS_VER("cpu-host-model-fallback-tcg", "7.1.0");
@@ -2264,9 +2248,6 @@ mymain(void)
     DO_TEST_CAPS_VER("cpu-host-model-fallback-tcg", "8.0.0");
     DO_TEST_CAPS_VER("cpu-host-model-fallback-tcg", "8.1.0");
 
-    DO_TEST_CAPS_VER("cpu-host-model-nofallback-kvm", "5.2.0");
-    DO_TEST_CAPS_VER("cpu-host-model-nofallback-kvm", "6.0.0");
-    DO_TEST_CAPS_VER("cpu-host-model-nofallback-kvm", "6.1.0");
     DO_TEST_CAPS_VER("cpu-host-model-nofallback-kvm", "6.2.0");
     DO_TEST_CAPS_VER("cpu-host-model-nofallback-kvm", "7.0.0");
     DO_TEST_CAPS_VER("cpu-host-model-nofallback-kvm", "7.1.0");
@@ -2274,9 +2255,6 @@ mymain(void)
     DO_TEST_CAPS_VER("cpu-host-model-nofallback-kvm", "8.0.0");
     DO_TEST_CAPS_VER("cpu-host-model-nofallback-kvm", "8.1.0");
 
-    DO_TEST_CAPS_VER("cpu-host-model-nofallback-tcg", "5.2.0");
-    DO_TEST_CAPS_VER("cpu-host-model-nofallback-tcg", "6.0.0");
-    DO_TEST_CAPS_VER("cpu-host-model-nofallback-tcg", "6.1.0");
     DO_TEST_CAPS_VER("cpu-host-model-nofallback-tcg", "6.2.0");
     DO_TEST_CAPS_VER("cpu-host-model-nofallback-tcg", "7.0.0");
     DO_TEST_CAPS_VER("cpu-host-model-nofallback-tcg", "7.1.0");
@@ -2328,7 +2306,6 @@ mymain(void)
     DO_TEST_CAPS_LATEST_PARSE_ERROR("cpuset-invalid");
 
     DO_TEST_CAPS_LATEST_PARSE_ERROR("numatune-memory-invalid-nodeset");
-    DO_TEST_CAPS_VER("numatune-memnode", "5.2.0");
     DO_TEST_CAPS_LATEST("numatune-memnode");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("numatune-memnode-invalid-mode");
     DO_TEST_CAPS_LATEST("numatune-memnode-restrictive-mode");
@@ -2360,6 +2337,8 @@ mymain(void)
     DO_TEST_CAPS_LATEST("blkdeviotune-max");
     DO_TEST_CAPS_LATEST("blkdeviotune-group-num");
     DO_TEST_CAPS_LATEST("blkdeviotune-max-length");
+    DO_TEST_CAPS_LATEST("throttlefilter");
+    DO_TEST_CAPS_LATEST_PARSE_ERROR("throttlefilter-invalid");
 
     DO_TEST_CAPS_LATEST("multifunction-pci-device");
 
@@ -2487,9 +2466,7 @@ mymain(void)
     DO_TEST_CAPS_LATEST("virtio-rng-default");
     DO_TEST_CAPS_LATEST("virtio-rng-random");
     DO_TEST_CAPS_LATEST("virtio-rng-egd");
-    DO_TEST_CAPS_VER("virtio-rng-builtin", "5.2.0");
     DO_TEST_CAPS_LATEST("virtio-rng-builtin");
-    DO_TEST_CAPS_VER("virtio-rng-egd-unix", "5.2.0");
     DO_TEST_CAPS_LATEST("virtio-rng-egd-unix");
     DO_TEST_CAPS_LATEST("virtio-rng-multiple");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("virtio-rng-egd-crash");
@@ -2701,17 +2678,12 @@ mymain(void)
     DO_TEST_CAPS_ARCH_LATEST_ABI_UPDATE("memory-hotplug-ppc64-nonuma", "ppc64");
     DO_TEST_CAPS_LATEST("memory-hotplug-nvdimm");
     DO_TEST_CAPS_LATEST("memory-hotplug-nvdimm-access");
-    DO_TEST_CAPS_VER("memory-hotplug-nvdimm-label", "5.2.0");
     DO_TEST_CAPS_LATEST("memory-hotplug-nvdimm-label");
-    DO_TEST_CAPS_VER("memory-hotplug-nvdimm-align", "5.2.0");
     DO_TEST_CAPS_LATEST("memory-hotplug-nvdimm-align");
-    DO_TEST_CAPS_VER("memory-hotplug-nvdimm-pmem", "5.2.0");
     DO_TEST_CAPS_LATEST("memory-hotplug-nvdimm-pmem");
-    DO_TEST_CAPS_VER("memory-hotplug-nvdimm-readonly", "5.2.0");
     DO_TEST_CAPS_LATEST("memory-hotplug-nvdimm-readonly");
     DO_TEST_CAPS_ARCH_LATEST("memory-hotplug-nvdimm-ppc64", "ppc64");
     DO_TEST_CAPS_ARCH_LATEST_ABI_UPDATE("memory-hotplug-nvdimm-ppc64", "ppc64");
-    DO_TEST_CAPS_VER("memory-hotplug-virtio-pmem", "5.2.0");
     DO_TEST_CAPS_LATEST("memory-hotplug-virtio-pmem");
     DO_TEST_CAPS_LATEST("memory-hotplug-virtio-mem");
     DO_TEST_CAPS_LATEST("memory-hotplug-multiple");
@@ -2774,6 +2746,7 @@ mymain(void)
     DO_TEST_CAPS_LATEST_PARSE_ERROR("usb-too-long-port-path-invalid");
 
     DO_TEST_CAPS_LATEST("acpi-table");
+    DO_TEST_CAPS_LATEST("acpi-table-many");
 
     DO_TEST_CAPS_LATEST("intel-iommu");
     DO_TEST_CAPS_LATEST("intel-iommu-caching-mode");
@@ -2786,7 +2759,6 @@ mymain(void)
     DO_TEST_CAPS_LATEST_ABI_UPDATE("intel-iommu-eim-autoadd-v2");
     DO_TEST_CAPS_ARCH_LATEST("iommu-smmuv3", "aarch64");
     DO_TEST_CAPS_LATEST("virtio-iommu-x86_64");
-    DO_TEST_CAPS_VER_PARSE_ERROR("virtio-iommu-x86_64", "6.1.0");
     DO_TEST_CAPS_ARCH_LATEST("virtio-iommu-aarch64", "aarch64");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("virtio-iommu-wrong-machine");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("virtio-iommu-no-acpi");
@@ -2872,19 +2844,22 @@ mymain(void)
     DO_TEST_CAPS_ARCH_LATEST("vhost-vsock-ccw-auto", "s390x");
     DO_TEST_CAPS_ARCH_LATEST("vhost-vsock-ccw-iommu", "s390x");
 
-    DO_TEST_CAPS_VER("launch-security-sev", "6.0.0");
-    DO_TEST_CAPS_VER("launch-security-sev-missing-platform-info", "6.0.0");
-    DO_TEST_CAPS_ARCH_LATEST_FULL("launch-security-sev-direct",
-                                  "x86_64",
-                                  ARG_QEMU_CAPS,
-                                  QEMU_CAPS_SEV_GUEST,
-                                  QEMU_CAPS_LAST);
+    DO_TEST_CAPS_ARCH_LATEST_FULL("launch-security-sev", "x86_64",
+                                  ARG_CAPS_VARIANT, "+amdsev", ARG_END);
+    DO_TEST_CAPS_ARCH_LATEST_FULL("launch-security-sev-missing-platform-info", "x86_64",
+                                  ARG_CAPS_VARIANT, "+amdsev", ARG_END);
 
-    DO_TEST_CAPS_ARCH_LATEST_FULL("launch-security-sev-snp",
-                                  "x86_64",
-                                  ARG_QEMU_CAPS,
-                                  QEMU_CAPS_SEV_SNP_GUEST,
-                                  QEMU_CAPS_LAST);
+    /* The following cases test both the latest "+amdsev" variant as well as
+     * faking support for the capability */
+    DO_TEST_CAPS_ARCH_LATEST_FULL("launch-security-sev-direct", "x86_64",
+                                  ARG_CAPS_VARIANT, "+amdsev", ARG_END);
+    DO_TEST_CAPS_ARCH_LATEST_FULL("launch-security-sev-direct", "x86_64",
+                                  ARG_QEMU_CAPS, QEMU_CAPS_SEV_GUEST, QEMU_CAPS_LAST);
+
+    DO_TEST_CAPS_ARCH_LATEST_FULL("launch-security-sev-snp", "x86_64",
+                                  ARG_CAPS_VARIANT, "+amdsev", ARG_END);
+    DO_TEST_CAPS_ARCH_LATEST_FULL("launch-security-sev-snp", "x86_64",
+                                  ARG_QEMU_CAPS, QEMU_CAPS_SEV_SNP_GUEST, QEMU_CAPS_LAST);
 
     DO_TEST_CAPS_ARCH_LATEST("launch-security-s390-pv", "s390x");
 
@@ -2968,9 +2943,7 @@ mymain(void)
     DO_TEST_CAPS_LATEST("async-teardown");
     DO_TEST_CAPS_ARCH_LATEST("s390-async-teardown", "s390x");
     DO_TEST_CAPS_ARCH_LATEST("s390-async-teardown-no-attrib", "s390x");
-    DO_TEST_CAPS_ARCH_VER_PARSE_ERROR("s390-async-teardown", "s390x", "6.0.0");
     DO_TEST_CAPS_ARCH_LATEST("s390-async-teardown-disabled", "s390x");
-    DO_TEST_CAPS_ARCH_VER("s390-async-teardown-disabled", "s390x", "6.0.0");
 
     DO_TEST_CAPS_LATEST("boot-menu-disable-with-timeout");
     DO_TEST_CAPS_LATEST("channel-unix-source-path");

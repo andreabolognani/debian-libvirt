@@ -462,38 +462,40 @@ qemuHotplugAttachManagedPR(virDomainObj *vm,
 
 /**
  * qemuHotplugRemoveManagedPR:
- * @driver: QEMU driver object
  * @vm: domain object
+ * @src: storage source that is being removed
  * @asyncJob: asynchronous job identifier
  *
  * Removes the managed PR object from @vm if the configuration does not require
  * it any more.
  */
-int
+void
 qemuHotplugRemoveManagedPR(virDomainObj *vm,
+                           virStorageSource *src,
                            virDomainAsyncJob asyncJob)
 {
     qemuDomainObjPrivate *priv = vm->privateData;
     virErrorPtr orig_err;
-    int ret = -1;
+
+    if (!virStorageSourceChainHasManagedPR(src))
+        return;
 
     if (qemuDomainDefHasManagedPR(vm))
-        return 0;
+        return;
 
     virErrorPreserveLast(&orig_err);
 
     if (qemuDomainObjEnterMonitorAsync(vm, asyncJob) < 0)
         goto cleanup;
+
     ignore_value(qemuMonitorDelObject(priv->mon, qemuDomainGetManagedPRAlias(),
                                       false));
     qemuDomainObjExitMonitor(vm);
 
     qemuProcessKillManagedPRDaemon(vm);
 
-    ret = 0;
  cleanup:
     virErrorRestore(&orig_err);
-    return ret;
 }
 
 
@@ -615,9 +617,6 @@ qemuDomainChangeEjectableMedia(virQEMUDriver *driver,
     qemuDomainObjPrivate *priv = vm->privateData;
     virStorageSource *oldsrc = disk->src;
     qemuDomainDiskPrivate *diskPriv = QEMU_DOMAIN_DISK_PRIVATE(disk);
-    bool managedpr = virStorageSourceChainHasManagedPR(oldsrc) ||
-                     virStorageSourceChainHasManagedPR(newsrc);
-    int ret = -1;
     int rc;
 
     if (diskPriv->blockjob && qemuBlockJobIsRunning(diskPriv->blockjob)) {
@@ -629,49 +628,43 @@ qemuDomainChangeEjectableMedia(virQEMUDriver *driver,
     disk->src = newsrc;
 
     if (virDomainDiskTranslateSourcePool(disk) < 0)
-        goto cleanup;
+        goto rollback;
 
     if (qemuDomainDetermineDiskChain(driver, vm, disk, NULL) < 0)
-        goto cleanup;
+        goto rollback;
 
     if (qemuDomainPrepareDiskSource(disk, priv, cfg) < 0)
-        goto cleanup;
+        goto rollback;
 
     if (qemuDomainStorageSourceChainAccessAllow(driver, vm, newsrc) < 0)
-        goto cleanup;
+        goto rollback;
 
     if (qemuHotplugAttachManagedPR(vm, newsrc, VIR_ASYNC_JOB_NONE) < 0)
-        goto cleanup;
+        goto rollback;
 
     rc = qemuDomainChangeMediaBlockdev(vm, disk, oldsrc, newsrc, force);
 
     virDomainAuditDisk(vm, oldsrc, newsrc, "update", rc >= 0);
 
     if (rc < 0)
-        goto cleanup;
+        goto rollback;
 
     ignore_value(qemuDomainStorageSourceChainAccessRevoke(driver, vm, oldsrc));
 
+    qemuHotplugRemoveManagedPR(vm, oldsrc, VIR_ASYNC_JOB_NONE);
+
     /* media was changed, so we can remove the old media definition now */
     g_clear_pointer(&oldsrc, virObjectUnref);
+    return 0;
 
-    ret = 0;
+ rollback:
+    ignore_value(qemuDomainStorageSourceChainAccessRevoke(driver, vm, newsrc));
 
- cleanup:
-    /* undo changes to the new disk */
-    if (ret < 0) {
-        ignore_value(qemuDomainStorageSourceChainAccessRevoke(driver, vm, newsrc));
-    }
-
-    /* remove PR manager object if unneeded */
-    if (managedpr)
-        ignore_value(qemuHotplugRemoveManagedPR(vm, VIR_ASYNC_JOB_NONE));
+    qemuHotplugRemoveManagedPR(vm, newsrc, VIR_ASYNC_JOB_NONE);
 
     /* revert old image do the disk definition */
-    if (oldsrc)
-        disk->src = oldsrc;
-
-    return ret;
+    disk->src = oldsrc;
+    return -1;
 }
 
 
@@ -708,6 +701,7 @@ qemuDomainAttachDiskGeneric(virDomainObj *vm,
                             virDomainAsyncJob asyncJob)
 {
     g_autoptr(qemuBlockStorageSourceChainData) data = NULL;
+    g_autoptr(qemuBlockThrottleFiltersData) filterData = NULL;
     qemuDomainObjPrivate *priv = vm->privateData;
     g_autoptr(virJSONValue) devprops = NULL;
     bool extensionDeviceAttached = false;
@@ -745,6 +739,15 @@ qemuDomainAttachDiskGeneric(virDomainObj *vm,
 
         if (rc < 0)
             goto rollback;
+
+        if ((filterData = qemuBuildThrottleFiltersAttachPrepareBlockdev(disk))) {
+            if (qemuDomainObjEnterMonitorAsync(vm, asyncJob) < 0)
+                return -1;
+            rc = qemuBlockThrottleFiltersAttach(priv->mon, filterData);
+            qemuDomainObjExitMonitor(vm);
+            if (rc < 0)
+                goto rollback;
+        }
 
         if (disk->transient) {
             g_autoptr(qemuBlockStorageSourceAttachData) backend = NULL;
@@ -816,6 +819,8 @@ qemuDomainAttachDiskGeneric(virDomainObj *vm,
 
     if (extensionDeviceAttached)
         ignore_value(qemuDomainDetachExtensionDevice(priv->mon, &disk->info));
+
+    qemuBlockThrottleFiltersDetach(priv->mon, filterData);
 
     qemuBlockStorageSourceChainDetach(priv->mon, data);
 
@@ -1098,8 +1103,7 @@ qemuDomainAttachDeviceDiskLiveInternal(virQEMUDriver *driver,
         if (releaseSeclabel)
             ignore_value(qemuDomainStorageSourceChainAccessRevoke(driver, vm, disk->src));
 
-        if (virStorageSourceChainHasManagedPR(disk->src))
-            ignore_value(qemuHotplugRemoveManagedPR(vm, VIR_ASYNC_JOB_NONE));
+        qemuHotplugRemoveManagedPR(vm, disk->src, VIR_ASYNC_JOB_NONE);
     }
     qemuDomainSecretDiskDestroy(disk);
     qemuDomainCleanupStorageSourceFD(disk->src);
@@ -4423,6 +4427,7 @@ int
 qemuDomainChangeGraphicsPasswords(virDomainObj *vm,
                                   int type,
                                   virDomainGraphicsAuthDef *auth,
+                                  const char *defaultUsername,
                                   const char *defaultPasswd,
                                   int asyncJob)
 {
@@ -4432,12 +4437,20 @@ qemuDomainChangeGraphicsPasswords(virDomainObj *vm,
     g_autofree char *validTo = NULL;
     const char *connected = NULL;
     const char *password;
+    const char *username;
     int ret = -1;
 
     if (!auth->passwd && !defaultPasswd)
         return 0;
 
+    username = auth->username ? auth->username : defaultUsername;
     password = auth->passwd ? auth->passwd : defaultPasswd;
+
+    if (type == VIR_DOMAIN_GRAPHICS_TYPE_RDP) {
+        if (!password)
+            virReportError(VIR_ERR_INTERNAL_ERROR, "%s", _("Missing password"));
+        return qemuRdpSetCredentials(vm, username, password, "");
+    }
 
     if (auth->connected)
         connected = virDomainGraphicsAuthConnectedTypeToString(auth->connected);
@@ -4568,6 +4581,7 @@ qemuDomainChangeGraphics(virQEMUDriver *driver,
             if (qemuDomainChangeGraphicsPasswords(vm,
                                                   VIR_DOMAIN_GRAPHICS_TYPE_VNC,
                                                   &dev->data.vnc.auth,
+                                                  NULL,
                                                   cfg->vncPassword,
                                                   VIR_ASYNC_JOB_NONE) < 0)
                 return -1;
@@ -4615,6 +4629,7 @@ qemuDomainChangeGraphics(virQEMUDriver *driver,
             if (qemuDomainChangeGraphicsPasswords(vm,
                                                   VIR_DOMAIN_GRAPHICS_TYPE_SPICE,
                                                   &dev->data.spice.auth,
+                                                  NULL,
                                                   cfg->spicePassword,
                                                   VIR_ASYNC_JOB_NONE) < 0)
                 return -1;
@@ -4630,8 +4645,46 @@ qemuDomainChangeGraphics(virQEMUDriver *driver,
         }
         break;
 
-    case VIR_DOMAIN_GRAPHICS_TYPE_SDL:
     case VIR_DOMAIN_GRAPHICS_TYPE_RDP:
+        if ((olddev->data.rdp.autoport != dev->data.rdp.autoport) ||
+            (!dev->data.rdp.autoport &&
+             (olddev->data.rdp.port != dev->data.rdp.port))) {
+            virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
+                           _("cannot change port settings on rdp graphics"));
+            return -1;
+        }
+
+        /* If a password lifetime was, or is set, or action if connected has
+         * changed, then we must always run, even if new password matches
+         * old password */
+        if (olddev->data.rdp.auth.expires ||
+            dev->data.rdp.auth.expires ||
+            olddev->data.rdp.auth.connected != dev->data.rdp.auth.connected ||
+            STRNEQ_NULLABLE(olddev->data.rdp.auth.username,
+                            dev->data.rdp.auth.username) ||
+            STRNEQ_NULLABLE(olddev->data.rdp.auth.passwd,
+                            dev->data.rdp.auth.passwd)) {
+            VIR_DEBUG("Updating password on RDP server %p %p",
+                      dev->data.rdp.auth.passwd, cfg->rdpPassword);
+            if (qemuDomainChangeGraphicsPasswords(vm,
+                                                  VIR_DOMAIN_GRAPHICS_TYPE_RDP,
+                                                  &dev->data.rdp.auth,
+                                                  cfg->rdpUsername,
+                                                  cfg->rdpPassword,
+                                                  VIR_ASYNC_JOB_NONE) < 0)
+                return -1;
+
+            /* Steal the new dev's  char * reference */
+            VIR_FREE(olddev->data.rdp.auth.username);
+            olddev->data.rdp.auth.username = g_steal_pointer(&dev->data.rdp.auth.username);
+            VIR_FREE(olddev->data.rdp.auth.passwd);
+            olddev->data.rdp.auth.passwd = g_steal_pointer(&dev->data.rdp.auth.passwd);
+            olddev->data.rdp.auth.validTo = dev->data.rdp.auth.validTo;
+            olddev->data.rdp.auth.expires = dev->data.rdp.auth.expires;
+            olddev->data.rdp.auth.connected = dev->data.rdp.auth.connected;
+        }
+        break;
+    case VIR_DOMAIN_GRAPHICS_TYPE_SDL:
     case VIR_DOMAIN_GRAPHICS_TYPE_DESKTOP:
     case VIR_DOMAIN_GRAPHICS_TYPE_EGL_HEADLESS:
     case VIR_DOMAIN_GRAPHICS_TYPE_DBUS:
@@ -4686,6 +4739,7 @@ qemuDomainRemoveDiskDevice(virQEMUDriver *driver,
 {
     qemuDomainDiskPrivate *diskPriv = QEMU_DOMAIN_DISK_PRIVATE(disk);
     g_autoptr(qemuBlockStorageSourceChainData) diskBackend = NULL;
+    g_autoptr(qemuBlockThrottleFiltersData) filterData = NULL;
     size_t i;
     qemuDomainObjPrivate *priv = vm->privateData;
     int ret = -1;
@@ -4726,6 +4780,9 @@ qemuDomainRemoveDiskDevice(virQEMUDriver *driver,
 
     qemuDomainObjEnterMonitor(vm);
 
+    if ((filterData = qemuBuildThrottleFiltersDetachPrepareBlockdev(disk)))
+        qemuBlockThrottleFiltersDetach(priv->mon, filterData);
+
     if (diskBackend)
         qemuBlockStorageSourceChainDetach(priv->mon, diskBackend);
 
@@ -4739,9 +4796,7 @@ qemuDomainRemoveDiskDevice(virQEMUDriver *driver,
     if (diskBackend)
         qemuDomainStorageSourceChainAccessRevoke(driver, vm, disk->src);
 
-    if (virStorageSourceChainHasManagedPR(disk->src) &&
-        qemuHotplugRemoveManagedPR(vm, VIR_ASYNC_JOB_NONE) < 0)
-        goto cleanup;
+    qemuHotplugRemoveManagedPR(vm, disk->src, VIR_ASYNC_JOB_NONE);
 
     qemuNbdkitStopStorageSource(disk->src, vm, true);
 
@@ -7268,7 +7323,6 @@ qemuDomainChangeMemoryLiveValidateChange(const virDomainMemoryDef *oldDef,
                        _("cannot modify memory of model '%1$s'"),
                        virDomainMemoryModelTypeToString(oldDef->model));
         return false;
-        break;
     }
 
     if (oldDef->model != newDef->model) {

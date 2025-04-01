@@ -28,6 +28,8 @@
 #include "virfilecache.h"
 #include "virenum.h"
 
+typedef struct _virQEMUDriverConfig virQEMUDriverConfig;
+
 /*
  * Internal flags to keep track of qemu command line capabilities
  *
@@ -521,7 +523,7 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     QEMU_CAPS_DEVICE_VHOST_USER_VGA, /* -device vhost-user-vga */
 
     /* 340 */
-    QEMU_CAPS_INCREMENTAL_BACKUP, /* incremental backup is supported */
+    X_QEMU_CAPS_INCREMENTAL_BACKUP, /* incremental backup is supported */
     QEMU_CAPS_QUERY_CPU_MODEL_BASELINE, /* qmp query-cpu-model-baseline */
     QEMU_CAPS_QUERY_CPU_MODEL_COMPARISON, /* qmp query-cpu-model-comparison */
     QEMU_CAPS_DEVICE_RAMFB, /* -device ramfb */
@@ -543,9 +545,9 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
 
     /* 355 */
     QEMU_CAPS_DEVICE_VHOST_USER_FS, /* -device vhost-user-fs */
-    QEMU_CAPS_QMP_QUERY_NAMED_BLOCK_NODES_FLAT, /* query-named-block-nodes supports the 'flat' option */
-    QEMU_CAPS_BLOCKDEV_SNAPSHOT_ALLOW_WRITE_ONLY, /* blockdev-snapshot has the 'allow-write-only-overlay' feature */
-    QEMU_CAPS_BLOCKDEV_REOPEN, /* 'blockdev-reopen' qmp command is supported */
+    X_QEMU_CAPS_QMP_QUERY_NAMED_BLOCK_NODES_FLAT, /* query-named-block-nodes supports the 'flat' option */
+    X_QEMU_CAPS_BLOCKDEV_SNAPSHOT_ALLOW_WRITE_ONLY, /* blockdev-snapshot has the 'allow-write-only-overlay' feature */
+    X_QEMU_CAPS_BLOCKDEV_REOPEN, /* 'blockdev-reopen' qmp command is supported */
     X_QEMU_CAPS_STORAGE_WERROR, /* virtio-blk,scsi-hd.werror */
 
     /* 360 */
@@ -595,17 +597,17 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     QEMU_CAPS_CPU_MAX, /* -cpu max */
     QEMU_CAPS_X_USE_CANONICAL_PATH_FOR_RAMBLOCK_ID, /* -object memory-backend-file,x-use-canonical-path-for-ramblock-id= */
     X_QEMU_CAPS_VNC_OPTS, /* -vnc uses QemuOpts parser instead of custom code */
-    QEMU_CAPS_MIGRATION_PARAM_BLOCK_BITMAP_MAPPING, /* block-bitmap-mapping in migrate-set-parameters */
+    X_QEMU_CAPS_MIGRATION_PARAM_BLOCK_BITMAP_MAPPING, /* block-bitmap-mapping in migrate-set-parameters */
 
     /* 395 */
     QEMU_CAPS_VNC_POWER_CONTROL, /* -vnc power-control option */
     X_QEMU_CAPS_AUDIODEV, /* -audiodev instead of QEMU_AUDIO_DRV */
     X_QEMU_CAPS_BLOCKDEV_BACKUP, /* qemu supports the blockdev-backup job */
-    QEMU_CAPS_OBJECT_JSON, /* parameters for object-add are formally described */
+    X_QEMU_CAPS_OBJECT_JSON, /* parameters for object-add are formally described */
     QEMU_CAPS_ROTATION_RATE, /* scsi-disk / ide-drive rotation-rate prop */
 
     /* 400 */
-    QEMU_CAPS_COMPAT_DEPRECATED, /* -compat deprecated-(input|output) is supported */
+    X_QEMU_CAPS_COMPAT_DEPRECATED, /* -compat deprecated-(input|output) is supported */
     QEMU_CAPS_ACPI_INDEX, /* PCI device 'acpi-index' property */
     QEMU_CAPS_INPUT_LINUX, /* -object input-linux */
     QEMU_CAPS_VIRTIO_GPU_GL_PCI, /* -device virtio-gpu-gl-pci */
@@ -707,6 +709,10 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     QEMU_CAPS_MACHINE_VIRT_AIA, /* -machine virt,aia=(none|aplic|aplic-imsic), RISC-V only */
     QEMU_CAPS_DEVICE_VIRTIO_MEM_CCW, /* -device virtio-mem-ccw */
     QEMU_CAPS_BLOCKDEV_SET_ACTIVE, /* blockdev-set-active QMP command supported */
+    QEMU_CAPS_MACHINE_SHIM, /* -shim command line argument */
+
+    /* 475 */
+    QEMU_CAPS_VIRTIO_SCSI_IOTHREAD_MAPPING, /* virtio-scsi supports per-virtqueue iothread mapping */
 
     QEMU_CAPS_LAST /* this must always be the last item */
 } virQEMUCapsFlags;
@@ -864,17 +870,17 @@ void virQEMUCapsInitGuestFromBinary(virCaps *caps,
                                     virQEMUCaps *qemuCaps,
                                     virArch guestarch);
 
-int virQEMUCapsFillDomainCaps(virQEMUCaps *qemuCaps,
+int virQEMUCapsFillDomainCaps(virQEMUDriverConfig *cfg,
+                              virQEMUCaps *qemuCaps,
                               virArch hostarch,
                               virDomainCaps *domCaps,
-                              bool privileged,
-                              virFirmware **firmwares,
-                              size_t nfirmwares);
+                              bool privileged);
 
 void virQEMUCapsFillDomainMemoryBackingCaps(virQEMUCaps *qemuCaps,
                                             virDomainCapsMemoryBacking *memoryBacking);
 
-void virQEMUCapsFillDomainDeviceGraphicsCaps(virQEMUCaps *qemuCaps,
+void virQEMUCapsFillDomainDeviceGraphicsCaps(virQEMUDriverConfig *cfg,
+                                             virQEMUCaps *qemuCaps,
                                              virDomainCapsDeviceGraphics *dev);
 
 void virQEMUCapsFillDomainDeviceVideoCaps(virQEMUCaps *qemuCaps,

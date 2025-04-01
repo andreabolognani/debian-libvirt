@@ -36,6 +36,7 @@
 #include "qemu_domain.h"
 #include "qemu_firmware.h"
 #include "qemu_namespace.h"
+#include "qemu_saveimage.h"
 #include "qemu_security.h"
 #include "viruuid.h"
 #include "virconf.h"
@@ -63,6 +64,9 @@ VIR_LOG_INIT("qemu.qemu_conf");
  */
 #define QEMU_REMOTE_PORT_MIN 5900
 #define QEMU_REMOTE_PORT_MAX 65535
+
+#define QEMU_RDP_PORT_MIN 3389
+#define QEMU_RDP_PORT_MAX 65535
 
 #define QEMU_WEBSOCKET_PORT_MIN 5700
 #define QEMU_WEBSOCKET_PORT_MAX 65535
@@ -103,6 +107,7 @@ VIR_ONCE_GLOBAL_INIT(virQEMUConfig);
 
 #define QEMU_BRIDGE_HELPER "qemu-bridge-helper"
 #define QEMU_PR_HELPER "qemu-pr-helper"
+#define QEMU_RDP "qemu-rdp"
 #define QEMU_DBUS_DAEMON "dbus-daemon"
 
 
@@ -225,6 +230,7 @@ virQEMUDriverConfig *virQEMUDriverConfigNew(bool privileged,
     cfg->configDir = g_strdup_printf("%s/qemu", cfg->configBaseDir);
     cfg->autostartDir = g_strdup_printf("%s/qemu/autostart", cfg->configBaseDir);
     cfg->slirpStateDir = g_strdup_printf("%s/slirp", cfg->stateDir);
+    cfg->rdpStateDir = g_strdup_printf("%s/rdp", cfg->stateDir);
     cfg->passtStateDir = g_strdup_printf("%s/passt", cfg->stateDir);
     cfg->dbusStateDir = g_strdup_printf("%s/dbus", cfg->stateDir);
 
@@ -239,10 +245,14 @@ virQEMUDriverConfig *virQEMUDriverConfigNew(bool privileged,
     }
 
     cfg->vncListen = g_strdup(VIR_LOOPBACK_IPV4_ADDR);
+    cfg->rdpListen = g_strdup(VIR_LOOPBACK_IPV4_ADDR);
     cfg->spiceListen = g_strdup(VIR_LOOPBACK_IPV4_ADDR);
 
     cfg->remotePortMin = QEMU_REMOTE_PORT_MIN;
     cfg->remotePortMax = QEMU_REMOTE_PORT_MAX;
+
+    cfg->rdpPortMin = QEMU_RDP_PORT_MIN;
+    cfg->rdpPortMax = QEMU_RDP_PORT_MAX;
 
     cfg->webSocketPortMin = QEMU_WEBSOCKET_PORT_MIN;
     cfg->webSocketPortMax = QEMU_WEBSOCKET_PORT_MAX;
@@ -264,6 +274,7 @@ virQEMUDriverConfig *virQEMUDriverConfigNew(bool privileged,
     cfg->prHelperName = g_strdup(QEMU_PR_HELPER);
     cfg->slirpHelperName = g_strdup(QEMU_SLIRP_HELPER);
     cfg->dbusDaemonName = g_strdup(QEMU_DBUS_DAEMON);
+    cfg->qemuRdpName = g_strdup(QEMU_RDP);
 
     cfg->securityDefaultConfined = true;
     cfg->securityRequireConfined = false;
@@ -303,6 +314,22 @@ virQEMUDriverConfig *virQEMUDriverConfigNew(bool privileged,
     cfg->dumpGuestCore = true;
 #endif
 
+    if (privileged) {
+        /*
+         * Defer to libvirt-guests.service.
+         *
+         * XXX, or query if libvirt-guests.service is enabled perhaps ?
+         */
+        cfg->autoShutdownTrySave = VIR_DOMAIN_DRIVER_AUTO_SHUTDOWN_SCOPE_NONE;
+        cfg->autoShutdownTryShutdown = VIR_DOMAIN_DRIVER_AUTO_SHUTDOWN_SCOPE_NONE;
+        cfg->autoShutdownPoweroff = VIR_DOMAIN_DRIVER_AUTO_SHUTDOWN_SCOPE_NONE;
+    } else {
+        cfg->autoShutdownTrySave = VIR_DOMAIN_DRIVER_AUTO_SHUTDOWN_SCOPE_PERSISTENT;
+        cfg->autoShutdownTryShutdown = VIR_DOMAIN_DRIVER_AUTO_SHUTDOWN_SCOPE_ALL;
+        cfg->autoShutdownPoweroff = VIR_DOMAIN_DRIVER_AUTO_SHUTDOWN_SCOPE_ALL;
+    }
+    cfg->autoShutdownRestore = true;
+
     return g_steal_pointer(&cfg);
 }
 
@@ -326,6 +353,7 @@ static void virQEMUDriverConfigDispose(void *obj)
     g_free(cfg->slirpStateDir);
     g_free(cfg->passtStateDir);
     g_free(cfg->dbusStateDir);
+    g_free(cfg->rdpStateDir);
 
     g_free(cfg->libDir);
     g_free(cfg->cacheDir);
@@ -348,6 +376,11 @@ static void virQEMUDriverConfigDispose(void *obj)
     g_free(cfg->spiceListen);
     g_free(cfg->spicePassword);
     g_free(cfg->spiceSASLdir);
+
+    g_free(cfg->rdpTLSx509certdir);
+    g_free(cfg->rdpListen);
+    g_free(cfg->rdpUsername);
+    g_free(cfg->rdpPassword);
 
     g_free(cfg->chardevTLSx509certdir);
     g_free(cfg->chardevTLSx509secretUUID);
@@ -373,10 +406,8 @@ static void virQEMUDriverConfigDispose(void *obj)
     g_free(cfg->prHelperName);
     g_free(cfg->slirpHelperName);
     g_free(cfg->dbusDaemonName);
+    g_free(cfg->qemuRdpName);
 
-    g_free(cfg->saveImageFormat);
-    g_free(cfg->dumpImageFormat);
-    g_free(cfg->snapshotImageFormat);
     g_free(cfg->autoDumpPath);
 
     g_strfreev(cfg->securityDriverNames);
@@ -500,6 +531,21 @@ virQEMUDriverConfigLoadSPICEEntry(virQEMUDriverConfig *cfg,
     return 0;
 }
 
+static int
+virQEMUDriverConfigLoadRDPEntry(virQEMUDriverConfig *cfg,
+                                virConf *conf)
+{
+    if (virConfGetValueString(conf, "rdp_tls_x509_cert_dir", &cfg->rdpTLSx509certdir) < 0)
+        return -1;
+    if (virConfGetValueString(conf, "rdp_listen", &cfg->rdpListen) < 0)
+        return -1;
+    if (virConfGetValueString(conf, "rdp_username", &cfg->rdpUsername) < 0)
+        return -1;
+    if (virConfGetValueString(conf, "rdp_password", &cfg->rdpPassword) < 0)
+        return -1;
+
+    return 0;
+}
 
 static int
 virQEMUDriverConfigLoadSpecificTLSEntry(virQEMUDriverConfig *cfg,
@@ -626,12 +672,41 @@ static int
 virQEMUDriverConfigLoadSaveEntry(virQEMUDriverConfig *cfg,
                                  virConf *conf)
 {
-    if (virConfGetValueString(conf, "save_image_format", &cfg->saveImageFormat) < 0)
+    g_autofree char *savestr = NULL;
+    g_autofree char *dumpstr = NULL;
+    g_autofree char *snapstr = NULL;
+    g_autofree char *autoShutdownTrySave = NULL;
+    g_autofree char *autoShutdownTryShutdown = NULL;
+    g_autofree char *autoShutdownPoweroff = NULL;
+    int autoShutdownVal;
+
+    if (virConfGetValueString(conf, "save_image_format", &savestr) < 0)
         return -1;
-    if (virConfGetValueString(conf, "dump_image_format", &cfg->dumpImageFormat) < 0)
+    if (savestr && (cfg->saveImageFormat = qemuSaveFormatTypeFromString(savestr)) < 0) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("Invalid save_image_format '%1$s'"),
+                       savestr);
         return -1;
-    if (virConfGetValueString(conf, "snapshot_image_format", &cfg->snapshotImageFormat) < 0)
+    }
+
+    if (virConfGetValueString(conf, "dump_image_format", &dumpstr) < 0)
         return -1;
+    if (dumpstr && (cfg->dumpImageFormat = qemuSaveFormatTypeFromString(dumpstr)) < 0) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("Invalid dump_image_format '%1$s'"),
+                       dumpstr);
+        return -1;
+    }
+
+    if (virConfGetValueString(conf, "snapshot_image_format", &snapstr) < 0)
+        return -1;
+    if (snapstr && (cfg->snapshotImageFormat = qemuSaveFormatTypeFromString(snapstr)) < 0) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("Invalid snapshot_image_format '%1$s'"),
+                       snapstr);
+        return -1;
+    }
+
     if (virConfGetValueString(conf, "auto_dump_path", &cfg->autoDumpPath) < 0)
         return -1;
     if (virConfGetValueBool(conf, "auto_dump_bypass_cache", &cfg->autoDumpBypassCache) < 0)
@@ -639,6 +714,63 @@ virQEMUDriverConfigLoadSaveEntry(virQEMUDriverConfig *cfg,
     if (virConfGetValueBool(conf, "auto_start_bypass_cache", &cfg->autoStartBypassCache) < 0)
         return -1;
     if (virConfGetValueUInt(conf, "auto_start_delay", &cfg->autoStartDelayMS) < 0)
+        return -1;
+    if (virConfGetValueString(conf, "auto_shutdown_try_save", &autoShutdownTrySave) < 0)
+        return -1;
+
+    if (autoShutdownTrySave != NULL) {
+        if ((autoShutdownVal =
+             virDomainDriverAutoShutdownScopeTypeFromString(autoShutdownTrySave)) < 0) {
+            virReportError(VIR_ERR_INVALID_ARG,
+                           _("unknown auto_shutdown_try_save '%1$s'"),
+                           autoShutdownTrySave);
+            return -1;
+        }
+        cfg->autoShutdownTrySave = autoShutdownVal;
+    }
+
+    if (cfg->autoShutdownTrySave == VIR_DOMAIN_DRIVER_AUTO_SHUTDOWN_SCOPE_ALL ||
+        cfg->autoShutdownTrySave == VIR_DOMAIN_DRIVER_AUTO_SHUTDOWN_SCOPE_TRANSIENT) {
+        virReportError(VIR_ERR_INVALID_ARG, "%s",
+                       _("managed save cannot be requested for transient domains"));
+        return -1;
+    }
+
+    if (virConfGetValueString(conf, "auto_shutdown_try_shutdown", &autoShutdownTryShutdown) < 0)
+        return -1;
+
+    if (autoShutdownTryShutdown != NULL) {
+        if ((autoShutdownVal =
+             virDomainDriverAutoShutdownScopeTypeFromString(autoShutdownTryShutdown)) < 0) {
+            virReportError(VIR_ERR_INVALID_ARG,
+                           _("unknown auto_shutdown_try_shutdown '%1$s'"),
+                           autoShutdownTryShutdown);
+            return -1;
+        }
+        cfg->autoShutdownTryShutdown = autoShutdownVal;
+    }
+
+    if (virConfGetValueString(conf, "auto_shutdown_poweroff", &autoShutdownPoweroff) < 0)
+        return -1;
+
+    if (autoShutdownPoweroff != NULL) {
+        if ((autoShutdownVal =
+             virDomainDriverAutoShutdownScopeTypeFromString(autoShutdownPoweroff)) < 0) {
+            virReportError(VIR_ERR_INVALID_ARG,
+                           _("unknown auto_shutdown_poweroff '%1$s'"),
+                           autoShutdownPoweroff);
+            return -1;
+        }
+        cfg->autoShutdownPoweroff = autoShutdownVal;
+    }
+
+    if (virConfGetValueUInt(conf, "auto_shutdown_wait",
+                            &cfg->autoShutdownWait) < 0)
+        return -1;
+    if (virConfGetValueBool(conf, "auto_shutdown_restore", &cfg->autoShutdownRestore) < 0)
+        return -1;
+    if (virConfGetValueBool(conf, "auto_save_bypass_cache",
+                            &cfg->autoSaveBypassCache) < 0)
         return -1;
 
     return 0;
@@ -687,6 +819,9 @@ virQEMUDriverConfigLoadProcessEntry(virQEMUDriverConfig *cfg,
         return -1;
 
     if (virConfGetValueString(conf, "dbus_daemon", &cfg->dbusDaemonName) < 0)
+        return -1;
+
+    if (virConfGetValueString(conf, "qemu_rdp", &cfg->qemuRdpName) < 0)
         return -1;
 
     if (virConfGetValueBool(conf, "set_process_name", &cfg->setProcessName) < 0)
@@ -1159,6 +1294,9 @@ int virQEMUDriverConfigLoadFile(virQEMUDriverConfig *cfg,
     if (virQEMUDriverConfigLoadSPICEEntry(cfg, conf) < 0)
         return -1;
 
+    if (virQEMUDriverConfigLoadRDPEntry(cfg, conf) < 0)
+        return -1;
+
     if (virQEMUDriverConfigLoadSpecificTLSEntry(cfg, conf) < 0)
         return -1;
 
@@ -1243,6 +1381,14 @@ virQEMUDriverConfigValidate(virQEMUDriverConfig *cfg)
         virReportError(VIR_ERR_CONF_SYNTAX,
                        _("spice_tls_x509_cert_dir directory '%1$s' does not exist"),
                        cfg->spiceTLSx509certdir);
+        return -1;
+    }
+
+    if (cfg->rdpTLSx509certdir &&
+        !virFileExists(cfg->rdpTLSx509certdir)) {
+        virReportError(VIR_ERR_CONF_SYNTAX,
+                       _("rdp_tls_x509_cert_dir directory '%1$s' does not exist"),
+                       cfg->rdpTLSx509certdir);
         return -1;
     }
 
@@ -1331,6 +1477,7 @@ virQEMUDriverConfigSetDefaults(virQEMUDriverConfig *cfg)
 
     SET_TLS_X509_CERT_DEFAULT(vnc);
     SET_TLS_X509_CERT_DEFAULT(spice);
+    SET_TLS_X509_CERT_DEFAULT(rdp);
     SET_TLS_X509_CERT_DEFAULT(chardev);
     SET_TLS_X509_CERT_DEFAULT(migrate);
     SET_TLS_X509_CERT_DEFAULT(backup);
@@ -1553,10 +1700,11 @@ virQEMUDriverGetDomainCapabilities(virQEMUDriver *driver,
     if (!(domCaps = virDomainCapsNew(path, machine, arch, virttype)))
         return NULL;
 
-    if (virQEMUCapsFillDomainCaps(qemuCaps, driver->hostarch,
-                                  domCaps, driver->privileged,
-                                  cfg->firmwares,
-                                  cfg->nfirmwares) < 0)
+    if (virQEMUCapsFillDomainCaps(cfg,
+                                  qemuCaps,
+                                  driver->hostarch,
+                                  domCaps,
+                                  driver->privileged) < 0)
         return NULL;
 
     return g_steal_pointer(&domCaps);

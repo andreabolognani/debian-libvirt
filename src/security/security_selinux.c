@@ -2969,7 +2969,7 @@ virSecuritySELinuxRestoreAllLabel(virSecurityManager *mgr,
 
     for (i = 0; i < def->nmems; i++) {
         if (virSecuritySELinuxRestoreMemoryLabel(mgr, def, def->mems[i]) < 0)
-            return -1;
+            rc = -1;
     }
 
     for (i = 0; i < def->ntpms; i++) {
@@ -3009,13 +3009,18 @@ virSecuritySELinuxRestoreAllLabel(virSecurityManager *mgr,
         virSecuritySELinuxRestoreFileLabel(mgr, def->os.initrd, true) < 0)
         rc = -1;
 
+    if (def->os.shim &&
+        virSecuritySELinuxRestoreFileLabel(mgr, def->os.shim, true) < 0)
+        rc = -1;
+
     if (def->os.dtb &&
         virSecuritySELinuxRestoreFileLabel(mgr, def->os.dtb, true) < 0)
         rc = -1;
 
-    if (def->os.slic_table &&
-        virSecuritySELinuxRestoreFileLabel(mgr, def->os.slic_table, true) < 0)
-        rc = -1;
+    for (i = 0; i < def->os.nacpiTables; i++) {
+        if (virSecuritySELinuxRestoreFileLabel(mgr, def->os.acpiTables[i]->path, true) < 0)
+            rc = -1;
+    }
 
     if (def->pstore &&
         virSecuritySELinuxRestoreFileLabel(mgr, def->pstore->path, true) < 0)
@@ -3438,15 +3443,21 @@ virSecuritySELinuxSetAllLabel(virSecurityManager *mgr,
                                      data->content_context, true) < 0)
         return -1;
 
+    if (def->os.shim &&
+        virSecuritySELinuxSetFilecon(mgr, def->os.shim,
+                                     data->content_context, true) < 0)
+        return -1;
+
     if (def->os.dtb &&
         virSecuritySELinuxSetFilecon(mgr, def->os.dtb,
                                      data->content_context, true) < 0)
         return -1;
 
-    if (def->os.slic_table &&
-        virSecuritySELinuxSetFilecon(mgr, def->os.slic_table,
-                                     data->content_context, true) < 0)
-        return -1;
+    for (i = 0; i < def->os.nacpiTables; i++) {
+        if (virSecuritySELinuxSetFilecon(mgr, def->os.acpiTables[i]->path,
+                                         data->content_context, true) < 0)
+            return -1;
+    }
 
     if (def->pstore &&
         virSecuritySELinuxSetFilecon(mgr, def->pstore->path,

@@ -1700,6 +1700,29 @@ int                     virDomainRestoreParams  (virConnectPtr conn,
  */
 # define VIR_DOMAIN_SAVE_PARAM_DXML             "dxml"
 
+/**
+ * VIR_DOMAIN_SAVE_PARAM_IMAGE_FORMAT:
+ *
+ * an optional parameter used to specify the format of the save image.
+ * Valid formats are raw, zstd, lzop, gzip, bzip2, and xz. If not
+ * specified, the save_image_format setting in qemu.conf is used, which
+ * defaults to raw. As VIR_TYPED_PARAM_STRING.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_SAVE_PARAM_IMAGE_FORMAT     "image_format"
+
+/*
+ * VIR_DOMAIN_SAVE_PARAM_PARALLEL_CHANNELS:
+ *
+ * an optional parameter used to specify the number of IO channels to use
+ * during parallel save. As VIR_TYPED_PARAM_INT.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_SAVE_PARAM_PARALLEL_CHANNELS     "parallel.channels"
+
+
 /* See below for virDomainSaveImageXMLFlags */
 char *          virDomainSaveImageGetXMLDesc    (virConnectPtr conn,
                                                  const char *file,
@@ -2416,6 +2439,10 @@ int                     virDomainGetAutostart   (virDomainPtr domain,
                                                  int *autostart);
 int                     virDomainSetAutostart   (virDomainPtr domain,
                                                  int autostart);
+int                     virDomainGetAutostartOnce(virDomainPtr domain,
+                                                  int *autostart);
+int                     virDomainSetAutostartOnce(virDomainPtr domain,
+                                                  int autostart);
 
 /**
  * virVcpuState:
@@ -2781,6 +2808,1141 @@ struct _virDomainStatsRecord {
     virTypedParameterPtr params;
     int nparams;
 };
+
+
+/**
+ * VIR_DOMAIN_STATS_STATE_STATE:
+ *
+ * State of the VM, returned as int from virDomainState enum.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_STATE_STATE "state.state"
+
+/**
+ * VIR_DOMAIN_STATS_STATE_REASON:
+ *
+ * Reason for entering given state, returned as int from virDomain*Reason
+ * enum corresponding to given state.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_STATE_REASON "state.reason"
+
+
+/**
+ * VIR_DOMAIN_STATS_CPU_TIME:
+ *
+ * Total cpu time spent for this domain in nanoseconds as unsigned long long.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_CPU_TIME "cpu.time"
+
+/**
+ * VIR_DOMAIN_STATS_CPU_USER:
+ *
+ * User cpu time spent in nanoseconds as unsigned long long.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_CPU_USER "cpu.user"
+
+/**
+ * VIR_DOMAIN_STATS_CPU_SYSTEM:
+ *
+ * System cpu time spent in nanoseconds as unsigned long long.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_CPU_SYSTEM "cpu.system"
+
+/**
+ * VIR_DOMAIN_STATS_CPU_HALTPOLL_SUCCESS_TIME:
+ *
+ * Halt-polling cpu usage about the VCPU polled until a virtual interrupt was
+ * delivered in nanoseconds as unsigned long long.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_CPU_HALTPOLL_SUCCESS_TIME "cpu.haltpoll.success.time"
+
+/**
+ * VIR_DOMAIN_STATS_CPU_HALTPOLL_FAIL_TIME:
+ *
+ * Halt-polling cpu usage about the VCPU had to schedule out (either because
+ * the maximum poll time was reached or it needed to yield the CPU) in
+ * nanoseconds as unsigned long long.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_CPU_HALTPOLL_FAIL_TIME "cpu.haltpoll.fail.time"
+
+/**
+ * VIR_DOMAIN_STATS_CPU_CACHE_MONITOR_COUNT:
+ *
+ * The number of cache monitors for this domain as an unsigned int.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_CPU_CACHE_MONITOR_COUNT "cpu.cache.monitor.count"
+
+/**
+ * VIR_DOMAIN_STATS_CPU_CACHE_MONITOR_PREFIX:
+ *
+ * The parameter name prefix to access each cache monitor entry. Concatenate
+ * the prefix, the entry number formatted as an unsigned integer and one of
+ * the cache monitor suffix parameters to form a complete parameter name.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_CPU_CACHE_MONITOR_PREFIX "cpu.cache.monitor."
+
+/**
+ * VIR_DOMAIN_STATS_CPU_CACHE_MONITOR_SUFFIX_NAME:
+ *
+ * The name of cache monitor as a string.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_CPU_CACHE_MONITOR_SUFFIX_NAME ".name"
+
+/**
+ * VIR_DOMAIN_STATS_CPU_CACHE_MONITOR_SUFFIX_VCPUS:
+ *
+ * Vcpu list of cache monitor as a string.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_CPU_CACHE_MONITOR_SUFFIX_VCPUS ".vcpus"
+
+/**
+ * VIR_DOMAIN_STATS_CPU_CACHE_MONITOR_SUFFIX_BANK_COUNT:
+ *
+ * The number of cache banks in cache monitor as an unsigned int.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_CPU_CACHE_MONITOR_SUFFIX_BANK_COUNT ".bank.count"
+
+/**
+ * VIR_DOMAIN_STATS_CPU_CACHE_MONITOR_SUFFIX_BANK_PREFIX:
+ *
+ * The parameter name prefix to access each cache monitor bank entry.
+ * Concatenate the cache monitor prefix, the cache monitor entry number
+ * formatted as an unsigned integer, the bank prefix, the bank entry number
+ * formatted as an unsigned integer and one of the cache monitor bank suffix
+ * parameters to form a complete parameter name.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_CPU_CACHE_MONITOR_SUFFIX_BANK_PREFIX ".bank."
+
+/**
+ * VIR_DOMAIN_STATS_CPU_CACHE_MONITOR_SUFFIX_BANK_SUFFIX_ID:
+ *
+ * Host allocated cache id for the bank as an unsigned int.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_CPU_CACHE_MONITOR_SUFFIX_BANK_SUFFIX_ID ".id"
+
+/**
+ * VIR_DOMAIN_STATS_CPU_CACHE_MONITOR_SUFFIX_BANK_SUFFIX_BYTES:
+ *
+ * The number of bytes of last level cache that the domain is using as an
+ * unsigned long long.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_CPU_CACHE_MONITOR_SUFFIX_BANK_SUFFIX_BYTES ".bytes"
+
+
+/**
+ * VIR_DOMAIN_STATS_BALLOON_CURRENT:
+ *
+ * The memory in kiB currently used as unsigned long long.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_BALLOON_CURRENT "balloon.current"
+
+/**
+ * VIR_DOMAIN_STATS_BALLOON_MAXIMUM:
+ *
+ * The maximum memory in kiB allowed as unsigned long long.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_BALLOON_MAXIMUM "balloon.maximum"
+
+/**
+ * VIR_DOMAIN_STATS_BALLOON_SWAP_IN:
+ *
+ * The amount of data read from swap space (in KiB) as unsigned long long.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_BALLOON_SWAP_IN "balloon.swap_in"
+
+/**
+ * VIR_DOMAIN_STATS_BALLOON_SWAP_OUT:
+ *
+ * The amount of memory written out to swap space (in KiB) as unsigned long
+ * long.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_BALLOON_SWAP_OUT "balloon.swap_out"
+
+/**
+ * VIR_DOMAIN_STATS_BALLOON_MAJOR_FAULT:
+ *
+ * The number of page faults when disk IO was required as unsigned long long.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_BALLOON_MAJOR_FAULT "balloon.major_fault"
+
+/**
+ * VIR_DOMAIN_STATS_BALLOON_MINOR_FAULT:
+ *
+ * The number of other page faults as unsigned long long.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_BALLOON_MINOR_FAULT "balloon.minor_fault"
+
+/**
+ * VIR_DOMAIN_STATS_BALLOON_UNUSED:
+ *
+ * The amount of memory left unused by the system (in KiB) as unsigned long
+ * long.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_BALLOON_UNUSED "balloon.unused"
+
+/**
+ * VIR_DOMAIN_STATS_BALLOON_AVAILABLE:
+ *
+ * The amount of usable memory as seen by the domain (in KiB) as unsigned long
+ * long.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_BALLOON_AVAILABLE "balloon.available"
+
+/**
+ * VIR_DOMAIN_STATS_BALLOON_RSS:
+ *
+ * Resident Set Size of running domain's process (in KiB) as unsigned long
+ * long.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_BALLOON_RSS "balloon.rss"
+
+/**
+ * VIR_DOMAIN_STATS_BALLOON_USABLE:
+ *
+ * The amount of memory which can be reclaimed by balloon without causing host
+ * swapping (in KiB) as unsigned long long.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_BALLOON_USABLE "balloon.usable"
+
+/**
+ * VIR_DOMAIN_STATS_BALLOON_LAST_UPDATE:
+ *
+ * Timestamp of the last update of statistics (in seconds) as unsigned long
+ * long.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_BALLOON_LAST_UPDATE "balloon.last-update"
+
+/**
+ * VIR_DOMAIN_STATS_BALLOON_DISK_CACHES:
+ *
+ * The amount of memory that can be reclaimed without additional I/O,
+ * typically disk (in KiB) as unsigned long long.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_BALLOON_DISK_CACHES "balloon.disk_caches"
+
+/**
+ * VIR_DOMAIN_STATS_BALLOON_HUGETLB_PGALLOC:
+ *
+ * The number of successful huge page allocations from inside the domain via
+ * virtio balloon as unsigned long long.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_BALLOON_HUGETLB_PGALLOC "balloon.hugetlb_pgalloc"
+
+/**
+ * VIR_DOMAIN_STATS_BALLOON_HUGETLB_PGFAIL:
+ *
+ * The number of failed huge page allocations from inside the domain via
+ * virtio balloon as unsigned long long.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_BALLOON_HUGETLB_PGFAIL "balloon.hugetlb_pgfail"
+
+
+/**
+ * VIR_DOMAIN_STATS_VCPU_CURRENT:
+ *
+ * Current number of online virtual CPUs as unsigned int.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_VCPU_CURRENT "vcpu.current"
+
+/**
+ * VIR_DOMAIN_STATS_VCPU_MAXIMUM:
+ *
+ * Maximum number of online virtual CPUs as unsigned int.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_VCPU_MAXIMUM "vcpu.maximum"
+
+/**
+ * VIR_DOMAIN_STATS_VCPU_PREFIX:
+ *
+ * The parameter name prefix to access each vCPU entry. Concatenate the
+ * prefix, the entry number formatted as an unsigned integer and one of the
+ * vCPU suffix parameters to form a complete parameter name.
+ *
+ * Due to VCPU hotplug, the array could be sparse. The actual number of
+ * entries present corresponds to VIR_DOMAIN_STATS_VCPU_CURRENT, while the
+ * array size will never exceed VIR_DOMAIN_STATS_VCPU_MAXIMUM.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_VCPU_PREFIX "vcpu."
+
+/**
+ * VIR_DOMAIN_STATS_VCPU_SUFFIX_STATE:
+ *
+ * State of the virtual CPU <num>, as int from virVcpuState enum.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_VCPU_SUFFIX_STATE ".state"
+
+/**
+ * VIR_DOMAIN_STATS_VCPU_SUFFIX_TIME:
+ *
+ * Virtual cpu time spent by virtual CPU as unsigned long long.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_VCPU_SUFFIX_TIME ".time"
+
+/**
+ * VIR_DOMAIN_STATS_VCPU_SUFFIX_WAIT:
+ *
+ * Time the vCPU wants to run, but the host scheduler has something else
+ * running ahead of it as unsigned long long.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_VCPU_SUFFIX_WAIT ".wait"
+
+/**
+ * VIR_DOMAIN_STATS_VCPU_SUFFIX_HALTED:
+ *
+ * Virtual CPU is halted as a boolean, may indicate the processor is idle or
+ * even disabled, depending on the architecture.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_VCPU_SUFFIX_HALTED ".halted"
+
+/**
+ * VIR_DOMAIN_STATS_VCPU_SUFFIX_DELAY:
+ *
+ * Time the vCPU thread was enqueued by the host scheduler, but was waiting in
+ * the queue instead of running. Exposed to the VM as a steal time. In
+ * nanoseconds as unsigned long long.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_VCPU_SUFFIX_DELAY ".delay"
+
+
+/**
+ * VIR_DOMAIN_STATS_CUSTOM_SUFFIX_TYPE_CUR:
+ *
+ * Hypervisor specific custom data type for current instant value
+ *
+ * The complete parameter name is formed by concatenating the field prefix,
+ * the array index formatted as an unsigned integer, a hypervisor specific
+ * parameter name, and this data type suffix.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_CUSTOM_SUFFIX_TYPE_CUR ".cur"
+
+/**
+ * VIR_DOMAIN_STATS_CUSTOM_SUFFIX_TYPE_SUM:
+ *
+ * Hypervisor specific custom data type for aggregate value
+ *
+ * The complete parameter name is formed by concatenating the field prefix,
+ * the array index formatted as an unsigned integer, a hypervisor specific
+ * parameter name, and this data type suffix.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_CUSTOM_SUFFIX_TYPE_SUM ".sum"
+
+/**
+ * VIR_DOMAIN_STATS_CUSTOM_SUFFIX_TYPE_MAX:
+ *
+ * Hypervisor specific custom data type for peak value.
+ *
+ * The complete parameter name is formed by concatenating the field prefix,
+ * the array index formatted as an unsigned integer, a hypervisor specific
+ * parameter name, and this data type suffix.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_CUSTOM_SUFFIX_TYPE_MAX ".max"
+
+
+/**
+ * VIR_DOMAIN_STATS_NET_COUNT:
+ *
+ * Number of network interfaces on this domain as unsigned int.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_NET_COUNT "net.count"
+
+/**
+ * VIR_DOMAIN_STATS_NET_PREFIX:
+ *
+ * The parameter name prefix to access each interface entry. Concatenate the
+ * prefix, the entry number formatted as an unsigned integer and one of the
+ * network suffix parameters to form a complete parameter name.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_NET_PREFIX "net."
+
+/**
+ * VIR_DOMAIN_STATS_NET_SUFFIX_NAME:
+ *
+ * Name of the interface as string.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_NET_SUFFIX_NAME ".name"
+
+/**
+ * VIR_DOMAIN_STATS_NET_SUFFIX_RX_BYTES:
+ *
+ * Bytes received as unsigned long long.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_NET_SUFFIX_RX_BYTES ".rx.bytes"
+
+/**
+ * VIR_DOMAIN_STATS_NET_SUFFIX_RX_PKTS:
+ *
+ * Packets received as unsigned long long.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_NET_SUFFIX_RX_PKTS ".rx.pkts"
+
+/**
+ * VIR_DOMAIN_STATS_NET_SUFFIX_RX_ERRS:
+ *
+ * Receive errors as unsigned long long.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_NET_SUFFIX_RX_ERRS ".rx.errs"
+
+/**
+ * VIR_DOMAIN_STATS_NET_SUFFIX_RX_DROP:
+ *
+ * Receive packets dropped as unsigned long long.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_NET_SUFFIX_RX_DROP ".rx.drop"
+
+/**
+ * VIR_DOMAIN_STATS_NET_SUFFIX_TX_BYTES:
+ *
+ * Bytes transmitted as unsigned long long.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_NET_SUFFIX_TX_BYTES ".tx.bytes"
+
+/**
+ * VIR_DOMAIN_STATS_NET_SUFFIX_TX_PKTS:
+ *
+ * Packets transmitted as unsigned long long.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_NET_SUFFIX_TX_PKTS ".tx.pkts"
+
+/**
+ * VIR_DOMAIN_STATS_NET_SUFFIX_TX_ERRS:
+ *
+ * Transmission errors as unsigned long long.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_NET_SUFFIX_TX_ERRS ".tx.errs"
+
+/**
+ * VIR_DOMAIN_STATS_NET_SUFFIX_TX_DROP:
+ *
+ * Transmit packets dropped as unsigned long long.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_NET_SUFFIX_TX_DROP ".tx.drop"
+
+
+/**
+ * VIR_DOMAIN_STATS_BLOCK_COUNT:
+ *
+ * Number of block devices in the subsequent list, as unsigned int.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_BLOCK_COUNT "block.count"
+
+/**
+ * VIR_DOMAIN_STATS_BLOCK_PREFIX:
+ *
+ * The parameter name prefix to access each disk entry. Concatenate the
+ * prefix, the entry number formatted as an unsigned integer and one of the
+ * block suffix parameters to form a complete parameter name.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_BLOCK_PREFIX "block."
+
+/**
+ * VIR_DOMAIN_STATS_BLOCK_SUFFIX_NAME:
+ *
+ * Name of the block device as string. Matches the target name (vda/sda/hda)
+ * of the block device.  If the backing chain is listed, this name is the same
+ * for all host resources tied to the same guest device.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_BLOCK_SUFFIX_NAME ".name"
+
+/**
+ * VIR_DOMAIN_STATS_BLOCK_SUFFIX_BACKINGINDEX:
+ *
+ * The <backingStore> index as unsigned int, only used when backing images are
+ * listed.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_BLOCK_SUFFIX_BACKINGINDEX ".backingIndex"
+
+/**
+ * VIR_DOMAIN_STATS_BLOCK_SUFFIX_PATH:
+ *
+ * Source of the block device as a string, if it is a file or block device
+ * (omitted for network sources and drives with no media inserted).
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_BLOCK_SUFFIX_PATH ".path"
+
+/**
+ * VIR_DOMAIN_STATS_BLOCK_SUFFIX_RD_REQS:
+ *
+ * Number of read requests as unsigned long long.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_BLOCK_SUFFIX_RD_REQS ".rd.reqs"
+
+/**
+ * VIR_DOMAIN_STATS_BLOCK_SUFFIX_RD_BYTES:
+ *
+ * Number of read bytes as unsigned long long.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_BLOCK_SUFFIX_RD_BYTES ".rd.bytes"
+
+/**
+ * VIR_DOMAIN_STATS_BLOCK_SUFFIX_RD_TIMES:
+ *
+ * Total time (ns) spent on reads as unsigned long long.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_BLOCK_SUFFIX_RD_TIMES ".rd.times"
+
+/**
+ * VIR_DOMAIN_STATS_BLOCK_SUFFIX_WR_REQS:
+ *
+ * Number of write requests as unsigned long long.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_BLOCK_SUFFIX_WR_REQS ".wr.reqs"
+
+/**
+ * VIR_DOMAIN_STATS_BLOCK_SUFFIX_WR_BYTES:
+ *
+ * Number of written bytes as unsigned long long.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_BLOCK_SUFFIX_WR_BYTES ".wr.bytes"
+
+/**
+ * VIR_DOMAIN_STATS_BLOCK_SUFFIX_WR_TIMES:
+ *
+ * Total time (ns) spent on writes as unsigned long long.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_BLOCK_SUFFIX_WR_TIMES ".wr.times"
+
+/**
+ * VIR_DOMAIN_STATS_BLOCK_SUFFIX_FL_REQS:
+ *
+ * Total flush requests as unsigned long long.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_BLOCK_SUFFIX_FL_REQS ".fl.reqs"
+
+/**
+ * VIR_DOMAIN_STATS_BLOCK_SUFFIX_FL_TIMES:
+ *
+ * Total time (ns) spent on cache flushing as unsigned long long.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_BLOCK_SUFFIX_FL_TIMES ".fl.times"
+
+/**
+ * VIR_DOMAIN_STATS_BLOCK_SUFFIX_ERRORS:
+ *
+ * Xen only: the 'oo_req' value as unsigned long long.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_BLOCK_SUFFIX_ERRORS ".errors"
+
+/**
+ * VIR_DOMAIN_STATS_BLOCK_SUFFIX_ALLOCATION:
+ *
+ * Offset of the highest written sector as unsigned long long.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_BLOCK_SUFFIX_ALLOCATION ".allocation"
+
+/**
+ * VIR_DOMAIN_STATS_BLOCK_SUFFIX_CAPACITY:
+ *
+ * Logical size in bytes of the block device backing image as unsigned long
+ * long.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_BLOCK_SUFFIX_CAPACITY ".capacity"
+
+/**
+ * VIR_DOMAIN_STATS_BLOCK_SUFFIX_PHYSICAL:
+ *
+ * Physical size in bytes of the container of the backing image as unsigned
+ * long long.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_BLOCK_SUFFIX_PHYSICAL ".physical"
+
+/**
+ * VIR_DOMAIN_STATS_BLOCK_SUFFIX_THRESHOLD:
+ *
+ * Current threshold for delivering the VIR_DOMAIN_EVENT_ID_BLOCK_THRESHOLD
+ * event in bytes as unsigned long long. See virDomainSetBlockThreshold.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_BLOCK_SUFFIX_THRESHOLD ".threshold"
+
+
+/**
+ * VIR_DOMAIN_STATS_PERF_CMT:
+ *
+ * The usage of l3 cache (bytes) by applications running on the platform as
+ * unsigned long long. It is produced by the cmt perf event.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_PERF_CMT "perf.cmt"
+
+/**
+ * VIR_DOMAIN_STATS_PERF_MBMT:
+ *
+ * The total system bandwidth (bytes/s) from one level of cache to another as
+ * unsigned long long. It is produced by the mbmt perf event.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_PERF_MBMT "perf.mbmt"
+
+/**
+ * VIR_DOMAIN_STATS_PERF_MBML:
+ *
+ * The amount of data (bytes/s) sent through the memory controller on the
+ * socket as unsigned long long. It is produced by the mbml perf event.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_PERF_MBML "perf.mbml"
+
+/**
+ * VIR_DOMAIN_STATS_PERF_CACHE_MISSES:
+ *
+ * The count of cache misses as unsigned long long. It is produced by the
+ * cache_misses perf event.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_PERF_CACHE_MISSES "perf.cache_misses"
+
+/**
+ * VIR_DOMAIN_STATS_PERF_CACHE_REFERENCES:
+ *
+ * The count of cache hits as unsigned long long. It is produced by the
+ * cache_references perf event.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_PERF_CACHE_REFERENCES "perf.cache_references"
+
+/**
+ * VIR_DOMAIN_STATS_PERF_INSTRUCTIONS:
+ *
+ * The count of instructions as unsigned long long. It is produced by the
+ * instructions perf event.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_PERF_INSTRUCTIONS "perf.instructions"
+
+/**
+ * VIR_DOMAIN_STATS_PERF_CPU_CYCLES:
+ *
+ * The count of cpu cycles (total/elapsed) as an unsigned long long. It is
+ * produced by the cpu_cycles perf event.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_PERF_CPU_CYCLES "perf.cpu_cycles"
+
+/**
+ * VIR_DOMAIN_STATS_PERF_BRANCH_INSTRUCTIONS:
+ *
+ * The count of branch instructions as unsigned long long. It is produced by
+ * the branch_instructions perf event.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_PERF_BRANCH_INSTRUCTIONS "perf.branch_instructions"
+
+/**
+ * VIR_DOMAIN_STATS_PERF_BRANCH_MISSES:
+ *
+ * The count of branch misses as unsigned long long. It is produced by the
+ * branch_misses perf event.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_PERF_BRANCH_MISSES "perf.branch_misses"
+
+/**
+ * VIR_DOMAIN_STATS_PERF_BUS_CYCLES:
+ *
+ * The count of bus cycles as unsigned long long. It is produced by the
+ * bus_cycles perf event.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_PERF_BUS_CYCLES "perf.bus_cycles"
+
+/**
+ * VIR_DOMAIN_STATS_PERF_STALLED_CYCLES_FRONTEND:
+ *
+ * The count of stalled cpu cycles in the frontend of the instruction processor
+ * pipeline as unsigned long long. It is produced by the
+ * stalled_cycles_frontend perf event.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_PERF_STALLED_CYCLES_FRONTEND "perf.stalled_cycles_frontend"
+
+/**
+ * VIR_DOMAIN_STATS_PERF_STALLED_CYCLES_BACKEND:
+ *
+ * The count of stalled cpu cycles in the backend of the instruction processor
+ * pipeline as unsigned long long. It is produced by the stalled_cycles_backend
+ * perf event.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_PERF_STALLED_CYCLES_BACKEND "perf.stalled_cycles_backend"
+
+/**
+ * VIR_DOMAIN_STATS_PERF_REF_CPU_CYCLES:
+ *
+ * The count of total cpu cycles not affected by CPU frequency scaling by
+ * applications running as unsigned long long. It is produced by the
+ * ref_cpu_cycles perf event.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_PERF_REF_CPU_CYCLES "perf.ref_cpu_cycles"
+
+/**
+ * VIR_DOMAIN_STATS_PERF_CPU_CLOCK:
+ *
+ * The count of cpu clock time as unsigned long long. It is produced by the
+ * cpu_clock perf event.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_PERF_CPU_CLOCK "perf.cpu_clock"
+
+/**
+ * VIR_DOMAIN_STATS_PERF_TASK_CLOCK:
+ *
+ * The count of task clock time as unsigned long long. It is produced by the
+ * task_clock perf event.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_PERF_TASK_CLOCK "perf.task_clock"
+
+/**
+ * VIR_DOMAIN_STATS_PERF_PAGE_FAULTS:
+ *
+ * The count of page faults as unsigned long long. It is produced by the
+ * page_faults perf event
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_PERF_PAGE_FAULTS "perf.page_faults"
+
+/**
+ * VIR_DOMAIN_STATS_PERF_CONTEXT_SWITCHES:
+ *
+ * The count of context switches as unsigned long long. It is produced by the
+ * context_switches perf event.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_PERF_CONTEXT_SWITCHES "perf.context_switches"
+
+/**
+ * VIR_DOMAIN_STATS_PERF_CPU_MIGRATIONS:
+ *
+ * The count of cpu migrations, from one logical processor to another, as
+ * unsigned long long. It is produced by the cpu_migrations perf event.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_PERF_CPU_MIGRATIONS "perf.cpu_migrations"
+
+/**
+ * VIR_DOMAIN_STATS_PERF_PAGE_FAULTS_MIN:
+ *
+ * The count of minor page faults as unsigned long long. It is produced by the
+ * page_faults_min perf event.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_PERF_PAGE_FAULTS_MIN "perf.page_faults_min"
+
+/**
+ * VIR_DOMAIN_STATS_PERF_PAGE_FAULTS_MAJ:
+ *
+ * The count of major page faults as unsigned long long. It is produced by the
+ * page_faults_maj perf event.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_PERF_PAGE_FAULTS_MAJ "perf.page_faults_maj"
+
+/**
+ * VIR_DOMAIN_STATS_PERF_ALIGNMENT_FAULTS:
+ *
+ * The count of alignment faults as unsigned long long. It is produced by the
+ * alignment_faults perf event
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_PERF_ALIGNMENT_FAULTS "perf.alignment_faults"
+
+/**
+ * VIR_DOMAIN_STATS_PERF_EMULATION_FAULTS:
+ *
+ * The count of emulation faults as unsigned long long. It is produced by the
+ * emulation_faults perf event
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_PERF_EMULATION_FAULTS "perf.emulation_faults"
+
+
+/**
+ * VIR_DOMAIN_STATS_IOTHREAD_COUNT:
+ *
+ * Maximum number of IOThreads in the subsequent list as unsigned int. Each
+ * IOThread in the list will will use it's iothread_id value as the array
+ * index. There may be fewer array entries than the iothread.count value if
+ * the polling values are not supported.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_IOTHREAD_COUNT "iothread.count"
+
+/**
+ * VIR_DOMAIN_STATS_IOTHREAD_PREFIX:
+ *
+ * The parameter name prefix to access each iothread entry. Concatenate the
+ * prefix, the entry number formatted as an unsigned integer and one of the
+ * iothread suffix parameters to form a complete parameter name.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_IOTHREAD_PREFIX "iothread."
+
+/**
+ * VIR_DOMAIN_STATS_IOTHREAD_SUFFIX_POLL_MAX_NS:
+ *
+ * Maximum polling time in ns as an unsigned long long. A 0 (zero) means
+ * polling is disabled.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_IOTHREAD_SUFFIX_POLL_MAX_NS ".poll-max-ns"
+
+/**
+ * VIR_DOMAIN_STATS_IOTHREAD_SUFFIX_POLL_GROW:
+ *
+ * Polling time factor as an unsigned int or unsigned long long if exceeding
+ * range of unsigned int. A 0 (zero) indicates to allow the underlying
+ * hypervisor to choose how to grow the polling time.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_IOTHREAD_SUFFIX_POLL_GROW ".poll-grow"
+
+/**
+ * VIR_DOMAIN_STATS_IOTHREAD_SUFFIX_POLL_SHRINK:
+ *
+ * Polling time divisor as an unsigned int or unsigned long long if exceeding
+ * range of unsigned int. A 0 (zero) indicates to allow the underlying
+ * hypervisor to choose how to shrink the polling time.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_IOTHREAD_SUFFIX_POLL_SHRINK ".poll-shrink"
+
+
+/**
+ * VIR_DOMAIN_STATS_MEMORY_BANDWIDTH_MONITOR_COUNT:
+ *
+ * The number of memory bandwidth monitors for this domain as an unsigned int.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_MEMORY_BANDWIDTH_MONITOR_COUNT "memory.bandwidth.monitor.count"
+
+/**
+ * VIR_DOMAIN_STATS_MEMORY_BANDWIDTH_MONITOR_PREFIX:
+ *
+ * The parameter name prefix to access each bandwith monitor entry.
+ * Concatenate the prefix, the entry number formatted as an unsigned integer
+ * and one of the memory bandwith suffix parameters to form a complete
+ * parameter name.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_MEMORY_BANDWIDTH_MONITOR_PREFIX "memory.bandwidth.monitor."
+
+/**
+ * VIR_DOMAIN_STATS_MEMORY_BANDWIDTH_MONITOR_SUFFIX_NAME:
+ *
+ * The name of the bandwidth monitor as a string.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_MEMORY_BANDWIDTH_MONITOR_SUFFIX_NAME ".name"
+
+/**
+ * VIR_DOMAIN_STATS_MEMORY_BANDWIDTH_MONITOR_SUFFIX_VCPUS:
+ *
+ * The vcpu list of the bandwidth monitor as a string.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_MEMORY_BANDWIDTH_MONITOR_SUFFIX_VCPUS ".vcpus"
+
+/**
+ * VIR_DOMAIN_STATS_MEMORY_BANDWIDTH_MONITOR_SUFFIX_NODE_COUNT:
+ *
+ * The number of memory controllers in the bandwidth monitor.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_MEMORY_BANDWIDTH_MONITOR_SUFFIX_NODE_COUNT ".node.count"
+
+/**
+ * VIR_DOMAIN_STATS_MEMORY_BANDWIDTH_MONITOR_SUFFIX_NODE_PREFIX:
+ *
+ * The parameter name prefix to access each controller entry. Concatenate the
+ * bandwidth monitor prefix, the monitor entry number formatted as an unsigned
+ * integer, the controller prefix, the controller entry number formatted as an
+ * unsigned integer and one of the controller suffix parameters to form a
+ * complete parameter name.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_MEMORY_BANDWIDTH_MONITOR_SUFFIX_NODE_PREFIX ".node."
+
+/**
+ * VIR_DOMAIN_STATS_MEMORY_BANDWIDTH_MONITOR_SUFFIX_NODE_SUFFIX_ID:
+ *
+ * Host allocated memory controller id for the controller as an unsigned int.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_MEMORY_BANDWIDTH_MONITOR_SUFFIX_NODE_SUFFIX_ID ".id"
+
+/**
+ * VIR_DOMAIN_STATS_MEMORY_BANDWIDTH_MONITOR_SUFFIX_NODE_SUFFIX_BYTES_LOCAL:
+ *
+ * The accumulative bytes consumed by vcpus passing through the memory
+ * controller in the same processor that the scheduled host CPU belongs to as
+ * an unsigned long long.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_MEMORY_BANDWIDTH_MONITOR_SUFFIX_NODE_SUFFIX_BYTES_LOCAL ".bytes.local"
+
+/**
+ * VIR_DOMAIN_STATS_MEMORY_BANDWIDTH_MONITOR_SUFFIX_NODE_SUFFIX_BYTES_TOTAL:
+ *
+ * The accumulative bytes consumed by vcpus passing through all memory
+ * controllers, either local or remote, as an unsigned long long.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_MEMORY_BANDWIDTH_MONITOR_SUFFIX_NODE_SUFFIX_BYTES_TOTAL ".bytes.total"
+
+
+/**
+ * VIR_DOMAIN_STATS_DIRTYRATE_CALC_STATUS:
+ *
+ * The status of last memory dirty rate calculation as an int from the
+ * virDomainDirtyRateStatus enum.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_DIRTYRATE_CALC_STATUS "dirtyrate.calc_status"
+
+/**
+ * VIR_DOMAIN_STATS_DIRTYRATE_CALC_START_TIME:
+ *
+ * The start time in seconds of the last memory dirty rate calculation as long
+ * long.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_DIRTYRATE_CALC_START_TIME "dirtyrate.calc_start_time"
+
+/**
+ * VIR_DOMAIN_STATS_DIRTYRATE_CALC_PERIOD:
+ *
+ * The period in seconds of last memory dirty rate calculation as int.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_DIRTYRATE_CALC_PERIOD "dirtyrate.calc_period"
+
+/**
+ * VIR_DOMAIN_STATS_DIRTYRATE_MEGABYTES_PER_SECOND:
+ *
+ * The calculated memory dirty rate in MiB/s as long long. It is produced only
+ * if the calc_status is measured.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_DIRTYRATE_MEGABYTES_PER_SECOND "dirtyrate.megabytes_per_second"
+
+/**
+ * VIR_DOMAIN_STATS_DIRTYRATE_CALC_MODE:
+ *
+ * The calculation mode used last measurement as string, either of these
+ * 'page-sampling', 'dirty-bitmap' or 'dirty-ring' values returned.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_DIRTYRATE_CALC_MODE "dirtyrate.calc_mode"
+
+/**
+ * VIR_DOMAIN_STATS_DIRTYRATE_VCPU_PREFIX:
+ *
+ * The parameter name prefix to access each VCPU entry. Concatenate the
+ * prefix, the entry number formatted as an unsigned integer and one of the
+ * VCPU suffix parameters to form a complete parameter name.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_DIRTYRATE_VCPU_PREFIX "dirtyrate.vcpu."
+
+/**
+ * VIR_DOMAIN_STATS_DIRTYRATE_VCPU_SUFFIX_MEGABYTES_PER_SECOND:
+ *
+ * The calculated memory dirty rate for a virtual cpu as unsigned long long.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_DIRTYRATE_VCPU_SUFFIX_MEGABYTES_PER_SECOND ".megabytes_per_second"
+
+
+/**
+ * VIR_DOMAIN_STATS_VM_PREFIX:
+ *
+ * Concatenate the prefix, a hypervisor specific custom stats name and one
+ * of the VIR_DOMAIN_STATS_CUSTOM_TYPE_* constants to form a complete
+ * parameter name
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_STATS_VM_PREFIX "vm."
 
 /**
  * virDomainStatsTypes:
@@ -5832,6 +6994,33 @@ typedef void (*virConnectDomainEventMemoryDeviceSizeChangeCallback)(virConnectPt
 
 
 /**
+ * virConnectDomainEventNICMACChangeCallback:
+ * @conn: connection object
+ * @dom: domain on which the event occurred
+ * @alias: network interface device alias
+ * @oldMAC: the old value of network interface MAC address
+ * @newMAC: the new value of network interface MAC address
+ * @opaque: application specified data
+ *
+ * The callback occurs when the guest changes MAC address on one of
+ * its virtual network interfaces, for QEMU domains this is emitted
+ * only for vNICs of model virtio. The event is not emitted for
+ * other types (e.g. PCI device passthrough).
+ *
+ * The callback signature to use when registering for an event of
+ * type VIR_DOMAIN_EVENT_ID_NIC_MAC_CHANGE with
+ * virConnectDomainEventRegisterAny().
+ *
+ * Since: 11.2.0
+ */
+typedef void (*virConnectDomainEventNICMACChangeCallback)(virConnectPtr conn,
+                                                          virDomainPtr dom,
+                                                          const char *alias,
+                                                          const char *oldMAC,
+                                                          const char *newMAC,
+                                                          void *opaque);
+
+/**
  * VIR_DOMAIN_EVENT_CALLBACK:
  *
  * Used to cast the event specific callback into the generic one
@@ -5879,6 +7068,7 @@ typedef enum {
     VIR_DOMAIN_EVENT_ID_BLOCK_THRESHOLD = 24, /* virConnectDomainEventBlockThresholdCallback (Since: 3.2.0) */
     VIR_DOMAIN_EVENT_ID_MEMORY_FAILURE = 25,  /* virConnectDomainEventMemoryFailureCallback (Since: 6.9.0) */
     VIR_DOMAIN_EVENT_ID_MEMORY_DEVICE_SIZE_CHANGE = 26, /* virConnectDomainEventMemoryDeviceSizeChangeCallback (Since: 7.9.0) */
+    VIR_DOMAIN_EVENT_ID_NIC_MAC_CHANGE = 27, /* virConnectDomainEventNICMACChangeCallback (Since: 11.2.0) */
 
 # ifdef VIR_ENUM_SENTINELS
     VIR_DOMAIN_EVENT_ID_LAST
@@ -6443,6 +7633,522 @@ int virDomainSetLaunchSecurityState(virDomainPtr domain,
                                     unsigned int flags);
 
 /**
+ * VIR_DOMAIN_GUEST_INFO_USER_COUNT:
+ *
+ * The number of active users on this domain as an unsigned int.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_GUEST_INFO_USER_COUNT "user.count"
+
+/**
+ * VIR_DOMAIN_GUEST_INFO_USER_PREFIX:
+ *
+ * The parameter name prefix to access each user entry. Concatenate the
+ * prefix, the entry number formatted as an unsigned integer and one of the
+ * user suffix parameters to form a complete parameter name.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_GUEST_INFO_USER_PREFIX "user."
+
+/**
+ * VIR_DOMAIN_GUEST_INFO_USER_SUFFIX_NAME:
+ *
+ * Username of the user as a string.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_GUEST_INFO_USER_SUFFIX_NAME ".name"
+
+/**
+ * VIR_DOMAIN_GUEST_INFO_USER_SUFFIX_DOMAIN:
+ *
+ * Domain of the user as a string (may only be present on certain guest
+ * types).
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_GUEST_INFO_USER_SUFFIX_DOMAIN ".domain"
+
+/**
+ * VIR_DOMAIN_GUEST_INFO_USER_SUFFIX_LOGIN_TIME:
+ *
+ * The login time of a user in milliseconds since the epoch as unsigned long
+ * long.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_GUEST_INFO_USER_SUFFIX_LOGIN_TIME ".login-time"
+
+
+/**
+ * VIR_DOMAIN_GUEST_INFO_OS_ID:
+ *
+ * A string identifying the operating system.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_GUEST_INFO_OS_ID "os.id"
+
+/**
+ * VIR_DOMAIN_GUEST_INFO_OS_NAME:
+ *
+ * The name of the operating system, suitable for presentation to a user, as
+ * a string.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_GUEST_INFO_OS_NAME "os.name"
+
+/**
+ * VIR_DOMAIN_GUEST_INFO_OS_PRETTY_NAME:
+ *
+ * A pretty name for the operating system, suitable for presentation to a
+ * user, as a string.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_GUEST_INFO_OS_PRETTY_NAME "os.pretty-name"
+
+/**
+ * VIR_DOMAIN_GUEST_INFO_OS_VERSION:
+ *
+ * The version of the operating system suitable for presentation to a user,
+ * as a string.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_GUEST_INFO_OS_VERSION "os.version"
+
+/**
+ * VIR_DOMAIN_GUEST_INFO_OS_VERSION_ID:
+ *
+ * The version id of the operating system suitable for processing by scripts,
+ * as a string.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_GUEST_INFO_OS_VERSION_ID "os.version-id"
+
+/**
+ * VIR_DOMAIN_GUEST_INFO_OS_KERNEL_RELEASE:
+ *
+ * The release of the operating system kernel, as a string.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_GUEST_INFO_OS_KERNEL_RELEASE "os.kernel-release"
+
+/**
+ * VIR_DOMAIN_GUEST_INFO_OS_KERNEL_VERSION:
+ *
+ * The version of the operating system kernel, as a string.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_GUEST_INFO_OS_KERNEL_VERSION "os.kernel-version"
+
+/**
+ * VIR_DOMAIN_GUEST_INFO_OS_MACHINE:
+ *
+ * The machine hardware name as a string.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_GUEST_INFO_OS_MACHINE "os.machine"
+
+/**
+ * VIR_DOMAIN_GUEST_INFO_OS_VARIANT:
+ *
+ * A specific variant or edition of the operating system suitable for
+ * presentation to a user, as a string.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_GUEST_INFO_OS_VARIANT "os.variant"
+
+/**
+ * VIR_DOMAIN_GUEST_INFO_OS_VARIANT_ID:
+ *
+ * The id for a specific variant or edition of the operating system, as a
+ * string.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_GUEST_INFO_OS_VARIANT_ID "os.variant-id"
+
+
+/**
+ * VIR_DOMAIN_GUEST_INFO_TIMEZONE_NAME:
+ *
+ * The name of the timezone as a string.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_GUEST_INFO_TIMEZONE_NAME "timezone.name"
+
+/**
+ * VIR_DOMAIN_GUEST_INFO_TIMEZONE_OFFSET:
+ *
+ * The offset to UTC in seconds as an int.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_GUEST_INFO_TIMEZONE_OFFSET "timezone.offset"
+
+
+/**
+ * VIR_DOMAIN_GUEST_INFO_HOSTNAME_HOSTNAME:
+ *
+ * The hostname of the domain as a string.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_GUEST_INFO_HOSTNAME_HOSTNAME "hostname"
+
+
+/**
+ * VIR_DOMAIN_GUEST_INFO_FS_COUNT:
+ *
+ * The number of filesystems defined on this domain as an unsigned int.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_GUEST_INFO_FS_COUNT "fs.count"
+
+/**
+ * VIR_DOMAIN_GUEST_INFO_FS_PREFIX:
+ *
+ * The parameter name prefix to access each filesystem entry. Concatenate the
+ * prefix, the entry number formatted as an unsigned integer and one of the
+ * filesystem suffix parameters to form a complete parameter name.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_GUEST_INFO_FS_PREFIX "fs."
+
+/**
+ * VIR_DOMAIN_GUEST_INFO_FS_SUFFIX_MOUNTPOINT:
+ *
+ * The path to the mount point for the filesystem as a string.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_GUEST_INFO_FS_SUFFIX_MOUNTPOINT ".mountpoint"
+
+/**
+ * VIR_DOMAIN_GUEST_INFO_FS_SUFFIX_NAME:
+ *
+ * Device name in the guest (e.g. "sda1") as a string.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_GUEST_INFO_FS_SUFFIX_NAME ".name"
+
+/**
+ * VIR_DOMAIN_GUEST_INFO_FS_SUFFIX_FSTYPE:
+ *
+ * The type of filesystem as a string.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_GUEST_INFO_FS_SUFFIX_FSTYPE ".fstype"
+
+/**
+ * VIR_DOMAIN_GUEST_INFO_FS_SUFFIX_TOTAL_BYTES:
+ *
+ * The total size of the filesystem as an unsigned long long.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_GUEST_INFO_FS_SUFFIX_TOTAL_BYTES ".total-bytes"
+
+/**
+ * VIR_DOMAIN_GUEST_INFO_FS_SUFFIX_USED_BYTES:
+ *
+ * The number of bytes used in the filesystem as an unsigned long long.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_GUEST_INFO_FS_SUFFIX_USED_BYTES ".used-bytes"
+
+/**
+ * VIR_DOMAIN_GUEST_INFO_FS_SUFFIX_DISK_COUNT:
+ *
+ * The number of disks targeted by this filesystem as an int.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_GUEST_INFO_FS_SUFFIX_DISK_COUNT ".disk.count"
+
+/**
+ * VIR_DOMAIN_GUEST_INFO_FS_SUFFIX_DISK_PREFIX:
+ *
+ * The parameter name prefix to access each disk entry. Concatenate the
+ * filesystem prefix, the filesystem entry number formatted as an unsigned
+ * integer, the disk prefix, the disk entry number formatted as an unsigned
+ * integer and one of the disk suffix parameters to form a complete parameter
+ * name.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_GUEST_INFO_FS_SUFFIX_DISK_PREFIX ".disk."
+
+/**
+ * VIR_DOMAIN_GUEST_INFO_FS_SUFFIX_DISK_SUFFIX_ALIAS:
+ *
+ * The device alias of the disk (e.g. sda) as a string.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_GUEST_INFO_FS_SUFFIX_DISK_SUFFIX_ALIAS ".alias"
+
+/**
+ * VIR_DOMAIN_GUEST_INFO_FS_SUFFIX_DISK_SUFFIX_SERIAL:
+ *
+ * The serial number of the disk as a string.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_GUEST_INFO_FS_SUFFIX_DISK_SUFFIX_SERIAL ".serial"
+
+/**
+ * VIR_DOMAIN_GUEST_INFO_FS_SUFFIX_DISK_SUFFIX_DEVICE:
+ *
+ * The device node of the disk as a string.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_GUEST_INFO_FS_SUFFIX_DISK_SUFFIX_DEVICE ".device"
+
+
+/**
+ * VIR_DOMAIN_GUEST_INFO_DISK_COUNT:
+ *
+ * The number of disks defined on this domain as an unsigned int.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_GUEST_INFO_DISK_COUNT "disk.count"
+
+/**
+ * VIR_DOMAIN_GUEST_INFO_DISK_PREFIX:
+ *
+ * The parameter name prefix to access each disk entry. Concatenate the
+ * prefix, the entry number formatted as an unsigned integer and one of the
+ * disk suffix parameters to form a complete parameter name.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_GUEST_INFO_DISK_PREFIX "disk."
+
+/**
+ * VIR_DOMAIN_GUEST_INFO_DISK_SUFFIX_NAME:
+ *
+ * Device node (Linux) or device UNC (Windows) as a string.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_GUEST_INFO_DISK_SUFFIX_NAME ".name"
+
+/**
+ * VIR_DOMAIN_GUEST_INFO_DISK_SUFFIX_PARTITION:
+ *
+ * Whether this is a partition (true) or disk (false) as a boolean.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_GUEST_INFO_DISK_SUFFIX_PARTITION ".partition"
+
+/**
+ * VIR_DOMAIN_GUEST_INFO_DISK_SUFFIX_DEPENDENCY_COUNT:
+ *
+ * The number of device dependencies as an unsigned int.
+ *
+ * e.g. for LVs of the LVM this will hold the list of PVs, for LUKS encrypted
+ * volume this will contain the disk where the volume is placed. (Linux).
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_GUEST_INFO_DISK_SUFFIX_DEPENDENCY_COUNT ".dependency.count"
+
+/**
+ * VIR_DOMAIN_GUEST_INFO_DISK_SUFFIX_DEPENDENCY_PREFIX:
+ *
+ * The parameter name prefix to access each dependency entry. Concatenate the
+ * disk prefix, the disk entry number formatted as an unsigned integer, the
+ * dependency prefix, the dependency entry number formatted as an unsigned
+ * integer and one of the dependency suffix parameters to form a complete
+ * parameter name.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_GUEST_INFO_DISK_SUFFIX_DEPENDENCY_PREFIX ".dependency."
+
+/**
+ * VIR_DOMAIN_GUEST_INFO_DISK_SUFFIX_DEPENDENCY_SUFFIX_NAME:
+ *
+ * A dependency name as a string.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_GUEST_INFO_DISK_SUFFIX_DEPENDENCY_SUFFIX_NAME ".name"
+
+/**
+ * VIR_DOMAIN_GUEST_INFO_DISK_SUFFIX_SERIAL:
+ *
+ * Optional disk serial number as a string.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_GUEST_INFO_DISK_SUFFIX_SERIAL ".serial"
+
+/**
+ * VIR_DOMAIN_GUEST_INFO_DISK_SUFFIX_ALIAS:
+ *
+ * The device alias of the disk (e.g. sda) as a string.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_GUEST_INFO_DISK_SUFFIX_ALIAS ".alias"
+
+/**
+ * VIR_DOMAIN_GUEST_INFO_DISK_SUFFIX_GUEST_ALIAS:
+ *
+ * Optional alias assigned to the disk, on Linux this is a name assigned by
+ * device mapper, as a string.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_GUEST_INFO_DISK_SUFFIX_GUEST_ALIAS ".guest_alias"
+
+/**
+ * VIR_DOMAIN_GUEST_INFO_DISK_SUFFIX_GUEST_BUS:
+ *
+ * Disk bus as reported by the guest OS.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_GUEST_INFO_DISK_SUFFIX_GUEST_BUS ".guest_bus"
+
+
+/**
+ * VIR_DOMAIN_GUEST_INFO_IF_COUNT:
+ *
+ * The number of interfaces defined on this domain as an unsigned int.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_GUEST_INFO_IF_COUNT "if.count"
+
+/**
+ * VIR_DOMAIN_GUEST_INFO_IF_PREFIX:
+ *
+ * The parameter name prefix to access each interface entry. Concatenate the
+ * prefix, the entry number formatted as an unsigned integer and one of the
+ * interface suffix parameters to form a complete parameter name.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_GUEST_INFO_IF_PREFIX "if."
+
+/**
+ * VIR_DOMAIN_GUEST_INFO_IF_SUFFIX_NAME:
+ *
+ * Name in the guest (e.g. ``eth0``) for the interface as a string.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_GUEST_INFO_IF_SUFFIX_NAME ".name"
+
+/**
+ * VIR_DOMAIN_GUEST_INFO_IF_SUFFIX_HWADDR:
+ *
+ * Hardware address in the guest of the interface as a string.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_GUEST_INFO_IF_SUFFIX_HWADDR ".hwaddr"
+
+/**
+ * VIR_DOMAIN_GUEST_INFO_IF_SUFFIX_ADDR_COUNT:
+ *
+ * The number of IP addresses of interface as an unsigned int.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_GUEST_INFO_IF_SUFFIX_ADDR_COUNT ".addr.count"
+
+/**
+ * VIR_DOMAIN_GUEST_INFO_IF_SUFFIX_ADDR_PREFIX:
+ *
+ * The parameter name prefix to access each address entry. Concatenate the
+ * interface prefix, the interface entry number formatted as an unsigned
+ * integer, the address prefix, the address entry number formatted as an
+ * unsigned integer and one of the address suffix parameters to form a
+ * complete parameter name.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_GUEST_INFO_IF_SUFFIX_ADDR_PREFIX ".addr."
+
+/**
+ * VIR_DOMAIN_GUEST_INFO_IF_SUFFIX_ADDR_SUFFIX_TYPE:
+ *
+ * The IP address type (e.g. ipv4) as a string.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_GUEST_INFO_IF_SUFFIX_ADDR_SUFFIX_TYPE ".type"
+
+/**
+ * VIR_DOMAIN_GUEST_INFO_IF_SUFFIX_ADDR_SUFFIX_ADDR:
+ *
+ * The IP address as a string.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_GUEST_INFO_IF_SUFFIX_ADDR_SUFFIX_ADDR ".addr"
+
+/**
+ * VIR_DOMAIN_GUEST_INFO_IF_SUFFIX_ADDR_SUFFIX_PREFIX:
+ *
+ * The prefix of IP address as an unsigned int.
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_GUEST_INFO_IF_SUFFIX_ADDR_SUFFIX_PREFIX ".prefix"
+
+
+/**
+ * VIR_DOMAIN_GUEST_INFO_LOAD_1M:
+ *
+ * The guest load averaged over 1 minute as a double
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_GUEST_INFO_LOAD_1M "load.1m"
+
+/**
+ * VIR_DOMAIN_GUEST_INFO_LOAD_5M:
+ *
+ * The guest load averaged over 5 minutes as a double
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_GUEST_INFO_LOAD_5M "load.5m"
+
+/**
+ * VIR_DOMAIN_GUEST_INFO_LOAD_15M:
+ *
+ * The guest load averaged over 15 minutes as a double
+ *
+ * Since: 11.2.0
+ */
+# define VIR_DOMAIN_GUEST_INFO_LOAD_15M "load.15m"
+
+/**
  * virDomainGuestInfoTypes:
  *
  * Since: 5.7.0
@@ -6455,6 +8161,7 @@ typedef enum {
     VIR_DOMAIN_GUEST_INFO_FILESYSTEM = (1 << 4), /* return filesystem information (Since: 5.7.0) */
     VIR_DOMAIN_GUEST_INFO_DISKS = (1 << 5), /* return disks information (Since: 7.0.0) */
     VIR_DOMAIN_GUEST_INFO_INTERFACES = (1 << 6), /* return interfaces information (Since: 7.10.0) */
+    VIR_DOMAIN_GUEST_INFO_LOAD = (1 << 7), /* return load averages (Since: 11.2.0) */
 } virDomainGuestInfoTypes;
 
 int virDomainGetGuestInfo(virDomainPtr domain,
@@ -6611,5 +8318,19 @@ int
 virDomainGraphicsReload(virDomainPtr domain,
                         unsigned int type,
                         unsigned int flags);
+
+
+int
+virDomainSetThrottleGroup(virDomainPtr dom,
+                          const char *group,
+                          virTypedParameterPtr params,
+                          int nparams,
+                          unsigned int flags);
+
+int
+virDomainDelThrottleGroup(virDomainPtr dom,
+                          const char *group,
+                          unsigned int flags);
+
 
 #endif /* LIBVIRT_DOMAIN_H */

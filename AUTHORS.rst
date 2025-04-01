@@ -231,12 +231,14 @@ Patches have also been contributed by:
 * Chris Wright <chrisw@redhat.com>
 * Chuck Short <chuck.short@canonical.com>
 * Chuck Short <zulcss@gmail.com>
+* Chun Feng Wu <danielwuwy@163.com>
 * Chunhe Li <lichunhe@huawei.com>
 * Chunyan Liu <cyliu@suse.com>
 * Clark Laughlin <clark.laughlin@linaro.org>
 * Claudio André <claudioandre.br@gmail.com>
 * Claudio Bley <claudio.bley@gmail.com>
 * Claudio Fontana <cfontana@suse.de>
+* Cleber Rosa <crosa@redhat.com>
 * Clementine Hayat <clem@lse.epita.fr>
 * Cole Robinson <crobinso@redhat.com>
 * Collin L. Walling <walling@linux.vnet.ibm.com>
@@ -269,6 +271,7 @@ Patches have also been contributed by:
 * Dave Allan <dallan@redhat.com>
 * David Dai <zdai@linux.vnet.ibm.com>
 * David Jorm <dfj@redhat.com>
+* David Judkovics <djudkovi(a)linux.ibm.com>
 * David Kiarie <davidkiarie4@gmail.com>
 * David L. Leskovec <dlesko@linux.vnet.ibm.com>
 * Davidlohr Bueso <dave@gnu.org>
@@ -291,6 +294,7 @@ Patches have also been contributed by:
 * Diego Michelotto <diego.michelotto@cnaf.infn.it>
 * Diego Woitasen <diego.woitasen@vhgroup.net>
 * dinglimin <dinglimin@cmss.chinamobile.com>
+* Dion Bosschieter <dionbosschieter@gmail.com>
 * Dipankar Sarma <dipankar@in.ibm.com>
 * Dirk Herrendoerfer <d.herrendoerfer@herrendoerfer.name>
 * Divya Garg <divya.garg@nutanix.com>
@@ -395,6 +399,7 @@ Patches have also been contributed by:
 * Haonan Wang <hnwanga1@gmail.com>
 * Hao Peng <peng.hao2@zte.com.cn>
 * Hao Wang <wanghao232@huawei.com>
+* Harikumar Rajkumar <harirajkumar230@gmail.com>
 * Harry Wei <harryxiyou@gmail.com>
 * Harshavardhana <harsha@gluster.com>
 * Harsh Prateek Bora <harsh@linux.vnet.ibm.com>
@@ -413,6 +418,7 @@ Patches have also been contributed by:
 * Hongbin Lu <hongbin034@gmail.com>
 * hongmianquan <hongmianquan@bytedance.com>
 * Hongwei Bi <hwbi2008@gmail.com>
+* hsu zangmen <chzang55@gmail.com>
 * Huanle Han <hanxueluo@gmail.com>
 * Huaqiang <huaqiang.wang@intel.com>
 * Hu Jianwei <jiahu@redhat.com>
@@ -530,6 +536,7 @@ Patches have also been contributed by:
 * Kevin Locke <kevin@kevinlocke.name>
 * Kiarie Kahurani <davidkiarie4@gmail.com>
 * Kim InSoo <simmon@nplob.com>
+* Kirill Shchetiniuk <kshcheti@redhat.com>
 * Klaus Ethgen <Klaus@Ethgen.de>
 * Koichi Murase <myoga.murase@gmail.com>
 * Konrad Rzeszutek Wilk <konrad@kernel.org>
@@ -835,6 +842,7 @@ Patches have also been contributed by:
 * SeongHyun Jo <caelus9536@gmail.com>
 * Serge E. Hallyn <serge.hallyn@canonical.com>
 * Serge Hallyn <serge.hallyn@ubuntu.com>
+* Sergey A <Ser82-png@yandex.ru>
 * Sergey A <sw@atrus.ru>
 * Sergey Bronnikov <sergeyb@openvz.org>
 * Sergey Dyasli <sergey.dyasli@nutanix.com>

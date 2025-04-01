@@ -225,8 +225,7 @@ qemuCheckpointDiscardBitmaps(virDomainObj *vm,
                                                false, false, false) < 0)
             goto relabel;
 
-        if (virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_BLOCKDEV_REOPEN) &&
-            qemuBlockReopenReadWrite(vm, src, VIR_ASYNC_JOB_NONE) < 0)
+        if (qemuBlockReopenReadWrite(vm, src, VIR_ASYNC_JOB_NONE) < 0)
             goto relabel;
 
         relabelimages = g_slist_prepend(relabelimages, src);
@@ -240,8 +239,7 @@ qemuCheckpointDiscardBitmaps(virDomainObj *vm,
     for (next = relabelimages; next; next = next->next) {
         virStorageSource *src = next->data;
 
-        if (virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_BLOCKDEV_REOPEN))
-            ignore_value(qemuBlockReopenReadOnly(vm, src, VIR_ASYNC_JOB_NONE));
+        ignore_value(qemuBlockReopenReadOnly(vm, src, VIR_ASYNC_JOB_NONE));
 
         ignore_value(qemuDomainStorageSourceAccessAllow(driver, vm, src,
                                                         true, false, false));
@@ -590,12 +588,6 @@ qemuCheckpointCreateXML(virDomainPtr domain,
                            _("cannot create checkpoint for inactive domain"));
             return NULL;
         }
-
-        if (!virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_INCREMENTAL_BACKUP)) {
-            virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
-                           _("incremental backup is not supported yet"));
-            return NULL;
-        }
     }
 
     if (!(def = virDomainCheckpointDefParseString(xmlDesc, driver->xmlopt,
@@ -855,12 +847,6 @@ qemuCheckpointDelete(virDomainObj *vm,
         if (!virDomainObjIsActive(vm)) {
             virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
                            _("cannot delete checkpoint for inactive domain"));
-            goto endjob;
-        }
-
-        if (!virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_INCREMENTAL_BACKUP)) {
-            virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
-                           _("incremental backup is not supported yet"));
             goto endjob;
         }
     }

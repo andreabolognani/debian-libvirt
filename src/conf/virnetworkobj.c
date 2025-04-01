@@ -1908,9 +1908,9 @@ virNetworkObjUpdateModificationImpact(virNetworkObj *obj,
  */
 static int
 virNetworkObjGetDefs(virNetworkObj *net,
-                    unsigned int flags,
-                    virNetworkDef **liveDef,
-                    virNetworkDef **persDef)
+                     unsigned int flags,
+                     virNetworkDef **liveDef,
+                     virNetworkDef **persDef)
 {
     if (liveDef)
         *liveDef = NULL;
@@ -1954,8 +1954,8 @@ virNetworkObjGetDefs(virNetworkObj *net,
  */
 static virNetworkDef *
 virNetworkObjGetOneDefState(virNetworkObj *net,
-                           unsigned int flags,
-                           bool *live)
+                            unsigned int flags,
+                            bool *live)
 {
     if (flags & VIR_NETWORK_UPDATE_AFFECT_LIVE &&
         flags & VIR_NETWORK_UPDATE_AFFECT_CONFIG) {
@@ -1993,7 +1993,7 @@ virNetworkObjGetOneDefState(virNetworkObj *net,
  */
 static virNetworkDef *
 virNetworkObjGetOneDef(virNetworkObj *net,
-                      unsigned int flags)
+                       unsigned int flags)
 {
     return virNetworkObjGetOneDefState(net, flags, NULL);
 }
@@ -2001,9 +2001,9 @@ virNetworkObjGetOneDef(virNetworkObj *net,
 
 char *
 virNetworkObjGetMetadata(virNetworkObj *net,
-                        int type,
-                        const char *uri,
-                        unsigned int flags)
+                         int type,
+                         const char *uri,
+                         unsigned int flags)
 {
     virNetworkDef *def;
     char *ret = NULL;
@@ -2051,10 +2051,10 @@ virNetworkObjGetMetadata(virNetworkObj *net,
 
 static int
 virNetworkDefSetMetadata(virNetworkDef *def,
-                        int type,
-                        const char *metadata,
-                        const char *key,
-                        const char *uri)
+                         int type,
+                         const char *metadata,
+                         const char *key,
+                         const char *uri)
 {
     g_autoptr(xmlDoc) doc = NULL;
     xmlNodePtr old;
@@ -2083,7 +2083,6 @@ virNetworkDefSetMetadata(virNetworkDef *def,
 
     case VIR_NETWORK_METADATA_ELEMENT:
         if (metadata) {
-
             /* parse and modify the xml from the user */
             if (!(doc = virXMLParseStringCtxt(metadata, _("(metadata_xml)"), NULL)))
                 return -1;
@@ -2115,6 +2114,8 @@ virNetworkDefSetMetadata(virNetworkDef *def,
                 return -1;
             }
             new = NULL;
+        } else if (!xmlFirstElementChild(def->metadata)) {
+            g_clear_pointer(&def->metadata, xmlFreeNode);
         }
         break;
 
@@ -2128,14 +2129,14 @@ virNetworkDefSetMetadata(virNetworkDef *def,
 
 int
 virNetworkObjSetMetadata(virNetworkObj *net,
-                        int type,
-                        const char *metadata,
-                        const char *key,
-                        const char *uri,
-                        virNetworkXMLOption *xmlopt,
-                        const char *stateDir,
-                        const char *configDir,
-                        unsigned int flags)
+                         int type,
+                         const char *metadata,
+                         const char *key,
+                         const char *uri,
+                         virNetworkXMLOption *xmlopt,
+                         const char *stateDir,
+                         const char *configDir,
+                         unsigned int flags)
 {
     virNetworkDef *def;
     virNetworkDef *persistentDef;
@@ -2156,7 +2157,7 @@ virNetworkObjSetMetadata(virNetworkObj *net,
 
     if (persistentDef) {
         if (virNetworkDefSetMetadata(persistentDef, type, metadata, key,
-                                    uri) < 0)
+                                     uri) < 0)
             return -1;
 
         if (virNetworkSaveConfig(configDir, persistentDef, xmlopt) < 0)

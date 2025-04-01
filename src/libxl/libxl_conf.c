@@ -582,8 +582,9 @@ libxlMakeDomBuildInfo(virDomainDef *def,
                           VIR_TRISTATE_SWITCH_ON);
 #endif
 
-        /* copy SLIC table path to acpi_firmware */
-        b_info->u.hvm.acpi_firmware = g_strdup(def->os.slic_table);
+        /* copy the table path to acpi_firmware */
+        if (def->os.nacpiTables)
+            b_info->u.hvm.acpi_firmware = g_strdup(def->os.acpiTables[0]->path);
 
         if (def->nsounds > 0) {
             /*
@@ -2102,9 +2103,7 @@ libxlMakeDefaultUSBControllers(virDomainDef *def,
     x_controllers = g_new0(libxl_device_usbctrl, ncontrollers);
 
     for (i = 0; i < ncontrollers; i++) {
-        if (!(l_controller = virDomainControllerDefNew(VIR_DOMAIN_CONTROLLER_TYPE_USB)))
-            goto error;
-
+        l_controller = virDomainControllerDefNew(VIR_DOMAIN_CONTROLLER_TYPE_USB);
         l_controller->model = VIR_DOMAIN_CONTROLLER_MODEL_USB_QUSB2;
         l_controller->idx = i;
         l_controller->opts.usbopts.ports = 8;

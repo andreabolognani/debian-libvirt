@@ -266,8 +266,7 @@ libxlDomainDefPostParse(virDomainDef *def,
     }
 
     /* add implicit input devices */
-    if (xenDomainDefAddImplicitInputDevice(def) < 0)
-        return -1;
+    xenDomainDefAddImplicitInputDevice(def);
 
     /* For x86_64 HVM */
     if (def->os.type == VIR_DOMAIN_OSTYPE_HVM &&
@@ -292,8 +291,7 @@ libxlDomainDefPostParse(virDomainDef *def,
 
     /* add implicit xenbus device */
     if (virDomainControllerFindByType(def, VIR_DOMAIN_CONTROLLER_TYPE_XENBUS) == -1)
-        if (virDomainDefAddController(def, VIR_DOMAIN_CONTROLLER_TYPE_XENBUS, -1, -1) == NULL)
-            return -1;
+        virDomainDefAddController(def, VIR_DOMAIN_CONTROLLER_TYPE_XENBUS, -1, -1);
 
     return 0;
 }
@@ -306,6 +304,7 @@ libxlDomainDefValidate(const virDomainDef *def,
     libxlDriverPrivate *driver = opaque;
     g_autoptr(libxlDriverConfig) cfg = libxlDriverConfigGet(driver);
     bool reqSecureBoot = false;
+    size_t i;
 
     if (!virCapabilitiesDomainSupported(cfg->caps, def->os.type,
                                         def->os.arch,
@@ -327,6 +326,33 @@ libxlDomainDefValidate(const virDomainDef *def,
     if (reqSecureBoot) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                        _("Secure boot is not supported on Xen"));
+        return -1;
+    }
+
+    for (i = 0; i < def->os.nacpiTables; i++) {
+        switch (def->os.acpiTables[i]->type) {
+        case VIR_DOMAIN_OS_ACPI_TABLE_TYPE_SLIC: /* Back compat for historical mistake,
+                                                  * functionally the same as 'rawset' */
+        case VIR_DOMAIN_OS_ACPI_TABLE_TYPE_RAWSET:
+            break;
+
+        case VIR_DOMAIN_OS_ACPI_TABLE_TYPE_RAW:
+        case VIR_DOMAIN_OS_ACPI_TABLE_TYPE_MSDM:
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                           _("ACPI table type '%1$s' is not supported"),
+                           virDomainOsACPITableTypeToString(def->os.acpiTables[i]->type));
+            return -1;
+
+        default:
+        case VIR_DOMAIN_OS_ACPI_TABLE_TYPE_LAST:
+            virReportEnumRangeError(virDomainOsACPITable,
+                                    def->os.acpiTables[i]->type);
+            return -1;
+        }
+    }
+    if (def->os.nacpiTables > 1) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("Only a single ACPI table is supported"));
         return -1;
     }
 

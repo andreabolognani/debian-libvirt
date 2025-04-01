@@ -272,6 +272,7 @@ qemuMonitorJSONBlockdevMirror(qemuMonitor *mon,
                               bool persistjob,
                               const char *device,
                               const char *target,
+                              const char *replaces,
                               unsigned long long speed,
                               unsigned int granularity,
                               unsigned long long buf_size,
@@ -374,6 +375,15 @@ int
 qemuMonitorJSONSetBlockIoThrottle(qemuMonitor *mon,
                                   const char *qomid,
                                   virDomainBlockIoTuneInfo *info);
+
+int
+qemuMonitorMakeThrottleGroupLimits(virJSONValue *limits,
+                                   const virDomainThrottleGroupDef *group);
+
+int
+qemuMonitorJSONUpdateThrottleGroup(qemuMonitor *mon,
+                                   const char *qomid,
+                                   virDomainBlockIoTuneInfo *info);
 
 int
 qemuMonitorJSONGetBlockIoThrottle(qemuMonitor *mon,

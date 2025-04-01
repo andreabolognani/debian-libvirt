@@ -57,6 +57,7 @@ int
 qemuDomainChangeGraphicsPasswords(virDomainObj *vm,
                                   int type,
                                   virDomainGraphicsAuthDef *auth,
+                                  const char *defaultUsername,
                                   const char *defaultPasswd,
                                   int asyncJob);
 
@@ -130,6 +131,7 @@ int
 qemuHotplugAttachManagedPR(virDomainObj *vm,
                            virStorageSource *src,
                            virDomainAsyncJob asyncJob);
-int
+void
 qemuHotplugRemoveManagedPR(virDomainObj *vm,
+                           virStorageSource *src,
                            virDomainAsyncJob asyncJob);
