@@ -1,3 +1,9 @@
+libvirt (11.2.0-1) UNRELEASED; urgency=medium
+
+  * [56cf4c6] New upstream version 11.2.0
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Tue, 01 Apr 2025 23:14:07 +0200
+
 libvirt (11.1.0-2) experimental; urgency=medium
 
   * [9e2b202] snippets: Drop custom conffile transfer logic
