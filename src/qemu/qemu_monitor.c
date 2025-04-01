@@ -600,8 +600,6 @@ qemuMonitorOpenInternal(virDomainObj *vm,
     mon->cb = cb;
 
     if (priv) {
-        mon->objectAddNoWrap = virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_OBJECT_JSON);
-        mon->queryNamedBlockNodesFlat = virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_QMP_QUERY_NAMED_BLOCK_NODES_FLAT);
         mon->blockjobMaskProtocol = virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_BLOCKJOB_BACKING_MASK_PROTOCOL);
     }
 
@@ -2233,6 +2231,43 @@ qemuMonitorMigrateToFd(qemuMonitor *mon,
 
 
 int
+qemuMonitorMigrateToFdSet(virDomainObj *vm,
+                          unsigned int flags,
+                          int *fd,
+                          int *directFd)
+{
+    qemuDomainObjPrivate *priv = vm->privateData;
+    qemuMonitor *mon = priv->mon;
+    off_t offset;
+    g_autoptr(qemuFDPass) fdPassMigrate = NULL;
+    g_autofree char *uri = NULL;
+    int ret;
+
+    VIR_DEBUG("fd=%d directFd=%d flags=0x%x", *fd, *directFd, flags);
+
+    QEMU_CHECK_MONITOR(mon);
+
+    if ((offset = lseek(*fd, 0, SEEK_CUR)) == -1) {
+        virReportSystemError(errno,
+                             "%s", _("failed to seek on file descriptor"));
+        return -1;
+    }
+
+    fdPassMigrate = qemuFDPassNew("libvirt-outgoing-migrate", priv);
+    qemuFDPassAddFD(fdPassMigrate, fd, "-fd");
+    if (*directFd != -1)
+        qemuFDPassAddFD(fdPassMigrate, directFd, "-directio-fd");
+    qemuFDPassTransferMonitor(fdPassMigrate, mon);
+
+    uri = g_strdup_printf("file:%s,offset=%#jx",
+                          qemuFDPassGetPath(fdPassMigrate), (uintmax_t)offset);
+    ret = qemuMonitorJSONMigrate(mon, flags, uri);
+
+    return ret;
+}
+
+
+int
 qemuMonitorMigrateToHost(qemuMonitor *mon,
                          unsigned int flags,
                          const char *protocol,
@@ -2660,7 +2695,6 @@ qemuMonitorAddObject(qemuMonitor *mon,
                      virJSONValue **props,
                      char **alias)
 {
-    g_autoptr(virJSONValue) pr = NULL;
     const char *type = NULL;
     const char *id = NULL;
     g_autofree char *aliasCopy = NULL;
@@ -2688,30 +2722,7 @@ qemuMonitorAddObject(qemuMonitor *mon,
     if (alias)
         aliasCopy = g_strdup(id);
 
-    if (mon->objectAddNoWrap) {
-        pr = g_steal_pointer(props);
-    } else {
-        /* we need to create a wrapper which has the 'qom-type' and 'id' and
-         * store everything else under a 'props' sub-object */
-        g_autoptr(virJSONValue) typeobj = NULL;
-        g_autoptr(virJSONValue) idobj = NULL;
-
-        ignore_value(virJSONValueObjectRemoveKey(*props, "qom-type", &typeobj));
-        ignore_value(virJSONValueObjectRemoveKey(*props, "id", &idobj));
-
-        /* avoid empty 'props' member */
-        if (!virJSONValueObjectGetKey(*props, 0))
-            g_clear_pointer(props, virJSONValueFree);
-
-        if (virJSONValueObjectAdd(&pr,
-                                  "s:qom-type", type,
-                                  "s:id", id,
-                                  "A:props", props,
-                                  NULL) < 0)
-            return -1;
-    }
-
-    if (qemuMonitorJSONAddObject(mon, &pr) < 0)
+    if (qemuMonitorJSONAddObject(mon, props) < 0)
         return -1;
 
     if (alias)
@@ -2810,20 +2821,21 @@ qemuMonitorBlockdevMirror(qemuMonitor *mon,
                           bool persistjob,
                           const char *device,
                           const char *target,
+                          const char *replaces,
                           unsigned long long bandwidth,
                           unsigned int granularity,
                           unsigned long long buf_size,
                           bool shallow,
                           bool syncWrite)
 {
-    VIR_DEBUG("jobname=%s, persistjob=%d, device=%s, target=%s, bandwidth=%lld, "
+    VIR_DEBUG("jobname=%s, persistjob=%d, device=%s, target=%s, replaces=%s, bandwidth=%lld, "
               "granularity=%#x, buf_size=%lld, shallow=%d syncWrite=%d",
-              NULLSTR(jobname), persistjob, device, target, bandwidth, granularity,
-              buf_size, shallow, syncWrite);
+              NULLSTR(jobname), persistjob, device, target, NULLSTR(replaces),
+              bandwidth, granularity, buf_size, shallow, syncWrite);
 
     QEMU_CHECK_MONITOR(mon);
 
-    return qemuMonitorJSONBlockdevMirror(mon, jobname, persistjob, device, target,
+    return qemuMonitorJSONBlockdevMirror(mon, jobname, persistjob, device, target, replaces,
                                          bandwidth, granularity, buf_size, shallow,
                                          syncWrite);
 }
@@ -3034,6 +3046,27 @@ qemuMonitorGetBlockIoThrottle(qemuMonitor *mon,
     QEMU_CHECK_MONITOR(mon);
 
     return qemuMonitorJSONGetBlockIoThrottle(mon, qdevid, reply);
+}
+
+
+int
+qemuMonitorThrottleGroupLimits(virJSONValue *limits,
+                               const virDomainThrottleGroupDef *group)
+{
+    return qemuMonitorMakeThrottleGroupLimits(limits, group);
+}
+
+
+int
+qemuMonitorUpdateThrottleGroup(qemuMonitor *mon,
+                               const char *qomid,
+                               virDomainBlockIoTuneInfo *info)
+{
+    VIR_DEBUG("qomid=%s, info=%p", qomid, info);
+
+    QEMU_CHECK_MONITOR(mon);
+
+    return qemuMonitorJSONUpdateThrottleGroup(mon, qomid, info);
 }
 
 

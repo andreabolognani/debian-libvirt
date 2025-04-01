@@ -432,6 +432,11 @@ remoteConnectNotifyEventConnectionClosed(virNetClientProgram *prog G_GNUC_UNUSED
                                          virNetClient *client G_GNUC_UNUSED,
                                          void *evdata, void *opaque);
 
+static void
+remoteDomainBuildEventNICMACChange(virNetClientProgram *prog,
+                                   virNetClient *client,
+                                   void *evdata, void *opaque);
+
 static virNetClientProgramEvent remoteEvents[] = {
     { REMOTE_PROC_DOMAIN_EVENT_LIFECYCLE,
       remoteDomainBuildEventLifecycle,
@@ -650,6 +655,10 @@ static virNetClientProgramEvent remoteEvents[] = {
       remoteDomainBuildEventMemoryDeviceSizeChange,
       sizeof(remote_domain_event_memory_device_size_change_msg),
       (xdrproc_t)xdr_remote_domain_event_memory_device_size_change_msg },
+    { REMOTE_PROC_DOMAIN_EVENT_NIC_MAC_CHANGE,
+      remoteDomainBuildEventNICMACChange,
+      sizeof(remote_domain_event_nic_mac_change_msg),
+      (xdrproc_t)xdr_remote_domain_event_nic_mac_change_msg },
 };
 
 static void
@@ -5068,6 +5077,31 @@ remoteDomainBuildEventMemoryDeviceSizeChange(virNetClientProgram *prog G_GNUC_UN
 }
 
 
+static void
+remoteDomainBuildEventNICMACChange(virNetClientProgram *prog G_GNUC_UNUSED,
+                                   virNetClient *client G_GNUC_UNUSED,
+                                   void *evdata, void *opaque)
+{
+    virConnectPtr conn = opaque;
+    remote_domain_event_nic_mac_change_msg *msg = evdata;
+    struct private_data *priv = conn->privateData;
+    virDomainPtr dom;
+    virObjectEvent *event = NULL;
+
+    if (!(dom = get_nonnull_domain(conn, msg->dom)))
+        return;
+
+    event = virDomainEventNICMACChangeNewFromDom(dom,
+                                                 msg->alias,
+                                                 msg->oldMAC,
+                                                 msg->newMAC);
+
+    virObjectUnref(dom);
+
+    virObjectEventStateQueueRemote(priv->eventState, event, msg->callbackID);
+}
+
+
 static int
 remoteStreamSend(virStreamPtr st,
                  const char *data,
@@ -7672,6 +7706,8 @@ static virHypervisorDriver hypervisor_driver = {
     .domainDetachDeviceAlias = remoteDomainDetachDeviceAlias, /* 4.4.0 */
     .domainGetAutostart = remoteDomainGetAutostart, /* 0.3.0 */
     .domainSetAutostart = remoteDomainSetAutostart, /* 0.3.0 */
+    .domainGetAutostartOnce = remoteDomainGetAutostartOnce, /* 11.2.0 */
+    .domainSetAutostartOnce = remoteDomainSetAutostartOnce, /* 11.2.0 */
     .domainGetSchedulerType = remoteDomainGetSchedulerType, /* 0.3.0 */
     .domainGetSchedulerParameters = remoteDomainGetSchedulerParameters, /* 0.3.0 */
     .domainGetSchedulerParametersFlags = remoteDomainGetSchedulerParametersFlags, /* 0.9.2 */
@@ -7835,6 +7871,8 @@ static virHypervisorDriver hypervisor_driver = {
     .domainSetLaunchSecurityState = remoteDomainSetLaunchSecurityState, /* 8.0.0 */
     .domainFDAssociate = remoteDomainFDAssociate, /* 9.0.0 */
     .domainGraphicsReload = remoteDomainGraphicsReload, /* 10.2.0 */
+    .domainSetThrottleGroup = remoteDomainSetThrottleGroup, /* 11.2.0 */
+    .domainDelThrottleGroup = remoteDomainDelThrottleGroup, /* 11.2.0 */
 };
 
 static virNetworkDriver network_driver = {

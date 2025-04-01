@@ -106,6 +106,7 @@ VIR_ENUM_IMPL(qemuMigrationCapability,
               "zero-copy-send",
               "postcopy-preempt",
               "switchover-ack",
+              "mapped-ram",
 );
 
 
@@ -129,6 +130,7 @@ VIR_ENUM_IMPL(qemuMigrationParam,
               "multifd-zlib-level",
               "multifd-zstd-level",
               "avail-switchover-bandwidth",
+              "direct-io",
 );
 
 typedef struct _qemuMigrationParamsAlwaysOnItem qemuMigrationParamsAlwaysOnItem;
@@ -326,6 +328,9 @@ static const qemuMigrationParamInfoItem qemuMigrationParamInfo[] = {
     },
     [QEMU_MIGRATION_PARAM_AVAIL_SWITCHOVER_BANDWIDTH] = {
         .type = QEMU_MIGRATION_PARAM_TYPE_ULL,
+    },
+    [QEMU_MIGRATION_PARAM_DIRECT_IO] = {
+        .type = QEMU_MIGRATION_PARAM_TYPE_BOOL,
     },
 };
 G_STATIC_ASSERT(G_N_ELEMENTS(qemuMigrationParamInfo) == QEMU_MIGRATION_PARAM_LAST);
@@ -788,6 +793,57 @@ qemuMigrationParamsFromFlags(virTypedParameterPtr params,
         return NULL;
 
     return g_steal_pointer(&migParams);
+}
+
+
+qemuMigrationParams *
+qemuMigrationParamsForSave(virTypedParameterPtr params,
+                           int nparams,
+                           bool sparse,
+                           unsigned int flags)
+{
+    g_autoptr(qemuMigrationParams) saveParams = NULL;
+    int nchannels = 0;
+    int rv;
+
+    if ((rv = virTypedParamsGetInt(params, nparams,
+                                   VIR_DOMAIN_SAVE_PARAM_PARALLEL_CHANNELS,
+                                   &nchannels)) < 0)
+        return NULL;
+
+    if (rv == 1 && !sparse) {
+        virReportError(VIR_ERR_INVALID_ARG, "%s",
+                       _("Parallel save is only supported with the 'sparse' save image format"));
+        return NULL;
+    } else if (rv == 0) {
+        nchannels = 1;
+    }
+
+    if (!(saveParams = qemuMigrationParamsNew()))
+        return NULL;
+
+    if (sparse) {
+        if (virBitmapSetBit(saveParams->caps, QEMU_MIGRATION_CAP_MAPPED_RAM) < 0)
+            return NULL;
+        if (virBitmapSetBit(saveParams->caps, QEMU_MIGRATION_CAP_MULTIFD) < 0)
+            return NULL;
+
+        if (nchannels < 1) {
+            virReportError(VIR_ERR_INVALID_ARG, "%s",
+                       _("number of parallel save channels cannot be less than 1"));
+            return NULL;
+        }
+
+        saveParams->params[QEMU_MIGRATION_PARAM_MULTIFD_CHANNELS].value.i = nchannels;
+        saveParams->params[QEMU_MIGRATION_PARAM_MULTIFD_CHANNELS].set = true;
+
+        if (flags & VIR_DOMAIN_SAVE_BYPASS_CACHE) {
+            saveParams->params[QEMU_MIGRATION_PARAM_DIRECT_IO].value.b = true;
+            saveParams->params[QEMU_MIGRATION_PARAM_DIRECT_IO].set = true;
+        }
+    }
+
+    return g_steal_pointer(&saveParams);
 }
 
 
@@ -1309,6 +1365,40 @@ qemuMigrationParamsGetULL(qemuMigrationParams *migParams,
 
     *value = migParams->params[param].value.ull;
     return 0;
+}
+
+
+int
+qemuMigrationParamsGetBool(qemuMigrationParams *migParams,
+                           qemuMigrationParam param,
+                           bool *value)
+{
+    if (!migParams || !value)
+        return 0;
+
+    if (qemuMigrationParamsCheckType(param, QEMU_MIGRATION_PARAM_TYPE_BOOL) < 0)
+        return -1;
+
+    *value = migParams->params[param].set ?
+        migParams->params[param].value.b : false;
+
+    return 0;
+}
+
+
+/**
+ * Returns true if @cap is enabled in @migParams, false otherwise.
+ */
+bool
+qemuMigrationParamsCapEnabled(qemuMigrationParams *migParams,
+                              qemuMigrationCapability cap)
+{
+    bool enabled = false;
+
+    if (migParams)
+        ignore_value(virBitmapGetBit(migParams->caps, cap, &enabled));
+
+    return enabled;
 }
 
 

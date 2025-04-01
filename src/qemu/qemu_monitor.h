@@ -859,6 +859,11 @@ int qemuMonitorMigrateToFd(qemuMonitor *mon,
                            unsigned int flags,
                            int fd);
 
+int qemuMonitorMigrateToFdSet(virDomainObj *vm,
+                              unsigned int flags,
+                              int *fd,
+                              int *directFd);
+
 int qemuMonitorMigrateToHost(qemuMonitor *mon,
                              unsigned int flags,
                              const char *protocol,
@@ -981,6 +986,7 @@ int qemuMonitorBlockdevMirror(qemuMonitor *mon,
                               bool persistjob,
                               const char *device,
                               const char *target,
+                              const char *replaces,
                               unsigned long long bandwidth,
                               unsigned int granularity,
                               unsigned long long buf_size,
@@ -1073,6 +1079,15 @@ int qemuMonitorSetBlockIoThrottle(qemuMonitor *mon,
 int qemuMonitorGetBlockIoThrottle(qemuMonitor *mon,
                                   const char *qdevid,
                                   virDomainBlockIoTuneInfo *reply);
+
+int
+qemuMonitorThrottleGroupLimits(virJSONValue *limits,
+                               const virDomainThrottleGroupDef *group);
+
+int
+qemuMonitorUpdateThrottleGroup(qemuMonitor *mon,
+                               const char *qomid,
+                               virDomainBlockIoTuneInfo *info);
 
 int qemuMonitorSystemWakeup(qemuMonitor *mon);
 

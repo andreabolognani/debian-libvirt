@@ -766,32 +766,6 @@ qemuBlockStorageSourceGetRBDProps(virStorageSource *src,
 
 
 static virJSONValue *
-qemuBlockStorageSourceGetSheepdogProps(virStorageSource *src)
-{
-    g_autoptr(virJSONValue) serverprops = NULL;
-    virJSONValue *ret = NULL;
-
-    if (src->nhosts != 1) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("sheepdog protocol accepts only one host"));
-        return NULL;
-    }
-
-    if (!(serverprops = qemuBlockStorageSourceBuildJSONSocketAddress(&src->hosts[0])))
-        return NULL;
-
-    /* libvirt does not support the 'snap-id' and 'tag' properties */
-    if (virJSONValueObjectAdd(&ret,
-                              "a:server", &serverprops,
-                              "s:vdi", src->path,
-                              NULL) < 0)
-        return NULL;
-
-    return ret;
-}
-
-
-static virJSONValue *
 qemuBlockStorageSourceGetSshProps(virStorageSource *src)
 {
     g_autoptr(virJSONValue) serverprops = NULL;
@@ -1147,12 +1121,6 @@ qemuBlockStorageSourceGetBackendProps(virStorageSource *src,
                 return NULL;
             break;
 
-        case VIR_STORAGE_NET_PROTOCOL_SHEEPDOG:
-            driver = "sheepdog";
-            if (!(fileprops = qemuBlockStorageSourceGetSheepdogProps(src)))
-                return NULL;
-            break;
-
         case VIR_STORAGE_NET_PROTOCOL_SSH:
             driver = "ssh";
             if (!(fileprops = qemuBlockStorageSourceGetSshProps(src)))
@@ -1164,6 +1132,11 @@ qemuBlockStorageSourceGetBackendProps(virStorageSource *src,
             if (!(fileprops = qemuBlockStorageSourceGetNFSProps(src)))
                 return NULL;
             break;
+
+        case VIR_STORAGE_NET_PROTOCOL_SHEEPDOG:
+            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                           _("unsupported disk protocol"));
+            return NULL;
 
         case VIR_STORAGE_NET_PROTOCOL_NONE:
         case VIR_STORAGE_NET_PROTOCOL_LAST:
@@ -2430,12 +2403,6 @@ qemuBlockStorageSourceCreateGetStorageProps(virStorageSource *src,
                 return -1;
             break;
 
-        case VIR_STORAGE_NET_PROTOCOL_SHEEPDOG:
-            driver = "sheepdog";
-            if (!(location = qemuBlockStorageSourceGetSheepdogProps(src)))
-                return -1;
-            break;
-
         case VIR_STORAGE_NET_PROTOCOL_SSH:
             if (srcPriv->nbdkitProcess) {
                 /* disk creation not yet supported with nbdkit, and even if it
@@ -2456,6 +2423,7 @@ qemuBlockStorageSourceCreateGetStorageProps(virStorageSource *src,
             break;
 
             /* unsupported/impossible */
+        case VIR_STORAGE_NET_PROTOCOL_SHEEPDOG:
         case VIR_STORAGE_NET_PROTOCOL_NBD:
         case VIR_STORAGE_NET_PROTOCOL_ISCSI:
         case VIR_STORAGE_NET_PROTOCOL_VXHS:
@@ -2772,6 +2740,142 @@ qemuBlockStorageSourceCreateDetectSize(GHashTable *blockNamedNodeData,
     src->capacity = entry->capacity;
 
     return 0;
+}
+
+
+void
+qemuBlockThrottleFilterSetNodename(virDomainThrottleFilterDef *filter,
+                                   char *nodename)
+{
+    g_free(filter->nodename);
+    filter->nodename = nodename;
+}
+
+
+const char *
+qemuBlockThrottleFilterGetNodename(virDomainThrottleFilterDef *filter)
+{
+    return filter->nodename;
+}
+
+
+/**
+ * qemuBlockThrottleFilterGetProps:
+ * @filter: throttle filter
+ * @parentNodeName: parent nodename of @filter
+ *
+ * Build "arguments" part of "blockdev-add" QMP cmd.
+ */
+static inline virJSONValue *
+qemuBlockThrottleFilterGetProps(virDomainThrottleFilterDef *filter,
+                                const char *parentNodeName)
+{
+    g_autoptr(virJSONValue) props = NULL;
+    /* prefix group name with "throttle-" in QOM */
+    g_autofree char *prefixed_group_name = g_strdup_printf("throttle-%s", filter->group_name);
+    if (virJSONValueObjectAdd(&props,
+                              "s:driver", "throttle",
+                              "s:node-name", qemuBlockThrottleFilterGetNodename(filter),
+                              "s:throttle-group", prefixed_group_name,
+                              "s:file", parentNodeName,
+                              NULL) < 0)
+        return NULL;
+
+    return g_steal_pointer(&props);
+}
+
+
+void
+qemuBlockThrottleFilterAttachDataFree(qemuBlockThrottleFilterAttachData *data)
+{
+    if (!data)
+        return;
+
+    virJSONValueFree(data->filterProps);
+    g_free(data);
+}
+
+
+qemuBlockThrottleFilterAttachData *
+qemuBlockThrottleFilterAttachPrepareBlockdev(virDomainThrottleFilterDef *filter,
+                                             const char *parentNodeName)
+{
+    g_autoptr(qemuBlockThrottleFilterAttachData) data = NULL;
+
+    data = g_new0(qemuBlockThrottleFilterAttachData, 1);
+
+    if (!(data->filterProps = qemuBlockThrottleFilterGetProps(filter, parentNodeName)))
+        return NULL;
+
+    data->filterNodeName = qemuBlockThrottleFilterGetNodename(filter);
+
+    return g_steal_pointer(&data);
+}
+
+
+void
+qemuBlockThrottleFilterAttachRollback(qemuMonitor *mon,
+                                      qemuBlockThrottleFilterAttachData *data)
+{
+    virErrorPtr orig_err;
+
+    virErrorPreserveLast(&orig_err);
+
+    if (data->filterAttached)
+        ignore_value(qemuMonitorBlockdevDel(mon, data->filterNodeName));
+
+    virErrorRestore(&orig_err);
+}
+
+
+void
+qemuBlockThrottleFiltersDataFree(qemuBlockThrottleFiltersData *data)
+{
+    size_t i;
+
+    if (!data)
+        return;
+
+    for (i = 0; i < data->nfilterdata; i++)
+        qemuBlockThrottleFilterAttachDataFree(data->filterdata[i]);
+
+    g_free(data->filterdata);
+    g_free(data);
+}
+
+
+/**
+ * qemuBlockThrottleFiltersAttach:
+ * @mon: monitor object
+ * @data: filter chain data
+ *
+ * Attach throttle filters.
+ * Caller must enter @mon prior calling this function.
+ */
+int
+qemuBlockThrottleFiltersAttach(qemuMonitor *mon,
+                               qemuBlockThrottleFiltersData *data)
+{
+    size_t i;
+
+    for (i = 0; i < data->nfilterdata; i++) {
+        if (qemuMonitorBlockdevAdd(mon, &data->filterdata[i]->filterProps) < 0)
+            return -1;
+        data->filterdata[i]->filterAttached = true;
+    }
+
+    return 0;
+}
+
+
+void
+qemuBlockThrottleFiltersDetach(qemuMonitor *mon,
+                               qemuBlockThrottleFiltersData *data)
+{
+    size_t i;
+
+    for (i = data->nfilterdata; i > 0; i--)
+        qemuBlockThrottleFilterAttachRollback(mon, data->filterdata[i-1]);
 }
 
 
@@ -3624,9 +3728,6 @@ qemuBlockCommit(virDomainObj *vm,
     if (qemuDomainDiskBlockJobIsActive(disk))
         return NULL;
 
-    if (qemuDomainSupportsCheckpointsBlockjobs(vm) < 0)
-        return NULL;
-
     if (topSource == disk->src) {
         /* XXX Should we auto-pivot when COMMIT_ACTIVE is not specified? */
         if (!(flags & VIR_DOMAIN_BLOCK_COMMIT_ACTIVE)) {
@@ -3858,7 +3959,6 @@ qemuBlockPivot(virDomainObj *vm,
              * to copy data into the backing chain while the top image is being
              * copied shallow */
             if (reuse && shallow &&
-                virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_BLOCKDEV_SNAPSHOT_ALLOW_WRITE_ONLY) &&
                 virStorageSourceHasBacking(disk->mirror)) {
 
                 if (qemuProcessPrepareHostStorageSourceChain(vm, disk->mirror->backingStore) < 0)

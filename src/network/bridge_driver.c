@@ -802,6 +802,8 @@ networkStateCleanup(void)
                           network_driver->lockFD);
     }
 
+    virInhibitorFree(network_driver->inhibitor);
+
     virObjectUnref(network_driver->config);
     virObjectUnref(network_driver->dnsmasqCaps);
 
@@ -3973,8 +3975,7 @@ networkAllocatePort(virNetworkObj *obj,
         else if (netdef->vlan.nTags > 0)
             vlan = &netdef->vlan;
 
-        if (vlan && virNetDevVlanCopy(&port->vlan, vlan) < 0)
-            return -1;
+        virNetDevVlanCopy(&port->vlan, vlan);
     }
 
     if (!port->trustGuestRxFilters) {

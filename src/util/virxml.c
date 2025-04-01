@@ -909,6 +909,8 @@ virXMLNodeGetSubelement(xmlNodePtr node,
  * Find and return a sub-elements node of @node named @name in a GPtrArray
  * populated with the xmlNodePtr objects. Caller is responsible for freeing the
  * array but not the contained xmlNode objects.
+ *
+ * Note: The returned GPtrArray is non-NULL even if @node doesn't contain such sub-elements
  */
 GPtrArray *
 virXMLNodeGetSubelementList(xmlNodePtr node,
@@ -1721,7 +1723,7 @@ virXMLValidatorFree(virXMLValidator *validator)
  *
  * Both passed buffers are always consumed and freed.
  */
-void
+static void
 virXMLFormatElementInternal(virBuffer *buf,
                             const char *name,
                             virBuffer *attrBuf,
@@ -1764,6 +1766,20 @@ virXMLFormatElementEmpty(virBuffer *buf,
                          virBuffer *childBuf)
 {
     virXMLFormatElementInternal(buf, name, attrBuf, childBuf, true, true);
+}
+
+
+/**
+ * Same as virXMLFormatElement but the child is direct value without
+ * subelements.
+ */
+void
+virXMLFormatElementDirect(virBuffer *buf,
+                          const char *name,
+                          virBuffer *attrBuf,
+                          virBuffer *childBuf)
+{
+    virXMLFormatElementInternal(buf, name, attrBuf, childBuf, false, false);
 }
 
 

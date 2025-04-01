@@ -445,9 +445,7 @@ xenParsePCI(char *entry)
         }
     }
 
-    if (!(hostdev = virDomainHostdevDefNew()))
-       return NULL;
-
+    hostdev = virDomainHostdevDefNew();
     hostdev->managed = false;
     hostdev->writeFiltering = filtered;
     hostdev->source.subsys.type = VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_PCI;
@@ -2390,7 +2388,7 @@ xenFormatConfigCommon(virConf *conf,
 }
 
 
-int
+void
 xenDomainDefAddImplicitInputDevice(virDomainDef *def)
 {
     virDomainInputBus implicitInputBus = VIR_DOMAIN_INPUT_BUS_XEN;
@@ -2398,15 +2396,6 @@ xenDomainDefAddImplicitInputDevice(virDomainDef *def)
     if (def->os.type == VIR_DOMAIN_OSTYPE_HVM)
         implicitInputBus = VIR_DOMAIN_INPUT_BUS_PS2;
 
-    if (virDomainDefMaybeAddInput(def,
-                                  VIR_DOMAIN_INPUT_TYPE_MOUSE,
-                                  implicitInputBus) < 0)
-        return -1;
-
-    if (virDomainDefMaybeAddInput(def,
-                                  VIR_DOMAIN_INPUT_TYPE_KBD,
-                                  implicitInputBus) < 0)
-        return -1;
-
-    return 0;
+    virDomainDefMaybeAddInput(def, VIR_DOMAIN_INPUT_TYPE_MOUSE, implicitInputBus);
+    virDomainDefMaybeAddInput(def, VIR_DOMAIN_INPUT_TYPE_KBD, implicitInputBus);
 }

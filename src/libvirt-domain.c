@@ -1010,6 +1010,9 @@ virDomainSaveFlags(virDomainPtr domain, const char *to,
  * If VIR_DOMAIN_SAVE_PARAM_FILE is not provided then a managed save is
  * performed (see virDomainManagedSave).
  *
+ * See VIR_DOMAIN_SAVE_PARAM_* for detailed description of accepted save
+ * parameters.
+ *
  * Returns 0 in case of success and -1 in case of failure.
  *
  * Since: 8.4.0
@@ -1020,6 +1023,11 @@ virDomainSaveParams(virDomainPtr domain,
                     unsigned int flags)
 {
     virConnectPtr conn;
+    virTypedParameterPtr params_copy = NULL;
+    int nparams_copy = 0;
+    const char *to = NULL;
+    g_autofree char *absolute_to = NULL;
+    int ret = -1;
 
     VIR_DOMAIN_DEBUG(domain, "params=%p, nparams=%d, flags=0x%x",
                      params, nparams, flags);
@@ -1030,23 +1038,46 @@ virDomainSaveParams(virDomainPtr domain,
     virCheckDomainReturn(domain, -1);
     conn = domain->conn;
 
-    virCheckReadOnlyGoto(conn->flags, error);
+    virCheckReadOnlyGoto(conn->flags, done);
 
     VIR_EXCLUSIVE_FLAGS_GOTO(VIR_DOMAIN_SAVE_RUNNING,
                              VIR_DOMAIN_SAVE_PAUSED,
-                             error);
+                             done);
 
-    if (conn->driver->domainSaveParams) {
-        if (conn->driver->domainSaveParams(domain, params, nparams, flags) < 0)
-            goto error;
-        return 0;
+    /* We must absolutize the file path as the save is done out of process */
+    virTypedParamsCopy(&params_copy, params, nparams);
+    nparams_copy = nparams;
+    if (virTypedParamsGetString(params_copy, nparams_copy,
+                                VIR_DOMAIN_SAVE_PARAM_FILE, &to) < 0)
+        goto done;
+
+    if (to) {
+        if (!(absolute_to = g_canonicalize_filename(to, NULL))) {
+            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                           _("could not build absolute output file path"));
+            goto done;
+        }
+
+        if (virTypedParamsReplaceString(&params_copy, &nparams_copy,
+                                        VIR_DOMAIN_SAVE_PARAM_FILE,
+                                        absolute_to) < 0)
+            goto done;
     }
 
-    virReportUnsupportedError();
+    if (conn->driver->domainSaveParams) {
+        if (conn->driver->domainSaveParams(domain, params_copy, nparams_copy, flags) < 0)
+            goto done;
+        ret = 0;
+    } else {
+        virReportUnsupportedError();
+    }
 
- error:
-    virDispatchError(domain->conn);
-    return -1;
+ done:
+    if (ret < 0)
+        virDispatchError(domain->conn);
+    virTypedParamsFree(params_copy, nparams_copy);
+
+    return ret;
 }
 
 
@@ -1194,6 +1225,9 @@ virDomainRestoreFlags(virConnectPtr conn, const char *from, const char *dxml,
  * now, VIR_DOMAIN_SAVE_PARAM_FILE is required but this requirement may
  * be lifted in the future.
  *
+ * See VIR_DOMAIN_SAVE_PARAM_* for detailed description of accepted
+ * restore parameters.
+ *
  * Returns 0 in case of success and -1 in case of failure.
  *
  * Since: 8.4.0
@@ -1203,6 +1237,12 @@ virDomainRestoreParams(virConnectPtr conn,
                        virTypedParameterPtr params, int nparams,
                        unsigned int flags)
 {
+    virTypedParameterPtr params_copy = NULL;
+    int nparams_copy = 0;
+    const char *from = NULL;
+    g_autofree char *absolute_from = NULL;
+    int ret = -1;
+
     VIR_DEBUG("conn=%p, params=%p, nparams=%d, flags=0x%x",
               conn, params, nparams, flags);
     VIR_TYPED_PARAMS_DEBUG(params, nparams);
@@ -1210,23 +1250,46 @@ virDomainRestoreParams(virConnectPtr conn,
     virResetLastError();
 
     virCheckConnectReturn(conn, -1);
-    virCheckReadOnlyGoto(conn->flags, error);
+    virCheckReadOnlyGoto(conn->flags, done);
 
     VIR_EXCLUSIVE_FLAGS_GOTO(VIR_DOMAIN_SAVE_RUNNING,
                              VIR_DOMAIN_SAVE_PAUSED,
-                             error);
+                             done);
 
     if (conn->driver->domainRestoreParams) {
+        /* We must absolutize the file path as the save is done out of process */
+        virTypedParamsCopy(&params_copy, params, nparams);
+        nparams_copy = nparams;
+        if (virTypedParamsGetString(params_copy, nparams_copy,
+                                    VIR_DOMAIN_SAVE_PARAM_FILE, &from) < 0)
+            goto done;
+
+        if (from) {
+            if (!(absolute_from = g_canonicalize_filename(from, NULL))) {
+                virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                               _("could not build absolute output file path"));
+                goto done;
+            }
+
+            if (virTypedParamsReplaceString(&params_copy, &nparams_copy,
+                                            VIR_DOMAIN_SAVE_PARAM_FILE,
+                                            absolute_from) < 0)
+                goto done;
+        }
+
         if (conn->driver->domainRestoreParams(conn, params, nparams, flags) < 0)
-            goto error;
-        return 0;
+            goto done;
+        ret = 0;
     }
 
     virReportUnsupportedError();
 
- error:
-    virDispatchError(conn);
-    return -1;
+ done:
+    if (ret < 0)
+        virDispatchError(conn);
+    virTypedParamsFree(params_copy, nparams_copy);
+
+    return ret;
 }
 
 
@@ -7342,6 +7405,93 @@ virDomainSetAutostart(virDomainPtr domain,
 
 
 /**
+ * virDomainGetAutostartOnce:
+ * @domain: a domain object
+ * @autostart: the value returned
+ *
+ * Provides a boolean value indicating whether the domain
+ * is configured to be automatically started the next time
+ * the host machine boots only.
+ *
+ * Returns -1 in case of error, 0 in case of success
+ *
+ * Since: 11.2.0
+ */
+int
+virDomainGetAutostartOnce(virDomainPtr domain,
+                          int *autostart)
+{
+    virConnectPtr conn;
+
+    VIR_DOMAIN_DEBUG(domain, "autostart=%p", autostart);
+
+    virResetLastError();
+
+    virCheckDomainReturn(domain, -1);
+    virCheckNonNullArgGoto(autostart, error);
+
+    conn = domain->conn;
+
+    if (conn->driver->domainGetAutostartOnce) {
+        int ret;
+        ret = conn->driver->domainGetAutostartOnce(domain, autostart);
+        if (ret < 0)
+            goto error;
+        return ret;
+    }
+
+    virReportUnsupportedError();
+
+ error:
+    virDispatchError(domain->conn);
+    return -1;
+}
+
+
+/**
+ * virDomainSetAutostartOnce:
+ * @domain: a domain object
+ * @autostart: whether the domain should be automatically started 0 or 1
+ *
+ * Configure the domain to be automatically started
+ * the next time the host machine boots only.
+ *
+ * Returns -1 in case of error, 0 in case of success
+ *
+ * Since: 11.2.0
+ */
+int
+virDomainSetAutostartOnce(virDomainPtr domain,
+                          int autostart)
+{
+    virConnectPtr conn;
+
+    VIR_DOMAIN_DEBUG(domain, "autostart=%d", autostart);
+
+    virResetLastError();
+
+    virCheckDomainReturn(domain, -1);
+    conn = domain->conn;
+
+    virCheckReadOnlyGoto(conn->flags, error);
+
+    if (conn->driver->domainSetAutostartOnce) {
+        int ret;
+        ret = conn->driver->domainSetAutostartOnce(domain, autostart);
+        if (ret < 0)
+            goto error;
+        return ret;
+    }
+
+    virReportUnsupportedError();
+
+ error:
+    virDispatchError(domain->conn);
+    return -1;
+}
+
+
+/**
  * virDomainInjectNMI:
  * @domain: pointer to domain object, or NULL for Domain0
  * @flags: extra flags; not used yet, so callers should always pass 0
@@ -12237,134 +12387,44 @@ virConnectGetDomainCapabilities(virConnectPtr conn,
  * (although not necessarily implemented for each hypervisor):
  *
  * VIR_DOMAIN_STATS_STATE:
- *     Return domain state and reason for entering that state. The typed
- *     parameter keys are in this format:
- *
- *     "state.state" - state of the VM, returned as int from virDomainState enum
- *     "state.reason" - reason for entering given state, returned as int from
- *                      virDomain*Reason enum corresponding to given state.
+ *     Return domain state and reason for entering that state.
+ *     The VIR_DOMAIN_STATS_STATE_* constants define the known typed
+ *     parameter keys.
  *
  * VIR_DOMAIN_STATS_CPU_TOTAL:
- *     Return CPU statistics and usage information. The typed parameter keys
- *     are in this format:
- *
- *     "cpu.time" - total cpu time spent for this domain in nanoseconds
- *                  as unsigned long long.
- *     "cpu.user" - user cpu time spent in nanoseconds as unsigned long long.
- *     "cpu.system" - system cpu time spent in nanoseconds as unsigned long
- *                    long.
- *     "cpu.haltpoll.success.time" - halt-polling cpu usage about the VCPU polled
- *                                   until a virtual interrupt was delivered in
- *                                   nanoseconds as unsigned long long.
- *     "cpu.haltpoll.fail.time" - halt-polling cpu usage about the VCPU had to schedule
- *                                out (either because the maximum poll time was reached
- *                                or it needed to yield the CPU) in nanoseconds as
- *                                unsigned long long.
- *     "cpu.cache.monitor.count" - the number of cache monitors for this domain
- *     "cpu.cache.monitor.<num>.name" - the name of cache monitor <num>
- *     "cpu.cache.monitor.<num>.vcpus" - vcpu list of cache monitor <num>
- *     "cpu.cache.monitor.<num>.bank.count" - the number of cache banks in
- *                                            cache monitor <num>
- *     "cpu.cache.monitor.<num>.bank.<index>.id" - host allocated cache id for
- *                                                 bank <index> in cache
- *                                                 monitor <num>
- *     "cpu.cache.monitor.<num>.bank.<index>.bytes" - the number of bytes of
- *                                                    last level cache that the
- *                                                    domain is using on cache
- *                                                    bank <index>
+ *     Return CPU statistics and usage information.
+ *     The VIR_DOMAIN_STATS_CPU_* constants define the known typed
+ *     parameter keys.
  *
  * VIR_DOMAIN_STATS_BALLOON:
  *     Return memory balloon device information.
- *     The typed parameter keys are in this format:
- *
- *     "balloon.current" - the memory in kiB currently used
- *                         as unsigned long long.
- *     "balloon.maximum" - the maximum memory in kiB allowed
- *                         as unsigned long long.
- *     "balloon.swap_in" - the amount of data read from swap space (in KiB)
- *                         as unsigned long long
- *     "balloon.swap_out" - the amount of memory written out to swap space
- *                          (in KiB) as unsigned long long
- *     "balloon.major_fault" - the number of page faults when disk IO was
- *                             required as unsigned long long
- *     "balloon.minor_fault" - the number of other page faults
- *                             as unsigned long long
- *     "balloon.unused" - the amount of memory left unused by the system
- *                        (in KiB) as unsigned long long
- *     "balloon.available" - the amount of usable memory as seen by the domain
- *                           (in KiB) as unsigned long long
- *     "balloon.rss" - Resident Set Size of running domain's process
- *                     (in KiB) as unsigned long long
- *     "balloon.usable" - the amount of memory which can be reclaimed by balloon
- *                        without causing host swapping (in KiB)
- *                        as unsigned long long
- *     "balloon.last-update" - timestamp of the last update of statistics
- *                             (in seconds) as unsigned long long
- *     "balloon.disk_caches" - the amount of memory that can be reclaimed
- *                             without additional I/O, typically disk (in KiB)
- *                             as unsigned long long
- *     "balloon.hugetlb_pgalloc" - the number of successful huge page allocations
- *                                 from inside the domain via virtio balloon
- *                                 as unsigned long long
- *     "balloon.hugetlb_pgfail" - the number of failed huge page allocations
- *                                from inside the domain via virtio balloon
- *                                as unsigned long long
+ *     The VIR_DOMAIN_STATS_BALLOON_* constants define the known typed
+ *     parameter keys.
  *
  * VIR_DOMAIN_STATS_VCPU:
  *     Return virtual CPU statistics.
- *     Due to VCPU hotplug, the vcpu.<num>.* array could be sparse.
- *     The actual size of the array corresponds to "vcpu.current".
- *     The array size will never exceed "vcpu.maximum".
- *     The typed parameter keys are in this format:
+ *     The VIR_DOMAIN_STATS_VCPU_* constants define the known typed
+ *     parameter keys.
  *
- *     "vcpu.current" - current number of online virtual CPUs as unsigned int.
- *     "vcpu.maximum" - maximum number of online virtual CPUs as unsigned int.
- *     "vcpu.<num>.state" - state of the virtual CPU <num>, as int
- *                          from virVcpuState enum.
- *     "vcpu.<num>.time" - virtual cpu time spent by virtual CPU <num>
- *                         as unsigned long long.
- *     "vcpu.<num>.wait" - time the vCPU <num> wants to run, but the host
- *                         scheduler has something else running ahead of it.
- *     "vcpu.<num>.halted" - virtual CPU <num> is halted, may indicate the
- *                           processor is idle or even disabled, depending
- *                           on the architecture)
- *     "vcpu.<num>.delay" - time the vCPU <num> thread was enqueued by the
- *                          host scheduler, but was waiting in the queue
- *                          instead of running. Exposed to the VM as a steal
- *                          time. (in nanoseconds)
- *
- *    This group of statistics also reports additional hypervisor-originating
- *    per-vCPU stats. The hypervisor-specific statistics in this group have the
- *    following naming scheme:
+ *     This group of statistics also reports additional hypervisor-originating
+ *     per-vCPU stats. The hypervisor-specific statistics in this group have the
+ *     following naming scheme:
  *
  *     "vcpu.<num>.$NAME.$TYPE"
  *
- *       $NAME - name of the statistics field provided by the hypervisor
+ *     Where $NAME is an arbitrary choice of the hypervisor driver, for
+ *     which no API constants are defined.
+ *     The $TYPE values are defined by VIR_DOMAIN_STATS_CUSTOM_TYPE_*
+ *     constants.
  *
- *       $TYPE - Type of the value. The following types are returned:
- *          'cur' - current instant value
- *          'sum' - aggregate value
- *          'max' - peak value
- *
- *      The returned value may be either an unsigned long long or a boolean.
- *      Meaning is hypervisor specific. Please see the disclaimer for the
- *      VIR_DOMAIN_STATS_VM group below.
+ *     The returned value may be either an unsigned long long or a boolean.
+ *     Meaning is hypervisor specific. Please see the disclaimer for the
+ *     VIR_DOMAIN_STATS_VM group below.
  *
  * VIR_DOMAIN_STATS_INTERFACE:
  *     Return network interface statistics (from domain point of view).
- *     The typed parameter keys are in this format:
- *
- *     "net.count" - number of network interfaces on this domain
- *                   as unsigned int.
- *     "net.<num>.name" - name of the interface <num> as string.
- *     "net.<num>.rx.bytes" - bytes received as unsigned long long.
- *     "net.<num>.rx.pkts" - packets received as unsigned long long.
- *     "net.<num>.rx.errs" - receive errors as unsigned long long.
- *     "net.<num>.rx.drop" - receive packets dropped as unsigned long long.
- *     "net.<num>.tx.bytes" - bytes transmitted as unsigned long long.
- *     "net.<num>.tx.pkts" - packets transmitted as unsigned long long.
- *     "net.<num>.tx.errs" - transmission errors as unsigned long long.
- *     "net.<num>.tx.drop" - transmit packets dropped as unsigned long long.
+ *     The VIR_DOMAIN_STATS_NET_* constants define the known typed
+ *     parameter keys.
  *
  * VIR_DOMAIN_STATS_BLOCK:
  *     Return block devices statistics.  By default,
@@ -12373,112 +12433,13 @@ virConnectGetDomainCapabilities(virConnectPtr conn,
  *     VIR_CONNECT_GET_ALL_DOMAINS_STATS_BACKING to @flags will expand the
  *     array to cover backing chains (block.count corresponds to the number
  *     of host resources used together to provide the guest disks).
- *     The typed parameter keys are in this format:
- *
- *     "block.count" - number of block devices in the subsequent list,
- *                     as unsigned int.
- *     "block.<num>.name" - name of the block device <num> as string.
- *                          matches the target name (vda/sda/hda) of the
- *                          block device.  If the backing chain is listed,
- *                          this name is the same for all host resources tied
- *                          to the same guest device.
- *     "block.<num>.backingIndex" - unsigned int giving the <backingStore>
- *                                   index, only used when backing images
- *                                   are listed.
- *     "block.<num>.path" - string describing the source of block device <num>,
- *                          if it is a file or block device (omitted for network
- *                          sources and drives with no media inserted).
- *     "block.<num>.rd.reqs" - number of read requests as unsigned long long.
- *     "block.<num>.rd.bytes" - number of read bytes as unsigned long long.
- *     "block.<num>.rd.times" - total time (ns) spent on reads as
- *                              unsigned long long.
- *     "block.<num>.wr.reqs" - number of write requests as unsigned long long.
- *     "block.<num>.wr.bytes" - number of written bytes as unsigned long long.
- *     "block.<num>.wr.times" - total time (ns) spent on writes as
- *                              unsigned long long.
- *     "block.<num>.fl.reqs" - total flush requests as unsigned long long.
- *     "block.<num>.fl.times" - total time (ns) spent on cache flushing as
- *                              unsigned long long.
- *     "block.<num>.errors" - Xen only: the 'oo_req' value as
- *                            unsigned long long.
- *     "block.<num>.allocation" - offset of the highest written sector
- *                                as unsigned long long.
- *     "block.<num>.capacity" - logical size in bytes of the block device
- *                              backing image as unsigned long long.
- *     "block.<num>.physical" - physical size in bytes of the container of the
- *                              backing image as unsigned long long.
- *     "block.<num>.threshold" - current threshold for delivering the
- *                               VIR_DOMAIN_EVENT_ID_BLOCK_THRESHOLD
- *                               event in bytes. See virDomainSetBlockThreshold.
+ *     The VIR_DOMAIN_STATS_BLOCK_* constants define the known typed
+ *     parameter keys.
  *
  * VIR_DOMAIN_STATS_PERF:
  *     Return perf event statistics.
- *     The typed parameter keys are in this format:
- *
- *     "perf.cmt" - the usage of l3 cache (bytes) by applications running on
- *                  the platform as unsigned long long. It is produced by cmt
- *                  perf event.
- *     "perf.mbmt" - the total system bandwidth (bytes/s) from one level of
- *                   cache to another as unsigned long long. It is produced
- *                   by mbmt perf event.
- *     "perf.mbml" - the amount of data (bytes/s) sent through the memory
- *                   controller on the socket as unsigned long long. It is
- *                   produced by mbml perf event.
- *     "perf.cache_misses" - the count of cache misses as unsigned long long.
- *                           It is produced by cache_misses perf event.
- *     "perf.cache_references" - the count of cache hits as unsigned long long.
- *                               It is produced by cache_references perf event.
- *     "perf.instructions" - The count of instructions as unsigned long long.
- *                           It is produced by instructions perf event.
- *     "perf.cpu_cycles" - The count of cpu cycles (total/elapsed) as an
- *                         unsigned long long. It is produced by cpu_cycles
- *                         perf event.
- *     "perf.branch_instructions" - The count of branch instructions as
- *                                  unsigned long long. It is produced by
- *                                  branch_instructions perf event.
- *     "perf.branch_misses" - The count of branch misses as unsigned long
- *                            long. It is produced by branch_misses perf event.
- *     "perf.bus_cycles" - The count of bus cycles as unsigned long
- *                         long. It is produced by bus_cycles perf event.
- *     "perf.stalled_cycles_frontend" - The count of stalled cpu cycles in the
- *                                      frontend of the instruction processor
- *                                      pipeline as unsigned long long. It is
- *                                      produced by stalled_cycles_frontend
- *                                      perf event.
- *     "perf.stalled_cycles_backend"  - The count of stalled cpu cycles in the
- *                                      backend of the instruction processor
- *                                      pipeline as unsigned long long. It is
- *                                      produced by stalled_cycles_backend
- *                                      perf event.
- *     "perf.ref_cpu_cycles" - The count of total cpu cycles not affected by
- *                             CPU frequency scaling by applications running
- *                             as unsigned long long. It is produced by the
- *                             ref_cpu_cycles perf event.
- *     "perf.cpu_clock" - The count of cpu clock time as unsigned long long.
- *                        It is produced by the cpu_clock perf event.
- *     "perf.task_clock" - The count of task clock time as unsigned long long.
- *                         It is produced by the task_clock perf event.
- *     "perf.page_faults" - The count of page faults as unsigned long long.
- *                          It is produced by the page_faults perf event
- *     "perf.context_switches" - The count of context switches as unsigned long
- *                               long. It is produced by the context_switches
- *                               perf event.
- *     "perf.cpu_migrations" - The count of cpu migrations, from one logical
- *                             processor to another, as unsigned long
- *                             long. It is produced by the cpu_migrations
- *                             perf event.
- *     "perf.page_faults_min" - The count of minor page faults as unsigned
- *                              long long. It is produced by the
- *                              page_faults_min perf event.
- *     "perf.page_faults_maj" - The count of major page faults as unsigned
- *                              long long. It is produced by the
- *                              page_faults_maj perf event.
- *     "perf.alignment_faults" - The count of alignment faults as unsigned
- *                               long long. It is produced by the
- *                               alignment_faults perf event
- *     "perf.emulation_faults" - The count of emulation faults as unsigned
- *                               long long. It is produced by the
- *                               emulation_faults perf event
+ *     The VIR_DOMAIN_STATS_PERF_* constants define the known typed
+ *     parameter keys.
  *
  * VIR_DOMAIN_STATS_IOTHREAD:
  *     Return IOThread statistics if available. IOThread polling is a
@@ -12499,70 +12460,19 @@ virConnectGetDomainCapabilities(virConnectPtr conn,
  *     which could quickly exceed poll-max-ns; however, a poll-shrink of
  *     10 would cut that polling time more gradually.
  *
- *     The typed parameter keys are in this format:
- *
- *     "iothread.count" - maximum number of IOThreads in the subsequent list
- *                        as unsigned int. Each IOThread in the list will
- *                        will use it's iothread_id value as the <id>. There
- *                        may be fewer <id> entries than the iothread.count
- *                        value if the polling values are not supported.
- *     "iothread.<id>.poll-max-ns" - maximum polling time in ns as an unsigned
- *                                   long long. A 0 (zero) means polling is
- *                                   disabled.
- *     "iothread.<id>.poll-grow" - polling time factor as an unsigned int or
- *                                 unsigned long long if exceeding range of
- *                                 unsigned int.
- *                                 A 0 (zero) indicates to allow the underlying
- *                                 hypervisor to choose how to grow the
- *                                 polling time.
- *     "iothread.<id>.poll-shrink" - polling time divisor as an unsigned int or
- *                                   unsigned long long if exceeding range of
- *                                   unsigned int.
- *                                   A 0 (zero) indicates to allow the underlying
- *                                   hypervisor to choose how to shrink the
- *                                   polling time.
+ *     The VIR_DOMAIN_STATS_IOTHREAD_* constants define the known typed
+ *     parameter keys.
  *
  * VIR_DOMAIN_STATS_MEMORY:
  *     Return memory bandwidth statistics and the usage information. The typed
  *     parameter keys are in this format:
- *
- *     "memory.bandwidth.monitor.count" - the number of memory bandwidth
- *                                        monitors for this domain
- *     "memory.bandwidth.monitor.<num>.name" - the name of monitor <num>
- *     "memory.bandwidth.monitor.<num>.vcpus" - the vcpu list of monitor <num>
- *     "memory.bandwidth.monitor.<num>.node.count" - the number of memory
- *                                            controller in monitor <num>
- *     "memory.bandwidth.monitor.<num>.node.<index>.id" - host allocated memory
- *                                                 controller id for controller
- *                                                 <index> of monitor <num>
- *     "memory.bandwidth.monitor.<num>.node.<index>.bytes.local" - the
- *                       accumulative bytes consumed by @vcpus that passing
- *                       through the memory controller in the same processor
- *                       that the scheduled host CPU belongs to.
- *     "memory.bandwidth.monitor.<num>.node.<index>.bytes.total" - the total
- *                       bytes consumed by @vcpus that passing through all
- *                       memory controllers, either local or remote controller.
+ *     The VIR_DOMAIN_STATS_MEMORY_* constants define the known typed
+ *     parameter keys.
  *
  * VIR_DOMAIN_STATS_DIRTYRATE:
- *     Return memory dirty rate information. The typed parameter keys are in
- *     this format:
- *
- *     "dirtyrate.calc_status" - the status of last memory dirty rate calculation,
- *                               returned as int from virDomainDirtyRateStatus
- *                               enum.
- *     "dirtyrate.calc_start_time" - the start time of last memory dirty rate
- *                                   calculation as long long.
- *     "dirtyrate.calc_period" - the period of last memory dirty rate calculation
- *                               as int.
- *     "dirtyrate.megabytes_per_second" - the calculated memory dirty rate in
- *                                        MiB/s as long long. It is produced
- *                                        only if the calc_status is measured.
- *     "dirtyrate.calc_mode" - the calculation mode used last measurement, either
- *                             of these 3 'page-sampling,dirty-bitmap,dirty-ring'
- *                             values returned.
- *     "dirtyrate.vcpu.<num>.megabytes_per_second" - the calculated memory dirty
- *                                                   rate for a virtual cpu as
- *                                                   unsigned long long.
+ *     Return memory dirty rate information.
+ *     The VIR_DOMAIN_STATS_DIRTYRATE_* constants define the known typed
+ *     parameter keys.
  *
  * VIR_DOMAIN_STATS_VM:
  *     Return hypervisor-specific statistics. Note that the naming and meaning
@@ -12572,14 +12482,12 @@ virConnectGetDomainCapabilities(virConnectPtr conn,
  *
  *     "vm.$NAME.$TYPE"
  *
- *       $NAME - name of the statistics field provided by the hypervisor
+ *     Where $NAME is an arbitrary choice of the hypervisor driver, for
+ *     which no API constants are defined.
+ *     The $TYPE values are defined by VIR_DOMAIN_STATS_CUSTOM_TYPE_*
+ *     constants.
  *
- *       $TYPE - Type of the value. The following types are returned:
- *          'cur' - current instant value
- *          'sum' - aggregate value
- *          'max' - peak value
- *
- *      The returned value may be either an unsigned long long or a boolean.
+ *     The returned value may be either an unsigned long long or a boolean.
  *
  *     WARNING:
  *      The stats reported in this group are runtime-collected and
@@ -12628,6 +12536,63 @@ virConnectGetDomainCapabilities(virConnectPtr conn,
  * VIR_CONNECT_GET_ALL_DOMAINS_STATS_PAUSED,
  * VIR_CONNECT_GET_ALL_DOMAINS_STATS_SHUTOFF and/or
  * VIR_CONNECT_GET_ALL_DOMAINS_STATS_OTHER for all other states.
+ *
+ * In a number of cases the parameters returned are representing
+ * arrays of data items. In these cases multiple VIR_DOMAIN_STATS*
+ * constants will need to be concatenated to form a complete typed
+ * parameter key. The design pattern for handling array entries is
+ * as follows
+ *
+ * - VIR_DOMAIN_STATS_nnnnn_COUNT
+ *
+ *   Defines the upper limit on the number of elements that will
+ *   be returned. In some cases the array information may be
+ *   sparsely populated, so it is not considered an error if a
+ *   given element does not exist. Applications should check for
+ *   each possible element upto the declared limit.
+ *
+ * - VIR_DOMAIN_STATS_nnnnn_PREFIX
+ *
+ *   Defines the prefix to be used to construct the typed parameter
+ *   key for an array element, including the trailing '.'. The prefix
+ *   must have an array index appended, along with a suffix.
+ *
+ * - VIR_DOMAIN_STATS_nnnnn_SUFFIX_mmmmm
+ *
+ *   Defines the suffix for accessing a particular data item within
+ *   the array element, including the leading '.'. The suffix must
+ *   have an array prefix and index prepended.
+ *
+ * As an example, assuming a printf-like formatting approach an
+ * application would construct a key as follows:
+ *
+ *     format(VIR_DOMAIN_STATS_CPU_CACHE_MONITOR_PREFIX +
+ *            "%d" +
+ *            VIR_DOMAIN_STATS_CPU_CACHE_MONITOR_SUFFIX_VCPUS
+ *            index)
+ *
+ * Which, when index==3, would result in the key "cpu.cache.monitor.3.vcpus"
+ *
+ * In some cases there may be nested arrays, in which case the key
+ * is formed by concatenating multiple prefixes and suffixes with
+ * mutliple array indexes. For example:
+ *
+ *     format(VIR_DOMAIN_STATS_CPU_CACHE_MONITOR_PREFIX +
+ *            "%d" +
+ *            VIR_DOMAIN_STATS_CPU_CACHE_MONITOR_SUFFIX_BANK_PREFIX +
+ *            "%d" +
+ *            VIR_DOMAIN_STATS_CPU_CACHE_MONITOR_SUFFIX_BANK_SUFFIX_BYTES
+ *            monindex, bankindex)
+ *
+ * Which, when monindex==3 and bankindex==7, would result in the
+ * key "cpu.cache.monitor.3.bank.7.bytes".
+ *
+ * NB, for the VIR_DOMAIN_STATS_* constants, if the `Since`
+ * tag is set to `11.2.0` this is usually representing the
+ * release when the constant was first introduced to the public
+ * API. Most of these typed parameter keys will have been
+ * introduced in earlier libvirt releases, prior to the definition
+ * of the constants.
  *
  * Returns the count of returned statistics structures on success, -1 on error.
  * The requested data are returned in the @retStats parameter. The returned
@@ -13199,104 +13164,109 @@ virDomainSetVcpu(virDomainPtr domain,
  * (although not necessarily implemented for each hypervisor):
  *
  * VIR_DOMAIN_GUEST_INFO_USERS:
- *  returns information about users that are currently logged in within the
- *  guest domain. The typed parameter keys are in this format:
- *
- *      "user.count" - the number of active users on this domain as an
- *                     unsigned int
- *      "user.<num>.name" - username of the user as a string
- *      "user.<num>.domain" - domain of the user as a string (may only be
- *                            present on certain guest types)
- *      "user.<num>.login-time" - the login time of a user in milliseconds
- *                                since the epoch as unsigned long long
+ *  Return information about users that are currently logged in within the
+ *  guest domain.
+ *  The VIR_DOMAIN_GUEST_INFO_USER_* constants define the known typed parameter
+ *  keys.
  *
  * VIR_DOMAIN_GUEST_INFO_OS:
- *  Return information about the operating system running within the guest. The
- *  typed parameter keys are in this format:
- *
- *      "os.id" - a string identifying the operating system
- *      "os.name" - the name of the operating system, suitable for presentation
- *                  to a user, as a string
- *      "os.pretty-name" - a pretty name for the operating system, suitable for
- *                         presentation to a user, as a string
- *      "os.version" - the version of the operating system suitable for
- *                     presentation to a user, as a string
- *      "os.version-id" - the version id of the operating system suitable for
- *                        processing by scripts, as a string
- *      "os.kernel-release" - the release of the operating system kernel, as a
- *                            string
- *      "os.kernel-version" - the version of the operating system kernel, as a
- *                            string
- *      "os.machine" - the machine hardware name as a string
- *      "os.variant" - a specific variant or edition of the operating system
- *                     suitable for presentation to a user, as a string
- *      "os.variant-id" - the id for a specific variant or edition of the
- *                        operating system, as a string
+ *  Return information about the operating system running within the guest.
+ *  The VIR_DOMAIN_GUEST_INFO_OS_* constants define the known typed parameter
+ *  keys.
  *
  * VIR_DOMAIN_GUEST_INFO_TIMEZONE:
- *  Returns information about the timezone within the domain. The typed
- *  parameter keys are in this format:
- *
- *      "timezone.name" - the name of the timezone as a string
- *      "timezone.offset" - the offset to UTC in seconds as an int
- *
- * VIR_DOMAIN_GUEST_INFO_FILESYSTEM:
- *  Returns information about the filesystems within the domain.  The typed
- *  parameter keys are in this format:
- *
- *      "fs.count" - the number of filesystems defined on this domain
- *                   as an unsigned int
- *      "fs.<num>.mountpoint" - the path to the mount point for the filesystem
- *      "fs.<num>.name" - device name in the guest (e.g. "sda1")
- *      "fs.<num>.fstype" - the type of filesystem
- *      "fs.<num>.total-bytes" - the total size of the filesystem
- *      "fs.<num>.used-bytes" - the number of bytes used in the filesystem
- *      "fs.<num>.disk.count" - the number of disks targeted by this filesystem
- *      "fs.<num>.disk.<num>.alias" - the device alias of the disk (e.g. sda)
- *      "fs.<num>.disk.<num>.serial" - the serial number of the disk
- *      "fs.<num>.disk.<num>.device" - the device node of the disk
- *
- * VIR_DOMAIN_GUEST_INFO_DISKS:
- *  Returns information about the disks within the domain.  The typed
- *  parameter keys are in this format:
- *
- *      "disk.count" - the number of disks defined on this domain
- *                      as an unsigned int
- *      "disk.<num>.name" - device node (Linux) or device UNC (Windows)
- *      "disk.<num>.partition" - whether this is a partition or disk
- *      "disk.<num>.dependency.count" - the number of device dependencies
- *                      e.g. for LVs of the LVM this will
- *                      hold the list of PVs, for LUKS encrypted volume this will
- *                      contain the disk where the volume is placed. (Linux)
- *      "disk.<num>.dependency.<num>.name" - a dependency
- *      "disk.<num>.serial" - optional disk serial number (as string)
- *      "disk.<num>.alias" - the device alias of the disk (e.g. sda)
- *      "disk.<num>.guest_alias" - optional alias assigned to the disk, on Linux
- *                      this is a name assigned by device mapper
+ *  Returns information about the timezone within the domain.
+ *  The VIR_DOMAIN_GUEST_INFO_TIMEZONE_* constants define the known typed parameter
+ *  keys.
  *
  * VIR_DOMAIN_GUEST_INFO_HOSTNAME:
- *  Returns information about the hostname of the domain. The typed
- *  parameter keys are in this format:
+ *  Returns information about the hostname of the domain.
+ *  The VIR_DOMAIN_GUEST_INFO_HOSTNAME_* constants define the known typed parameter
+ *  keys.
  *
- *      "hostname" - the hostname of the domain
+ * VIR_DOMAIN_GUEST_INFO_FILESYSTEM:
+ *  Returns information about the filesystems within the domain.
+ *  The VIR_DOMAIN_GUEST_INFO_FS_* constants define the known typed parameter
+ *  keys.
+ *
+ * VIR_DOMAIN_GUEST_INFO_DISKS:
+ *  Returns information about the disks within the domain.
+ *  The VIR_DOMAIN_GUEST_INFO_DISK_* constants define the known typed parameter
+ *  keys.
  *
  * VIR_DOMAIN_GUEST_INFO_INTERFACES:
- *  Returns information about the interfaces within the domain. The typed
- *  parameter keys are in this format:
+ *  Returns information about the interfaces within the domain.
+ *  The VIR_DOMAIN_GUEST_INFO_IF_* constants define the known typed parameter
+ *  keys.
  *
- *      "if.count" - the number of interfaces defined on this domain
- *      "if.<num>.name" - name in the guest (e.g. ``eth0``) for interface <num>
- *      "if.<num>.hwaddr" - hardware address in the guest for interface <num>
- *      "if.<num>.addr.count - the number of IP addresses of interface <num>
- *      "if.<num>.addr.<num1>.type" - the IP address type of addr <num1> (e.g. ipv4)
- *      "if.<num>.addr.<num1>.addr" - the IP address of addr <num1>
- *      "if.<num>.addr.<num1>.prefix" - the prefix of IP address of addr <num1>
+ * VIR_DOMAIN_GUEST_INFO_LOAD:
+ *  Returns load (the number of processes in the runqueue or waiting for disk
+ *  I/O).
+ *  The VIR_DOMAIN_GUEST_INFO_LOAD_* constants define the known typed parameter
+ *  keys.
  *
  * Using 0 for @types returns all information groups supported by the given
  * hypervisor.
  *
  * This API requires the VM to run. The caller is responsible for calling
  * virTypedParamsFree to free memory returned in @params.
+ *
+ * In a number of cases the parameters returned are representing
+ * arrays of data items. In these cases multiple VIR_DOMAIN_GUEST_INFO*
+ * constants will need to be concatenated to form a complete typed
+ * parameter key. The design pattern for handling array entries is
+ * as follows
+ *
+ * - VIR_DOMAIN_GUEST_INFO_nnnnn_COUNT
+ *
+ *   Defines the upper limit on the number of elements that will
+ *   be returned. In some cases the array information may be
+ *   sparsely populated, so it is not considered an error if a
+ *   given element does not exist. Applications should check for
+ *   each possible element upto the declared limit.
+ *
+ * - VIR_DOMAIN_GUEST_INFO_nnnnn_PREFIX
+ *
+ *   Defines the prefix to be used to construct the typed parameter
+ *   key for an array element, including the trailing '.'. The prefix
+ *   must have an array index appended, along with a suffix.
+ *
+ * - VIR_DOMAIN_GUEST_INFO_nnnnn_SUFFIX_mmmmm
+ *
+ *   Defines the suffix for accessing a particular data item within
+ *   the array element, including the leading '.'. The suffix must
+ *   have an array prefix and index prepended.
+ *
+ * As an example, assuming a printf-like formatting approach an
+ * application would construct a key as follows:
+ *
+ *     format(VIR_DOMAIN_GUEST_INFO_FS_PREFIX +
+ *            "%d" +
+ *            VIR_DOMAIN_GUEST_INFO_FS_SUFFIX_NAME,
+ *            index)
+ *
+ * Which, when index==3, would result in the key "fs.3.name"
+ *
+ * In some cases there may be nested arrays, in which case the key
+ * is formed by concatenating multiple prefixes and suffixes with
+ * mutliple array indexes. For example:
+ *
+ *     format(VIR_DOMAIN_GUEST_INFO_FS_PREFIX +
+ *            "%d" +
+ *            VIR_DOMAIN_GUEST_INFO_FS_SUFFIX_DISK_PREFIX +
+ *            "%d" +
+ *            VIR_DOMAIN_GUEST_INFO_FS_SUFFIX_DISK_SUFFIX_SERIAL
+ *            fsindex, diskindex)
+ *
+ * Which, when fsindex==3 and diskindex==7, would result in the
+ * key "fs.3.disk.7.serial".
+ *
+ * NB, for the VIR_DOMAIN_GUEST_INFO_* constants, if the `Since`
+ * tag is set to `11.2.0` this is usually representing the
+ * release when the constant was first introduced to the public
+ * API. Most of these typed parameter keys will have been
+ * introduced in earlier libvirt releases, prior to the definition
+ * of the constants.
  *
  * Returns 0 on success, -1 on error.
  *
@@ -13608,6 +13578,10 @@ int virDomainSetLaunchSecurityState(virDomainPtr domain,
  *   VIR_DOMAIN_AGENT_RESPONSE_TIMEOUT_DEFAULT(-1): use default timeout value.
  *   VIR_DOMAIN_AGENT_RESPONSE_TIMEOUT_NOWAIT(0): does not wait.
  *   positive value: wait for @timeout seconds
+ *
+ * In all guest-agent based APIs when a timeout happens if an actual command
+ * was send to the guest agent the returned error code will be
+ * VIR_ERR_AGENT_COMMAND_TIMEOUT.
  *
  * Returns 0 on success, -1 on failure
  *
@@ -14160,5 +14134,127 @@ virDomainGraphicsReload(virDomainPtr domain,
 
  error:
     virDispatchError(domain->conn);
+    return -1;
+}
+
+
+/**
+ * virDomainSetThrottleGroup:
+ * @dom: pointer to domain object
+ * @group: throttle group name
+ * @params: Pointer to blkio parameter objects
+ * @nparams: Number of blkio parameters (this value can be the same or
+ *           less than the number of parameters supported)
+ * @flags: bitwise-OR of virDomainModificationImpact
+ *
+ * Add throttlegroup or change all of the throttlegroup options
+ * within specific domain
+ *
+ * The @group parameter is the name for new or existing throttlegroup,
+ * it cannot be NULL, detailed throttlegroup info is included in @params,
+ * it either creates new throttlegroup with @params or updates existing
+ * throttlegroup with @params, throttlegroup can be referenced by throttle
+ * filter in attached disk to do limits, the difference from iotune is that
+ * multiple throttlegroups can be referenced within attached disk
+ *
+ * Returns -1 in case of error, 0 in case of success.
+ *
+ * Since: 11.2.0
+ */
+int
+virDomainSetThrottleGroup(virDomainPtr dom,
+                          const char *group,
+                          virTypedParameterPtr params,
+                          int nparams,
+                          unsigned int flags)
+{
+    virConnectPtr conn;
+
+    VIR_DOMAIN_DEBUG(dom, "params=%p, group='%s', nparams=%d, flags=0x%x",
+                     params, group, nparams, flags);
+    VIR_TYPED_PARAMS_DEBUG(params, nparams);
+
+    virResetLastError();
+
+    virCheckDomainReturn(dom, -1);
+    conn = dom->conn;
+
+    virCheckReadOnlyGoto(conn->flags, error);
+    virCheckNonNullArgGoto(group, error);
+    virCheckPositiveArgGoto(nparams, error);
+    virCheckNonNullArgGoto(params, error);
+
+    if (virTypedParameterValidateSet(dom->conn, params, nparams) < 0)
+        goto error;
+
+    if (conn->driver->domainSetThrottleGroup) {
+        int ret;
+        ret = conn->driver->domainSetThrottleGroup(dom, group, params, nparams, flags);
+        if (ret < 0)
+            goto error;
+        return ret;
+    }
+
+    virReportUnsupportedError();
+
+ error:
+    virDispatchError(dom->conn);
+    return -1;
+}
+
+
+/**
+ * virDomainDelThrottleGroup:
+ * @dom: pointer to domain object
+ * @group: throttle group name
+ * @flags: bitwise-OR of virDomainModificationImpact
+ *
+ * Delete an throttlegroup from the domain. @group cannot be NULL,
+ * and the @group to be deleted must not have a throttlefilter associated with
+ * it and can be any of the current valid group.
+ *
+ * @flags may include VIR_DOMAIN_AFFECT_LIVE or VIR_DOMAIN_AFFECT_CONFIG.
+ * Both flags may be set.
+ * If VIR_DOMAIN_AFFECT_LIVE is set, the change affects a running domain
+ * and may fail if domain is not alive.
+ * If VIR_DOMAIN_AFFECT_CONFIG is set, the change affects persistent state,
+ * and will fail for transient domains. If neither flag is specified (that is,
+ * @flags is VIR_DOMAIN_AFFECT_CURRENT), then an inactive domain modifies
+ * persistent setup, while an active domain is hypervisor-dependent on whether
+ * just live or both live and persistent state is changed.
+ *
+ * Returns -1 in case of error, 0 in case of success.
+ *
+ * Since: 11.2.0
+ */
+int
+virDomainDelThrottleGroup(virDomainPtr dom,
+                          const char *group,
+                          unsigned int flags)
+{
+    virConnectPtr conn;
+
+    VIR_DOMAIN_DEBUG(dom, "group='%s', flags=0x%x",
+                     group, flags);
+
+    virResetLastError();
+
+    virCheckDomainReturn(dom, -1);
+    virCheckNonNullArgGoto(group, error);
+
+    conn = dom->conn;
+
+    if (conn->driver->domainDelThrottleGroup) {
+        int ret;
+        ret = conn->driver->domainDelThrottleGroup(dom, group, flags);
+        if (ret < 0)
+            goto error;
+        return ret;
+    }
+
+    virReportUnsupportedError();
+
+ error:
+    virDispatchError(dom->conn);
     return -1;
 }

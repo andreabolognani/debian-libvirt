@@ -1034,6 +1034,31 @@ listed in the XML description. If *--migratable* is specified, features that
 block migration will not be included in the resulting CPU.
 
 
+hypervisor-cpu-models
+---------------------
+
+**Syntax:**
+
+::
+
+   hypervisor-cpu-models [--virttype virttype] [--emulator emulator]
+      [--arch arch] [--machine machine] [--all]
+
+Print the list of CPU models known by the hypervisor for the specified architecture.
+It is not guaranteed that a listed CPU will run on the host. To determine CPU
+model compatibility with the host, see ``virsh hypervisor-cpu-baseline`` and
+``virsh hypervisor-cpu-compare``.
+
+The *virttype* option specifies the virtualization type (usable in the 'type'
+attribute of the <domain> top level element from the domain XML). *emulator*
+specifies the path to the emulator, *arch* specifies the CPU architecture, and
+*machine* specifies the machine type.
+
+By default, only the models that are claimed to be "usable" by the hypervisor
+on the host are reported. The option *--all* will report every CPU model known
+to the hypervisor, including ones that are not supported on the hypervisor (e.g.
+newer generation models).
+
 DOMAIN COMMANDS
 ===============
 
@@ -1137,6 +1162,140 @@ When setting the disk io parameters both *--live* and *--config* flags may be
 given, but *--current* is exclusive. For querying only one of *--live*,
 *--config* or *--current* can be specified. If no flag is specified, behavior
 is different depending on hypervisor.
+
+
+domthrottlegroupset
+-------------------
+
+**Syntax:**
+
+::
+
+   domthrottlegroupset domain group-name [[--config] [--live] | [--current]]
+      [[total-bytes-sec] | [read-bytes-sec] [write-bytes-sec]]
+      [[total-iops-sec] | [read-iops-sec] [write-iops-sec]]
+      [[total-bytes-sec-max] | [read-bytes-sec-max] [write-bytes-sec-max]]
+      [[total-iops-sec-max] | [read-iops-sec-max] [write-iops-sec-max]]
+      [[total-bytes-sec-max-length] |
+       [read-bytes-sec-max-length] [write-bytes-sec-max-length]]
+      [[total-iops-sec-max-length] |
+       [read-iops-sec-max-length] [write-iops-sec-max-length]]
+      [size-iops-sec]
+
+Add or update a throttle group against specific *domain*.
+*group-name* specifies a unique throttle group name, which defines limit, and
+will be referenced by drives.
+
+If no limit is specified, default them as all zeros, which will fail,
+Otherwise, set limits with these flags:
+*--total-bytes-sec* specifies total throughput limit as a scaled integer, the
+default being bytes per second if no suffix is specified.
+*--read-bytes-sec* specifies read throughput limit as a scaled integer, the
+default being bytes per second if no suffix is specified.
+*--write-bytes-sec* specifies write throughput limit as a scaled integer, the
+default being bytes per second if no suffix is specified.
+*--total-iops-sec* specifies total I/O operations limit per second.
+*--read-iops-sec* specifies read I/O operations limit per second.
+*--write-iops-sec* specifies write I/O operations limit per second.
+*--total-bytes-sec-max* specifies maximum total throughput limit as a scaled
+integer, the default being bytes per second if no suffix is specified
+*--read-bytes-sec-max* specifies maximum read throughput limit as a scaled
+integer, the default being bytes per second if no suffix is specified.
+*--write-bytes-sec-max* specifies maximum write throughput limit as a scaled
+integer, the default being bytes per second if no suffix is specified.
+*--total-iops-sec-max* specifies maximum total I/O operations limit per second.
+*--read-iops-sec-max* specifies maximum read I/O operations limit per second.
+*--write-iops-sec-max* specifies maximum write I/O operations limit per second.
+*--total-bytes-sec-max-length* specifies duration in seconds to allow maximum
+total throughput limit.
+*--read-bytes-sec-max-length* specifies duration in seconds to allow maximum
+read throughput limit.
+*--write-bytes-sec-max-length* specifies duration in seconds to allow maximum
+write throughput limit.
+*--total-iops-sec-max-length* specifies duration in seconds to allow maximum
+total I/O operations limit.
+*--read-iops-sec-max-length* specifies duration in seconds to allow maximum
+read I/O operations limit.
+*--write-iops-sec-max-length* specifies duration in seconds to allow maximum
+write I/O operations limit.
+*--size-iops-sec* specifies size I/O operations limit per second.
+
+Bytes and iops values are independent, but setting only one value (such
+as --read-bytes-sec) resets the other two in that category to unlimited.
+An explicit 0 also clears any limit.  A non-zero value for a given total
+cannot be mixed with non-zero values for read or write.
+
+It is up to the hypervisor to determine how to handle the length values.
+For the QEMU hypervisor, if an I/O limit value or maximum value is set,
+then the default value of 1 second will be displayed. Supplying a 0 will
+reset the value back to the default.
+
+If *--live* is specified, affect a running guest.
+If *--config* is specified, affect the next start of a persistent guest.
+If *--current* is specified, it is equivalent to either *--live* or
+*--config*, depending on the current state of the guest.
+When setting the disk io parameters both *--live* and *--config*
+are specified, both live configuration and config are updated while setting
+the description, but *--current* is exclusive. If no flag is specified, behavior
+is different depending on hypervisor.
+
+
+domthrottlegroupdel
+-------------------
+
+**Syntax:**
+
+::
+
+   domthrottlegroupdel domain group-name [[--config] [--live] | [--current]]
+
+Delete a Throttlegroup from the domain using the specified *group-name*.
+If an Throttlegroup is currently referenced by a disk resource, then the attempt
+to remove the Throttlegroup will fail.
+If the *group-name* does not exist an error will occur.
+
+If *--live* is specified, affect a running guest. If the guest is not
+running an error is returned.
+If *--config* is specified, affect the next start of a persistent guest.
+If *--current* is specified, it is equivalent to either *--live* or
+*--config*, depending on the current state of the guest.
+
+
+domthrottlegroupinfo
+--------------------
+
+**Syntax:**
+
+::
+
+   domthrottlegroupinfo domain group-name [[--config] [--live] | [--current]]
+
+Display domain Throttlegroup information including I/O limits setting.
+
+If *--live* is specified, get the Throttlegroup data from the running guest. If
+the guest is not running, an error is returned.
+If *--config* is specified, get the Throttlegroup data from the next start of
+a persistent guest.
+If *--current* is specified or *--live* and *--config* are not specified,
+then get the Throttlegroup data based on the current guest state, which can
+either be live or offline.
+If both *--live* and *--config* are specified, the *--config* option takes
+precedence on getting the current description.
+
+
+domthrottlegrouplist
+--------------------
+
+**Syntax:**
+
+::
+
+   domthrottlegrouplist domain [--inactive]
+
+Print a table showing names of all throttle groups
+associated with *domain*. If *--inactive* is specified, query the
+Throttlegroup data that will be used on the next boot, rather than those
+currently in use by a running domain.
 
 
 blkiotune
@@ -2909,6 +3068,9 @@ values:
   libvirt daemon),
 * 0 - do not wait at all,
 
+In all guest-agent based APIs when a timeout happens if an actual command was
+send to the guest agent the returned error code will be
+VIR_ERR_AGENT_COMMAND_TIMEOUT.
 
 guestinfo
 ---------
@@ -2930,7 +3092,7 @@ Success is always reported in this case.
 
 You can limit the types of information that are returned by specifying one or
 more flags.  Available information types flags are *--user*, *--os*,
-*--timezone*, *--hostname*, *--filesystem*, *--disk* and *--interface*.
+*--timezone*, *--hostname*, *--filesystem*, *--disk*, *--interface* and *--load*.
 If an explicitly requested information type is not supported by the guest agent
 at that point, the processes will provide an exit code of 1.
 
@@ -2999,6 +3161,7 @@ returned:
 * ``disk.<num>.serial`` -  optional disk serial number
 * ``disk.<num>.alias`` - the device alias of the disk (e.g. sda)
 * ``disk.<num>.guest_alias`` - optional alias assigned to the disk
+* ``disk.<num>.guest_bus`` - bus type as reported by the guest
 
 *--interface* returns:
 * ``if.count`` - the number of interfaces defined on this domain
@@ -3008,6 +3171,12 @@ returned:
 * ``if.<num>.addr.<num1>.type`` - the IP address type of addr <num1> (e.g. ipv4)
 * ``if.<num>.addr.<num1>.addr`` - the IP address of addr <num1>
 * ``if.<num>.addr.<num1>.prefix`` - the prefix of IP address of addr <num1>
+
+*--load* returns:
+* ``load.1m``  - average load in guest for last 1 minute
+* ``load.5m``  - average load in guest for last 5 minutes
+* ``load.15m`` - average load in guest for last 15 minutes
+
 
 guestvcpus
 ----------
@@ -3959,12 +4128,13 @@ restore
 ::
 
    restore state-file [--bypass-cache] [--xml file]
-      [{--running | --paused}] [--reset-nvram]
+      [{--running | --paused}] [--reset-nvram] [--parallel-channels]
 
 Restores a domain from a ``virsh save`` state file. See *save* for more info.
 
 If *--bypass-cache* is specified, the restore will avoid the file system
-cache, although this may slow down the operation.
+cache. Depending on the specific scenario this may slow down or speed up
+the operation.
 
 *--xml* ``file`` is usually omitted, but can be used to supply an
 alternative XML file for use on the restored guest with changes only
@@ -3979,6 +4149,10 @@ domain should be started in.
 
 If *--reset-nvram* is specified, any existing NVRAM file will be deleted
 and re-initialized from its pristine template.
+
+*--parallel-channels* option can specify number of parallel IO channels
+to be used when loading memory from file. Parallel save may significantly
+reduce the time required to save large memory domains.
 
 ``Note``: To avoid corrupting file system contents within the domain, you
 should not reuse the saved state file for a second ``restore`` unless you
@@ -4008,6 +4182,8 @@ save
 ::
 
    save domain state-file [--bypass-cache] [--xml file]
+      [--image-format format]
+      [--parallel-channels channels]
       [{--running | --paused}] [--verbose]
 
 Saves a running domain (RAM, but not disk state) to a state file so that
@@ -4015,8 +4191,11 @@ it can be restored
 later.  Once saved, the domain will no longer be running on the
 system, thus the memory allocated for the domain will be free for
 other domains to use.  ``virsh restore`` restores from this state file.
+
 If *--bypass-cache* is specified, the save will avoid the file system
-cache, although this may slow down the operation.
+cache. Depending on the specific scenario this may slow down or speed up
+the operation.
+
 
 The progress may be monitored using ``domjobinfo`` virsh command and canceled
 with ``domjobabort`` command (sent by another virsh instance). Another option
@@ -4037,6 +4216,15 @@ Normally, restoring a saved image will decide between running or paused
 based on the state the domain was in when the save was done; passing
 either the *--running* or *--paused* flag will allow overriding which
 state the ``restore`` should use.
+
+*--image-format* option can change the default image format used to
+save data into file. For more details consult the qemu.conf configuration
+file.
+
+*--parallel-channels* option can specify number of parallel IO channels
+to be used when saving memory to file. Using parallel IO channels requires
+the use of ``sparse`` image save format. Parallel save may significantly
+reduce the time required to save large memory domains.
 
 Domain saved state files assume that disk images will be unchanged
 between the creation and restore point.  For a more complete system
@@ -4905,7 +5093,7 @@ attach-disk
       [--source-protocol protocol] [--source-host-name hostname:port]
       [--source-host-transport transport] [--source-host-socket socket]
       [--serial serial] [--wwn wwn] [--rawio] [--address address]
-      [--multifunction] [--print-xml]
+      [--multifunction] [--print-xml] [--throttle-groups groups]
 
 Attach a new disk device to the domain.
 *source* is path for the files and devices unless *--source-protocol*
@@ -4945,6 +5133,7 @@ ide:controller.bus.unit, usb:bus.port, sata:controller.bus.unit or
 ccw:cssid.ssid.devno. Virtio-ccw devices must have their cssid set to 0xfe.
 *multifunction* indicates specified pci address is a multifunction pci device
 address.
+*throttle-groups* is comma separated list of throttle groups to be applied.
 
 There is also support for using a network disk. As specified, the user can
 provide a *--source-protocol* in which case the *source* parameter will

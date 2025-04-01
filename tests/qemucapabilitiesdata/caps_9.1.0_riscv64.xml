@@ -89,15 +89,11 @@
   <flag name='dbus-vmstate'/>
   <flag name='vhost-user-gpu'/>
   <flag name='vhost-user-vga'/>
-  <flag name='incremental-backup'/>
   <flag name='ramfb'/>
   <flag name='drive-nvme'/>
   <flag name='smp-dies'/>
   <flag name='rng-builtin'/>
   <flag name='vhost-user-fs'/>
-  <flag name='query-named-block-nodes.flat'/>
-  <flag name='blockdev-snapshot.allow-write-only-overlay'/>
-  <flag name='blockdev-reopen'/>
   <flag name='fsdev.multidevs'/>
   <flag name='pcie-root-port.hotplug'/>
   <flag name='aio.io_uring'/>
@@ -114,11 +110,8 @@
   <flag name='vhost-user-blk'/>
   <flag name='cpu-max'/>
   <flag name='memory-backend-file.x-use-canonical-path-for-ramblock-id'/>
-  <flag name='migration-param.block-bitmap-mapping'/>
   <flag name='vnc-power-control'/>
-  <flag name='object.qapified'/>
   <flag name='rotation-rate'/>
-  <flag name='compat-deprecated'/>
   <flag name='acpi-index'/>
   <flag name='input-linux'/>
   <flag name='virtio-gpu-gl-pci'/>

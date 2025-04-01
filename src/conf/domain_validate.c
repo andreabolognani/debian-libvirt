@@ -476,6 +476,13 @@ virDomainDiskDefValidateSourceChainOne(const virStorageSource *src)
 {
     virStorageType actualType = virStorageSourceGetActualType(src);
 
+    if (virStorageSourceGetActualType(src) == VIR_STORAGE_TYPE_NETWORK &&
+        src->protocol == VIR_STORAGE_NET_PROTOCOL_SHEEPDOG) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("'sheepdog' protocol is no longer supported by any hypervisor driver"));
+        return -1;
+    }
+
     if (src->type == VIR_STORAGE_TYPE_NETWORK && src->auth) {
         virStorageAuthDef *authdef = src->auth;
         int actUsage;
@@ -686,10 +693,54 @@ virDomainDiskDefValidateStartupPolicy(const virDomainDiskDef *disk)
 
 
 static int
+virDomainDiskIoTuneValidate(const virDomainBlockIoTuneInfo blkdeviotune)
+{
+    if ((blkdeviotune.total_bytes_sec &&
+         blkdeviotune.read_bytes_sec) ||
+        (blkdeviotune.total_bytes_sec &&
+         blkdeviotune.write_bytes_sec)) {
+        virReportError(VIR_ERR_XML_ERROR, "%s",
+                       _("total and read/write bytes_sec cannot be set at the same time"));
+        return -1;
+    }
+
+    if ((blkdeviotune.total_iops_sec &&
+         blkdeviotune.read_iops_sec) ||
+        (blkdeviotune.total_iops_sec &&
+         blkdeviotune.write_iops_sec)) {
+        virReportError(VIR_ERR_XML_ERROR, "%s",
+                       _("total and read/write iops_sec cannot be set at the same time"));
+        return -1;
+    }
+
+    if ((blkdeviotune.total_bytes_sec_max &&
+         blkdeviotune.read_bytes_sec_max) ||
+        (blkdeviotune.total_bytes_sec_max &&
+         blkdeviotune.write_bytes_sec_max)) {
+        virReportError(VIR_ERR_XML_ERROR, "%s",
+                       _("total and read/write bytes_sec_max cannot be set at the same time"));
+        return -1;
+    }
+
+    if ((blkdeviotune.total_iops_sec_max &&
+         blkdeviotune.read_iops_sec_max) ||
+        (blkdeviotune.total_iops_sec_max &&
+         blkdeviotune.write_iops_sec_max)) {
+        virReportError(VIR_ERR_XML_ERROR, "%s",
+                       _("total and read/write iops_sec_max cannot be set at the same time"));
+        return -1;
+    }
+
+    return 0;
+}
+
+
+static int
 virDomainDiskDefValidate(const virDomainDef *def,
                          const virDomainDiskDef *disk)
 {
     virStorageSource *next;
+    size_t i;
 
     /* disk target is used widely in other code so it must be validated first */
     if (!disk->dst) {
@@ -739,41 +790,8 @@ virDomainDiskDefValidate(const virDomainDef *def,
     }
 
     /* Validate IotuneParse */
-    if ((disk->blkdeviotune.total_bytes_sec &&
-         disk->blkdeviotune.read_bytes_sec) ||
-        (disk->blkdeviotune.total_bytes_sec &&
-         disk->blkdeviotune.write_bytes_sec)) {
-        virReportError(VIR_ERR_XML_ERROR, "%s",
-                       _("total and read/write bytes_sec cannot be set at the same time"));
+    if (virDomainDiskIoTuneValidate(disk->blkdeviotune) < 0)
         return -1;
-    }
-
-    if ((disk->blkdeviotune.total_iops_sec &&
-         disk->blkdeviotune.read_iops_sec) ||
-        (disk->blkdeviotune.total_iops_sec &&
-         disk->blkdeviotune.write_iops_sec)) {
-        virReportError(VIR_ERR_XML_ERROR, "%s",
-                       _("total and read/write iops_sec cannot be set at the same time"));
-        return -1;
-    }
-
-    if ((disk->blkdeviotune.total_bytes_sec_max &&
-         disk->blkdeviotune.read_bytes_sec_max) ||
-        (disk->blkdeviotune.total_bytes_sec_max &&
-         disk->blkdeviotune.write_bytes_sec_max)) {
-        virReportError(VIR_ERR_XML_ERROR, "%s",
-                       _("total and read/write bytes_sec_max cannot be set at the same time"));
-        return -1;
-    }
-
-    if ((disk->blkdeviotune.total_iops_sec_max &&
-         disk->blkdeviotune.read_iops_sec_max) ||
-        (disk->blkdeviotune.total_iops_sec_max &&
-         disk->blkdeviotune.write_iops_sec_max)) {
-        virReportError(VIR_ERR_XML_ERROR, "%s",
-                       _("total and read/write iops_sec_max cannot be set at the same time"));
-        return -1;
-    }
 
     /* Reject disks with a bus type that is not compatible with the
      * given address type. The function considers only buses that are
@@ -972,6 +990,32 @@ virDomainDiskDefValidate(const virDomainDef *def,
         virReportError(VIR_ERR_XML_ERROR, "%s",
                        _("disk driver 'iothread' attribute can't be used together with 'iothreads' subelement"));
         return -1;
+    }
+
+    if (disk->nthrottlefilters > 0) {
+        if (disk->blkdeviotune.group_name ||
+            virDomainBlockIoTuneInfoHasAny(&disk->blkdeviotune)) {
+            virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
+                           _("block 'throttlefilters' can't be used together with 'iotune' for disk '%1$s'"),
+                           disk->dst);
+            return -1;
+        }
+
+        if (disk->device == VIR_DOMAIN_DISK_DEVICE_CDROM) {
+            virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
+                           _("cdrom device with throttle filters isn't supported"));
+            return -1;
+        }
+
+        for (i = 0; i < disk->nthrottlefilters; i++) {
+            virDomainThrottleFilterDef *filter = disk->throttlefilters[i];
+            if (!virDomainThrottleGroupByName(def, filter->group_name)) {
+                virReportError(VIR_ERR_XML_ERROR,
+                               _("throttle group '%1$s' not found"),
+                               filter->group_name);
+                return -1;
+            }
+        }
     }
 
     return 0;
@@ -1260,13 +1304,21 @@ virDomainControllerDefValidate(const virDomainControllerDef *controller)
         }
     }
 
-    if (controller->iothread != 0) {
+    if (controller->iothread != 0 || controller->iothreads) {
         if (controller->type != VIR_DOMAIN_CONTROLLER_TYPE_SCSI ||
             !(controller->model == VIR_DOMAIN_CONTROLLER_MODEL_SCSI_VIRTIO_SCSI ||
               controller->model == VIR_DOMAIN_CONTROLLER_MODEL_SCSI_VIRTIO_TRANSITIONAL ||
               controller->model == VIR_DOMAIN_CONTROLLER_MODEL_SCSI_VIRTIO_NON_TRANSITIONAL)) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                            _("iothreads are supported only by 'virtio-scsi' controllers"));
+            return -1;
+        }
+
+        /* configuring both <driver iothread='n'> and it's <iothreads> sub-element
+         * isn't supported */
+        if (controller->iothread && controller->iothreads) {
+            virReportError(VIR_ERR_XML_ERROR, "%s",
+                           _("controller driver 'iothread' attribute can't be used together with 'iothreads' subelement"));
             return -1;
         }
     }
@@ -1726,6 +1778,12 @@ virDomainDefOSValidate(const virDomainDef *def,
         }
     }
 
+    if (def->os.shim && !def->os.kernel) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("shim only allowed with kernel option"));
+        return -1;
+    }
+
     return 0;
 }
 
@@ -1886,6 +1944,22 @@ virDomainDefLaunchSecurityValidate(const virDomainDef *def)
 #undef CHECK_BASE64_LEN
 
 static int
+virDomainDefValidateThrottleGroups(const virDomainDef *def)
+{
+    size_t i;
+
+    for (i = 0; i < def->nthrottlegroups; i++) {
+        virDomainThrottleGroupDef *throttleGroup = def->throttlegroups[i];
+
+        if (virDomainDiskIoTuneValidate(*throttleGroup) < 0)
+            return -1;
+    }
+
+    return 0;
+}
+
+
+static int
 virDomainDefValidateInternal(const virDomainDef *def,
                              virDomainXMLOption *xmlopt)
 {
@@ -1941,6 +2015,9 @@ virDomainDefValidateInternal(const virDomainDef *def,
         return -1;
 
     if (virDomainDefLaunchSecurityValidate(def) < 0)
+        return -1;
+
+    if (virDomainDefValidateThrottleGroups(def) < 0)
         return -1;
 
     return 0;
@@ -2177,10 +2254,16 @@ virDomainNetDefValidate(const virDomainNetDef *net)
     if (net->type != VIR_DOMAIN_NET_TYPE_USER &&
         net->type != VIR_DOMAIN_NET_TYPE_VHOSTUSER) {
         if (net->backend.type == VIR_DOMAIN_NET_BACKEND_PASST) {
-            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                            _("The 'passt' backend can only be used with interface type='user' or type='vhostuser'"));
             return -1;
         }
+    }
+
+    if (net->sourceDev && net->backend.type != VIR_DOMAIN_NET_BACKEND_PASST) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("The 'dev' attribute of the <source> element can only be used with <interface> type='user' or type='vhostuser' if the <backend> type='passt'"));
+        return -1;
     }
 
     if (net->nPortForwards > 0) {

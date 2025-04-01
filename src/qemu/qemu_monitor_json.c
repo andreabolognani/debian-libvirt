@@ -2085,7 +2085,7 @@ qemuMonitorJSONQueryNamedBlockNodes(qemuMonitor *mon)
     g_autoptr(virJSONValue) reply = NULL;
 
     if (!(cmd = qemuMonitorJSONMakeCommand("query-named-block-nodes",
-                                           "B:flat", mon->queryNamedBlockNodesFlat,
+                                           "b:flat", true,
                                            NULL)))
         return NULL;
 
@@ -4004,6 +4004,7 @@ qemuMonitorJSONBlockdevMirror(qemuMonitor *mon,
                               bool persistjob,
                               const char *device,
                               const char *target,
+                              const char *replaces,
                               unsigned long long speed,
                               unsigned int granularity,
                               unsigned long long buf_size,
@@ -4032,6 +4033,7 @@ qemuMonitorJSONBlockdevMirror(qemuMonitor *mon,
                                      "S:job-id", jobname,
                                      "s:device", device,
                                      "s:target", target,
+                                     "S:replaces", replaces,
                                      "Y:speed", speed,
                                      "z:granularity", granularity,
                                      "P:buf-size", buf_size,
@@ -4683,6 +4685,67 @@ int qemuMonitorJSONGetBlockIoThrottle(qemuMonitor *mon,
 
     return qemuMonitorJSONBlockIoThrottleInfo(devices, qdevid, reply);
 }
+
+
+int
+qemuMonitorMakeThrottleGroupLimits(virJSONValue *limits,
+                                   const virDomainThrottleGroupDef *group)
+{
+    if (virJSONValueObjectAdd(&limits,
+                              "U:bps-total", group->total_bytes_sec,
+                              "U:bps-read", group->read_bytes_sec,
+                              "U:bps-write", group->write_bytes_sec,
+                              "U:iops-total", group->total_iops_sec,
+                              "U:iops-read", group->read_iops_sec,
+                              "U:iops-write", group->write_iops_sec,
+                              "U:bps-total-max", group->total_bytes_sec_max,
+                              "U:bps-read-max", group->read_bytes_sec_max,
+                              "U:bps-write-max", group->write_bytes_sec_max,
+                              "U:iops-total-max", group->total_iops_sec_max,
+                              "U:iops-read-max", group->read_iops_sec_max,
+                              "U:iops-write-max", group->write_iops_sec_max,
+                              "U:iops-size", group->size_iops_sec,
+                              "P:bps-total-max-length", group->total_bytes_sec_max_length,
+                              "P:bps-read-max-length", group->read_bytes_sec_max_length,
+                              "P:bps-write-max-length", group->write_bytes_sec_max_length,
+                              "P:iops-total-max-length", group->total_iops_sec_max_length,
+                              "P:iops-read-max-length", group->read_iops_sec_max_length,
+                              "P:iops-write-max-length", group->write_iops_sec_max_length,
+                              NULL) < 0)
+        return -1;
+
+    return 0;
+}
+
+
+int
+qemuMonitorJSONUpdateThrottleGroup(qemuMonitor *mon,
+                                   const char *qomid,
+                                   virDomainBlockIoTuneInfo *info)
+{
+    g_autoptr(virJSONValue) cmd = NULL;
+    g_autoptr(virJSONValue) result = NULL;
+    g_autoptr(virJSONValue) limits = virJSONValueNewObject();
+
+    if (qemuMonitorMakeThrottleGroupLimits(limits, info) < 0)
+        return -1;
+
+    if (!(cmd = qemuMonitorJSONMakeCommand("qom-set",
+                                           "s:property", "limits",
+                                           "s:path", qomid,
+                                           "a:value", &limits,
+                                           NULL)))
+        return -1;
+
+    if (qemuMonitorJSONCommand(mon, cmd, &result) < 0)
+        return -1;
+
+    if (qemuMonitorJSONCheckError(cmd, result) < 0)
+        return -1;
+
+    return 0;
+}
+
 
 int qemuMonitorJSONSystemWakeup(qemuMonitor *mon)
 {
@@ -5601,7 +5664,6 @@ int qemuMonitorJSONGetObjectProperty(qemuMonitor *mon,
                        _("qom-get invalid object property type %1$d"),
                        prop->type);
         return -1;
-        break;
     }
 
     if (ret == -1) {

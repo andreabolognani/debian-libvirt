@@ -397,6 +397,7 @@ and full virtualized guests.
      <kernel>/root/f8-i386-vmlinuz</kernel>
      <initrd>/root/f8-i386-initrd</initrd>
      <cmdline>console=ttyS0 ks=http://example.com/f8-i386/os/</cmdline>
+     <shim>/path/to/shim.efi</shim>
      <dtb>/root/ppc.dtb</dtb>
    </os>
    ...
@@ -417,6 +418,10 @@ and full virtualized guests.
    The contents of this element specify arguments to be passed to the kernel (or
    installer) at boot time. This is often used to specify an alternate primary
    console (eg serial port), or the installation media source / kickstart file
+``shim``
+   Use specified fully-qualified path to load an initial UEFI bootloader that
+   handles chaining to a trusted full bootloader under secure boot
+   environments.
 ``dtb``
    The contents of this element specify the fully-qualified path to the
    (optional) device tree binary (dtb) image in the host OS.
@@ -490,9 +495,26 @@ These options apply to any form of booting of the guest OS.
    ...
 
 ``acpi``
-   The ``table`` element contains a fully-qualified path to the ACPI table. The
-   ``type`` attribute contains the ACPI table type (currently only ``slic`` is
-   supported) :since:`Since 1.3.5 (QEMU)` :since:`Since 5.9.0 (Xen)`
+   The ``table`` element contains a fully-qualified path to the ACPI table,
+   with the ``type`` attribute dictating what data must be present in the
+   file:
+
+   * ``raw``: a single ACPI table with header and data, with ACPI
+     signature auto-detected from header (:since:`Since 11.2.0 (QEMU)`).
+   * ``rawset``: concatenation of multiple ACPI tables with header
+     and data, each with any ACPI signature, auto-detected from header
+     (:since:`Since 11.2.0 (Xen)`).
+   * ``slic``: a single ACPI table with header and data, providing
+     software licensing information. The ACPI table signature in the
+     header will be forced to ``SLIC`` (:since:`Since 1.3.5 (QEMU)`,
+     mis-interpreted as ``rawset`` :since:`Since 5.9.0 (Xen)`).
+   * ``msdm``: a single ACPI table with header and data, providing
+     Microsoft Data Management information. The ACPI table signature
+     in the header will be forced to ``MSDM``
+     (:since:`Since 11.2.0 (QEMU)`).
+
+   Each type may be used only once, except for ``raw`` which can
+   appear multiple times.
 
 
 SMBIOS System Information
@@ -1978,6 +2000,32 @@ advertisements to the guest OS. (NB: Only qemu driver support)
    the guest OS itself can choose to circumvent the unavailability of the sleep
    states (e.g. S4 by turning off completely).
 
+Disk Throttle Group Management
+------------------------------
+
+:since:`Since 11.2.0` it is possible to create multiple named throttle groups
+and then reference them within ``throttlefilters``(sub-element of ``disk`` element)
+to form filter chain in QEMU for specific disk. The limits(throttlegroups) are
+shared within domain, hence the same group can be referenced by different filters.
+
+::
+
+   <domain>
+     ...
+     <throttlegroups>
+       <throttlegroup>
+         <group_name>limit0</group_name>
+         <total_bytes_sec>10000000</total_bytes_sec>
+         <read_iops_sec>400000</read_iops_sec>
+         <write_iops_sec>100000</write_iops_sec>
+       </throttlegroup>
+     </throttlegroups>
+     ...
+   </domain>
+
+``throttlegroup``
+   It has the same sub-elements as ``iotune`` (See `Hard drives, floppy disks, CDROMs`_),
+   The difference is that <group_name> is required.
 
 Hypervisor features
 -------------------
@@ -2771,6 +2819,15 @@ paravirtualized driver is specified via the ``disk`` element.
        </backingStore>
        <target dev='vdh' bus='virtio'/>
      </disk>
+     <disk type='file' device='disk'>
+       <driver name='qemu' type='qcow2' />
+       <source file='/var/lib/libvirt/images/disk.qcow2'/>
+       <target dev='vdh' bus='virtio'/>
+       <throttlefilters>
+         <throttlefilter group='limit2'/>
+         <throttlefilter group='limit012'/>
+       </throttlefilters>
+     </disk>
    </devices>
    ...
 
@@ -3273,6 +3330,18 @@ paravirtualized driver is specified via the ``disk`` element.
    :since:`since after 0.4.4`; "sata" attribute value :since:`since 0.9.7`;
    "removable" attribute value :since:`since 1.1.3`;
    "rotation_rate" attribute value :since:`since 7.3.0`
+``throttlefilters``
+   The optional ``throttlefilters`` element provides the ability to provide additional
+   per-device throttle chain :since:`Since 11.2.0`
+   For example, if we have four different disks and we want to limit I/O for each one
+   and we also want to limit combined I/O of all four disks, we can leverage
+   ``throttlefilters`` to achieve this goal by setting two ``throttlefilter`` for
+   each disk: disk's own filter(e.g. limit2) and combined filter(e.g. limit012).
+   The order of such ``throttlefilter`` doesn't matter within ``throttlefilters``.
+   ``throttlefilters`` and ``iotune`` should be used exclusively.
+
+   ``throttlefilter``
+      The optional ``throttlefilter`` element is to reference defined throttle group.
 ``iotune``
    The optional ``iotune`` element provides the ability to provide additional
    per-device I/O tuning, with values that can vary for each device (contrast
@@ -3442,10 +3511,27 @@ paravirtualized driver is specified via the ``disk`` element.
       *Note:* ``iothread`` is mutually exclusive with ``iothreads``.
    -  The optional ``iothreads`` sub-element allows specifying multiple IOThreads
       via the ``iothread`` sub-element with attribute ``id``  the disk will use
-      for I/O operations. Optionally the ``iothread`` element can have multiple
-      ``queue`` subelements specifying that given iothread should be used to
-      handle given queues. :since:`Since 10.0.0 (QEMU 9.0, virtio disks only)`.
-      Example::
+      for I/O operations. The virt queues (see ``queues`` attribute below) are
+      automatically distributed among the configured iothreads.
+
+      Optionally the ``iothread`` element can have multiple ``queue``
+      subelements with mandatory ``id`` attribute specifying that the iothread
+      should be used to handle given virt queue. If queue mapping is present
+      the ``queues`` attribute of  ``driver`` must be configured and all
+      configured virt queues must be included in the mapping. The
+      ``virtio-blk`` device exposes request virt queues ``0`` to ``N-1`` where
+      N is the number of queues configured for the device.
+
+      :since:`Since 10.0.0 (QEMU 9.0, virtio disks only)`.
+
+      Examples::
+
+        <driver name='qemu' queues='4'>
+          <iothreads>
+            <iothread id='2'/>
+            <iothread id='3'/>
+          </iothreads>
+        </driver>
 
         <driver name='qemu' queues='3'>
           <iothreads>
@@ -4129,6 +4215,45 @@ An optional sub-element ``driver`` can specify the driver specific options:
    If a specific IOThread is desired for a specific SCSI ``disk``, then multiple
    controllers must be defined each having a specific ``iothread`` value. The
    ``iothread`` value must be within the range 1 to the domain iothreads value.
+``iothreads``
+   Supported for ``virtio-scsi`` controllers using ``address`` types ``pci`` and
+   ``ccw``. :since:`since 11.2.0 (QEMU 10.0).` Mutually exclusive with ``iothread``.
+
+   The optional ``iothreads`` sub-element allows specifying multiple IOThreads
+   via the ``iothread`` sub-element with attribute ``id``  the ``virtio-scsi``
+   controller will use for I/O operations. The virt queues (see ``queues``
+   attribute of ``driver``) are automatically distributed among the configured
+   iothreads.
+
+   Optionally the ``iothread`` element can have multiple ``queue``
+   subelements with mandatory ``id`` atribute specifying that the iothread
+   should be used to handle given virt queue. If queue mapping is present
+   the ``queues`` attribute of  ``driver`` must be configured and all
+   configured virt queues must be included in the mapping. The
+   ``virtio-scsi`` device exposes request virt queues ``0`` to ``N-1`` where
+   N is the number of queues configured for the device.
+
+      Example::
+
+        <driver queues='4>
+          <iothreads>
+            <iothread id='2'/>
+            <iothread id='3'/>
+          </iothreads>
+        </driver>
+
+        <driver queues='3'>
+          <iothreads>
+            <iothread id='2'>
+              <queue id='1'/>
+            </iothread>
+            <iothread id='3'>
+              <queue id='0'/>
+              <queue id='2'/>
+            </iothread>
+          </iothreads>
+        </driver>
+
 virtio options
    For virtio controllers, `Virtio-related options`_ can
    also be set. ( :since:`Since 3.5.0` )
@@ -4927,6 +5052,11 @@ when it's in the reserved VMware range by adding a ``type="static"`` attribute
 to the ``<mac/>`` element. Note that this attribute is useless if the provided
 MAC address is outside of the reserved VMWare ranges.
 
+:since:`Since 11.2.0`, the ``<mac/>`` element can optionally contain
+``currentAddress`` attribute (output only), which contains new MAC address if the
+guest changed it. This is currently implemented only for QEMU/KVM and requires
+setting ``trustGuestRxFilters`` to ``yes``.
+
 :since:`Since 7.3.0`, one can set the ACPI index against network interfaces.
 With some operating systems (eg Linux with systemd), the ACPI index is used
 to provide network interface device naming, that is stable across changes
@@ -5154,13 +5284,13 @@ destined for the host toward the guest instead), and a socket between
 passt and QEMU forwards that traffic on to the guest (and back out,
 of course).
 
-*(:since:`Since 11.1.0 (QEMU and KVM only)` you may prefer to use the
+:since:`Since 11.1.0 (QEMU and KVM only)` you may prefer to use the
 passt backend with the more efficient and performant type='vhostuser'
 rather than type='user'. All the options related to passt in the
 paragraphs below here also apply when using the passt backend with
 type='vhostuser'; any other details specific to vhostuser are
-described* `here
-<formatdomain.html#vhost-user-connection-with-passt-backend>`__.)
+described `here
+<formatdomain.html#vhost-user-connection-with-passt-backend>`__.
 
 
 Similar to SLIRP, passt has an internal DHCP server that provides a
@@ -6513,7 +6643,7 @@ interaction with the admin.
      <graphics type='vnc' port='5904' sharePolicy='allow-exclusive'>
        <listen type='address' address='1.2.3.4'/>
      </graphics>
-     <graphics type='rdp' autoport='yes' multiUser='yes' />
+     <graphics type='rdp' autoport='yes' multiUser='yes'/>
      <graphics type='desktop' fullscreen='yes'/>
      <graphics type='spice'>
        <listen type='network' network='rednet'/>
@@ -6676,14 +6806,21 @@ interaction with the admin.
       Starts a RDP server. The ``port`` attribute specifies the TCP port number
       (with -1 as legacy syntax indicating that it should be auto-allocated).
       The ``autoport`` attribute is the new preferred syntax for indicating
-      auto-allocation of the TCP port to use. In the VirtualBox driver, the
-      ``autoport`` will make the hypervisor pick available port from 3389-3689
-      range when the VM is started. The chosen port will be reflected in the
-      ``port`` attribute. The ``multiUser`` attribute is a boolean deciding
-      whether multiple simultaneous connections to the VM are permitted. The
-      ``replaceUser`` attribute is a boolean deciding whether the existing
-      connection must be dropped and a new connection must be established by the
-      VRDP server, when a new client connects in single connection mode.
+      auto-allocation of the TCP port to use.
+
+      A non-p2p ``dbus`` graphics is required to enable the QEMU RDP support (it
+      uses an external "qemu-rdp" helper process). The ``username`` and
+      ``passwd`` attributes set the credentials (when they are not set, the RDP
+      access may be disabled by the helper). :since:`Since 11.1.0`
+
+      In the VirtualBox driver, the ``autoport`` will make the hypervisor pick
+      available port from 3389-3689 range when the VM is started. The chosen
+      port will be reflected in the ``port`` attribute. The ``multiUser``
+      attribute is a boolean deciding whether multiple simultaneous connections
+      to the VM are permitted. The ``replaceUser`` attribute is a boolean
+      deciding whether the existing connection must be dropped and a new
+      connection must be established by the VRDP server, when a new client
+      connects in single connection mode.
 
    ``desktop``
       This value is reserved for VirtualBox domains for the moment. It displays
@@ -6718,7 +6855,7 @@ interaction with the admin.
 
         <graphics type='dbus'/>
 
-      ``p2p`` (accepts ``on`` or ``off``) enables peer-to-peer connections,
+      ``p2p`` (accepts ``yes`` or ``no``) enables peer-to-peer connections,
       established through virDomainOpenGraphics() APIs.
 
       ``address`` (accepts a `D-Bus address
@@ -8384,7 +8521,7 @@ Example: usage of external TPM emulator :since:`Since 9.0.0`
 
    This element does not work with the ``passthrough`` backend.
 
-   When specified, it is the user's responsability to prevent files from being
+   When specified, it is the user's responsibility to prevent files from being
    used by multiple VMs or emulators (swtpm will also use advisory locking). If
    not specified, the storage configuration is left to libvirt discretion.
 
@@ -8426,27 +8563,32 @@ Example: usage of external TPM emulator :since:`Since 9.0.0`
 
 ``profile``
    The ``profile`` node is used to set a profile for a TPM 2.0 given in the
-   source attribute. This profile will be set when the TPM is initially
-   created and after that cannot be changed anymore. Once a profile has been
-   set the name attribute will be updated with the name of the profile that
-   is running. If no profile is provided, then swtpm will use the latest
-   built-in 'default' profile or the default profile set in swtpm_setup.conf.
-   Otherwise swtpm_setup will search for a profile with the given name with
-   appended .json suffix in a configurable local and then in a distro
-   directory. If none could be found in either, it will fall back trying to
-   use a built-in one.
+   ``source`` attribute. This attribute describes the name of the file under
+   which the profile is stored, e.g. 'local:restricted' describes a locally
+   created profile with name 'restricted.json' that is found in the directory
+   pointed to by swtpm_setup.conf's local_profiles_dir. This profile will be set
+   when the TPM is initially created and after that the profile cannot be
+   changed anymore. Once a profile has been set, the ``name`` attribute will be
+   updated with the profile's name from its JSON description, for example
+   'custom:restricted'. If no profile is provided, then swtpm will use the
+   latest built-in 'default' profile or the default profile set in
+   swtpm_setup.conf. Otherwise swtpm_setup will search for a profile with the
+   given name with appended .json suffix in a configurable local and then in a
+   distro directory. If none could be found in either, it will fall back trying
+   to use a built-in one.
 
    The built-in 'null' profile provides backwards compatibility with
    libtpms v0.9 but also restricts the user to use only TPM features that were
-   available at the time of libtpms v0.9. The built-in 'custom' profile is the
-   only profile that a user can modify and where the ``removeDisabled``
+   available at the time of libtpms v0.9. The built-in 'custom' profile, or
+   those with the prefix 'custom:' in the name, are the
+   only profiles that a user can modify and where the ``removeDisabled``
    attribute has any effect. This attribute is particularly useful when a host
    is running in FIPS mode and therefore some crypto algorithms (camellia,
    tdes, unpadded RSA encryption, 1024-bit RSA keys, and others) are
    disabled. When it is set to ``check`` (recommended) then only those
    algorithms that are currently disabled will automatically be removed from
    the 'custom' profile, while when it is set to ``fips-host`` then all
-   potentially disabled algorithms will be removed. :since:`Since 10.??.0`
+   potentially disabled algorithms will be removed. :since:`Since 10.10.0`
 
    TPM profiles provided by a distro can be referenced with the 'distro:'
    prefix. Locally created TPM profiles can be referenced with the

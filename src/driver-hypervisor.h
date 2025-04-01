@@ -478,6 +478,14 @@ typedef int
 (*virDrvDomainSetAutostart)(virDomainPtr domain,
                             int autostart);
 
+typedef int
+(*virDrvDomainGetAutostartOnce)(virDomainPtr domain,
+                                int *autostart);
+
+typedef int
+(*virDrvDomainSetAutostartOnce)(virDomainPtr domain,
+                                int autostart);
+
 typedef char *
 (*virDrvDomainGetSchedulerType)(virDomainPtr domain,
                                 int *nparams);
@@ -1453,6 +1461,18 @@ typedef int
                               unsigned int type,
                               unsigned int flags);
 
+typedef int
+(*virDrvDomainSetThrottleGroup)(virDomainPtr dom,
+                                const char *groupname,
+                                virTypedParameterPtr params,
+                                int nparams,
+                                unsigned int flags);
+
+typedef int
+(*virDrvDomainDelThrottleGroup)(virDomainPtr dom,
+                                const char *groupname,
+                                unsigned int flags);
+
 typedef struct _virHypervisorDriver virHypervisorDriver;
 
 /**
@@ -1564,6 +1584,8 @@ struct _virHypervisorDriver {
     virDrvDomainDetachDeviceAlias domainDetachDeviceAlias;
     virDrvDomainGetAutostart domainGetAutostart;
     virDrvDomainSetAutostart domainSetAutostart;
+    virDrvDomainGetAutostartOnce domainGetAutostartOnce;
+    virDrvDomainSetAutostartOnce domainSetAutostartOnce;
     virDrvDomainGetSchedulerType domainGetSchedulerType;
     virDrvDomainGetSchedulerParameters domainGetSchedulerParameters;
     virDrvDomainGetSchedulerParametersFlags domainGetSchedulerParametersFlags;
@@ -1726,4 +1748,6 @@ struct _virHypervisorDriver {
     virDrvDomainStartDirtyRateCalc domainStartDirtyRateCalc;
     virDrvDomainFDAssociate domainFDAssociate;
     virDrvDomainGraphicsReload domainGraphicsReload;
+    virDrvDomainSetThrottleGroup domainSetThrottleGroup;
+    virDrvDomainDelThrottleGroup domainDelThrottleGroup;
 };

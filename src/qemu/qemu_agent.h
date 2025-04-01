@@ -157,21 +157,15 @@ int qemuAgentSetUserPassword(qemuAgent *mon,
                              bool crypted);
 
 int qemuAgentGetUsers(qemuAgent *mon,
-                      virTypedParameterPtr *params,
-                      int *nparams,
-                      int *maxparams,
+                      virTypedParamList *list,
                       bool report_unsupported);
 
 int qemuAgentGetOSInfo(qemuAgent *mon,
-                       virTypedParameterPtr *params,
-                       int *nparams,
-                       int *maxparams,
+                       virTypedParamList *list,
                        bool report_unsupported);
 
 int qemuAgentGetTimezone(qemuAgent *mon,
-                         virTypedParameterPtr *params,
-                         int *nparams,
-                         int *maxparams,
+                         virTypedParamList *list,
                          bool report_unsupported);
 
 void qemuAgentSetResponseTimeout(qemuAgent *mon,
@@ -195,3 +189,9 @@ int qemuAgentSSHRemoveAuthorizedKeys(qemuAgent *agent,
 int qemuAgentGetDisks(qemuAgent *mon,
                       qemuAgentDiskInfo ***disks,
                       bool report_unsupported);
+
+int qemuAgentGetLoadAvg(qemuAgent *agent,
+                        double *load1m,
+                        double *load5m,
+                        double *load15m,
+                        bool report_unsupported);

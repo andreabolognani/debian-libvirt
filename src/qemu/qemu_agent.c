@@ -707,6 +707,7 @@ void qemuAgentClose(qemuAgent *agent)
  * @msg: Message
  * @seconds: number of seconds to wait for the result, it can be either
  *           -2, -1, 0 or positive.
+ * @report_sync: On timeout; report synchronization error instead of the normal error
  *
  * Send @msg to agent @agent. If @seconds is equal to
  * VIR_DOMAIN_QEMU_AGENT_COMMAND_BLOCK(-2), this function will block forever
@@ -720,9 +721,11 @@ void qemuAgentClose(qemuAgent *agent)
  *          -2 on timeout,
  *          -1 otherwise
  */
-static int qemuAgentSend(qemuAgent *agent,
-                         qemuAgentMessage *msg,
-                         int seconds)
+static int
+qemuAgentSend(qemuAgent *agent,
+              qemuAgentMessage *msg,
+              int seconds,
+              bool report_sync)
 {
     int ret = -1;
     unsigned long long then = 0;
@@ -751,8 +754,15 @@ static int qemuAgentSend(qemuAgent *agent,
         if ((then && virCondWaitUntil(&agent->notify, &agent->parent.lock, then) < 0) ||
             (!then && virCondWait(&agent->notify, &agent->parent.lock) < 0)) {
             if (errno == ETIMEDOUT) {
-                virReportError(VIR_ERR_AGENT_UNRESPONSIVE, "%s",
-                               _("Guest agent not available for now"));
+                if (report_sync) {
+                    virReportError(VIR_ERR_AGENT_UNRESPONSIVE,
+                                   _("guest agent didn't respond to synchronization within '%1$d' seconds"),
+                                   seconds);
+                } else {
+                    virReportError(VIR_ERR_AGENT_COMMAND_TIMEOUT,
+                                   _("guest agent didn't respond to command within '%1$d' seconds"),
+                                   seconds);
+                }
                 ret = -2;
             } else {
                 virReportSystemError(errno, "%s",
@@ -817,7 +827,7 @@ qemuAgentGuestSyncSend(qemuAgent *agent,
 
     VIR_DEBUG("Sending guest-sync command with ID: %llu", id);
 
-    rc = qemuAgentSend(agent, &sync_msg, timeout);
+    rc = qemuAgentSend(agent, &sync_msg, timeout, true);
     rxObj = g_steal_pointer(&sync_msg.rxObject);
 
     VIR_DEBUG("qemuAgentSend returned: %d", rc);
@@ -975,7 +985,7 @@ qemuAgentCheckError(virJSONValue *cmd,
 
         /* Only send the user the command name + friendly error */
         if (!error) {
-            virReportError(VIR_ERR_INTERNAL_ERROR,
+            virReportError(VIR_ERR_AGENT_COMMAND_FAILED,
                            _("unable to execute QEMU agent command '%1$s'"),
                            qemuAgentCommandName(cmd));
             return -1;
@@ -989,7 +999,7 @@ qemuAgentCheckError(virJSONValue *cmd,
                 return -2;
         }
 
-        virReportError(VIR_ERR_INTERNAL_ERROR,
+        virReportError(VIR_ERR_AGENT_COMMAND_FAILED,
                        _("unable to execute QEMU agent command '%1$s': %2$s"),
                        qemuAgentCommandName(cmd),
                        qemuAgentStringifyError(error));
@@ -1003,7 +1013,7 @@ qemuAgentCheckError(virJSONValue *cmd,
         VIR_DEBUG("Neither 'return' nor 'error' is set in the JSON reply %s: %s",
                   NULLSTR(cmdstr), NULLSTR(replystr));
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("unable to execute QEMU agent command '%1$s'"),
+                       _("QEMU agent command '%1$s' returned neither error nor success"),
                        qemuAgentCommandName(cmd));
         return -1;
     }
@@ -1040,7 +1050,7 @@ qemuAgentCommandFull(qemuAgent *agent,
 
     VIR_DEBUG("Send command '%s' for write, seconds = %d", cmdstr, seconds);
 
-    ret = qemuAgentSend(agent, &msg, seconds);
+    ret = qemuAgentSend(agent, &msg, seconds, false);
 
     VIR_DEBUG("Receive command reply ret=%d rxObject=%p",
               ret, msg.rxObject);
@@ -1056,7 +1066,7 @@ qemuAgentCommandFull(qemuAgent *agent,
                 virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                                _("Missing agent reply object"));
             } else {
-                virReportError(VIR_ERR_AGENT_UNRESPONSIVE, "%s",
+                virReportError(VIR_ERR_AGENT_COMMAND_TIMEOUT, "%s",
                                _("Guest agent disappeared while executing command"));
             }
             ret = -1;
@@ -2172,9 +2182,7 @@ qemuAgentSetUserPassword(qemuAgent *agent,
  */
 int
 qemuAgentGetUsers(qemuAgent *agent,
-                  virTypedParameterPtr *params,
-                  int *nparams,
-                  int *maxparams,
+                  virTypedParamList *list,
                   bool report_unsupported)
 {
     g_autoptr(virJSONValue) cmd = NULL;
@@ -2199,13 +2207,10 @@ qemuAgentGetUsers(qemuAgent *agent,
 
     ndata = virJSONValueArraySize(data);
 
-    if (virTypedParamsAddUInt(params, nparams, maxparams,
-                              "user.count", ndata) < 0)
-        return -1;
+    virTypedParamListAddUInt(list, ndata, VIR_DOMAIN_GUEST_INFO_USER_COUNT);
 
     for (i = 0; i < ndata; i++) {
         virJSONValue *entry = virJSONValueArrayGet(data, i);
-        char param_name[VIR_TYPED_PARAM_FIELD_LENGTH];
         const char *strvalue;
         double logintime;
 
@@ -2221,30 +2226,21 @@ qemuAgentGetUsers(qemuAgent *agent,
             return -1;
         }
 
-        g_snprintf(param_name, VIR_TYPED_PARAM_FIELD_LENGTH, "user.%zu.name", i);
-        if (virTypedParamsAddString(params, nparams, maxparams,
-                                    param_name, strvalue) < 0)
-            return -1;
+        virTypedParamListAddString(list, strvalue,
+                                   VIR_DOMAIN_GUEST_INFO_USER_PREFIX "%zu" VIR_DOMAIN_GUEST_INFO_USER_SUFFIX_NAME, i);
 
         /* 'domain' is only present for windows guests */
-        if ((strvalue = virJSONValueObjectGetString(entry, "domain"))) {
-            g_snprintf(param_name, VIR_TYPED_PARAM_FIELD_LENGTH,
-                       "user.%zu.domain", i);
-            if (virTypedParamsAddString(params, nparams, maxparams,
-                                        param_name, strvalue) < 0)
-                return -1;
-        }
+        if ((strvalue = virJSONValueObjectGetString(entry, "domain")))
+            virTypedParamListAddString(list, strvalue,
+                                       VIR_DOMAIN_GUEST_INFO_USER_PREFIX "%zu" VIR_DOMAIN_GUEST_INFO_USER_SUFFIX_DOMAIN, i);
 
         if (virJSONValueObjectGetNumberDouble(entry, "login-time", &logintime) < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                            _("'login-time' missing in reply of guest-get-users"));
             return -1;
         }
-        g_snprintf(param_name, VIR_TYPED_PARAM_FIELD_LENGTH,
-                   "user.%zu.login-time", i);
-        if (virTypedParamsAddULLong(params, nparams, maxparams,
-                                    param_name, logintime * 1000) < 0)
-            return -1;
+        virTypedParamListAddULLong(list, logintime * 1000,
+                                   VIR_DOMAIN_GUEST_INFO_USER_PREFIX "%zu" VIR_DOMAIN_GUEST_INFO_USER_SUFFIX_LOGIN_TIME, i);
     }
 
     return 0;
@@ -2257,9 +2253,7 @@ qemuAgentGetUsers(qemuAgent *agent,
  */
 int
 qemuAgentGetOSInfo(qemuAgent *agent,
-                   virTypedParameterPtr *params,
-                   int *nparams,
-                   int *maxparams,
+                   virTypedParamList *list,
                    bool report_unsupported)
 {
     g_autoptr(virJSONValue) cmd = NULL;
@@ -2284,22 +2278,19 @@ qemuAgentGetOSInfo(qemuAgent *agent,
     do { \
         const char *result; \
         if ((result = virJSONValueObjectGetString(data, agent_string_))) { \
-            if (virTypedParamsAddString(params, nparams, maxparams, \
-                                        param_string_, result) < 0) { \
-                return -1; \
-            } \
+            virTypedParamListAddString(list, result, param_string_); \
         } \
     } while (0)
-    OSINFO_ADD_PARAM("id", "os.id");
-    OSINFO_ADD_PARAM("name", "os.name");
-    OSINFO_ADD_PARAM("pretty-name", "os.pretty-name");
-    OSINFO_ADD_PARAM("version", "os.version");
-    OSINFO_ADD_PARAM("version-id", "os.version-id");
-    OSINFO_ADD_PARAM("machine", "os.machine");
-    OSINFO_ADD_PARAM("variant", "os.variant");
-    OSINFO_ADD_PARAM("variant-id", "os.variant-id");
-    OSINFO_ADD_PARAM("kernel-release", "os.kernel-release");
-    OSINFO_ADD_PARAM("kernel-version", "os.kernel-version");
+    OSINFO_ADD_PARAM("id", VIR_DOMAIN_GUEST_INFO_OS_ID);
+    OSINFO_ADD_PARAM("name", VIR_DOMAIN_GUEST_INFO_OS_NAME);
+    OSINFO_ADD_PARAM("pretty-name", VIR_DOMAIN_GUEST_INFO_OS_PRETTY_NAME);
+    OSINFO_ADD_PARAM("version", VIR_DOMAIN_GUEST_INFO_OS_VERSION);
+    OSINFO_ADD_PARAM("version-id", VIR_DOMAIN_GUEST_INFO_OS_VERSION_ID);
+    OSINFO_ADD_PARAM("machine", VIR_DOMAIN_GUEST_INFO_OS_MACHINE);
+    OSINFO_ADD_PARAM("variant", VIR_DOMAIN_GUEST_INFO_OS_VARIANT);
+    OSINFO_ADD_PARAM("variant-id", VIR_DOMAIN_GUEST_INFO_OS_VARIANT_ID);
+    OSINFO_ADD_PARAM("kernel-release", VIR_DOMAIN_GUEST_INFO_OS_KERNEL_RELEASE);
+    OSINFO_ADD_PARAM("kernel-version", VIR_DOMAIN_GUEST_INFO_OS_KERNEL_VERSION);
 
     return 0;
 }
@@ -2311,9 +2302,7 @@ qemuAgentGetOSInfo(qemuAgent *agent,
  */
 int
 qemuAgentGetTimezone(qemuAgent *agent,
-                     virTypedParameterPtr *params,
-                     int *nparams,
-                     int *maxparams,
+                     virTypedParamList *list,
                      bool report_unsupported)
 {
     g_autoptr(virJSONValue) cmd = NULL;
@@ -2336,10 +2325,8 @@ qemuAgentGetTimezone(qemuAgent *agent,
         return -1;
     }
 
-    if ((name = virJSONValueObjectGetString(data, "zone")) &&
-        virTypedParamsAddString(params, nparams, maxparams,
-                                "timezone.name", name) < 0)
-        return -1;
+    if ((name = virJSONValueObjectGetString(data, "zone")))
+        virTypedParamListAddString(list, name, VIR_DOMAIN_GUEST_INFO_TIMEZONE_NAME);
 
     if ((virJSONValueObjectGetNumberInt(data, "offset", &offset)) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
@@ -2347,9 +2334,7 @@ qemuAgentGetTimezone(qemuAgent *agent,
         return -1;
     }
 
-    if (virTypedParamsAddInt(params, nparams, maxparams,
-                             "timezone.offset", offset) < 0)
-        return -1;
+    virTypedParamListAddInt(list, offset, VIR_DOMAIN_GUEST_INFO_TIMEZONE_OFFSET);
 
     return 0;
 }
@@ -2567,4 +2552,50 @@ int qemuAgentGetDisks(qemuAgent *agent,
     }
     g_free(*disks);
     return -1;
+}
+
+
+int
+qemuAgentGetLoadAvg(qemuAgent *agent,
+                    double *load1m,
+                    double *load5m,
+                    double *load15m,
+                    bool report_unsupported)
+{
+    g_autoptr(virJSONValue) cmd = NULL;
+    g_autoptr(virJSONValue) reply = NULL;
+    virJSONValue *data = NULL;
+    int rc;
+
+    if (!(cmd = qemuAgentMakeCommand("guest-get-load", NULL)))
+        return -1;
+
+    if ((rc = qemuAgentCommandFull(agent, cmd, &reply, agent->timeout,
+                                   report_unsupported)) < 0)
+        return rc;
+
+    if (!(data = virJSONValueObjectGetObject(reply, "return"))) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       _("qemu agent didn't return an array of loads"));
+        return -1;
+    }
+
+#define GET_NUMBER_PARAM(param_) \
+    do { \
+        if (param_ && \
+            virJSONValueObjectGetNumberDouble(data, #param_, param_) < 0) { \
+            virReportError(VIR_ERR_INTERNAL_ERROR, \
+                           _("parameter '%1$s' is missing in reply of guest-get-load"), \
+                           #param_); \
+            return -1; \
+        } \
+    } while (0)
+
+    GET_NUMBER_PARAM(load1m);
+    GET_NUMBER_PARAM(load5m);
+    GET_NUMBER_PARAM(load15m);
+
+#undef GET_NUMBER_PARAM
+
+    return 0;
 }

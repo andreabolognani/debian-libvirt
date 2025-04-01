@@ -53,13 +53,9 @@ virCHProcessConnectMonitor(virCHDriver *driver,
                            virDomainObj *vm,
                            int logfile)
 {
-    virCHMonitor *monitor = NULL;
-    virCHDriverConfig *cfg = virCHDriverGetConfig(driver);
+    g_autoptr(virCHDriverConfig) cfg = virCHDriverGetConfig(driver);
 
-    monitor = virCHMonitorNew(vm, cfg, logfile);
-
-    virObjectUnref(cfg);
-    return monitor;
+    return virCHMonitorNew(vm, cfg, logfile);
 }
 
 static void
@@ -344,6 +340,7 @@ virCHProcessSetupIOThreads(virDomainObj *vm)
     virDomainIOThreadInfo **iothreads = NULL;
     size_t i;
     int niothreads;
+    int ret = -1;
 
     if ((niothreads = virCHMonitorGetIOThreads(priv->monitor, &iothreads)) < 0)
         return -1;
@@ -351,9 +348,16 @@ virCHProcessSetupIOThreads(virDomainObj *vm)
     for (i = 0; i < niothreads; i++) {
         VIR_DEBUG("IOThread index = %zu , tid = %d", i, iothreads[i]->iothread_id);
         if (virCHProcessSetupIOThread(vm, iothreads[i]) < 0)
-            return -1;
+            goto cleanup;
     }
-    return 0;
+
+    ret = 0;
+ cleanup:
+    for (i = 0; i < niothreads; i++) {
+        virDomainIOThreadInfoFree(iothreads[i]);
+    }
+    g_free(iothreads);
+    return ret;
 }
 
 static int
@@ -989,16 +993,19 @@ virCHProcessStop(virCHDriver *driver,
                  virDomainObj *vm,
                  virDomainShutoffReason reason)
 {
+    g_autoptr(virCHDriverConfig) cfg = virCHDriverGetConfig(driver);
     int ret;
     int retries = 0;
     unsigned int hostdev_flags = VIR_HOSTDEV_SP_PCI;
     virCHDomainObjPrivate *priv = vm->privateData;
-    virCHDriverConfig *cfg = virCHDriverGetConfig(driver);
     virDomainDef *def = vm->def;
+    virErrorPtr orig_err = NULL;
     size_t i;
 
     VIR_DEBUG("Stopping VM name=%s pid=%d reason=%d",
               vm->def->name, (int)vm->pid, (int)reason);
+
+    virErrorPreserveLast(&orig_err);
 
     if (priv->monitor) {
         g_clear_pointer(&priv->monitor, virCHMonitorClose);
@@ -1032,6 +1039,8 @@ virCHProcessStop(virCHDriver *driver,
 
     virHostdevReAttachDomainDevices(driver->hostdevMgr, CH_DRIVER_NAME, def,
                                     hostdev_flags);
+
+    virErrorRestore(&orig_err);
     return 0;
 }
 

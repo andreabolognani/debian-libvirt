@@ -60,16 +60,12 @@
   <flag name='migration-file-drop-cache'/>
   <flag name='dbus-vmstate'/>
   <flag name='vhost-user-gpu'/>
-  <flag name='incremental-backup'/>
   <flag name='query-cpu-model-baseline'/>
   <flag name='query-cpu-model-comparison'/>
   <flag name='drive-nvme'/>
   <flag name='smp-dies'/>
   <flag name='rng-builtin'/>
   <flag name='vhost-user-fs'/>
-  <flag name='query-named-block-nodes.flat'/>
-  <flag name='blockdev-snapshot.allow-write-only-overlay'/>
-  <flag name='blockdev-reopen'/>
   <flag name='fsdev.multidevs'/>
   <flag name='aio.io_uring'/>
   <flag name='tcg'/>
@@ -82,11 +78,8 @@
   <flag name='vhost-user-blk'/>
   <flag name='cpu-max'/>
   <flag name='memory-backend-file.x-use-canonical-path-for-ramblock-id'/>
-  <flag name='migration-param.block-bitmap-mapping'/>
   <flag name='vnc-power-control'/>
-  <flag name='object.qapified'/>
   <flag name='rotation-rate'/>
-  <flag name='compat-deprecated'/>
   <flag name='acpi-index'/>
   <flag name='input-linux'/>
   <flag name='virtio-gpu-gl-pci'/>
@@ -142,6 +135,7 @@
   <flag name='query-cpu-model-expansion.deprecated-props'/>
   <flag name='migrate-incoming.exit-on-error'/>
   <flag name='virtio-mem-ccw'/>
+  <flag name='shim'/>
   <version>9002050</version>
   <microcodeVersion>39100285</microcodeVersion>
   <package>v9.2.0-1203-gd6430c17d7</package>

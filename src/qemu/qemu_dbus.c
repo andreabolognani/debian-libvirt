@@ -24,6 +24,7 @@
 #include "virlog.h"
 #include "virtime.h"
 #include "virpidfile.h"
+#include "virutil.h"
 
 #define VIR_FROM_THIS VIR_FROM_NONE
 
@@ -84,8 +85,38 @@ qemuDBusGetAddress(virQEMUDriver *driver,
 }
 
 
+bool
+qemuDBusConnect(virQEMUDriver *driver,
+                virDomainObj *vm)
+{
+    qemuDomainObjPrivate *priv = vm->privateData;
+    g_autoptr(GError) gerr = NULL;
+    g_autofree char *address = NULL;
+
+    if (priv->dbusConnection)
+        return true;
+
+    address = qemuDBusGetAddress(driver, vm);
+    if (!address)
+        return false;
+
+    priv->dbusConnection =
+        g_dbus_connection_new_for_address_sync(address,
+                                               G_DBUS_CONNECTION_FLAGS_AUTHENTICATION_CLIENT|
+                                               G_DBUS_CONNECTION_FLAGS_MESSAGE_BUS_CONNECTION,
+                                               NULL, NULL, &gerr);
+    if (!priv->dbusConnection) {
+        virReportError(VIR_ERR_OPERATION_FAILED,
+                      _("Failed to connect to dbus-daemon: %1$s"), gerr->message);
+        return false;
+    }
+
+    return true;
+}
+
+
 static int
-qemuDBusWriteConfig(const char *filename, const char *path)
+qemuDBusWriteConfig(const char *filename, const char *path, bool privileged)
 {
     g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
     g_autofree char *config = NULL;
@@ -107,6 +138,9 @@ qemuDBusWriteConfig(const char *filename, const char *path)
     virBufferAddLit(&buf, "<allow eavesdrop='true'/>\n");
     virBufferAddLit(&buf, "<!-- Allow anyone to own anything -->\n");
     virBufferAddLit(&buf, "<allow own='*'/>\n");
+    if (privileged)
+        virBufferAddLit(&buf, "<allow user='root'/>\n");
+
     virBufferAdjustIndent(&buf, -2);
     virBufferAddLit(&buf, "</policy>\n");
 
@@ -140,6 +174,8 @@ qemuDBusStop(virQEMUDriver *driver,
     } else {
         priv->dbusDaemonRunning = false;
     }
+
+    g_clear_object(&priv->dbusConnection);
 }
 
 
@@ -180,9 +216,12 @@ qemuDBusStart(virQEMUDriver *driver,
     g_autofree char *pidfile = NULL;
     g_autofree char *configfile = NULL;
     g_autofree char *sockpath = NULL;
+    g_autofree char *logpath = NULL;
     virTimeBackOffVar timebackoff;
     const unsigned long long timeout = 500 * 1000; /* ms */
-    VIR_AUTOCLOSE errfd = -1;
+    int logfd = -1;
+    g_autoptr(domainLogContext) logContext = NULL;
+
     pid_t cpid = -1;
     int ret = -1;
 
@@ -206,7 +245,7 @@ qemuDBusStart(virQEMUDriver *driver,
     configfile = qemuDBusCreateConfPath(cfg, shortName);
     sockpath = qemuDBusCreateSocketPath(cfg, shortName);
 
-    if (qemuDBusWriteConfig(configfile, sockpath) < 0) {
+    if (qemuDBusWriteConfig(configfile, sockpath, driver->privileged) < 0) {
         virReportSystemError(errno, _("Failed to write '%1$s'"), configfile);
         return -1;
     }
@@ -214,10 +253,21 @@ qemuDBusStart(virQEMUDriver *driver,
     if (qemuSecurityDomainSetPathLabel(driver, vm, configfile, false) < 0)
         goto cleanup;
 
+    if (!(logContext = domainLogContextNew(cfg->stdioLogD, cfg->dbusStateDir,
+                                           QEMU_DRIVER_NAME,
+                                           vm, driver->privileged,
+                                           shortName))) {
+        virLastErrorPrefixMessage("%s", _("can't open log context"));
+        goto cleanup;
+    }
+
+    logfd = domainLogContextGetWriteFD(logContext);
+
     cmd = virCommandNew(dbusDaemonPath);
     virCommandClearCaps(cmd);
     virCommandSetPidFile(cmd, pidfile);
-    virCommandSetErrorFD(cmd, &errfd);
+    virCommandSetOutputFD(cmd, &logfd);
+    virCommandSetErrorFD(cmd, &logfd);
     virCommandDaemonize(cmd);
     virCommandAddArgFormat(cmd, "--config-file=%s", configfile);
 
@@ -234,7 +284,7 @@ qemuDBusStart(virQEMUDriver *driver,
     if (virTimeBackOffStart(&timebackoff, 1, timeout) < 0)
         goto cleanup;
     while (virTimeBackOffWait(&timebackoff)) {
-        char errbuf[1024] = { 0 };
+        g_autofree char *msg = NULL;
 
         if (virFileExists(sockpath))
             break;
@@ -242,15 +292,12 @@ qemuDBusStart(virQEMUDriver *driver,
         if (virProcessKill(cpid, 0) == 0)
             continue;
 
-        if (saferead(errfd, errbuf, sizeof(errbuf) - 1) < 0) {
-            virReportSystemError(errno,
-                                 _("dbus-daemon %1$s died unexpectedly"),
-                                 dbusDaemonPath);
-        } else {
-            virReportError(VIR_ERR_OPERATION_FAILED,
-                           _("dbus-daemon died and reported: %1$s"), errbuf);
-        }
+        if (domainLogContextReadFiltered(logContext, &msg, 1024) < 0)
+            VIR_WARN("Unable to read from dbus-daemon log");
 
+        virReportError(VIR_ERR_OPERATION_FAILED,
+                       _("dbus-daemon died and reported:\n%1$s"),
+                       NULLSTR(msg));
         goto cleanup;
     }
 
@@ -262,6 +309,9 @@ qemuDBusStart(virQEMUDriver *driver,
     }
 
     if (qemuSecurityDomainSetPathLabel(driver, vm, sockpath, false) < 0)
+        goto cleanup;
+
+    if (!qemuDBusConnect(driver, vm))
         goto cleanup;
 
     priv->dbusDaemonRunning = true;

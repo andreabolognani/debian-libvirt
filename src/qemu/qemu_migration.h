@@ -238,8 +238,11 @@ qemuMigrationSrcIsAllowed(virDomainObj *vm,
 int
 qemuMigrationSrcToFile(virQEMUDriver *driver,
                        virDomainObj *vm,
-                       int fd,
+                       const char *path,
+                       int *fd,
                        virCommand *compressor,
+                       qemuMigrationParams *migParams,
+                       unsigned int flags,
                        virDomainAsyncJob asyncJob)
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2) G_GNUC_WARN_UNUSED_RESULT;
 
@@ -281,7 +284,10 @@ qemuMigrationDstGetURI(const char *migrateFrom,
 int
 qemuMigrationDstRun(virDomainObj *vm,
                     const char *uri,
-                    virDomainAsyncJob asyncJob);
+                    virDomainAsyncJob asyncJob,
+                    qemuMigrationParams *migParams,
+                    unsigned int flags);
+
 
 void
 qemuMigrationSrcPostcopyFailed(virDomainObj *vm);

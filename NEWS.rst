@@ -8,6 +8,144 @@ the changes introduced by each of them.
 For a more fine-grained view, use the `git log`_.
 
 
+v11.2.0 (2025-04-01)
+====================
+
+* **Removed features**
+
+  * Remove support for qemu-6.1 and older
+
+    Libvirt now requires *qemu-6.2* or newer based on our platform support
+    policy.
+
+* **New features**
+
+  * qemu: Add new 'image_format' parameter to virDomainSaveParams
+
+    ``virDomainSaveParams`` now supports an ``image_format`` parameter for
+    specifying the save image format on a per-domain basis. The parameter
+    accepts the same values as the driver-wide ``save_image_format`` setting
+    in ``qemu.conf``. An image format specified via ``virDomainSaveParams``
+    takes precedence over the driver-wide setting.
+
+  * qemu: Added guest load averages to the output of virDomainGetGuestInfo
+
+    This feature will be available with qemu guest agent 10.0 onwards.
+
+  * qemu: Add support for multiple iothreads for ``virtio-scsi`` controller
+
+    It's now possible to map multiple iothreads to the ``virtio-scsi`` controller
+    or even map them to specific virtqueues similarly to the ``virtio-blk``
+    device allowing for better performance in certain scenarios.
+
+  * qemu: integrate support for VM shutdown on host shutdown
+
+    It is now possible to instruct the QEMU driver to automatically perform
+    managed save, graceful shutdown, or hard poweroff on running VMs, when a
+    host shutdown is requested. This feature is intended to eventually replace
+    usage of the libvirt-guests script. The new approach improves on the
+    libvirt-guests script, by proactively monitoring logind for a signal that
+    a host shutdown has been requested. It will initiate the chosen action on
+    running guests immediately, allowing shutdown inhibitors to be released
+    sooner. The new solution is also able to iteratively try multiple actions
+    until one of them succeeds in shutting down the VM.
+
+    Since it must be mutually exclusive with the libvirt-guests script, this
+    feature currently requires a manual opt-in through editing of the
+    /etc/libvirt/qemu.conf configuration file. The libvirt-guests script must
+    be disabled before doing this.
+
+  * qemu: Add 'sparse' as a new save image format
+
+    QEMU's ``file`` migration has been supplemented with the new stream format
+    ``mapped-ram``, where RAM pages are mapped directly to offsets in the
+    migration file. ``mapped-ram`` is now supported by augmenting the existing
+    save image formats with the ``sparse`` format.
+
+  * qemu: Add support for parallel save/restore
+
+    The ``sparse`` image format can support reading and writing by multiple
+    channels. ``virDomainSaveParams`` and ``virDomainRestoreParams`` now
+    support specifying the number of IO channels used for parallel save and
+    restore. Using multiple channels can reduce the time required to save
+    and restore domains.
+
+  * virsh: Introduce new hypervisor-cpu-models command
+
+    Added a new virsh command ``hypervisor-cpu-models``. The command pulls from
+    the existing domcapabilities XML and uses xpath to parse CPU model strings.
+    By default, only models reported as usable by the hypervisor on the host
+    system are printed. A user may specify ``--all`` to also print models which
+    are not supported on the host.
+
+  * qemu: Introduce os/shim element
+
+    For secure boot environments where ``<loader/>`` is signed, it may be
+    unfeasible to keep the binary up to date (esp. when revoking certificates
+    contained within). To address that, new ``<shim/>`` element is introduced
+    which allows hypervisor to side load another UEFI binary, which can then
+    contain new certification authorities and/or list of revocations.
+
+  * ch: Enable SEV SNP support
+
+    Cloud Hypervisor guests can be now started with SEV SNP enabled.
+
+  * qemu: Support for Block Disk Along with Throttle Filters
+
+    Introduce support for multiple throttle groups per block disk in QEMU,
+    enhancing I/O control and performance optimization. This update builds
+    on the existing throttling functionality by allowing more granular control
+    with the ability to assign different throttle groups to multiple block
+    devices, improving shared throttling across devices.
+
+* **Improvements**
+
+  * qemu: Improved guest agent corner case error reporting
+
+    The APIs using the guest agent now report two specific error codes aimed at
+    helping management applications/users to differentiate between timeout
+    while libvirt was synchronizing with the guest agent and timeout after a
+    command was already sent.
+
+    The new error codes are ``VIR_ERR_AGENT_COMMAND_TIMEOUT`` and
+    ``VIR_ERR_AGENT_COMMAND_FAILED``.
+
+  * qemu: Use common check for shared memory use for ``vhost-user`` network devices
+
+    Historically libvirt printed only a warning if the ``vhost-user`` network
+    was misconfigured. Since we enforce proper configuration for other device
+    types using ``vhost-user`` it is now enforced also for network devices and
+    prints an actual error on misconfiguration.
+
+  * Introduce constants for discoverability of entries in bulk stats APIs
+
+    Libvirt introduced constants exposed by our API description XML which allows
+    discoverability of new entries in typed parameter names returned by
+    ``virConnectGetAllDomainStats``, ``virDomainListGetStats``, and
+    ``virDomainGetGuestInfo``.
+
+  * qemu: Reflect MAC address change in live domain XML
+
+    When a guest changes MAC address on one of its vNICs the new MAC address is
+    now visible in the live XML under ``currentAddress`` attribute of
+    ``<mac/>`` element. At the same time,
+    ``VIR_DOMAIN_EVENT_ID_NIC_MAC_CHANGE`` event is emitted so that management
+    applications can update their internal state.
+
+* **Bug fixes**
+
+  * qemu: attach virtio-mem with CCW address
+
+    Attaching a virtio-mem device on s390 without an address type now gets a
+    default type CCW address assigned. A specified CCW address is now used for
+    the virtio-mem device instead of getting overwritten by a PCI address.
+
+  * ch: Various memory leak fixes
+
+    There were some memory leaks identified in the Cloud Hypervisor driver.
+    They are fixed now.
+
+
 v11.1.0 (2025-03-03)
 ====================
 

@@ -17,8 +17,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: libvirt 6.0.0\n"
 "Report-Msgid-Bugs-To: https://libvirt.org/bugs.html\n"
-"POT-Creation-Date: 2025-02-24 10:18+0000\n"
-"PO-Revision-Date: 2025-03-01 03:12+0000\n"
+"POT-Creation-Date: 2025-03-25 10:52+0000\n"
+"PO-Revision-Date: 2025-03-30 07:26+0000\n"
 "Last-Translator: 김인수 <simmon@nplob.com>\n"
 "Language-Team: Korean <https://translate.fedoraproject.org/projects/libvirt/"
 "libvirt/ko/>\n"
@@ -27,7 +27,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
-"X-Generator: Weblate 5.10.2\n"
+"X-Generator: Weblate 5.10.4\n"
 
 msgid ""
 "\n"
@@ -1252,6 +1252,10 @@ msgid "'%1$s' is not a suitable pr helper"
 msgstr "'%1$s' 는 알맞는 도우미가 아닙니다"
 
 #, c-format
+msgid "'%1$s' is not a suitable qemu-rdp helper name"
+msgstr "'%1$s' 는 적합한 qemu-rdp helper 이름이 없습니다"
+
+#, c-format
 msgid "'%1$s' is not supported in this QEMU binary"
 msgstr "'%1$s'는 이 QEMU 바이너리에서 지원되지 않습니다"
 
@@ -1274,6 +1278,10 @@ msgstr "'%1$s' 스케쥴러 비트맵 '%2$s'는 비었습니다"
 #, c-format
 msgid "'%1$s' starting from %2$llu has only %3$zd bytes available"
 msgstr "'%1$s' 시작은(%2$llu에서) 사용 가능한 %3$zd 바이트만을 가지고 있습니다"
+
+#, c-format
+msgid "'%1$s' vanished unexpectedly"
+msgstr "'%1$s' 가 예상치 못하게 사라졌습니다"
 
 msgid ""
 "'--copy-storage-synchronous-writes' requires one of '--copy-storage-all', '--"
@@ -1477,6 +1485,8 @@ msgid ""
 "'reconnect' attribute is not supported when source mode='server' for "
 "<interface type='vhostuser'>"
 msgstr ""
+"'reconnect' 속성은 <interface type='vhostuser'> 를 위한 source mode='server' "
+"일 때에 지원되지 않습니다"
 
 msgid ""
 "'restrictive' mode is required in memnode element when mode is 'restrictive' "
@@ -1493,7 +1503,11 @@ msgstr ""
 "니다"
 
 msgid "'return' member missing"
-msgstr ""
+msgstr "'return' 구성이 누락됨"
+
+msgid "'sheepdog' protocol is no longer supported by any hypervisor driver"
+msgstr "'sheepdog' 통신규약은 모든 하이퍼바이저 드라이버에서 더 이상 지원되지 "
+"않습니다"
 
 #, c-format
 msgid ""
@@ -1910,6 +1924,14 @@ msgid "ACPI requires UEFI on this architecture"
 msgstr "ACPI는 이 구조(아키텍쳐)에서 UEFI가 필요합니다"
 
 #, c-format
+msgid "ACPI table type '%1$s' is not supported"
+msgstr "ACPI 테이블 유형 '%1$s'는 지원되지 않습니다"
+
+#, c-format
+msgid "ACPI table type '%1$s' may only appear once"
+msgstr "ACPI 테이블 유형 '%1$s' 는 한 번만 나타날 것입니다"
+
+#, c-format
 msgid "AES256CBC encryption invalid keylen=%1$zu"
 msgstr "AES256CBC 암호화 유효화 하지 않은 kenlen=%1$zu"
 
@@ -2024,6 +2046,12 @@ msgstr "대상 도메인에서 재시작 명령 실행."
 
 msgid "Add or remove vcpus"
 msgstr "vcpus를 추가하거나 제거하기"
+
+msgid "Add or update a throttling group."
+msgstr "제한 그룹을 추가하거나 최신화합니다."
+
+msgid "Add or updte a throttling group."
+msgstr "제한 그룹을 추가하거나 최신화합니다."
 
 msgid "Added"
 msgstr "추가됨"
@@ -2235,6 +2263,9 @@ msgstr ""
 
 msgid "Autostart"
 msgstr "자동 시작"
+
+msgid "Autostart Once:"
+msgstr "한 번 자동시작:"
 
 msgid "Autostart:"
 msgstr "Autostart:"
@@ -3002,7 +3033,7 @@ msgid "Cannot create macvlan devices on this platform"
 msgstr "이 기술환경에서 macvlan 장치를 생성 할 수 없음"
 
 msgid "Cannot create monitor FIFO"
-msgstr ""
+msgstr "monitor FIFO를 생성 할 수 없습니다"
 
 #, c-format
 msgid "Cannot create resctrl directory '%1$s'"
@@ -3097,8 +3128,8 @@ msgid "Cannot find 'iothread' : %1$u"
 msgstr "'iothread'를 찾을 수 없습니다: %1$u"
 
 #, c-format
-msgid "Cannot find CPU model with PVR 0x%1$03llx"
-msgstr "PVR 0x%1$03llx인 CPU 모델을 찾을 수 없습니다"
+msgid "Cannot find CPU model with PVR 0x%1$03llx, vendor id 0x%2$02llx"
+msgstr ""
 
 #, c-format
 msgid "Cannot find CPU model with PVR 0x%1$08x"
@@ -4233,9 +4264,6 @@ msgstr "다음 이름으로된 볼륨을 찾을 수 없습니다: %1$s"
 msgid "Could not add CDATA to doc root"
 msgstr "CDDATA를 doc root에 추가 할 수 없습니다"
 
-msgid "Could not add IDE controller"
-msgstr "IDE 제어기를 추가 할 수 없습니다"
-
 msgid "Could not add attribute to XML node"
 msgstr "XML 노드에 속성을 추가 할 수 없음"
 
@@ -4943,9 +4971,6 @@ msgstr "'%1$s'의 'bridge/stp_state' '%2$s'를 구문 분석 할 수 없습니�
 msgid "Could not parse MTU value '%1$s'"
 msgstr "MTU 값 '%1$s'을 구문 분석 할 수 없습니다"
 
-msgid "Could not parse SCSI controller"
-msgstr "SCSI 컨트롤러를 파싱 (구문 분석) 할 수 없습니다"
-
 #, c-format
 msgid "Could not parse UUID from '%1$s'"
 msgstr "'%1$s'에서 UUID를 구문 분석 할 수 없습니다"
@@ -5490,6 +5515,9 @@ msgstr "주어진 풀을 삭제."
 msgid "Delete a given vol."
 msgstr "주어진 볼륨을 삭제."
 
+msgid "Delete a throttling group."
+msgstr ""
+
 msgid "Delete an IOThread from the guest domain."
 msgstr "게스트 도메인에서 IOThread를 삭제합니다."
 
@@ -5939,6 +5967,10 @@ msgid "Domain '%1$s' marked as autostarted\n"
 msgstr "자동 시작으로 표시된 도메인 '%1$s'\n"
 
 #, c-format
+msgid "Domain '%1$s' marked as autostarted on next boot\n"
+msgstr ""
+
+#, c-format
 msgid "Domain '%1$s' resumed\n"
 msgstr "도메인 '%1$s'가 재개되었습니다\n"
 
@@ -5965,6 +5997,10 @@ msgstr "도메인 '%1$s' 시스템 정보를 사용 할 수 없음"
 #, c-format
 msgid "Domain '%1$s' unmarked as autostarted\n"
 msgstr "도메인 ''%1$s'가 자동 시작된 것처럼 표시 해제되었습니다\n"
+
+#, c-format
+msgid "Domain '%1$s' unmarked as autostarted on next boot\n"
+msgstr ""
 
 #, c-format
 msgid "Domain '%1$s' was reset\n"
@@ -6864,10 +6900,6 @@ msgid "Failed to acquire pid file '%1$s'"
 msgstr "pid 파일 '%1$s' 획득 실패"
 
 #, c-format
-msgid "Failed to add %1$s controller type definition"
-msgstr "%1$s 제어기 유형 정의 추가에 실패"
-
-#, c-format
 msgid "Failed to add IP address %1$s to IP address cache for interface %2$s"
 msgstr "연결장치 %1$s를 위해 IP 주소 %2$s를 IP 주소 캐쉬에 추가하는데 실패"
 
@@ -6909,10 +6941,6 @@ msgstr "PCI 장치 목록 할당 실패: %1$s"
 
 msgid "Failed to allocate XML buffer"
 msgstr "XML 버퍼 할당에 실패"
-
-#, c-format
-msgid "Failed to allocate slirp for '%1$s'"
-msgstr "'%1$s'의 slirp를 할당하는데 실패"
 
 msgid "Failed to allocate tty"
 msgstr "tty 할당 실패"
@@ -7083,6 +7111,10 @@ msgstr "나무 목록을 완료하지 못했습니다"
 #, c-format
 msgid "Failed to connect socket to '%1$s'"
 msgstr "소켓을 '%1$s'에 연결하지 못했습니다"
+
+#, c-format
+msgid "Failed to connect to dbus-daemon: %1$s"
+msgstr ""
 
 msgid "Failed to connect to mon socket"
 msgstr "mon 소켓으로 연결하는데 실패"
@@ -7269,6 +7301,10 @@ msgstr "풀 %1$s를 생성에 실패했습니다"
 #, c-format
 msgid "Failed to create pool from %1$s"
 msgstr "%1$s에서 풀 생성에 실패했습니다"
+
+#, c-format
+msgid "Failed to create rdp state dir %1$s"
+msgstr ""
 
 msgid "Failed to create reboot thread, killing domain"
 msgstr "재부팅 스레드 생성 실패, 도메인 종료"
@@ -8023,6 +8059,10 @@ msgstr "루트를 전용으로 만들 수 없음"
 #, c-format
 msgid "Failed to mark domain '%1$s' as autostarted"
 msgstr "자동시작에서 도메인 '%1$s' 표시에 실패함"
+
+#, c-format
+msgid "Failed to mark domain '%1$s' as autostarted on next boot"
+msgstr ""
 
 #, c-format
 msgid "Failed to mkdir %1$s"
@@ -8959,6 +8999,10 @@ msgid "Failed to unmark domain '%1$s' as autostarted"
 msgstr "자동 시작으로 도메인 '%1$s'를 표시해제에 실패하였습니다"
 
 #, c-format
+msgid "Failed to unmark domain '%1$s' as autostarted on next boot"
+msgstr ""
+
+#, c-format
 msgid "Failed to unmarshall reply: %1$s"
 msgstr "응답을 정렬 해제하지 못했습니다. %1$s"
 
@@ -9328,6 +9372,9 @@ msgstr "GET 작업 실패: %1$s"
 msgid "GNUTLS call error"
 msgstr "GNUTLS 호출 오류"
 
+msgid "Get a throttling group."
+msgstr ""
+
 msgid "Get block device size info for a domain."
 msgstr "도메인을 위한 블록 장치 크기 정보를 가져옵니다."
 
@@ -9400,6 +9447,9 @@ msgstr "영구적인 인터페이스 상태 얻기"
 msgid "Get the CPU models for an arch."
 msgstr "아치용 CPU 모델을 가져오십시오."
 
+msgid "Get the CPU models reported by the hypervisor."
+msgstr ""
+
 msgid "Get the launch security parameters for a guest domain"
 msgstr "게스트 도메인을 위한 시작 보안 매개변수 가져오기"
 
@@ -9417,6 +9467,9 @@ msgstr "순간찍기의 상위 이름을 가져오기"
 
 msgid "Get the summary of block devices for a domain."
 msgstr "도메인의 장치 블럭 상태 보기."
+
+msgid "Get the summary of throttle groups for a domain."
+msgstr ""
 
 msgid "Get the summary of virtual interfaces for a domain."
 msgstr "도메인에 대한 가상 인터페이스 요약을 가져옵니다."
@@ -9475,9 +9528,6 @@ msgstr "게스트 에이전트가 응답하지 않음"
 #, c-format
 msgid "Guest agent is not responding: %1$s"
 msgstr "게스트 에이전트가 응답하지 않음: %1$s"
-
-msgid "Guest agent not available for now"
-msgstr "지금은 게스트 에이전트를 사용 할 수 없습니다"
 
 msgid "Guest networking is not supported by this version of ch"
 msgstr "ch의 해당 버전에서 게스트 네트워킹은 지원되지 않습니다"
@@ -9658,6 +9708,9 @@ msgid ""
 msgstr ""
 "Hyperv 기능은 구조(아키텍쳐)'%1$s' 또는 장비 유형 '%2$s'를 지원하지 않습니다"
 
+msgid "Hypervisor reported CPU models"
+msgstr ""
+
 msgid "I/O Error"
 msgstr "I/O 오류"
 
@@ -9768,6 +9821,11 @@ msgid "IOThread mapping for disk '%1$s' is not available with this QEMU binary"
 msgstr ""
 "디스크 '%1$s'를 위한 IO 쓰레드 대응은 이 QEMU 바이너리와 함께 사용 할 수 없습"
 "니다"
+
+msgid ""
+"IOThread mapping for virtio-scsi controllers is not available with this QEMU "
+"binary"
+msgstr ""
 
 msgid "IOThread to be used by supported device"
 msgstr "지원되는 장치에서 사용할 IOThread"
@@ -10007,10 +10065,6 @@ msgstr "연결장치 유형 hostdev는 현재 SR-IOV 가상 기능에서만 지�
 #, c-format
 msgid "Invalid %1$s attribute 'vcpus' value '%2$s'"
 msgstr "유효하지 않은 %1$s 속성 'vcpus' 값 '%2$s'"
-
-#, c-format
-msgid "Invalid %1$s image format specified in configuration file"
-msgstr "구성 파일에서 지정된 유효하지 않은 %1$s 이미지 형식"
 
 msgid "Invalid 'cpu.max' data."
 msgstr "잘못된 'cpu.max' 자료."
@@ -10403,6 +10457,10 @@ msgstr ""
 msgid "Invalid driver type: %1$d"
 msgstr "잘못된 드라이버 유형: %1$d"
 
+#, c-format
+msgid "Invalid dump_image_format '%1$s'"
+msgstr ""
+
 msgid "Invalid duration"
 msgstr "잘못된 기간"
 
@@ -10477,8 +10535,16 @@ msgid "Invalid host key verification method: '%1$s'"
 msgstr "잘못된 호스트 키 확인 방법: '%1$s'"
 
 #, c-format
+msgid "Invalid host_data provided. Expected '%1$ld' bytes"
+msgstr ""
+
+#, c-format
 msgid "Invalid hostdev protocol '%1$s'"
 msgstr "잘못된 hostdev 프로토콜 '%1$s'"
+
+#, c-format
+msgid "Invalid image_format '%1$s'"
+msgstr ""
 
 #, c-format
 msgid "Invalid integer value '%1$s' in file '%2$s'"
@@ -10695,6 +10761,10 @@ msgstr "잘못된 상대 경로 '%1$s'"
 msgid "Invalid resctrl monitor"
 msgstr "잘못된 resctrl 모니터"
 
+#, c-format
+msgid "Invalid save_image_format '%1$s'"
+msgstr ""
+
 msgid "Invalid secret"
 msgstr "잘못된 비밀정보"
 
@@ -10716,6 +10786,10 @@ msgstr "HPT 크기변경의 잘못된 설정"
 #, c-format
 msgid "Invalid setting for pseries feature '%1$s'"
 msgstr "pseries 기능 '%1$s'에 대한 잘못된 설정"
+
+#, c-format
+msgid "Invalid snapshot_image_format '%1$s'"
+msgstr ""
 
 #, c-format
 msgid "Invalid source mode: %1$s"
@@ -10996,6 +11070,9 @@ msgstr "커널은 사용자 이름 공간을 지원하지 않습니다"
 
 msgid "Kernel image path in this domain is not defined"
 msgstr "이 도메인의 커널 이미지 경로가 정의되지 않았습니다"
+
+msgid "Kernel image path is not defined. With sev_snp=on, pass an igvm path"
+msgstr ""
 
 msgid "Key file path must be provided for private key authentication"
 msgstr "개인 키 인증을 위해 키 파일 경로를 제공해야 합니다"
@@ -11745,9 +11822,6 @@ msgstr "누락된 XPath 컨텍스트"
 msgid "Missing XPath expression"
 msgstr "누락된 XPath 식"
 
-msgid "Missing acpi table type"
-msgstr "누락된 acpi 테이블 유형"
-
 #, c-format
 msgid "Missing actual data for interface '%1$s'"
 msgstr "연결장치 '%1$s'를 위해 실제 자료 누락"
@@ -11797,6 +11871,10 @@ msgstr "브리지 이름이 없습니다"
 
 msgid "Missing capability type"
 msgstr "기능 유형이 누락됨"
+
+#, c-format
+msgid "Missing certificate file '%1$s'"
+msgstr ""
 
 #, c-format
 msgid "Missing check/@partial in CPU model %1$s"
@@ -11871,6 +11949,10 @@ msgstr "JSON 문서에서 keepaliveCount 자료가 누락"
 
 msgid "Missing keepaliveInterval data in JSON document"
 msgstr "JSON 문서에서 keepaliveInterval 자료가 누락"
+
+#, c-format
+msgid "Missing key file '%1$s'"
+msgstr ""
 
 msgid "Missing listen element"
 msgstr "청취 요소 누락"
@@ -12024,6 +12106,9 @@ msgstr "JSON 문서에서 ownerPid 자료가 누락되어 있습니다"
 
 msgid "Missing ownerUUID data in JSON document"
 msgstr "JSON 문서에서 ownerUUID 자료가 누락"
+
+msgid "Missing password"
+msgstr ""
 
 msgid "Missing path or lockspace for lease resource"
 msgstr "임대 자원을 위한 누락된 경로 또는 잠금 공간"
@@ -13206,6 +13291,9 @@ msgstr "PTY 콘솔 유형만 지원합니다"
 msgid "Only VNC supported"
 msgstr "VNC만 지원"
 
+msgid "Only a single ACPI table is supported"
+msgstr ""
+
 msgid "Only a single IDE controller is supported for this machine type"
 msgstr "이 머신 유형에는 단일 IDE 컨트롤러만 지원됩니다"
 
@@ -13284,9 +13372,6 @@ msgstr "접속기당 오직 하나의 IPv4 주소만 허용됩니다"
 
 msgid "Only one IPv6 address per interface is allowed"
 msgstr "접속기당 하나의 IPv6 주소만 허용됩니다"
-
-msgid "Only one acpi table is supported"
-msgstr "하나의 acpi 테이블만 지원됩니다"
 
 msgid "Only one argument from --table and --uuid may be specified."
 msgstr "--table 및 --uuid에서 오직 하나의 인수만 지정할 수 있습니다."
@@ -13636,6 +13721,9 @@ msgstr "병렬 장치가 libxl에 의해 지원되지 않음"
 #, c-format
 msgid "Parallel port index %1$d out of [0..2] range"
 msgstr "병렬 포트 색인 %1$d가 [0..2] 범위를 벗어남"
+
+msgid "Parallel save is only supported with the 'sparse' save image format"
+msgstr ""
 
 #, c-format
 msgid "Parameter '%1$s' is not a string"
@@ -13992,6 +14080,10 @@ msgid "QEMU NBD server does not support TLS transport"
 msgstr "QEMU NBD 서버는 TLS 전송을 지원하지 않습니다"
 
 #, c-format
+msgid "QEMU agent command '%1$s' returned neither error nor success"
+msgstr ""
+
+#, c-format
 msgid "QEMU binary %1$s is not executable"
 msgstr "QEMU 바이너리 %1$s를 실행할 수 없습니다"
 
@@ -14129,6 +14221,15 @@ msgid ""
 msgstr ""
 "RBD 이미지 %1$s는 이전 형식입니다. 확장 기능 및 스트라이핑을 지원하지 않습니"
 "다"
+
+msgid "RDP doesn't support 'multiUser'"
+msgstr ""
+
+msgid "RDP doesn't support 'replaceUser'"
+msgstr ""
+
+msgid "RDP password expiration isn't supported"
+msgstr ""
 
 msgid "RDT Memory Bandwidth allocation unsupported"
 msgstr "RDT 메모리 대역폭 할당이 지원되지 않음"
@@ -16722,6 +16823,11 @@ msgstr "'%1$s' 타이머를 비활성화할 수 없습니다"
 msgid "The '%1$s' timer does not support tickpolicy '%2$s'"
 msgstr "'%1$s' 타이머는 tickpolicy '%2$s'를 지원하지 않습니다"
 
+msgid ""
+"The 'dev' attribute of the <source> element can only be used with "
+"<interface> type='user' or type='vhostuser' if the <backend> type='passt'"
+msgstr ""
+
 #, c-format
 msgid ""
 "The 'eoi' attribute of the '%1$s' feature is not supported for architecture "
@@ -17258,6 +17364,12 @@ msgstr "이 유형의 디스크는 핫 언플러그할 수 없습니다"
 
 msgid "Thread(s) per core:"
 msgstr "코어당 스레드:"
+
+msgid "Throttle group deleted successfully\n"
+msgstr ""
+
+msgid "Throttle group set successfully\n"
+msgstr ""
 
 #, c-format
 msgid "Time '%1$lld' is too big for guest agent"
@@ -19097,6 +19209,10 @@ msgid "Unable to read pidfile '%1$s'"
 msgstr "pidfile '%1$s'을 읽을 수 없음"
 
 #, c-format
+msgid "Unable to read qemu-rdp pidfile '%1$s'"
+msgstr ""
+
+#, c-format
 msgid "Unable to read slirp pidfile '%1$s'"
 msgstr "slirp pidfile '%1$s'을(를) 읽을 수 없습니다"
 
@@ -19493,6 +19609,9 @@ msgstr "스레드 로컬 ID를 설정할 수 없습니다"
 
 msgid "Unable to set thread local variable"
 msgstr "스레드 로컬 변수를 설정할 수 없습니다"
+
+msgid "Unable to set throttle group"
+msgstr ""
 
 #, c-format
 msgid "Unable to set vlan configuration on port %1$s: %2$s"
@@ -19976,10 +20095,6 @@ msgstr "알 수 없는 SCSI 컨트롤러 모델 %1$s"
 #, c-format
 msgid "Unknown URI parameter '%1$s'"
 msgstr "알 수 없는 URI 매개변수 '%1$s'"
-
-#, c-format
-msgid "Unknown acpi table type: %1$s"
-msgstr "알 수 없는 acpi 테이블 유형: %1$s"
 
 #, c-format
 msgid "Unknown adapter type: %1$X"
@@ -20561,6 +20676,9 @@ msgstr "미지원 nvram 템플릿트 형식 '%1$s'"
 #, c-format
 msgid "Unsupported object type %1$d"
 msgstr "지원되지 않는 객체 유형 %1$d"
+
+msgid "Unsupported qemu-rdp listen type"
+msgstr ""
 
 msgid "Unsupported resctrl monitor type"
 msgstr "지원되지 않는 resctrl 모니터 유형"
@@ -21905,6 +22023,16 @@ msgid "block"
 msgstr "블록"
 
 #, c-format
+msgid ""
+"block 'iotune' can't be used together with 'throttlefilters' for disk '%1$s'"
+msgstr ""
+
+#, c-format
+msgid ""
+"block 'throttlefilters' can't be used together with 'iotune' for disk '%1$s'"
+msgstr ""
+
+#, c-format
 msgid "block I/O throttle limit must be no more than %1$llu using QEMU"
 msgstr "블록 I/O 스로틀 제한은 QEMU를 사용하는 %1$llu 이하이어야 합니다"
 
@@ -22261,6 +22389,9 @@ msgstr "상대적 지지 관계를 유지할 수 없음"
 msgid "can't manipulate inactive snapshots of disk '%1$s'"
 msgstr "디스크 '%1$s'의 비활성 순간찍기를 조작 할 수 없음"
 
+msgid "can't open log context"
+msgstr ""
+
 #, c-format
 msgid "can't open session to the domain with id %1$d"
 msgstr "ID가 %1$d인 도메인에 대한 세션을 열 수 없습니다"
@@ -22487,6 +22618,9 @@ msgstr "임시 도메인의 영구적 설정을 변경할 수 없습니다"
 
 msgid "cannot change persistent config of a transient network"
 msgstr "지연 네트워크의 영구 설정을 변경 할 수 없습니다"
+
+msgid "cannot change port settings on rdp graphics"
+msgstr ""
 
 msgid "cannot change port settings on spice graphics"
 msgstr "스파이스 그래픽의 포트 설정을 변경할 수 없습니다"
@@ -23318,9 +23452,6 @@ msgstr "vnc 포트 %1$s를 구문 분석 할 수 없습니다"
 msgid "cannot pass pipe for tunnelled migration"
 msgstr "터널링된 이전을 위해 파이프를 전달 할 수 없습니다"
 
-msgid "cannot perform block operations while checkpoint exists"
-msgstr "체크포인트가 있는 동안 블록 작업을 수행할 수 없습니다"
-
 msgid "cannot perform disk backup for inactive domain"
 msgstr "비활성 도메인에 대한 디스크 백업을 수행할 수 없습니다"
 
@@ -23785,6 +23916,9 @@ msgstr "vm 상태가 아니라 디스크 상태를 캡처합니다"
 msgid "cd: %1$s: %2$s"
 msgstr "cd: %1$s: %2$s"
 
+msgid "cdrom device with throttle filters isn't supported"
+msgstr ""
+
 msgid "cdrom device with virtio bus isn't supported"
 msgstr "virtro 버스와 같은 cdrom 장치가 지원되지 않습니다"
 
@@ -24052,6 +24186,9 @@ msgid ""
 "comma separated list of disks to be migrated with zero detection enabled"
 msgstr "0 탐지가 활성화되어 이전해야 할 디스크의 쉼표로 구분된 목록"
 
+msgid "comma separated list of throttle groups to be applied"
+msgstr ""
+
 msgid "command"
 msgstr "command"
 
@@ -24253,6 +24390,9 @@ msgstr "도메인의 수신 트래픽 제어"
 msgid "control domain's outgoing traffics"
 msgstr "도메인의 발신 트래픽을 제어하십시오"
 
+msgid "control next boot state"
+msgstr ""
+
 msgid "control or query domain emulator affinity"
 msgstr "도메인 에뮬레이터 선호도를 제어 또는 쿼리하십시오"
 
@@ -24262,6 +24402,11 @@ msgstr "도메인 vcpu 선호도를 제어 또는 쿼리하십시오"
 #, c-format
 msgid "controller %1$s:%2$d not found"
 msgstr "제어기 %1$s:%2$d를 찾을 수 없음"
+
+msgid ""
+"controller driver 'iothread' attribute can't be used together with "
+"'iothreads' subelement"
+msgstr ""
 
 #, c-format
 msgid "controller index='%1$d' already exists"
@@ -24321,9 +24466,6 @@ msgstr "쿠키 이름은 비워 둘 수 없습니다"
 
 msgid "copy destination is block device instead of regular file"
 msgstr "복사 대상은 일반 파일이 아닌 블록 장치입니다"
-
-msgid "copy of read-only disks is not supported"
-msgstr "읽기 전용 디스크의 복사본은 지원되지 않습니다"
 
 msgid "copy to a FD passed disk source is not yet supported"
 msgstr "FD 전달된 드스크 원천으로 복사는 아직 지원되지 않습니다"
@@ -24822,9 +24964,6 @@ msgid ""
 msgstr ""
 "신규 그룹 생성/모든 조정 매개변수가 0인 기존 최신화는 지원되지 않습니다"
 
-msgid "creating checkpoint for incremental backup is not supported yet"
-msgstr "증분 백업에 대한 체크포인트 생성은 아직 지원되지 않습니다"
-
 msgid "creating snapshot"
 msgstr "순간찍기 생성 중"
 
@@ -24952,12 +25091,10 @@ msgid "dbus-daemon %1$s didn't show up"
 msgstr "dbus-daemon %1$s이(가) 표시되지 않았습니다"
 
 #, c-format
-msgid "dbus-daemon %1$s died unexpectedly"
-msgstr "dbus-daemon %1$s이(가) 예기치 않게 종료되었습니다"
-
-#, c-format
-msgid "dbus-daemon died and reported: %1$s"
-msgstr "dbus-daemon이 종료되고 보고됨: %1$s"
+msgid ""
+"dbus-daemon died and reported:\n"
+"%1$s"
+msgstr ""
 
 msgid "default"
 msgstr "기본값"
@@ -26012,6 +26149,14 @@ msgid "duplicate domain '%1$s'"
 msgstr "중복 도메인 '%1$s'"
 
 #, c-format
+msgid "duplicate filter name '%1$s' found"
+msgstr ""
+
+#, c-format
+msgid "duplicate group name '%1$s' found"
+msgstr ""
+
+#, c-format
 msgid "duplicate iothread id '%1$u' found"
 msgstr "중복 iothread ID '%1$u'을(를) 찾았습니다"
 
@@ -26503,6 +26648,14 @@ msgstr "네트워크를 위한 사건 '메타자료-변경' %1$s: 유형 %2$s, u
 #, c-format
 msgid "event 'migration-iteration' for domain '%1$s': iteration: '%2$d'\n"
 msgstr "도메인 '%1$s'를 위한 사건 '이전-반복': 반복: '%2$d'\n"
+
+#, c-format
+msgid ""
+"event 'nic-mac-change' for domain '%1$s':\n"
+"alias: %2$s\n"
+"oldMAC: %3$s\n"
+"newMAC: %4$s\n"
+msgstr ""
 
 #, c-format
 msgid "event 'rtc-change' for domain '%1$s': %2$lld\n"
@@ -27190,6 +27343,9 @@ msgstr "NUMA 노드 번호에 대한 여유 메모리를 가져오지 못했습�
 msgid "failed to get hostname"
 msgstr "호스트명 보기 실패"
 
+msgid "failed to get hypervisor CPU model names"
+msgstr ""
+
 msgid "failed to get hypervisor type"
 msgstr "하이퍼바이저 유형 보기 실패"
 
@@ -27749,6 +27905,9 @@ msgstr "내용 저장 실패"
 msgid "failed to seek in log file %1$s"
 msgstr "로그 파일 %1$s에서 찾지 못했습니다"
 
+msgid "failed to seek on file descriptor"
+msgstr ""
+
 #, c-format
 msgid "failed to seek to end of %1$s"
 msgstr "%1$s의 끝을 찾지 못했습니다"
@@ -28303,6 +28462,9 @@ msgstr "순간찍기를 하는 경우 백업 볼륨의 형식"
 msgid "format of the destination file"
 msgstr "대상 파일의 형식"
 
+msgid "format of the save image file"
+msgstr ""
+
 #, c-format
 msgid "formatter for %1$s %2$s reported error"
 msgstr "%1$s %2$s의 형식이 오류를 보고했습니다"
@@ -28537,6 +28699,28 @@ msgstr "게스트 CPU가 사양과 일치하지 않음: 추가 기능: %1$s, 누
 #, c-format
 msgid "guest CPU doesn't match specification: missing features: %1$s"
 msgstr "게스트 CPU가 사양과 일치하지 않음: 누락된 기능: %1$s"
+
+msgid "guest agent command failed"
+msgstr ""
+
+#, c-format
+msgid "guest agent command failed: %1$s"
+msgstr ""
+
+msgid "guest agent command timed out"
+msgstr ""
+
+#, c-format
+msgid "guest agent command timed out: %1$s"
+msgstr ""
+
+#, c-format
+msgid "guest agent didn't respond to command within '%1$d' seconds"
+msgstr ""
+
+#, c-format
+msgid "guest agent didn't respond to synchronization within '%1$d' seconds"
+msgstr ""
 
 msgid "guest agent replied with wrong id to guest-sync command"
 msgstr "게스트 에이전트가 guest-sync 명령에 잘못된 ID로 응답했습니다"
@@ -28944,6 +29128,9 @@ msgstr "비활성화"
 msgid "inbound rate larger than maximum %1$u"
 msgstr "최대 %1$u보다 큰 인바운드 비율"
 
+msgid "include all CPU models known to the hypervisor for the architecture"
+msgstr ""
+
 msgid "include backup size estimate in XML dump"
 msgstr "XML 덤프에 예상 백업 크기 포함"
 
@@ -28976,9 +29163,6 @@ msgstr "불완전한 결과, 알 수 없는 상태 문자열 '%1$s'"
 #, c-format
 msgid "incomplete save header in '%1$s'"
 msgstr "'%1$s' 내의 불완전한 응답 헤더"
-
-msgid "incremental backup is not supported yet"
-msgstr "증분 백업은 아직 지원되지 않습니다"
 
 msgid "individual CPU state configuration is not supported"
 msgstr "개별 CPU 상태 구성은 지원되지 않습니다"
@@ -30324,6 +30508,9 @@ msgstr "활성 풀의 UUID만 나열"
 msgid "list all domain blocks"
 msgstr "모든 도메인 블록 나열"
 
+msgid "list all domain throttlegroups."
+msgstr ""
+
 msgid "list all domain virtual interfaces"
 msgstr "모든 도메인 가상 인터페이스 나열"
 
@@ -30900,6 +31087,9 @@ msgstr "virtio 메모리 정보에서 잘못됨/누락 크기"
 
 msgid "malformed/missing slot in dimm memory info"
 msgstr "dimm 메모리 정보의 잘못된 형식/누락된 슬롯"
+
+msgid "managed save cannot be requested for transient domains"
+msgstr ""
 
 msgid "managed save of a domain state"
 msgstr "도메인 상태의 관리되는 저장"
@@ -31748,6 +31938,9 @@ msgstr "QEMU 기능 캐시에 누락된 플래그 이름"
 msgid "missing gluster volume name for path '%1$s'"
 msgstr "경로 '%1$s'에 대한 Gluster 볼륨 이름이 없습니다"
 
+msgid "missing group name"
+msgstr ""
+
 #, c-format
 msgid "missing group_device value for '%1$s'"
 msgstr ""
@@ -31833,8 +32026,8 @@ msgstr "이전 자료에서 listen 속성이 누락"
 msgid "missing listen element"
 msgstr "청취 요소 누락"
 
-msgid "missing listen element for graphics"
-msgstr "그래픽에 대한 청취 요소 누락"
+msgid "missing listen element for VNC graphics"
+msgstr ""
 
 msgid "missing listen element for spice graphics"
 msgstr "향신료 그래픽에 대한 청취 요소 누락"
@@ -32852,6 +33045,9 @@ msgstr "CPU를 찾을 수 없음"
 msgid "no CPUs given"
 msgstr "CPU가 제공되지 않음"
 
+msgid "no D-Bus address"
+msgstr ""
+
 msgid "no FLR, PM reset or bus reset available"
 msgstr "FLR, PM 또는 버스 리셋을 사용할 수 없습니다"
 
@@ -33506,6 +33702,12 @@ msgstr "numa 매개변수는 vz 드라이버에서 지원되지 않습니다"
 msgid "numad is not available on this host"
 msgstr "이 호스트에서 numad를 사용할 수 없습니다"
 
+msgid "number of IO channels to use for parallel restore"
+msgstr ""
+
+msgid "number of IO channels to use for parallel save"
+msgstr ""
+
 msgid "number of bytes read:"
 msgstr "읽은 바이트 수:"
 
@@ -33530,6 +33732,9 @@ msgstr "공유 메모리 서비스가 다음 스캔 전에 휴면해야 하는 �
 
 msgid "number of pages to scan before the shared memory service goes to sleep"
 msgstr "공유 메모리 서비스가 절전 모드로 전환되기 전에 스캔할 페이지 수"
+
+msgid "number of parallel save channels cannot be less than 1"
+msgstr ""
 
 msgid "number of read operations:"
 msgstr "읽기 동작 수:"
@@ -33666,10 +33871,9 @@ msgid "only 'raw' images supported as <dataStore>"
 msgstr "'raw' 이미지만이 <dataStore> 로 지원됩니다"
 
 msgid ""
-"only 1 graphics device of each type (sdl, vnc, spice, headless, dbus) is "
-"supported"
+"only 1 graphics device of each type (sdl, vnc, spice, headless, dbus, rdp) "
+"is supported"
 msgstr ""
-"개별 유형(sdl, vnc, spice, headless, dbus)의 그래픽 장치 1개만 지원됩니다"
 
 msgid "only JSON objects can be top level"
 msgstr "JSON 객체만 최상위 레벨이 될 수 있습니다"
@@ -34045,6 +34249,10 @@ msgstr "병렬 컨테이너는 입력 버스 %1$s를 지원하지 않습니다"
 #, c-format
 msgid "parameter %1$s too big for destination"
 msgstr "매개변수 %1$s가 대상에 비해 너무 큽니다"
+
+#, c-format
+msgid "parameter '%1$s' is missing in reply of guest-get-load"
+msgstr ""
 
 #, c-format
 msgid "parameter '%1$s' not supported"
@@ -34486,6 +34694,9 @@ msgstr "접두사가 너무 깁니다"
 msgid "preserve sparseness of volume"
 msgstr "볼륨의 희소성을 유지"
 
+msgid "preserve state before shutting down"
+msgstr ""
+
 msgid "pretty-print any JSON output"
 msgstr "그 어떠한 JSON 출력이라도 예쁘게 인쇄"
 
@@ -34671,6 +34882,9 @@ msgstr "qemu 에이전트가 인터페이스 배열을 반환하지 않았습니
 msgid "qemu agent didn't return an array of keys"
 msgstr "qemu 에이전트가 키 배열을 반환하지 않았습니다"
 
+msgid "qemu agent didn't return an array of loads"
+msgstr ""
+
 #, c-format
 msgid "qemu didn't report thread id for vcpu '%1$zu'"
 msgstr "qemu가 vcpu '%1$zu'에 대한 스레드 ID를 보고하지 않았습니다"
@@ -34732,6 +34946,24 @@ msgstr "qemu가 잘못된 시간을 반환했습니다"
 
 msgid "qemu state driver is not active"
 msgstr "qemu 상태 드라이버가 실행중이 아닙니다"
+
+#, c-format
+msgid ""
+"qemu-rdp died and reported:\n"
+"%1$s"
+msgstr ""
+
+msgid "qemu-rdp does not support multiple listens for one graphics device."
+msgstr ""
+
+msgid "qemu-rdp doesn't support the 'multiUser' attribute."
+msgstr ""
+
+msgid "qemu-rdp doesn't support the 'replaceUser' attribute."
+msgstr ""
+
+msgid "qemu-rdp support requires a D-Bus bus graphics device."
+msgstr ""
 
 #, c-format
 msgid "qom-get invalid object property type %1$d"
@@ -34968,6 +35200,13 @@ msgstr "rawio는 device='lun'에서만 사용 될 수 있습니다"
 
 msgid "rawio is only supported for scsi host device"
 msgstr "rawio는 scsi 호스트 장치만 지원됩니다"
+
+msgid "rdp"
+msgstr ""
+
+#, c-format
+msgid "rdp_tls_x509_cert_dir directory '%1$s' does not exist"
+msgstr ""
 
 msgid "re-initialize NVRAM from its pristine template"
 msgstr "이와 같은 원본 템플리트에서 NVRAM을 다시-초기화합니다"
@@ -35233,6 +35472,9 @@ msgstr "hypervisor-specific 통계를 보고합니다"
 
 msgid "report interface information"
 msgstr "연결장치 정보 보고"
+
+msgid "report load averages information"
+msgstr ""
 
 msgid "report only stats that are accessible instantly"
 msgstr "즉시 접근 할 수 있는 통계만 보고"
@@ -35530,6 +35772,10 @@ msgstr "도메인 상태를 파일에 저장"
 
 msgid "save canceled"
 msgstr "저장이 취소됨"
+
+#, c-format
+msgid "save image format %1$s is not supported by this QEMU binary"
+msgstr ""
 
 msgid "save image is incomplete"
 msgstr "이미지 저장이 불완전합니다"
@@ -35902,8 +36148,11 @@ msgstr "virtio-pmem 장치를 위해 필요한 공유된 접근 방식"
 msgid "shares '%1$llu' must be in range [%2$llu, %3$llu]"
 msgstr "'%1$llu' 공유는 [%2$llu, %3$llu] 범위에 있어야 합니다"
 
-msgid "sheepdog protocol accepts only one host"
-msgstr "쉽독 프로토콜은 하나의 호스트만 허용합니다"
+msgid "shim is not supported by this QEMU binary"
+msgstr ""
+
+msgid "shim only allowed with kernel option"
+msgstr ""
 
 #, c-format
 msgid ""
@@ -36122,6 +36371,12 @@ msgstr "저장소에 대한 원천 장치"
 
 #, c-format
 msgid ""
+"source disk for '%1$s' is not a regular file, reverting to snapshot is not "
+"supported"
+msgstr ""
+
+#, c-format
+msgid ""
 "source for disk '%1$s' is not a regular file; refusing to generate external "
 "snapshot name"
 msgstr ""
@@ -36277,6 +36532,9 @@ msgstr "통계 값이 너무 큼"
 #, c-format
 msgid "status mismatch in event (actual 0x%1$x, expected 0x%2$x)"
 msgstr "이벤트의 상태 불일치(실제 0x%1$x, 예상 0x%2$x)"
+
+msgid "stop the daemon"
+msgstr ""
 
 msgid "stopped, with no saved guests"
 msgstr "중지됨, 저장된 손님 없음"
@@ -36953,6 +37211,21 @@ msgstr "thread_pool_min은 thread_pool_max 보다 작거나 동일해야 합니�
 
 msgid "threshold as a scaled number (by default bytes)"
 msgstr "스케일된 숫자로서의 임계값(기본적으로 바이트)"
+
+#, c-format
+msgid "throttle group '%1$s' is still being used by disk %2$s"
+msgstr ""
+
+#, c-format
+msgid "throttle group '%1$s' not found"
+msgstr ""
+
+#, c-format
+msgid "throttle group field '%1$s' must be an integer"
+msgstr ""
+
+msgid "throttle group name"
+msgstr ""
 
 msgid "time to set"
 msgstr "설정할 시간"
@@ -38230,6 +38503,10 @@ msgid "unexpected filesystem type %1$d"
 msgstr "예기치 못한 파일시스템 유형 %1$d"
 
 #, c-format
+msgid "unexpected graphics type '%1$d'"
+msgstr ""
+
+#, c-format
 msgid "unexpected host-model CPU for %1$s architecture"
 msgstr "%1$s 구조를 위한 호스트-모델 CPU를 기대 할 수 없습니다"
 
@@ -38516,6 +38793,18 @@ msgstr "알려지지 않은 auth 유형 '%1$s'"
 #, c-format
 msgid "unknown authentication type %1$s"
 msgstr "알려지지 않은 인증 유형 %1$s"
+
+#, c-format
+msgid "unknown auto_shutdown_poweroff '%1$s'"
+msgstr ""
+
+#, c-format
+msgid "unknown auto_shutdown_try_save '%1$s'"
+msgstr ""
+
+#, c-format
+msgid "unknown auto_shutdown_try_shutdown '%1$s'"
+msgstr ""
 
 #, c-format
 msgid "unknown backend source type '%1$s' for external TPM"
@@ -39091,6 +39380,9 @@ msgstr "지원하지 않는 디스크 장치"
 #, c-format
 msgid "unsupported disk driver %1$s"
 msgstr "지원되지 않는 디스크 드라이버 %1$s"
+
+msgid "unsupported disk protocol"
+msgstr ""
 
 #, c-format
 msgid "unsupported disk snapshot type '%1$s'"
@@ -40392,6 +40684,73 @@ msgid "zone %1$s requested for network %2$s but firewalld is not active"
 msgstr ""
 "%1$s 영역이 네트워크 %2$s에 대해 요청되었지만 firewalld가 활성 상태가 아닙니"
 "다"
+
+#, c-format
+#~ msgid "Cannot find CPU model with PVR 0x%1$03llx"
+#~ msgstr "PVR 0x%1$03llx인 CPU 모델을 찾을 수 없습니다"
+
+#~ msgid "Could not add IDE controller"
+#~ msgstr "IDE 제어기를 추가 할 수 없습니다"
+
+#~ msgid "Could not parse SCSI controller"
+#~ msgstr "SCSI 컨트롤러를 파싱 (구문 분석) 할 수 없습니다"
+
+#, c-format
+#~ msgid "Failed to add %1$s controller type definition"
+#~ msgstr "%1$s 제어기 유형 정의 추가에 실패"
+
+#, c-format
+#~ msgid "Failed to allocate slirp for '%1$s'"
+#~ msgstr "'%1$s'의 slirp를 할당하는데 실패"
+
+#~ msgid "Guest agent not available for now"
+#~ msgstr "지금은 게스트 에이전트를 사용 할 수 없습니다"
+
+#, c-format
+#~ msgid "Invalid %1$s image format specified in configuration file"
+#~ msgstr "구성 파일에서 지정된 유효하지 않은 %1$s 이미지 형식"
+
+#~ msgid "Missing acpi table type"
+#~ msgstr "누락된 acpi 테이블 유형"
+
+#~ msgid "Only one acpi table is supported"
+#~ msgstr "하나의 acpi 테이블만 지원됩니다"
+
+#, c-format
+#~ msgid "Unknown acpi table type: %1$s"
+#~ msgstr "알 수 없는 acpi 테이블 유형: %1$s"
+
+#~ msgid "cannot perform block operations while checkpoint exists"
+#~ msgstr "체크포인트가 있는 동안 블록 작업을 수행할 수 없습니다"
+
+#~ msgid "copy of read-only disks is not supported"
+#~ msgstr "읽기 전용 디스크의 복사본은 지원되지 않습니다"
+
+#~ msgid "creating checkpoint for incremental backup is not supported yet"
+#~ msgstr "증분 백업에 대한 체크포인트 생성은 아직 지원되지 않습니다"
+
+#, c-format
+#~ msgid "dbus-daemon %1$s died unexpectedly"
+#~ msgstr "dbus-daemon %1$s이(가) 예기치 않게 종료되었습니다"
+
+#, c-format
+#~ msgid "dbus-daemon died and reported: %1$s"
+#~ msgstr "dbus-daemon이 종료되고 보고됨: %1$s"
+
+#~ msgid "incremental backup is not supported yet"
+#~ msgstr "증분 백업은 아직 지원되지 않습니다"
+
+#~ msgid "missing listen element for graphics"
+#~ msgstr "그래픽에 대한 청취 요소 누락"
+
+#~ msgid ""
+#~ "only 1 graphics device of each type (sdl, vnc, spice, headless, dbus) is "
+#~ "supported"
+#~ msgstr ""
+#~ "개별 유형(sdl, vnc, spice, headless, dbus)의 그래픽 장치 1개만 지원됩니다"
+
+#~ msgid "sheepdog protocol accepts only one host"
+#~ msgstr "쉽독 프로토콜은 하나의 호스트만 허용합니다"
 
 #~ msgid ""
 #~ "'reconnect' attribute unsupported 'server' mode for <interface "
