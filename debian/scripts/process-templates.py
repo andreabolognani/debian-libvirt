@@ -8,10 +8,11 @@ from pathlib import Path
 
 
 COMMON_DESCRIPTION = """
-Libvirt is a C toolkit to interact with the virtualization capabilities
-of recent versions of Linux (and other OSes). The library aims at providing
-a long term stable C API for different virtualization mechanisms. It currently
-supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+libvirt exposes a long-term stable API that can be used to interact with
+various hypervisors. Its architecture is highly modular, with most features
+implemented as optional drivers. It can be used from C as well as several
+other programming languages, and it forms the basis of virtualization
+solutions tailored for a range of use cases.
 """
 
 
