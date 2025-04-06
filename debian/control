@@ -113,28 +113,6 @@ Description: Programs for the libvirt library (QEMU specific)
  .
  This package contains the QEMU-specific client binaries.
 
-Package: libvirt-login-shell
-Section: admin
-Architecture: linux-any
-Depends:
- libvirt-common (= ${binary:Version}),
- libvirt-daemon-driver-lxc (= ${binary:Version}),
- libvirt0 (= ${binary:Version}),
- ${misc:Depends},
- ${shlibs:Depends},
-Breaks:
- libvirt-clients (<< 6.9.0-2~),
-Replaces:
- libvirt-clients (<< 6.9.0-2~),
-Description: Isolate user sessions using LXC containers
- Libvirt is a C toolkit to interact with the virtualization capabilities
- of recent versions of Linux (and other OSes). The library aims at providing
- a long term stable C API for different virtualization mechanisms. It currently
- supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
- .
- This package contains the virt-login-shell tool, which can be set as a user's
- login shell to isolate their sessions using LXC containers.
-
 Package: libvirt-daemon
 Section: admin
 Architecture: linux-any
@@ -799,35 +777,6 @@ Description: Virtualization daemon typical deployment
  convenient way to create the most common type of libvirt setup (local QEMU
  hypervisor) in one go.
 
-Package: libvirt-daemon-system-systemd
-Section: admin
-Architecture: all
-Multi-Arch: foreign
-Depends:
- libvirt-common (<< ${source:Version}.1~),
- libvirt-common (>= ${source:Version}),
- libvirt-daemon-system (<< ${source:Version}.1~),
- libvirt-daemon-system (>= ${source:Version}),
- libvirt0 (<< ${source:Version}.1~),
- libvirt0 (>= ${source:Version}),
- ${misc:Depends},
-Description: transitional dummy package
- This is a transitional dummy package and can be safely removed.
-
-Package: libvirt-daemon-system-sysv
-Section: admin
-Architecture: all
-Depends:
- libvirt-common (<< ${source:Version}.1~),
- libvirt-common (>= ${source:Version}),
- libvirt-daemon-system (<< ${source:Version}.1~),
- libvirt-daemon-system (>= ${source:Version}),
- libvirt0 (<< ${source:Version}.1~),
- libvirt0 (>= ${source:Version}),
- ${misc:Depends},
-Description: transitional dummy package
- This is a transitional dummy package and can be safely removed.
-
 Package: libvirt-daemon-config-network
 Section: admin
 Architecture: all
@@ -966,18 +915,6 @@ Description: development files for the libvirt library
  This package contains the header files and static libraries which are
  needed for developing the applications with libvirt.
 
-Package: libvirt-sanlock
-Section: admin
-Architecture: linux-any
-Depends:
- libvirt-common (= ${binary:Version}),
- libvirt-daemon-plugin-sanlock (= ${binary:Version}),
- libvirt0 (= ${binary:Version}),
- ${misc:Depends},
- ${shlibs:Depends},
-Description: transitional dummy package
- This is a transitional dummy package and can be safely removed.
-
 Package: libnss-libvirt
 Section: admin
 Architecture: linux-any
@@ -1033,3 +970,66 @@ Description: Wireshark dissector for the libvirt protocol
  supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
  .
  This package contains the wireshark dissector.
+
+Package: libvirt-login-shell
+Section: admin
+Architecture: linux-any
+Depends:
+ libvirt-common (= ${binary:Version}),
+ libvirt-daemon-driver-lxc (= ${binary:Version}),
+ libvirt0 (= ${binary:Version}),
+ ${misc:Depends},
+ ${shlibs:Depends},
+Breaks:
+ libvirt-clients (<< 6.9.0-2~),
+Replaces:
+ libvirt-clients (<< 6.9.0-2~),
+Description: Isolate user sessions using LXC containers
+ Libvirt is a C toolkit to interact with the virtualization capabilities
+ of recent versions of Linux (and other OSes). The library aims at providing
+ a long term stable C API for different virtualization mechanisms. It currently
+ supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ .
+ This package contains the virt-login-shell tool, which can be set as a user's
+ login shell to isolate their sessions using LXC containers.
+
+Package: libvirt-sanlock
+Section: admin
+Architecture: linux-any
+Depends:
+ libvirt-common (= ${binary:Version}),
+ libvirt-daemon-plugin-sanlock (= ${binary:Version}),
+ libvirt0 (= ${binary:Version}),
+ ${misc:Depends},
+ ${shlibs:Depends},
+Description: transitional dummy package
+ This is a transitional dummy package and can be safely removed.
+
+Package: libvirt-daemon-system-systemd
+Section: admin
+Architecture: all
+Multi-Arch: foreign
+Depends:
+ libvirt-common (<< ${source:Version}.1~),
+ libvirt-common (>= ${source:Version}),
+ libvirt-daemon-system (<< ${source:Version}.1~),
+ libvirt-daemon-system (>= ${source:Version}),
+ libvirt0 (<< ${source:Version}.1~),
+ libvirt0 (>= ${source:Version}),
+ ${misc:Depends},
+Description: transitional dummy package
+ This is a transitional dummy package and can be safely removed.
+
+Package: libvirt-daemon-system-sysv
+Section: admin
+Architecture: all
+Depends:
+ libvirt-common (<< ${source:Version}.1~),
+ libvirt-common (>= ${source:Version}),
+ libvirt-daemon-system (<< ${source:Version}.1~),
+ libvirt-daemon-system (>= ${source:Version}),
+ libvirt0 (<< ${source:Version}.1~),
+ libvirt0 (>= ${source:Version}),
+ ${misc:Depends},
+Description: transitional dummy package
+ This is a transitional dummy package and can be safely removed.
