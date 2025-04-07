@@ -85,10 +85,7 @@ Breaks:
 Replaces:
  libvirt-daemon (<< 6.9.0-2~),
 Description: Programs for the libvirt library
- Libvirt is a C toolkit to interact with the virtualization capabilities
- of recent versions of Linux (and other OSes). The library aims at providing
- a long term stable C API for different virtualization mechanisms. It currently
- supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ @COMMON_DESCRIPTION@
  .
  This package contains the libvirt shell virsh and other client binaries.
 
@@ -106,10 +103,7 @@ Depends:
  python3:any,
  ${misc:Depends},
 Description: Programs for the libvirt library (QEMU specific)
- Libvirt is a C toolkit to interact with the virtualization capabilities
- of recent versions of Linux (and other OSes). The library aims at providing
- a long term stable C API for different virtualization mechanisms. It currently
- supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ @COMMON_DESCRIPTION@
  .
  This package contains the QEMU-specific client binaries.
 
@@ -158,10 +152,7 @@ Breaks:
 Replaces:
  libvirt-daemon-system-sysv (<< 10.6.0-2~),
 Description: Virtualization daemon
- Libvirt is a C toolkit to interact with the virtualization capabilities
- of recent versions of Linux (and other OSes). The library aims at providing
- a long term stable C API for different virtualization mechanisms. It currently
- supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ @COMMON_DESCRIPTION@
  .
  This package contains the daemon libvirtd to manage the hypervisors.
 
@@ -196,10 +187,7 @@ Replaces:
  libvirt-daemon (<< 10.6.0-2~),
  libvirt-daemon-system-sysv (<< 10.6.0-2~),
 Description: Virtualization daemon common files
- Libvirt is a C toolkit to interact with the virtualization capabilities
- of recent versions of Linux (and other OSes). The library aims at providing
- a long term stable C API for different virtualization mechanisms. It currently
- supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ @COMMON_DESCRIPTION@
  .
  This package contains files needed by the various libvirt daemons.
 
@@ -220,10 +208,7 @@ Replaces:
  libvirt-daemon (<< 10.6.0-2~),
  libvirt-daemon-system-sysv (<< 10.6.0-2~),
 Description: Virtualization log daemon
- Libvirt is a C toolkit to interact with the virtualization capabilities
- of recent versions of Linux (and other OSes). The library aims at providing
- a long term stable C API for different virtualization mechanisms. It currently
- supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ @COMMON_DESCRIPTION@
  .
  This package contains the virtlogd daemon, which handles logging.
 
@@ -242,10 +227,7 @@ Breaks:
 Replaces:
  libvirt-daemon (<< 10.6.0-2~),
 Description: Virtualization lock daemon
- Libvirt is a C toolkit to interact with the virtualization capabilities
- of recent versions of Linux (and other OSes). The library aims at providing
- a long term stable C API for different virtualization mechanisms. It currently
- supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ @COMMON_DESCRIPTION@
  .
  This package contains the virtlockd daemon, which handles storage locking.
 
@@ -279,10 +261,7 @@ Replaces:
  libvirt-clients (<< 6.9.0-2~),
  libvirt-daemon-system (<< 10.6.0-2~),
 Description: Virtualization daemon QEMU connection driver
- Libvirt is a C toolkit to interact with the virtualization capabilities
- of recent versions of Linux (and other OSes). The library aims at providing
- a long term stable C API for different virtualization mechanisms. It currently
- supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ @COMMON_DESCRIPTION@
  .
  This package contains the libvirtd connection driver for QEMU.
 
@@ -306,10 +285,7 @@ Replaces:
  libvirt-daemon (<< 6.9.0-2~),
  libvirt-daemon-system (<< 10.6.0-2~),
 Description: Virtualization daemon LXC connection driver
- Libvirt is a C toolkit to interact with the virtualization capabilities
- of recent versions of Linux (and other OSes). The library aims at providing
- a long term stable C API for different virtualization mechanisms. It currently
- supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ @COMMON_DESCRIPTION@
  .
  This package contains the libvirtd connection driver for LXC.
 
@@ -324,10 +300,7 @@ Depends:
  ${misc:Depends},
  ${shlibs:Depends},
 Description: Virtualization daemon VirtualBox connection driver
- Libvirt is a C toolkit to interact with the virtualization capabilities
- of recent versions of Linux (and other OSes). The library aims at providing
- a long term stable C API for different virtualization mechanisms. It currently
- supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ @COMMON_DESCRIPTION@
  .
  This package contains the libvirtd connection driver for VirtualBox.
 
@@ -349,10 +322,7 @@ Breaks:
 Replaces:
  libvirt-daemon-system (<< 10.6.0-2~),
 Description: Virtualization daemon Xen connection driver
- Libvirt is a C toolkit to interact with the virtualization capabilities
- of recent versions of Linux (and other OSes). The library aims at providing
- a long term stable C API for different virtualization mechanisms. It currently
- supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ @COMMON_DESCRIPTION@
  .
  This package contains the libvirtd connection driver for Xen.
 
@@ -374,10 +344,7 @@ Breaks:
 Replaces:
  libvirt-daemon (<< 10.6.0-2~),
 Description: Virtualization daemon storage driver
- Libvirt is a C toolkit to interact with the virtualization capabilities
- of recent versions of Linux (and other OSes). The library aims at providing
- a long term stable C API for different virtualization mechanisms. It currently
- supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ @COMMON_DESCRIPTION@
  .
  This package contains the libvirtd storage driver.
 
@@ -398,10 +365,7 @@ Breaks:
 Replaces:
  libvirt-daemon (<< 10.6.0-2~),
 Description: Virtualization daemon disk storage driver
- Libvirt is a C toolkit to interact with the virtualization capabilities
- of recent versions of Linux (and other OSes). The library aims at providing
- a long term stable C API for different virtualization mechanisms. It currently
- supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ @COMMON_DESCRIPTION@
  .
  This package contains the libvirtd storage driver that handles volumes as
  partitions of a physical disk.
@@ -418,10 +382,7 @@ Depends:
  ${misc:Depends},
  ${shlibs:Depends},
 Description: Virtualization daemon glusterfs storage driver
- Libvirt is a C toolkit to interact with the virtualization capabilities
- of recent versions of Linux (and other OSes). The library aims at providing
- a long term stable C API for different virtualization mechanisms. It currently
- supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ @COMMON_DESCRIPTION@
  .
  This package contains the libvirtd storage driver for GlusterFS.
 
@@ -442,10 +403,7 @@ Breaks:
 Replaces:
  libvirt-daemon (<< 10.6.0-2~),
 Description: Virtualization daemon iSCSI storage driver
- Libvirt is a C toolkit to interact with the virtualization capabilities
- of recent versions of Linux (and other OSes). The library aims at providing
- a long term stable C API for different virtualization mechanisms. It currently
- supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ @COMMON_DESCRIPTION@
  .
  This package contains the libvirtd storage driver for iSCSI volumes.
 
@@ -463,10 +421,7 @@ Depends:
 Recommends:
  qemu-block-extra,
 Description: Virtualization daemon iSCSI (libiscsi) storage driver
- Libvirt is a C toolkit to interact with the virtualization capabilities
- of recent versions of Linux (and other OSes). The library aims at providing
- a long term stable C API for different virtualization mechanisms. It currently
- supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ @COMMON_DESCRIPTION@
  .
  This package contains a libvirtd storage driver for iSCSI volumes implemented
  using libiscsi.
@@ -488,10 +443,7 @@ Breaks:
 Replaces:
  libvirt-daemon (<< 10.6.0-2~),
 Description: Virtualization daemon logical storage driver
- Libvirt is a C toolkit to interact with the virtualization capabilities
- of recent versions of Linux (and other OSes). The library aims at providing
- a long term stable C API for different virtualization mechanisms. It currently
- supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ @COMMON_DESCRIPTION@
  .
  This package contains a libvirtd storage driver for volumes managed by
  Logical Volume Manager (LVM).
@@ -512,10 +464,7 @@ Breaks:
 Replaces:
  libvirt-daemon (<< 10.6.0-2~),
 Description: Virtualization daemon mpath storage driver
- Libvirt is a C toolkit to interact with the virtualization capabilities
- of recent versions of Linux (and other OSes). The library aims at providing
- a long term stable C API for different virtualization mechanisms. It currently
- supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ @COMMON_DESCRIPTION@
  .
  This package contains a libvirtd storage driver for multipath (mpath) volumes.
 
@@ -531,10 +480,7 @@ Depends:
  ${misc:Depends},
  ${shlibs:Depends},
 Description: Virtualization daemon RBD storage driver
- Libvirt is a C toolkit to interact with the virtualization capabilities
- of recent versions of Linux (and other OSes). The library aims at providing
- a long term stable C API for different virtualization mechanisms. It currently
- supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ @COMMON_DESCRIPTION@
  .
  This package contains the libvirtd storage driver for RBD/Rados/Ceph.
 
@@ -554,10 +500,7 @@ Breaks:
 Replaces:
  libvirt-daemon (<< 10.6.0-2~),
 Description: Virtualization daemon SCSI storage driver
- Libvirt is a C toolkit to interact with the virtualization capabilities
- of recent versions of Linux (and other OSes). The library aims at providing
- a long term stable C API for different virtualization mechanisms. It currently
- supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ @COMMON_DESCRIPTION@
  .
  This package contains the libvirtd storage driver for local SCSI devices.
 
@@ -575,10 +518,7 @@ Depends:
 Recommends:
  zfsutils,
 Description: Virtualization daemon ZFS storage driver
- Libvirt is a C toolkit to interact with the virtualization capabilities
- of recent versions of Linux (and other OSes). The library aims at providing
- a long term stable C API for different virtualization mechanisms. It currently
- supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ @COMMON_DESCRIPTION@
  .
  This package contains the libvirtd storage driver for ZFS.
 
@@ -601,10 +541,7 @@ Replaces:
  libvirt-daemon (<< 10.6.0-2~),
  libvirt-daemon-system (<< 10.6.0-2~),
 Description: Virtualization daemon network driver
- Libvirt is a C toolkit to interact with the virtualization capabilities
- of recent versions of Linux (and other OSes). The library aims at providing
- a long term stable C API for different virtualization mechanisms. It currently
- supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ @COMMON_DESCRIPTION@
  .
  This package contains the libvirtd network driver.
 
@@ -624,10 +561,7 @@ Breaks:
 Replaces:
  libvirt-daemon (<< 10.6.0-2~),
 Description: Virtualization daemon nwfilter driver
- Libvirt is a C toolkit to interact with the virtualization capabilities
- of recent versions of Linux (and other OSes). The library aims at providing
- a long term stable C API for different virtualization mechanisms. It currently
- supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ @COMMON_DESCRIPTION@
  .
  This package contains the libvirtd network filter (nwfilter) driver.
 
@@ -646,10 +580,7 @@ Breaks:
 Replaces:
  libvirt-daemon (<< 10.6.0-2~),
 Description: Virtualization daemon interface driver
- Libvirt is a C toolkit to interact with the virtualization capabilities
- of recent versions of Linux (and other OSes). The library aims at providing
- a long term stable C API for different virtualization mechanisms. It currently
- supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ @COMMON_DESCRIPTION@
  .
  This package contains the libvirtd interface driver.
 
@@ -669,10 +600,7 @@ Breaks:
 Replaces:
  libvirt-daemon (<< 10.6.0-2~),
 Description: Virtualization daemon nodedev driver
- Libvirt is a C toolkit to interact with the virtualization capabilities
- of recent versions of Linux (and other OSes). The library aims at providing
- a long term stable C API for different virtualization mechanisms. It currently
- supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ @COMMON_DESCRIPTION@
  .
  This package contains the libvirtd node device (nodedev) driver.
 
@@ -691,10 +619,7 @@ Breaks:
 Replaces:
  libvirt-daemon (<< 10.6.0-2~),
 Description: Virtualization daemon secret driver
- Libvirt is a C toolkit to interact with the virtualization capabilities
- of recent versions of Linux (and other OSes). The library aims at providing
- a long term stable C API for different virtualization mechanisms. It currently
- supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ @COMMON_DESCRIPTION@
  .
  This package contains the libvirtd secret driver.
 
@@ -715,10 +640,7 @@ Breaks:
 Replaces:
  libvirt-daemon (<< 10.6.0-2~),
 Description: Virtualization daemon lockd plugin
- Libvirt is a C toolkit to interact with the virtualization capabilities
- of recent versions of Linux (and other OSes). The library aims at providing
- a long term stable C API for different virtualization mechanisms. It currently
- supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ @COMMON_DESCRIPTION@
  .
  This package contains the plugin that implements disk locking using virtlockd.
 
@@ -741,10 +663,7 @@ Replaces:
  libvirt-daemon (<< 10.6.0-2~),
  libvirt-sanlock (<< 10.6.0-2~),
 Description: Virtualization daemon sanlock plugin
- Libvirt is a C toolkit to interact with the virtualization capabilities
- of recent versions of Linux (and other OSes). The library aims at providing
- a long term stable C API for different virtualization mechanisms. It currently
- supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ @COMMON_DESCRIPTION@
  .
  This package contains the plugin that implements disk locking using sanlock.
 
@@ -768,10 +687,7 @@ Depends:
  libvirt0 (= ${binary:Version}),
  ${misc:Depends},
 Description: Virtualization daemon typical deployment
- Libvirt is a C toolkit to interact with the virtualization capabilities
- of recent versions of Linux (and other OSes). The library aims at providing
- a long term stable C API for different virtualization mechanisms. It currently
- supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ @COMMON_DESCRIPTION@
  .
  This package doesn't contain any files on its own, and is intended as a
  convenient way to create the most common type of libvirt setup (local QEMU
@@ -793,10 +709,7 @@ Breaks:
 Replaces:
  libvirt-daemon-system (<< 6.9.0-2~),
 Description: Libvirt daemon configuration files (default network)
- Libvirt is a C toolkit to interact with the virtualization capabilities
- of recent versions of Linux (and other OSes). The library aims at providing
- a long term stable C API for different virtualization mechanisms. It currently
- supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ @COMMON_DESCRIPTION@
  .
  This package contains the configuration for the 'default' libvirt network.
 
@@ -816,10 +729,7 @@ Breaks:
 Replaces:
  libvirt-daemon-system (<< 6.9.0-2~),
 Description: Libvirt daemon configuration files (default network filters)
- Libvirt is a C toolkit to interact with the virtualization capabilities
- of recent versions of Linux (and other OSes). The library aims at providing
- a long term stable C API for different virtualization mechanisms. It currently
- supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ @COMMON_DESCRIPTION@
  .
  This package contains the configuration for the default set of nwfilters.
 
@@ -833,10 +743,7 @@ Depends:
 Recommends:
  libvirt-l10n (= ${source:Version}),
 Description: library for interfacing with different virtualization systems
- Libvirt is a C toolkit to interact with the virtualization capabilities
- of recent versions of Linux (and other OSes). The library aims at providing
- a long term stable C API for different virtualization mechanisms. It currently
- supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ @COMMON_DESCRIPTION@
 
 Package: libvirt-common
 Architecture: any
@@ -853,10 +760,7 @@ Replaces:
  libvirt-daemon-system (<< 10.6.0-2~),
  libvirt0 (<< 10.6.0-2~),
 Description: data files for the libvirt library
- Libvirt is a C toolkit to interact with the virtualization capabilities
- of recent versions of Linux (and other OSes). The library aims at providing
- a long term stable C API for different virtualization mechanisms. It currently
- supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ @COMMON_DESCRIPTION@
  .
  This package contains data files needed by the library.
 
@@ -875,10 +779,7 @@ Breaks:
 Replaces:
  libvirt0 (<< 8.10.0-2~),
 Description: localization for the libvirt library
- Libvirt is a C toolkit to interact with the virtualization capabilities
- of recent versions of Linux (and other OSes). The library aims at providing
- a long term stable C API for different virtualization mechanisms. It currently
- supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ @COMMON_DESCRIPTION@
  .
  This package contains the localization files.
 
@@ -889,10 +790,7 @@ Multi-Arch: foreign
 Depends:
  ${misc:Depends},
 Description: documentation for the libvirt library
- Libvirt is a C toolkit to interact with the virtualization capabilities
- of recent versions of Linux (and other OSes). The library aims at providing
- a long term stable C API for different virtualization mechanisms. It currently
- supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ @COMMON_DESCRIPTION@
  .
  This package contains the documentation.
 
@@ -907,10 +805,7 @@ Depends:
 Recommends:
  pkgconf,
 Description: development files for the libvirt library
- Libvirt is a C toolkit to interact with the virtualization capabilities
- of recent versions of Linux (and other OSes). The library aims at providing
- a long term stable C API for different virtualization mechanisms. It currently
- supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ @COMMON_DESCRIPTION@
  .
  This package contains the header files and static libraries which are
  needed for developing the applications with libvirt.
@@ -925,10 +820,7 @@ Depends:
  ${misc:Depends},
  ${shlibs:Depends},
 Description: nss plugins providing IP address resolution for virtual machines
- Libvirt is a C toolkit to interact with the virtualization capabilities
- of recent versions of Linux (and other OSes). The library aims at providing
- a long term stable C API for different virtualization mechanisms. It currently
- supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ @COMMON_DESCRIPTION@
  .
  This package contains two nss plugins for IP address resolution of libvirt
  managed virtual machines: the 'libvirt_guest' plugin uses libvirt's domain
@@ -944,10 +836,7 @@ Depends:
  ${misc:Depends},
  ${shlibs:Depends},
 Description: ssh proxy for connecting to virtual machines via VSOCK
- Libvirt is a C toolkit to interact with the virtualization capabilities
- of recent versions of Linux (and other OSes). The library aims at providing
- a long term stable C API for different virtualization mechanisms. It currently
- supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ @COMMON_DESCRIPTION@
  .
  When this package is installed, ssh will be able to connect to locally
  running libvirt domains via VSOCK.
@@ -964,10 +853,7 @@ Depends:
  ${misc:Depends},
  ${shlibs:Depends},
 Description: Wireshark dissector for the libvirt protocol
- Libvirt is a C toolkit to interact with the virtualization capabilities
- of recent versions of Linux (and other OSes). The library aims at providing
- a long term stable C API for different virtualization mechanisms. It currently
- supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ @COMMON_DESCRIPTION@
  .
  This package contains the wireshark dissector.
 
@@ -985,10 +871,7 @@ Breaks:
 Replaces:
  libvirt-clients (<< 6.9.0-2~),
 Description: Isolate user sessions using LXC containers
- Libvirt is a C toolkit to interact with the virtualization capabilities
- of recent versions of Linux (and other OSes). The library aims at providing
- a long term stable C API for different virtualization mechanisms. It currently
- supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ @COMMON_DESCRIPTION@
  .
  This package contains the virt-login-shell tool, which can be set as a user's
  login shell to isolate their sessions using LXC containers.

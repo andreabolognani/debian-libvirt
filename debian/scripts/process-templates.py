@@ -7,6 +7,14 @@ import sys
 from pathlib import Path
 
 
+COMMON_DESCRIPTION = """
+Libvirt is a C toolkit to interact with the virtualization capabilities
+of recent versions of Linux (and other OSes). The library aims at providing
+a long term stable C API for different virtualization mechanisms. It currently
+supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+"""
+
+
 def read_file(path):
     with open(path) as f:
         return f.read()
@@ -137,11 +145,24 @@ def load_snippets(path):
     return snippets
 
 
+def common_description():
+    desc = []
+
+    for line in COMMON_DESCRIPTION.split("\n"):
+        if line == "":
+            continue
+        desc.append(" " + line)
+
+    return "\n".join(desc).lstrip()
+
+
 def process_control(path, arches):
     output = read_file(path)
 
     for arch in arches:
         output = output.replace(arch, " ".join(arches[arch]))
+
+    output = output.replace("@COMMON_DESCRIPTION@", common_description())
 
     return output
 
