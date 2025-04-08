@@ -1,3 +1,11 @@
+libvirt (11.2.0-2) unstable; urgency=medium
+
+  * [d984f9c] control: Overhaul package descriptions
+  * [0360fd6] patches: Add backport/cpu_map-Install-Ampere-1-[...]
+    - Closes: #1102133
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Tue, 08 Apr 2025 11:57:53 +0200
+
 libvirt (11.2.0-1) unstable; urgency=medium
 
   * [56cf4c6] New upstream version 11.2.0
