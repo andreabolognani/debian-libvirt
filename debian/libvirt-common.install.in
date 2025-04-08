@@ -1,5 +1,7 @@
 etc/libvirt/libvirt-admin.conf
 etc/libvirt/libvirt.conf
+usr/share/libvirt/cpu_map/arm_Ampere-1.xml
+usr/share/libvirt/cpu_map/arm_Ampere-1a.xml
 usr/share/libvirt/cpu_map/arm_FT-2000plus.xml
 usr/share/libvirt/cpu_map/arm_Falkor.xml
 usr/share/libvirt/cpu_map/arm_Kunpeng-920.xml
