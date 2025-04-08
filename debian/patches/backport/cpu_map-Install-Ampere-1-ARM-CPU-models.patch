@@ -1,0 +1,30 @@
+From: Jiri Denemark <jdenemar@redhat.com>
+Date: Fri, 4 Apr 2025 14:22:01 +0200
+Subject: cpu_map: Install Ampere-1 ARM CPU models
+
+Fixes: 282f38ad3d3960b24aa97d75cae95c8c3d08a218
+Fixes: https://gitlab.com/libvirt/libvirt/-/issues/762
+Signed-off-by: Jiri Denemark <jdenemar@redhat.com>
+Reviewed-by: Michal Privoznik <mprivozn@redhat.com>
+(cherry picked from commit 701b2c0fcac8b911c4d8b916ee07eddc098e8772)
+
+Bug-Debian: https://bugs.debian.org/1102133
+
+Forwarded: not-needed
+Origin: https://gitlab.com/libvirt/libvirt/-/commit/701b2c0fcac8b911c4d8b916ee07eddc098e8772
+---
+ src/cpu_map/meson.build | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/src/cpu_map/meson.build b/src/cpu_map/meson.build
+index 9a1c048..dee8441 100644
+--- a/src/cpu_map/meson.build
++++ b/src/cpu_map/meson.build
+@@ -1,5 +1,7 @@
+ cpumap_data = [
+   'arm_a64fx.xml',
++  'arm_Ampere-1a.xml',
++  'arm_Ampere-1.xml',
+   'arm_cortex-a53.xml',
+   'arm_cortex-a57.xml',
+   'arm_cortex-a72.xml',
