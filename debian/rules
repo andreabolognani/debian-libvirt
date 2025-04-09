@@ -54,7 +54,6 @@ ifeq ($(DEB_HOST_ARCH_OS), linux)
     WITH_DTRACE               = -Ddtrace=enabled
     WITH_NUMA                 = -Dnumactl=enabled -Dnumad=enabled
     WITH_SYSCTL               = -Dsysctl_config=enabled -Duserfaultfd_sysctl=enabled
-    WITH_WIRESHARK            = -Dwireshark_dissector=enabled
     WITH_LXC                  = -Ddriver_lxc=enabled
     WITH_LOGIN_SHELL          = -Dlogin_shell=enabled
 else
@@ -93,7 +92,6 @@ else
     WITH_DTRACE               = -Ddtrace=disabled
     WITH_NUMA                 = -Dnumactl=disabled -Dnumad=disabled
     WITH_SYSCTL               = -Dsysctl_config=disabled -Duserfaultfd_sysctl=disabled
-    WITH_WIRESHARK            = -Dwireshark_dissector=disabled
     WITH_LXC                  = -Ddriver_lxc=disabled
     WITH_LOGIN_SHELL          = -Dlogin_shell=disabled
 endif
@@ -122,6 +120,11 @@ ifneq (,$(filter $(DEB_HOST_ARCH), $(ARCHES_VBOX)))
     WITH_VBOX                 = -Ddriver_vbox=enabled
 else
     WITH_VBOX                 = -Ddriver_vbox=disabled
+endif
+ifneq (,$(filter $(DEB_HOST_ARCH), $(ARCHES_WIRESHARK)))
+    WITH_WIRESHARK            = -Dwireshark_dissector=enabled
+else
+    WITH_WIRESHARK            = -Dwireshark_dissector=disabled
 endif
 ifneq (,$(filter $(DEB_HOST_ARCH), $(ARCHES_NBDKIT)))
     WITH_NBDKIT               = -Dnbdkit=enabled -Dnbdkit_config_default=enabled

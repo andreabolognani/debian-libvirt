@@ -44,7 +44,7 @@ Build-Depends:
  libtasn1-6-dev,
  libtirpc-dev,
  libudev-dev [linux-any],
- libwireshark-dev [linux-any],
+ libwireshark-dev [alpha amd64 arm64 armel armhf hppa i386 loong64 mips64el powerpc ppc64 ppc64el riscv64 s390x sh4 sparc64],
  libxen-dev [amd64 arm64],
  libxml2-dev,
  libxml2-utils,
@@ -1033,7 +1033,7 @@ Homepage: https://libvirt.org/ssh-proxy.html
 
 Package: libvirt-wireshark
 Section: admin
-Architecture: linux-any
+Architecture: alpha amd64 arm64 armel armhf hppa i386 loong64 mips64el powerpc ppc64 ppc64el riscv64 s390x sh4 sparc64
 Multi-Arch: same
 Depends:
  libvirt-common (= ${binary:Version}),
