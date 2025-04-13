@@ -1,0 +1,37 @@
+From: Andrea Bolognani <eof@kiyuko.org>
+Date: Sun, 13 Apr 2025 23:29:20 +0200
+Subject: Drop inter-package Also= lines from libvirtd.service
+
+systemctl handles these lines gracefully even when the
+corresponding unit is not present, e.g. because the daemon-lock
+package is not installed, but deb-systemd-helper doesn't. As a
+temporary workaround until this limitation is addressed, drop
+the lines triggering the failure.
+
+Note that we would technically only need to drop the reference
+to virtlockd.socket, since the daemon-log package is a hard
+dependency of the daemon package and thus we know that
+virtlogd.socket is always going to be present, but being more
+aggressive for consistency's sake seems preferable.
+
+Bug-Debian: https://bugs.debian.org/1082939
+Bug-Debian: https://bugs.debian.org/1091519
+
+Forwarded: not-needed
+---
+ src/remote/libvirtd.service.in | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/src/remote/libvirtd.service.in b/src/remote/libvirtd.service.in
+index b0a062e..073555e 100644
+--- a/src/remote/libvirtd.service.in
++++ b/src/remote/libvirtd.service.in
+@@ -36,8 +36,6 @@ Restart=on-failure
+ 
+ [Install]
+ WantedBy=multi-user.target
+-Also=virtlockd.socket
+-Also=virtlogd.socket
+ Also=libvirtd.socket
+ Also=libvirtd-ro.socket
+ Also=libvirtd-admin.socket

@@ -2,3 +2,4 @@ backport/cpu_map-Install-Ampere-1-ARM-CPU-models.patch
 debian/Debianize-libvirt-guests.patch
 debian/apparmor_profiles_local_include.patch
 debian/Use-sensible-editor-by-default.patch
+debian/Drop-inter-package-Also-lines-from-libvirtd.service.patch
