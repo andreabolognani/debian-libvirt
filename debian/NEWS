@@ -63,10 +63,15 @@ libvirt (10.6.0-2) experimental; urgency=medium
 
   The system-wide configuration for the libvirtd daemon is no longer
   shipped separately from the daemon itself, as was the case until
-  now. The libvirt-daemon-system package still exists, but it's now
+  today; the libvirt-daemon package now contains everything
+  necessary to run libvirtd as a system daemon.
+
+  The libvirt-daemon-system package still exists, but it's now
   simply a convenient way to install the "typical" libvirt
   deployment consisting of all the components needed to run a
-  QEMU-based hypervisor.
+  QEMU-based hypervisor, and it is completely safe to uninstall it
+  if you would rather have a more tailored deployment or if QEMU
+  is not available on your architecture.
 
  -- Andrea Bolognani <eof@kiyuko.org>  Sat, 24 Aug 2024 11:01:43 +0200
 
