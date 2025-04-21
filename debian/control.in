@@ -706,7 +706,7 @@ Homepage: https://libvirt.org/kbase/locking-sanlock.html
 
 Package: libvirt-daemon-system
 Section: admin
-Architecture: linux-any
+Architecture: ${ARCHES_QEMU}
 Depends:
  libvirt-clients (= ${binary:Version}),
  libvirt-common (= ${binary:Version}),
