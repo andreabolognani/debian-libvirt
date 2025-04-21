@@ -1,1 +1,2 @@
 libvirt-daemon-system: empty-binary-package
+libvirt-daemon-system: package-contains-no-arch-dependent-files
