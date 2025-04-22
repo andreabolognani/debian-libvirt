@@ -1,3 +1,15 @@
+libvirt (11.2.0-3) experimental; urgency=medium
+
+  * [0b16592] control: Introduce ARCHES_WIRESHARK
+    - Don't build the Wireskark dissector on m68k or x32
+  * [07012be] patches: Add debian/Drop-inter-package-Also-lines-[...]
+    - Work around a limitation in deb-systemd-helper
+    - Closes: #1082939
+  * [c192aea] daemon-system: Only build on ARCHES_QEMU
+    - It depends on the QEMU driver
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Tue, 22 Apr 2025 22:27:04 +0200
+
 libvirt (11.2.0-2) unstable; urgency=medium
 
   * [d984f9c] control: Overhaul package descriptions
