@@ -1,3 +1,9 @@
+libvirt (11.3.0-1) UNRELEASED; urgency=medium
+
+  * [228f666] New upstream version 11.3.0
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Fri, 02 May 2025 22:25:28 +0200
+
 libvirt (11.2.0-3) experimental; urgency=medium
 
   * [0b16592] control: Introduce ARCHES_WIRESHARK
