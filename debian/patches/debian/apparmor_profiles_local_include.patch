@@ -6,17 +6,17 @@ Include local apparmor profile
 
 Forwarded: not-needed
 ---
- src/security/apparmor/libvirt-lxc.in  | 7 +++++++
- src/security/apparmor/libvirt-qemu.in | 7 +++++++
+ src/security/apparmor/libvirt-lxc  | 7 +++++++
+ src/security/apparmor/libvirt-qemu | 7 +++++++
  2 files changed, 14 insertions(+)
 
-diff --git a/src/security/apparmor/libvirt-lxc.in b/src/security/apparmor/libvirt-lxc.in
-index ffe4d8f..2973b00 100644
---- a/src/security/apparmor/libvirt-lxc.in
-+++ b/src/security/apparmor/libvirt-lxc.in
-@@ -119,4 +119,11 @@
+diff --git a/src/security/apparmor/libvirt-lxc b/src/security/apparmor/libvirt-lxc
+index 11005e7..81417ae 100644
+--- a/src/security/apparmor/libvirt-lxc
++++ b/src/security/apparmor/libvirt-lxc
+@@ -118,3 +118,10 @@
+   deny /sys/fs?*{,/**} wklx,
  
- @BEGIN_APPARMOR_3@
    include if exists <abstractions/libvirt-lxc.d>
 +
 +  ### DEPRECATED ###
@@ -25,14 +25,13 @@ index ffe4d8f..2973b00 100644
 +  # Support for this override will be removed in a future release
 +  ### DEPRECATED ###
 +  include if exists <local/abstractions/libvirt-lxc>
- @END_APPARMOR_3@
-diff --git a/src/security/apparmor/libvirt-qemu.in b/src/security/apparmor/libvirt-qemu.in
-index c630775..46076d6 100644
---- a/src/security/apparmor/libvirt-qemu.in
-+++ b/src/security/apparmor/libvirt-qemu.in
-@@ -283,4 +283,11 @@
+diff --git a/src/security/apparmor/libvirt-qemu b/src/security/apparmor/libvirt-qemu
+index e4aceac..ef5a1dc 100644
+--- a/src/security/apparmor/libvirt-qemu
++++ b/src/security/apparmor/libvirt-qemu
+@@ -280,3 +280,10 @@
+   owner /var/lib/libvirt/qemu/nvram/*_VARS.ms.fd rwk,
  
- @BEGIN_APPARMOR_3@
    include if exists <abstractions/libvirt-qemu.d>
 +
 +  ### DEPRECATED ###
@@ -41,4 +40,3 @@ index c630775..46076d6 100644
 +  # Support for this override will be removed in a future release
 +  ### DEPRECATED ###
 +  include if exists <local/abstractions/libvirt-qemu>
- @END_APPARMOR_3@
