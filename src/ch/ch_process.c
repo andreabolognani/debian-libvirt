@@ -36,6 +36,7 @@
 #include "virjson.h"
 #include "virlog.h"
 #include "virnuma.h"
+#include "virpidfile.h"
 #include "virstring.h"
 #include "ch_interface.h"
 #include "ch_hostdev.h"
@@ -130,7 +131,7 @@ virCHProcessUpdateConsole(virDomainObj *vm,
         virCHProcessUpdateConsoleDevice(vm, config, "serial");
 }
 
-static int
+int
 virCHProcessUpdateInfo(virDomainObj *vm)
 {
     g_autoptr(virJSONValue) info = NULL;
@@ -429,8 +430,8 @@ virCHProcessSetupVcpus(virDomainObj *vm)
     size_t i;
 
     if ((vm->def->cputune.period || vm->def->cputune.quota) &&
-        !virCgroupHasController(((virCHDomainObjPrivate *) vm->privateData)->
-                                cgroup, VIR_CGROUP_CONTROLLER_CPU)) {
+        !virCgroupHasController(CH_DOMAIN_PRIVATE(vm)->cgroup,
+                                VIR_CGROUP_CONTROLLER_CPU)) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                        _("cgroup cpu is required for scheduler tuning"));
         return -1;
@@ -700,7 +701,7 @@ chProcessAddNetworkDevices(virCHDriver *driver,
         VIR_DEBUG("payload sent with net-add request to CH = %s", payload);
 
         virBufferAsprintf(&buf, "%s", virBufferCurrentContent(&http_headers));
-        virBufferAsprintf(&buf, "Content-Length: %ld\r\n\r\n", strlen(payload));
+        virBufferAsprintf(&buf, "Content-Length: %zu\r\n\r\n", strlen(payload));
         virBufferAsprintf(&buf, "%s", payload);
         payload_len = virBufferUse(&buf);
         payload = virBufferContentAndReset(&buf);
@@ -850,6 +851,21 @@ virCHProcessPrepareHost(virCHDriver *driver, virDomainObj *vm)
     if (virCHHostdevPrepareDomainDevices(driver, vm->def, hostdev_flags) < 0)
         return -1;
 
+    VIR_FREE(priv->pidfile);
+    if (!(priv->pidfile = virPidFileBuildPath(cfg->stateDir, vm->def->name))) {
+        virReportSystemError(errno, "%s",
+                             _("Failed to build pidfile path."));
+        return -1;
+    }
+
+    if (unlink(priv->pidfile) < 0 &&
+        errno != ENOENT) {
+        virReportSystemError(errno,
+                             _("Cannot remove stale PID file %1$s"),
+                             priv->pidfile);
+        return -1;
+    }
+
     /* Ensure no historical cgroup for this VM is lying around */
     VIR_DEBUG("Ensuring no historical cgroup is lying around");
     virDomainCgroupRemoveCgroup(vm, priv->cgroup, priv->machineName);
@@ -941,7 +957,6 @@ virCHProcessStart(virCHDriver *driver,
         }
     }
 
-    vm->pid = priv->monitor->pid;
     vm->def->id = vm->pid;
     priv->machineName = virCHDomainGetMachineName(vm);
 
@@ -1008,6 +1023,7 @@ virCHProcessStop(virCHDriver *driver,
     virErrorPreserveLast(&orig_err);
 
     if (priv->monitor) {
+        virProcessAbort(vm->pid);
         g_clear_pointer(&priv->monitor, virCHMonitorClose);
     }
 
@@ -1034,6 +1050,15 @@ virCHProcessStop(virCHDriver *driver,
     vm->pid = 0;
     vm->def->id = -1;
     g_clear_pointer(&priv->machineName, g_free);
+
+    if (priv->pidfile) {
+        if (unlink(priv->pidfile) < 0 &&
+            errno != ENOENT)
+            VIR_WARN("Failed to remove PID file for %s: %s",
+                     vm->def->name, g_strerror(errno));
+
+        g_clear_pointer(&priv->pidfile, g_free);
+    }
 
     virDomainObjSetState(vm, VIR_DOMAIN_SHUTOFF, reason);
 
@@ -1092,7 +1117,6 @@ virCHProcessStartRestore(virCHDriver *driver, virDomainObj *vm, const char *from
         }
     }
 
-    vm->pid = priv->monitor->pid;
     vm->def->id = vm->pid;
     priv->machineName = virCHDomainGetMachineName(vm);
 
@@ -1106,7 +1130,7 @@ virCHProcessStartRestore(virCHDriver *driver, virDomainObj *vm, const char *from
     virBufferAddLit(&http_headers, "Host: localhost\r\n");
     virBufferAddLit(&http_headers, "Content-Type: application/json\r\n");
     virBufferAsprintf(&buf, "%s", virBufferCurrentContent(&http_headers));
-    virBufferAsprintf(&buf, "Content-Length: %ld\r\n\r\n", strlen(payload));
+    virBufferAsprintf(&buf, "Content-Length: %zu\r\n\r\n", strlen(payload));
     virBufferAsprintf(&buf, "%s", payload);
     payload_len = virBufferUse(&buf);
     payload = virBufferContentAndReset(&buf);

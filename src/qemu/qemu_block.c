@@ -266,6 +266,7 @@ qemuBlockStorageSourceBuildJSONSocketAddress(virStorageNetHostDef *host)
         break;
 
     case VIR_STORAGE_NET_HOST_TRANS_RDMA:
+    case VIR_STORAGE_NET_HOST_TRANS_FD:
     case VIR_STORAGE_NET_HOST_TRANS_LAST:
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("transport protocol '%1$s' is not yet supported"),
@@ -2874,6 +2875,9 @@ qemuBlockThrottleFiltersDetach(qemuMonitor *mon,
 {
     size_t i;
 
+    if (!data)
+        return;
+
     for (i = data->nfilterdata; i > 0; i--)
         qemuBlockThrottleFilterAttachRollback(mon, data->filterdata[i-1]);
 }
@@ -3641,9 +3645,6 @@ qemuBlockExportGetNBDProps(const char *nodename,
  * @writable: whether the NBD export allows writes
  * @bitmap: (optional) block dirty bitmap to export along
  *
- * This function automatically selects the proper invocation of exporting a
- * block backend via NBD in qemu.
- *
  * This function must be called while in the monitor context.
  */
 int
@@ -3656,10 +3657,6 @@ qemuBlockExportAddNBD(virDomainObj *vm,
     qemuDomainObjPrivate *priv = vm->privateData;
     g_autoptr(virJSONValue) nbdprops = NULL;
     const char *bitmaps[2] = { bitmap, NULL };
-
-    if (!virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_BLOCK_EXPORT_ADD))
-        return qemuMonitorNBDServerAdd(priv->mon, qemuBlockStorageSourceGetEffectiveNodename(src),
-                                       exportname, writable, bitmap);
 
     if (!(nbdprops = qemuBlockExportGetNBDProps(qemuBlockStorageSourceGetEffectiveNodename(src),
                                                 exportname, writable, bitmaps)))

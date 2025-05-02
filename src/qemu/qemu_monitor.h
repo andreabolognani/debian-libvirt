@@ -255,6 +255,9 @@ typedef void (*qemuMonitorDomainDeviceUnplugErrCallback)(qemuMonitor *mon,
 typedef void (*qemuMonitorDomainNetdevStreamDisconnectedCallback)(qemuMonitor *mon,
                                                                   virDomainObj *vm,
                                                                   const char *devAlias);
+typedef void (*qemuMonitorDomainNetdevVhostUserDisconnectedCallback)(qemuMonitor *mon,
+                                                                     virDomainObj *vm,
+                                                                     const char *devAlias);
 typedef void (*qemuMonitorDomainNicRxFilterChangedCallback)(qemuMonitor *mon,
                                                             virDomainObj *vm,
                                                             const char *devAlias);
@@ -403,6 +406,7 @@ struct _qemuMonitorCallbacks {
     qemuMonitorDomainMemoryDeviceSizeChange domainMemoryDeviceSizeChange;
     qemuMonitorDomainDeviceUnplugErrCallback domainDeviceUnplugError;
     qemuMonitorDomainNetdevStreamDisconnectedCallback domainNetdevStreamDisconnected;
+    qemuMonitorDomainNetdevVhostUserDisconnectedCallback domainNetdevVhostUserDisconnected;
 };
 
 qemuMonitor *qemuMonitorOpen(virDomainObj *vm,
@@ -490,6 +494,8 @@ void qemuMonitorEmitDeviceUnplugErr(qemuMonitor *mon,
                                     const char *devAlias);
 void qemuMonitorEmitNetdevStreamDisconnected(qemuMonitor *mon,
                                              const char *devAlias);
+void qemuMonitorEmitNetdevVhostUserDisconnected(qemuMonitor *mon,
+                                                const char *devAlias);
 void qemuMonitorEmitNicRxFilterChanged(qemuMonitor *mon,
                                        const char *devAlias);
 void qemuMonitorEmitSerialChange(qemuMonitor *mon,
@@ -976,9 +982,6 @@ int qemuMonitorDelObject(qemuMonitor *mon,
                          const char *objalias,
                          bool report_error);
 
-int qemuMonitorCreateSnapshot(qemuMonitor *mon, const char *name);
-int qemuMonitorDeleteSnapshot(qemuMonitor *mon, const char *name);
-
 int qemuMonitorTransaction(qemuMonitor *mon, virJSONValue **actions)
     ATTRIBUTE_NONNULL(2);
 int qemuMonitorBlockdevMirror(qemuMonitor *mon,
@@ -1221,11 +1224,6 @@ int qemuMonitorNBDServerStart(qemuMonitor *mon,
                               const virStorageNetHostDef *server,
                               const char *tls_alias)
     ATTRIBUTE_NONNULL(2);
-int qemuMonitorNBDServerAdd(qemuMonitor *mon,
-                            const char *deviceID,
-                            const char *export,
-                            bool writable,
-                            const char *bitmap);
 int qemuMonitorNBDServerStop(qemuMonitor *mon);
 
 int qemuMonitorBlockExportAdd(qemuMonitor *mon,

@@ -90,7 +90,6 @@
   <flag name='nvdimm.unarmed'/>
   <flag name='virtio-pci-non-transitional'/>
   <flag name='machine.virt.iommu'/>
-  <flag name='nbd-bitmap'/>
   <flag name='bochs-display'/>
   <flag name='migration-file-drop-cache'/>
   <flag name='dbus-vmstate'/>
@@ -110,7 +109,6 @@
   <flag name='numa.hmat'/>
   <flag name='usb-host.hostdevice'/>
   <flag name='virtio-balloon.free-page-reporting'/>
-  <flag name='block-export-add'/>
   <flag name='netdev.vhost-vdpa'/>
   <flag name='dc390'/>
   <flag name='am53c974'/>
@@ -169,7 +167,6 @@
   <flag name='virtio-sound'/>
   <flag name='netdev.user'/>
   <flag name='acpi-erst'/>
-  <flag name='snapshot-internal-qmp'/>
   <version>8002000</version>
   <microcodeVersion>0</microcodeVersion>
   <package>qemu-8.2.0-7.fc39</package>

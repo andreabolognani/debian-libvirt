@@ -2,6 +2,7 @@
  * bhyve_command.c: bhyve command generation
  *
  * Copyright (C) 2014 Roman Bogorodskiy
+ * Copyright (C) 2025 The FreeBSD Foundation
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -26,6 +27,7 @@
 #include "bhyve_domain.h"
 #include "bhyve_conf.h"
 #include "bhyve_driver.h"
+#include "domain_validate.h"
 #include "datatypes.h"
 #include "viralloc.h"
 #include "virfile.h"
@@ -52,6 +54,7 @@ bhyveBuildNetArgStr(const virDomainDef *def,
     char *nic_model = NULL;
     int ret = -1;
     virDomainNetType actualType = virDomainNetGetActualType(net);
+    g_autoptr(virConnect) netconn = NULL;
 
     if (net->model == VIR_DOMAIN_NET_MODEL_VIRTIO) {
         nic_model = g_strdup("virtio-net");
@@ -69,12 +72,43 @@ bhyveBuildNetArgStr(const virDomainDef *def,
         return -1;
     }
 
-    if (actualType == VIR_DOMAIN_NET_TYPE_BRIDGE) {
+    if (net->type == VIR_DOMAIN_NET_TYPE_NETWORK) {
+        if (!netconn && !(netconn = virGetConnectNetwork()))
+            goto cleanup;
+        if (virDomainNetAllocateActualDevice(netconn, def, net) < 0)
+            goto cleanup;
+    }
+    /* final validation now that actual type is known */
+    if (virDomainActualNetDefValidate(net) < 0)
+        return -1;
+
+    switch (actualType) {
+    case VIR_DOMAIN_NET_TYPE_NETWORK:
+    case VIR_DOMAIN_NET_TYPE_BRIDGE:
         brname = g_strdup(virDomainNetGetActualBridgeName(net));
-    } else {
+        if (!brname) {
+            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                           _("No bridge name specified"));
+            goto cleanup;
+        }
+        break;
+    case VIR_DOMAIN_NET_TYPE_ETHERNET:
+    case VIR_DOMAIN_NET_TYPE_DIRECT:
+    case VIR_DOMAIN_NET_TYPE_USER:
+    case VIR_DOMAIN_NET_TYPE_VHOSTUSER:
+    case VIR_DOMAIN_NET_TYPE_SERVER:
+    case VIR_DOMAIN_NET_TYPE_CLIENT:
+    case VIR_DOMAIN_NET_TYPE_MCAST:
+    case VIR_DOMAIN_NET_TYPE_UDP:
+    case VIR_DOMAIN_NET_TYPE_INTERNAL:
+    case VIR_DOMAIN_NET_TYPE_HOSTDEV:
+    case VIR_DOMAIN_NET_TYPE_VDPA:
+    case VIR_DOMAIN_NET_TYPE_NULL:
+    case VIR_DOMAIN_NET_TYPE_VDS:
+    case VIR_DOMAIN_NET_TYPE_LAST:
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("Network type %1$d is not supported"),
-                       virDomainNetGetActualType(net));
+                       _("Unsupported network type %1$s"),
+                       virDomainNetTypeToString(actualType));
         goto cleanup;
     }
 
@@ -149,6 +183,24 @@ bhyveBuildConsoleArgStr(const virDomainDef *def, virCommand *cmd)
     virCommandAddArgFormat(cmd, "com%d,%s",
                            chr->target.port + 1, chr->source->data.file.path);
 
+    return 0;
+}
+
+static int
+bhyveBuildRNGArgStr(const virDomainDef *def G_GNUC_UNUSED,
+                    virDomainRNGDef *rng,
+                    virCommand *cmd)
+{
+    if (rng->backend != VIR_DOMAIN_RNG_BACKEND_RANDOM) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("RNG backend is not supported"));
+        return -1;
+    }
+
+    virCommandAddArg(cmd, "-s");
+    virCommandAddArgFormat(cmd, "%d:%d,virtio-rnd",
+                           rng->info.addr.pci.slot,
+                           rng->info.addr.pci.function);
     return 0;
 }
 
@@ -806,6 +858,10 @@ virBhyveProcessBuildBhyveCmd(struct _bhyveConn *driver, virDomainDef *def,
 
     if (bhyveBuildConsoleArgStr(def, cmd) < 0)
         return NULL;
+
+    for (i = 0; i < def->nrngs; i++)
+        if (bhyveBuildRNGArgStr(def, def->rngs[i], cmd) < 0)
+            return NULL;
 
     if (def->namespaceData) {
         bhyveDomainCmdlineDef *bhyvecmd;

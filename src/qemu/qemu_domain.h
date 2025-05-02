@@ -469,6 +469,7 @@ typedef enum {
     QEMU_PROCESS_EVENT_GUESTPANIC,
     QEMU_PROCESS_EVENT_DEVICE_DELETED,
     QEMU_PROCESS_EVENT_NETDEV_STREAM_DISCONNECTED,
+    QEMU_PROCESS_EVENT_NETDEV_VHOST_USER_DISCONNECTED,
     QEMU_PROCESS_EVENT_NIC_RX_FILTER_CHANGED,
     QEMU_PROCESS_EVENT_SERIAL_CHANGED,
     QEMU_PROCESS_EVENT_JOB_STATUS_CHANGE,
@@ -693,7 +694,7 @@ int qemuDomainMomentDiscardAll(void *payload,
 void qemuDomainRemoveInactive(virQEMUDriver *driver,
                               virDomainObj *vm,
                               virDomainUndefineFlagsValues flags,
-                              bool outgoingMigration);
+                              bool migration);
 
 void
 qemuDomainRemoveInactiveLocked(virQEMUDriver *driver,
@@ -757,11 +758,6 @@ int qemuDomainStorageSourceAccessAllow(virQEMUDriver *driver,
                                        bool newSource,
                                        bool chainTop);
 
-int qemuDomainPrepareStorageSourceBlockdevNodename(virDomainDiskDef *disk,
-                                                   virStorageSource *src,
-                                                   const char *nodenameprefix,
-                                                   qemuDomainObjPrivate *priv,
-                                                   virQEMUDriverConfig *cfg);
 int qemuDomainPrepareStorageSourceBlockdev(virDomainDiskDef *disk,
                                            virStorageSource *src,
                                            qemuDomainObjPrivate *priv,

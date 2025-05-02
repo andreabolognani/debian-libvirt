@@ -510,7 +510,7 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
 
     /* 330 */
     X_QEMU_CAPS_BITMAP_MERGE, /* block-dirty-bitmap-merge */
-    QEMU_CAPS_NBD_BITMAP, /* nbd-server-add supports bitmap */
+    X_QEMU_CAPS_NBD_BITMAP, /* nbd-server-add supports bitmap */
     QEMU_CAPS_X86_MAX_CPU, /* max-x86_64-cpu type exists */
     QEMU_CAPS_CPU_UNAVAILABLE_FEATURES, /* "unavailable-features" CPU property */
     QEMU_CAPS_CANONICAL_CPU_FEATURES, /* avoid CPU feature aliases */
@@ -581,7 +581,7 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     /* 380 */
     QEMU_CAPS_USB_HOST_HOSTDEVICE, /* -device usb-host.hostdevice */
     QEMU_CAPS_VIRTIO_BALLOON_FREE_PAGE_REPORTING, /*virtio balloon free-page-reporting */
-    QEMU_CAPS_BLOCK_EXPORT_ADD, /* 'block-export-add' command is supported */
+    X_QEMU_CAPS_BLOCK_EXPORT_ADD, /* 'block-export-add' command is supported */
     QEMU_CAPS_NETDEV_VHOST_VDPA, /* -netdev vhost-vdpa*/
     X_QEMU_CAPS_FSDEV_CREATEMODE, /* fsdev.createmode */
 
@@ -698,7 +698,7 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     QEMU_CAPS_MACHINE_I8042_OPT, /* -machine xxx,i8042=on/off; use virQEMUCapsSupportsI8042Toggle() to query this capability */
 
     /* 465 */
-    QEMU_CAPS_SNAPSHOT_INTERNAL_QMP, /* internal snapshot support via QMP commands 'snapshot-save'/'snapshot-delete' */
+    X_QEMU_CAPS_SNAPSHOT_INTERNAL_QMP, /* internal snapshot support via QMP commands 'snapshot-save'/'snapshot-delete' */
     QEMU_CAPS_CHARDEV_RECONNECT_MILISECONDS, /* 'reconnect-ms' option for chardevs supported */
     QEMU_CAPS_VIRTIO_CCW_DEVICE_LOADPARM, /* loadparm available on CCW device for multi device boot */
     QEMU_CAPS_NETDEV_STREAM_RECONNECT_MILISECONDS, /* 'reconnect-ms' option for netdev stream supported */

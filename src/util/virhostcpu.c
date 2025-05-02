@@ -643,9 +643,8 @@ virHostCPUGetInfoPopulateLinux(FILE *cpuinfo,
     int nodecpus, nodecores, nodesockets, nodethreads, offline = 0;
     int threads_per_subcore = 0;
     unsigned int node;
-    int ret = -1;
-    char *sysfs_nodedir = NULL;
-    char *sysfs_cpudir = NULL;
+    g_autofree char *sysfs_nodedir = NULL;
+    g_autofree char *sysfs_cpudir_fallback = NULL;
     int direrr;
 
     *mhz = 0;
@@ -659,12 +658,11 @@ virHostCPUGetInfoPopulateLinux(FILE *cpuinfo,
 
     /* Get information about what CPUs are present in the host and what
      * CPUs are online, so that we don't have to so for each node */
-    present_cpus_map = virHostCPUGetPresentBitmap();
-    if (!present_cpus_map)
-        goto cleanup;
-    online_cpus_map = virHostCPUGetOnlineBitmap();
-    if (!online_cpus_map)
-        goto cleanup;
+    if (!(present_cpus_map = virHostCPUGetPresentBitmap()))
+        return -1;
+
+    if (!(online_cpus_map = virHostCPUGetOnlineBitmap()))
+        return -1;
 
     /* OK, we've parsed clock speed out of /proc/cpuinfo. Get the
      * core, node, socket, thread and topology information from /sys
@@ -699,7 +697,7 @@ virHostCPUGetInfoPopulateLinux(FILE *cpuinfo,
      * On hosts other than POWER this will be 0, in which case a simpler
      * thread-counting logic will be used  */
     if ((threads_per_subcore = virHostCPUGetThreadsPerSubcore(arch)) < 0)
-        goto cleanup;
+        return -1;
 
     /* If the subcore configuration is not valid, just pretend subcores
      * are not in use and count threads one by one */
@@ -707,6 +705,8 @@ virHostCPUGetInfoPopulateLinux(FILE *cpuinfo,
         threads_per_subcore = 0;
 
     while ((direrr = virDirRead(nodedir, &nodedirent, sysfs_nodedir)) > 0) {
+        g_autofree char *sysfs_cpudir = NULL;
+
         if (sscanf(nodedirent->d_name, "node%u", &node) != 1)
             continue;
 
@@ -721,9 +721,7 @@ virHostCPUGetInfoPopulateLinux(FILE *cpuinfo,
                                             threads_per_subcore,
                                             &nodesockets, &nodecores,
                                             &nodethreads, &offline)) < 0)
-            goto cleanup;
-
-        VIR_FREE(sysfs_cpudir);
+            return -1;
 
         *cpus += nodecpus;
 
@@ -738,23 +736,21 @@ virHostCPUGetInfoPopulateLinux(FILE *cpuinfo,
     }
 
     if (direrr < 0)
-        goto cleanup;
+        return -1;
 
     if (*cpus && *nodes)
         goto done;
 
  fallback:
-    VIR_FREE(sysfs_cpudir);
+    sysfs_cpudir_fallback = g_strdup_printf("%s/cpu", SYSFS_SYSTEM_PATH);
 
-    sysfs_cpudir = g_strdup_printf("%s/cpu", SYSFS_SYSTEM_PATH);
-
-    if ((nodecpus = virHostCPUParseNode(sysfs_cpudir, arch,
+    if ((nodecpus = virHostCPUParseNode(sysfs_cpudir_fallback, arch,
                                         present_cpus_map,
                                         online_cpus_map,
                                         threads_per_subcore,
                                         &nodesockets, &nodecores,
                                         &nodethreads, &offline)) < 0)
-        goto cleanup;
+        return -1;
 
     *nodes = 1;
     *cpus = nodecpus;
@@ -766,17 +762,17 @@ virHostCPUGetInfoPopulateLinux(FILE *cpuinfo,
     /* There should always be at least one cpu, socket, node, and thread. */
     if (*cpus == 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s", _("no CPUs found"));
-        goto cleanup;
+        return -1;
     }
 
     if (*sockets == 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s", _("no sockets found"));
-        goto cleanup;
+        return -1;
     }
 
     if (*threads == 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s", _("no threads found"));
-        goto cleanup;
+        return -1;
     }
 
     /* Now check if the topology makes sense. There are machines that don't
@@ -796,12 +792,7 @@ virHostCPUGetInfoPopulateLinux(FILE *cpuinfo,
         *threads = 1;
     }
 
-    ret = 0;
-
- cleanup:
-    VIR_FREE(sysfs_nodedir);
-    VIR_FREE(sysfs_cpudir);
-    return ret;
+    return 0;
 }
 
 # define TICK_TO_NSEC (1000ull * 1000ull * 1000ull / sysconf(_SC_CLK_TCK))
@@ -1110,8 +1101,8 @@ virHostCPUGetMap(unsigned char **cpumap,
     if (!(cpus = virHostCPUGetOnlineBitmap()))
         goto cleanup;
 
-    if (cpumap && virBitmapToData(cpus, cpumap, &dummy) < 0)
-        goto cleanup;
+    if (cpumap)
+        virBitmapToData(cpus, cpumap, &dummy);
     if (online)
         *online = virBitmapCountBits(cpus);
 

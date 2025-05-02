@@ -14,9 +14,9 @@ msgid ""
 msgstr ""
 "Project-Id-Version: libvirt 6.0.0\n"
 "Report-Msgid-Bugs-To: https://libvirt.org/bugs.html\n"
-"POT-Creation-Date: 2025-03-25 10:52+0000\n"
-"PO-Revision-Date: 2025-01-08 17:39+0000\n"
-"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"POT-Creation-Date: 2025-04-28 08:27+0000\n"
+"PO-Revision-Date: 2025-04-15 09:30+0000\n"
+"Last-Translator: Ricky Tigg <ricky.tigg@gmail.com>\n"
 "Language-Team: Finnish <https://translate.fedoraproject.org/projects/libvirt/"
 "libvirt/fi/>\n"
 "Language: fi\n"
@@ -24,7 +24,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=n != 1;\n"
-"X-Generator: Weblate 5.9.2\n"
+"X-Generator: Weblate 5.10.4\n"
 
 msgid ""
 "\n"
@@ -916,7 +916,7 @@ msgstr ""
 
 #, c-format
 msgid "%1$s: event '%2$s' for storage pool %3$s\n"
-msgstr ""
+msgstr "%1$s: tapahtuma '%2$s' varastointivarannolle %3$s\n"
 
 #, c-format
 msgid "%1$s: event 'lifecycle' for network %2$s: %3$s\n"
@@ -932,7 +932,7 @@ msgstr ""
 
 #, c-format
 msgid "%1$s: event 'lifecycle' for storage pool %2$s: %3$s\n"
-msgstr ""
+msgstr "%1$s: tapahtuma \"elinkaari\" varastointivarannolle %2$s: %3$s\n"
 
 #, c-format
 msgid "%1$s: event 'metadata-change' for network %2$s: type %3$s, uri %4$s\n"
@@ -1808,7 +1808,7 @@ msgid "ACPI index is only supported for PCI devices"
 msgstr ""
 
 msgid "ACPI requires UEFI on this architecture"
-msgstr ""
+msgstr "UEFI vaatii ACPI:n tässä arkkitehtuurissa"
 
 #, c-format
 msgid "ACPI table type '%1$s' is not supported"
@@ -1864,7 +1864,7 @@ msgid "Access secret"
 msgstr ""
 
 msgid "Access storage pool"
-msgstr ""
+msgstr "Pääsy varastointivarannolle"
 
 msgid "Access storage volume"
 msgstr ""
@@ -1888,7 +1888,7 @@ msgid "Accessing secret requires authorization"
 msgstr ""
 
 msgid "Accessing storage pool requires authorization"
-msgstr ""
+msgstr "Varastointivarantoon pääseminen vaatii valtuutuksen"
 
 msgid "Accessing storage volume requires authorization"
 msgstr ""
@@ -2892,7 +2892,7 @@ msgid "Cannot deactivate network autostart"
 msgstr ""
 
 msgid "Cannot deactivate storage pool autostart"
-msgstr ""
+msgstr "Varastointivarannon automaattista käynnistystä ei voi poistaa käytöstä"
 
 #, c-format
 msgid "Cannot delete directory '%1$s'"
@@ -3464,11 +3464,6 @@ msgstr ""
 
 #, c-format
 msgid "Cannot use direct socket mode for %1$s transport"
-msgstr ""
-
-msgid ""
-"Cannot use direct socket mode if no URI is set. For more information see "
-"https://libvirt.org/kbase/failed_connection_after_install.html"
 msgstr ""
 
 #, c-format
@@ -4374,15 +4369,15 @@ msgstr "Tilannevedosta nimellä '%1$s' ei löydy"
 
 #, c-format
 msgid "Could not find storage pool with name '%1$s'"
-msgstr ""
+msgstr "Varastointivarantoa nimellä '%1$s' ei löytynyt"
 
 #, c-format
 msgid "Could not find storage pool with name: %1$s"
-msgstr ""
+msgstr "Ei löytynyt varastointivarantoa nimellä: %1$s"
 
 #, c-format
 msgid "Could not find storage pool with uuid '%1$s'"
-msgstr ""
+msgstr "Varastointivarantoa uuid:lla '%1$s' ei löytynyt"
 
 #, c-format
 msgid "Could not find storage volume with key '%1$s'"
@@ -5131,7 +5126,7 @@ msgid "Create network port"
 msgstr ""
 
 msgid "Create storage volume"
-msgstr ""
+msgstr "Luo varastointitaltio"
 
 #, c-format
 msgid "Create the dir %1$s"
@@ -5253,7 +5248,7 @@ msgid "Define or modify a persistent physical host interface."
 msgstr ""
 
 msgid "Define or modify a persistent storage pool."
-msgstr ""
+msgstr "Määritä tai muokkaa pysyvää varastointivarantoa."
 
 msgid "Define or modify a persistent virtual network."
 msgstr ""
@@ -5291,13 +5286,13 @@ msgid "Delete an IOThread from the guest domain."
 msgstr "Poista IOThread vierastoimialueesta."
 
 msgid "Delete domain"
-msgstr ""
+msgstr "Poista toimialue"
 
 msgid "Delete interface"
 msgstr ""
 
 msgid "Delete network"
-msgstr ""
+msgstr "Poista verkko"
 
 msgid "Delete network filter"
 msgstr ""
@@ -5306,7 +5301,7 @@ msgid "Delete network filter binding"
 msgstr ""
 
 msgid "Delete network port"
-msgstr ""
+msgstr "Poista verkkoportti"
 
 msgid "Delete node device"
 msgstr ""
@@ -5315,7 +5310,7 @@ msgid "Delete secret"
 msgstr ""
 
 msgid "Delete storage pool"
-msgstr ""
+msgstr "Poista varastointivaranto"
 
 msgid "Delete storage volume"
 msgstr ""
@@ -5351,7 +5346,7 @@ msgid "Deleting secret configuration requires authorization"
 msgstr ""
 
 msgid "Deleting storage pool configuration requires authorization"
-msgstr ""
+msgstr "Varastointivarannon kokoonpanon poistaminen vaatii valtuutuksen"
 
 msgid "Deleting storage volume requires authorization"
 msgstr ""
@@ -5415,10 +5410,10 @@ msgid "Detaching node device driver requires authorization"
 msgstr ""
 
 msgid "Detect storage pools"
-msgstr ""
+msgstr "Havaitse varastointivarannot"
 
 msgid "Detecting storage pools requires authorization"
-msgstr ""
+msgstr "varastointivarantojen havaitseminen edellyttää valtuutusta"
 
 msgid "Device"
 msgstr "Laite"
@@ -6107,7 +6102,7 @@ msgid "Edit the XML configuration for a physical host interface."
 msgstr "Muokkaa fyysisen isäntäliitännän XML-kokoonpanoa."
 
 msgid "Edit the XML configuration for a storage pool."
-msgstr "Muokkaa XML-kokoonpanoa tallennusvarantoa varten."
+msgstr "Muokkaa varastointivarannon XML-kokoonpanoa."
 
 msgid "Edit the domain XML associated with a saved state file"
 msgstr ""
@@ -7163,10 +7158,6 @@ msgstr "Salan %1$s poistaminen epäonnistui"
 #, c-format
 msgid "Failed to delete snapshot %1$s"
 msgstr "Tilannevedoksen %1$s poistaminen epäonnistui"
-
-#, c-format
-msgid "Failed to delete snapshot: %1$s"
-msgstr "Tilannevedoksen poistaminen epäonnistui: %1$s"
 
 #, c-format
 msgid "Failed to delete symlink '%1$s'"
@@ -8614,10 +8605,6 @@ msgid "Failed to symlink device %1$s to %2$s"
 msgstr "%1$s:n liittäminen %2$s:een epäonnistui"
 
 #, c-format
-msgid "Failed to take snapshot: %1$s"
-msgstr "Tilannevedoksen lataaminen epäonnistui: %1$s"
-
-#, c-format
 msgid "Failed to terminate process %1$lld with SIG%2$s"
 msgstr "Prosessin %1$lld lopettaminen SIG%2$s:lla epäonnistui"
 
@@ -9345,6 +9332,10 @@ msgid "Human readable output"
 msgstr ""
 
 msgid "Hybrid-Suspend"
+msgstr ""
+
+#, c-format
+msgid "Hyper-v enlightenment feature '%1$s' is not supported for Xen domains."
 msgstr ""
 
 #, c-format
@@ -10159,7 +10150,7 @@ msgid "Invalid host key verification method: '%1$s'"
 msgstr ""
 
 #, c-format
-msgid "Invalid host_data provided. Expected '%1$ld' bytes"
+msgid "Invalid host_data provided. Expected '%1$zu' bytes"
 msgstr ""
 
 #, c-format
@@ -10746,7 +10737,7 @@ msgid "List checkpoints for a domain"
 msgstr "Luettele tarkistuskohtat toimialueelle"
 
 msgid "List domains"
-msgstr ""
+msgstr "Luettele toimialueet"
 
 msgid "List event types, or wait for domain events to occur"
 msgstr ""
@@ -10776,7 +10767,7 @@ msgid "List network ports"
 msgstr ""
 
 msgid "List networks"
-msgstr ""
+msgstr "Luettele verkot"
 
 msgid "List node devices"
 msgstr ""
@@ -11487,9 +11478,8 @@ msgstr ""
 msgid "Missing defaultLockspace data from JSON file"
 msgstr ""
 
-#, fuzzy
 msgid "Missing device name for container-side veth"
-msgstr "laitetietoja puuttuu"
+msgstr "Puuttuva laitteen nimi kontin puoliselle vethille"
 
 msgid "Missing disk file path in domain"
 msgstr ""
@@ -11824,17 +11814,17 @@ msgstr ""
 msgid "Missing storage host block path"
 msgstr ""
 
-#, fuzzy, c-format
+#, c-format
 msgid "Missing storage volume name for disk '%1$s'"
-msgstr "lähdetietoja puuttuu laitteelle %1$s"
+msgstr "Levyltä '%1$s' puuttuu varastointitaltion nimi"
 
 #, c-format
 msgid "Missing udev property '%1$s' on '%2$s'"
 msgstr ""
 
-#, fuzzy, c-format
+#, c-format
 msgid "Missing vendor string for CPU vendor %1$s"
-msgstr "lähdetietoja puuttuu laitteelle %1$s"
+msgstr "Puuttuva toimittajamerkkijono suorittimen toimittajalta %1$s"
 
 msgid "Model"
 msgstr "Malli"
@@ -12240,10 +12230,6 @@ msgstr ""
 msgid "Network title updated successfully"
 msgstr ""
 
-#, c-format
-msgid "Network type %1$d is not supported"
-msgstr "Verkkotyyppiä %1$d ei tueta"
-
 msgid "New disk media source was not specified"
 msgstr ""
 
@@ -12280,6 +12266,13 @@ msgid "No PCI buses available"
 msgstr ""
 
 msgid "No UNIX caller UID available"
+msgstr ""
+
+msgid ""
+"No URI is provided and cannot identify any listening daemon socket path to "
+"attempt to connect to. Please ensure the expected daemon sockets are active "
+"and/or provide an explicit URI. For more information see https://libvirt.org/"
+"kbase/failed_connection_after_install.html"
 msgstr ""
 
 msgid "No URI scheme specified"
@@ -12817,6 +12810,15 @@ msgid "Only '%1$s' filesystem type is supported"
 msgstr ""
 
 msgid "Only 'credit' and 'credit2' schedulers are supported"
+msgstr ""
+
+msgid "Only 'random' backend model is supported"
+msgstr ""
+
+msgid "Only 'virio' RNG device model is supported"
+msgstr ""
+
+msgid "Only /dev/random source is supported"
 msgstr ""
 
 msgid "Only 1 IDE controller is supported"
@@ -13745,6 +13747,9 @@ msgstr ""
 msgid "RDT Memory Bandwidth allocation unsupported"
 msgstr ""
 
+msgid "RNG backend is not supported"
+msgstr ""
+
 msgid "RNG device is missing alias"
 msgstr ""
 
@@ -13987,9 +13992,9 @@ msgstr "Pyydettyjen virtuaalisten suorittimien määrän on oltava vähintään 
 msgid "Requested operation is not valid"
 msgstr ""
 
-#, fuzzy, c-format
+#, c-format
 msgid "Requested operation is not valid: %1$s"
-msgstr "toimenpide epäonnistui: %1$s"
+msgstr "Pyydetty toiminto ei kelpaa: %1$s"
 
 #, c-format
 msgid "Requested resize to '%1$llu' but device size is '%2$llu'"
@@ -14031,9 +14036,8 @@ msgstr ""
 msgid "Resetting the domain requires authorization"
 msgstr ""
 
-#, fuzzy
 msgid "Resize block device of domain."
-msgstr "Palauttaa listan toimialueista."
+msgstr "Muuta toimialueen lohkolaitteen kokoa."
 
 msgid "Resize storage volume"
 msgstr ""
@@ -14085,9 +14089,8 @@ msgstr ""
 msgid "Resume a previously suspended domain."
 msgstr "Palauta aiemmin keskeytystilaan asetettu toimialue."
 
-#, fuzzy
 msgid "Resume operation failed"
-msgstr "toimenpide epäonnistui"
+msgstr "Toiminnon jatkaminen epäonnistui"
 
 msgid "Resumed"
 msgstr ""
@@ -14124,9 +14127,8 @@ msgstr "Palauttaa salaisuuksien luettelon"
 msgid "Returns basic SEV information about the node."
 msgstr "Palauttaa SEV-perustietoja solmusta."
 
-#, fuzzy
 msgid "Returns basic information about a checkpoint."
-msgstr "Palauttaa perustietoja toimialueesta."
+msgstr "Palauttaa tarkistuspisteen perustiedot."
 
 msgid "Returns basic information about a snapshot."
 msgstr "Palauttaa perustietoja tilannevedoksesta."
@@ -14167,20 +14169,17 @@ msgstr "Palauttaa tallennustilan varannon tuen kyvyt."
 msgid "Returns cpu stats of the node, in nanoseconds."
 msgstr ""
 
-#, fuzzy
 msgid "Returns information about jobs running on a domain."
-msgstr "Palauttaa perustietoja toimialueesta."
+msgstr "Palauttaa tiedot toimialueella käynnissä olevista töistä."
 
 msgid "Returns list of domains."
 msgstr "Palauttaa listan toimialueista."
 
-#, fuzzy
 msgid "Returns list of network filter bindings."
-msgstr "Palauttaa verkkoluettelon."
+msgstr "Palauttaa luettelon verkkosuodattimen sidoksista."
 
-#, fuzzy
 msgid "Returns list of network filters."
-msgstr "Palauttaa verkkoluettelon."
+msgstr "Palauttaa luettelon verkkosuodattimista."
 
 msgid "Returns list of network ports."
 msgstr "Palauttaa verkkoporttien luettelon."
@@ -14188,17 +14187,14 @@ msgstr "Palauttaa verkkoporttien luettelon."
 msgid "Returns list of networks."
 msgstr "Palauttaa verkkoluettelon."
 
-#, fuzzy
 msgid "Returns list of physical host interfaces."
-msgstr "Palauttaa listan toimialueista."
+msgstr "Palauttaa luettelon fyysisistä isäntäliitännöistä."
 
-#, fuzzy
 msgid "Returns list of pools."
-msgstr "Palauttaa listan toimialueista."
+msgstr "Palauttaa luettelon varannoista."
 
-#, fuzzy
 msgid "Returns list of vols by pool."
-msgstr "Palauttaa listan toimialueista."
+msgstr "Palauttaa luettelon taltioista varannoittain."
 
 msgid "Returns memory stats of the node, in kilobytes."
 msgstr ""
@@ -14206,9 +14202,8 @@ msgstr ""
 msgid "Returns state about a domain."
 msgstr "Palauttaa toimialueen tilan."
 
-#, fuzzy
 msgid "Returns state of a control interface to the domain."
-msgstr "Palauttaa perustietoja toimialueesta."
+msgstr "Palauttaa ohjausliitännän tilan toimialueelle."
 
 msgid "Returns the number of virtual CPUs used by the domain."
 msgstr "Palauttaa toimialueen käyttämien virtuaalisten suorittimien määrän."
@@ -14437,9 +14432,8 @@ msgstr ""
 msgid "Save storage pool"
 msgstr ""
 
-#, fuzzy
 msgid "Save the RAM state of a running domain."
-msgstr "Hae käynnissä olevan toimialueen verkkoliitäntätilastot."
+msgstr "Tallenna käynnissä olevan toimialueen RAM-tila."
 
 msgid "Saved"
 msgstr "Tallennettu"
@@ -14508,20 +14502,19 @@ msgstr ""
 msgid "Secret %1$s created\n"
 msgstr "Salaisuus %1$s luotu\n"
 
-#, fuzzy, c-format
+#, c-format
 msgid "Secret %1$s deleted\n"
-msgstr "Verkko %1$s tuhottu\n"
+msgstr "Salaisuus %1$s poistettu\n"
 
 msgid "Secret Events"
 msgstr ""
 
-#, fuzzy
 msgid "Secret not found"
-msgstr "Verkkoa ei löytynyt"
+msgstr "Salaisuutta ei löytynyt"
 
-#, fuzzy, c-format
+#, c-format
 msgid "Secret not found: %1$s"
-msgstr "Verkkoa ei löytynyt %1$s"
+msgstr "Salaisuutta ei löydy: %1$s"
 
 msgid "Secret value set\n"
 msgstr ""
@@ -15048,7 +15041,7 @@ msgid "Start interface"
 msgstr ""
 
 msgid "Start network"
-msgstr ""
+msgstr "Käynnistä verkko"
 
 msgid "Start node device"
 msgstr ""
@@ -15179,7 +15172,7 @@ msgid "Stop interface"
 msgstr ""
 
 msgid "Stop network"
-msgstr ""
+msgstr "Pysäytä verkko"
 
 msgid "Stop node device"
 msgstr ""
@@ -15223,20 +15216,19 @@ msgstr ""
 msgid "Storage pool config filename '%1$s' does not match pool name '%2$s'"
 msgstr ""
 
-#, fuzzy
 msgid "Storage pool not found"
-msgstr "Verkkoa ei löytynyt"
+msgstr "Varastointivarantoa ei löydy"
 
-#, fuzzy, c-format
+#, c-format
 msgid "Storage pool not found: %1$s"
-msgstr "Verkkoa ei löytynyt %1$s"
+msgstr "Varastointivarantoa ei löydy: %1$s"
 
 msgid "Storage pool probe failed"
 msgstr ""
 
-#, fuzzy, c-format
+#, c-format
 msgid "Storage pool probe failed: %1$s"
-msgstr "POST-toimenpide epäonnistui: %1$s"
+msgstr "Tallennusvaraston koe epäonnistui: %1$s"
 
 #, c-format
 msgid "Storage pool state file '%1$s' does not match pool name '%2$s'"
@@ -16528,7 +16520,7 @@ msgid "The read only disk has no parent"
 msgstr ""
 
 msgid ""
-"The read only disk number must be greater or equal to the  read write disk "
+"The read only disk number must be greater or equal to the read write disk "
 "number"
 msgstr ""
 
@@ -21636,7 +21628,7 @@ msgid "build the pool as normal"
 msgstr ""
 
 msgid "building"
-msgstr ""
+msgstr "Kootaan"
 
 msgid "bus must be 0 for sata controller"
 msgstr ""
@@ -24463,7 +24455,7 @@ msgid "deflate-on-oom is not supported by this QEMU binary"
 msgstr ""
 
 msgid "degraded"
-msgstr ""
+msgstr "Huonontunut"
 
 #, fuzzy
 msgid "delete a network filter binding"
@@ -27586,6 +27578,12 @@ msgid "file containing secret attributes in XML"
 msgstr ""
 
 #, c-format
+msgid ""
+"file descriptor group '%1$s' must contain only 1 file descriptor for NBD "
+"server"
+msgstr ""
+
+#, c-format
 msgid "file descriptor group '%1$s' was not associated with the domain"
 msgstr ""
 
@@ -28759,11 +28757,6 @@ msgid "internal snapshot for disk %1$s unsupported for storage type %2$s"
 msgstr ""
 
 msgid "internal snapshot of a running VM must include the memory state"
-msgstr ""
-
-msgid ""
-"internal snapshots of a VM with pflash based firmware are not supported with "
-"this qemu"
 msgstr ""
 
 msgid ""
@@ -36465,12 +36458,6 @@ msgstr ""
 msgid "this disk doesn't support update"
 msgstr ""
 
-msgid "this domain does not have a device to delete snapshots"
-msgstr ""
-
-msgid "this domain does not have a device to take snapshots"
-msgstr ""
-
 msgid "this domain exists already"
 msgstr "Tämä toimialue on jo olemassa"
 
@@ -36939,6 +36926,9 @@ msgstr ""
 
 #, c-format
 msgid "transport '%1$s' does not support socket attribute"
+msgstr ""
+
+msgid "transport 'fd' is now allowed"
 msgstr ""
 
 msgid "transport methods unix, ssh and ext are not supported under Windows"
@@ -39931,6 +39921,18 @@ msgstr ""
 #, c-format
 msgid "zone %1$s requested for network %2$s but firewalld is not active"
 msgstr "vyöhyke %1$s pyydetty verkolle %2$s, mutta palomuuri ei ole aktiivinen"
+
+#, c-format
+#~ msgid "Failed to delete snapshot: %1$s"
+#~ msgstr "Tilannevedoksen poistaminen epäonnistui: %1$s"
+
+#, c-format
+#~ msgid "Failed to take snapshot: %1$s"
+#~ msgstr "Tilannevedoksen lataaminen epäonnistui: %1$s"
+
+#, c-format
+#~ msgid "Network type %1$d is not supported"
+#~ msgstr "Verkkotyyppiä %1$d ei tueta"
 
 #, c-format
 #~ msgid "Failed to allocate slirp for '%1$s'"

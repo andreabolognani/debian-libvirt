@@ -3607,12 +3607,12 @@ processDeviceDeletedEvent(virQEMUDriver *driver,
 
 
 static void
-processNetdevStreamDisconnectedEvent(virDomainObj *vm,
-                                     const char *netdevId)
+processNetdevDisconnectedEvent(virDomainObj *vm,
+                               const char *netdevId,
+                               const char *eventName)
 {
     virDomainDeviceDef dev;
     virDomainNetDef *def;
-    virQEMUCaps *qemuCaps = QEMU_DOMAIN_PRIVATE(vm)->qemuCaps;
     const char *devAlias = STRSKIP(netdevId, "host");
 
     /* The event sends us the "netdev-id", but we don't store the
@@ -3624,13 +3624,13 @@ processNetdevStreamDisconnectedEvent(virDomainObj *vm,
      */
 
     if (!devAlias) {
-        VIR_WARN("Received NETDEV_STREAM_DISCONNECTED event for unrecognized netdev %s from domain %p %s",
-                  netdevId, vm, vm->def->name);
+        VIR_WARN("Received %s event for unrecognized netdev %s from domain %p %s",
+                 eventName, netdevId, vm, vm->def->name);
         return;
     }
 
-    VIR_DEBUG("Received NETDEV_STREAM_DISCONNECTED event for device %s from domain %p %s",
-              devAlias, vm, vm->def->name);
+    VIR_DEBUG("Received %s event for device %s from domain %p %s",
+              eventName, devAlias, vm, vm->def->name);
 
     if (virDomainObjBeginJob(vm, VIR_JOB_QUERY) < 0)
         return;
@@ -3641,40 +3641,50 @@ processNetdevStreamDisconnectedEvent(virDomainObj *vm,
     }
 
     if (virDomainDefFindDevice(vm->def, devAlias, &dev, true) < 0) {
-        VIR_WARN("NETDEV_STREAM_DISCONNECTED event received for non-existent device %s in domain %s",
-                 devAlias, vm->def->name);
+        VIR_WARN("%s event received for non-existent device %s in domain %s",
+                 eventName, devAlias, vm->def->name);
         goto endjob;
     }
     if (dev.type != VIR_DOMAIN_DEVICE_NET) {
-        VIR_WARN("NETDEV_STREAM_DISCONNECTED event received for non-network device %s in domain %s",
-                 devAlias, vm->def->name);
+        VIR_WARN("%s event received for non-network device %s in domain %s",
+                 eventName, devAlias, vm->def->name);
         goto endjob;
     }
     def = dev.data.net;
 
     if (def->backend.type != VIR_DOMAIN_NET_BACKEND_PASST) {
-        VIR_DEBUG("ignore NETDEV_STREAM_DISCONNECTED event for non-passt network device %s in domain %s",
-                  def->info.alias, vm->def->name);
-        goto endjob;
-    }
-
-    if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_NETDEV_STREAM_RECONNECT)) {
-        VIR_WARN("ignore NETDEV_STREAM_DISCONNECTED event for passt network device %s in domain %s - QEMU binary does not support reconnect",
-                  def->info.alias, vm->def->name);
+        VIR_DEBUG("ignore %s event for non-passt network device %s in domain %s",
+                  eventName, def->info.alias, vm->def->name);
         goto endjob;
     }
 
     /* handle the event - restart the passt process with its original
      * parameters
      */
-    VIR_DEBUG("process NETDEV_STREAM_DISCONNECTED event for network device %s in domain %s",
-              def->info.alias, vm->def->name);
+    VIR_DEBUG("process %s event for network device %s in domain %s",
+              eventName, def->info.alias, vm->def->name);
 
     if (qemuPasstStart(vm, def) < 0)
         goto endjob;
 
  endjob:
     virDomainObjEndJob(vm);
+}
+
+
+static void
+processNetdevStreamDisconnectedEvent(virDomainObj *vm,
+                                     const char *netdevId)
+{
+    processNetdevDisconnectedEvent(vm, netdevId, "NETDEV_STREAM_DISCONNECTED");
+}
+
+
+static void
+processNetdevVhostUserDisconnectedEvent(virDomainObj *vm,
+                                        const char *netdevId)
+{
+    processNetdevDisconnectedEvent(vm, netdevId, "NETDEV_VHOST_USER_DISCONNECTED");
 }
 
 
@@ -3845,6 +3855,7 @@ processMonitorEOFEvent(virQEMUDriver *driver,
     const char *auditReason = "shutdown";
     unsigned int stopFlags = 0;
     virObjectEvent *event = NULL;
+    bool migration;
 
     if (vm->def->id != domid) {
         VIR_DEBUG("Domain %s was restarted, ignoring EOF",
@@ -3854,6 +3865,8 @@ processMonitorEOFEvent(virQEMUDriver *driver,
 
     if (qemuProcessBeginStopJob(vm, VIR_JOB_DESTROY, true) < 0)
         return;
+
+    migration = vm->job->asyncJob == VIR_ASYNC_JOB_MIGRATION_IN;
 
     if (!virDomainObjIsActive(vm)) {
         VIR_DEBUG("Domain %p '%s' is not active, ignoring EOF",
@@ -3869,7 +3882,7 @@ processMonitorEOFEvent(virQEMUDriver *driver,
         auditReason = "failed";
     }
 
-    if (vm->job->asyncJob == VIR_ASYNC_JOB_MIGRATION_IN) {
+    if (migration) {
         stopFlags |= VIR_QEMU_PROCESS_STOP_MIGRATED;
         qemuMigrationDstErrorSave(driver, vm->def->name,
                                   qemuMonitorLastError(priv->mon));
@@ -3882,7 +3895,7 @@ processMonitorEOFEvent(virQEMUDriver *driver,
     virObjectEventStateQueue(driver->domainEventState, event);
 
  endjob:
-    qemuDomainRemoveInactive(driver, vm, 0, false);
+    qemuDomainRemoveInactive(driver, vm, 0, migration);
     qemuProcessEndStopJob(vm);
 }
 
@@ -4075,6 +4088,9 @@ static void qemuProcessEventHandler(void *data, void *opaque)
         break;
     case QEMU_PROCESS_EVENT_NETDEV_STREAM_DISCONNECTED:
         processNetdevStreamDisconnectedEvent(vm, processEvent->data);
+        break;
+    case QEMU_PROCESS_EVENT_NETDEV_VHOST_USER_DISCONNECTED:
+        processNetdevVhostUserDisconnectedEvent(vm, processEvent->data);
         break;
     case QEMU_PROCESS_EVENT_NIC_RX_FILTER_CHANGED:
         processNicRxFilterChangedEvent(driver, vm, processEvent->data);
@@ -4787,8 +4803,7 @@ qemuDomainGetIOThreadsLive(virDomainObj *vm,
         if (!(map = virProcessGetAffinity(iothreads[i]->thread_id)))
             goto endjob;
 
-        if (virBitmapToData(map, &info_ret[i]->cpumap, &info_ret[i]->cpumaplen) < 0)
-            goto endjob;
+        virBitmapToData(map, &info_ret[i]->cpumap, &info_ret[i]->cpumaplen);
     }
 
     *info = g_steal_pointer(&info_ret);
@@ -14384,13 +14399,6 @@ qemuDomainBlockCopyCommon(virDomainObj *vm,
      * as read-write for the duration of the copy job */
     mirror->readonly = false;
 
-    /* we must initialize XML-provided chain prior to detecting to keep semantics
-     * with VM startup */
-    for (n = mirror; virStorageSourceIsBacking(n); n = n->backingStore) {
-        if (qemuDomainPrepareStorageSourceBlockdev(disk, n, priv, cfg) < 0)
-            goto endjob;
-    }
-
     /* 'qemuDomainPrepareStorageSourceBlockdev' calls
      * 'qemuDomainPrepareDiskSourceData' which propagates 'detect_zeroes'
      * into the topmost virStorage source of the disk chain.
@@ -14400,6 +14408,13 @@ qemuDomainBlockCopyCommon(virDomainObj *vm,
      * Same for discard_no_unref */
     mirror->detect_zeroes = disk->detect_zeroes;
     mirror->discard_no_unref = disk->discard_no_unref;
+
+    /* we must initialize XML-provided chain prior to detecting to keep semantics
+     * with VM startup */
+    for (n = mirror; virStorageSourceIsBacking(n); n = n->backingStore) {
+        if (qemuDomainPrepareStorageSourceBlockdev(disk, n, priv, cfg) < 0)
+            goto endjob;
+    }
 
     /* If reusing an external image that includes a backing file but the user
      * did not enumerate the chain in the XML we need to detect the chain */
@@ -14497,10 +14512,8 @@ qemuDomainBlockCopyCommon(virDomainObj *vm,
 
     virDomainAuditDisk(vm, NULL, mirror, "mirror", ret >= 0);
     qemuDomainObjExitMonitor(vm);
-    if (ret < 0) {
-        qemuDomainStorageSourceChainAccessRevoke(driver, vm, mirror);
+    if (ret < 0)
         goto endjob;
-    }
 
     /* Update vm in place to match changes.  */
     need_unlink = false;
