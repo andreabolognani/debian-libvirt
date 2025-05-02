@@ -6014,58 +6014,81 @@ virDomainHostdevSubsysPCIDefParseXML(xmlNodePtr node,
 
 int
 virDomainStorageNetworkParseHost(xmlNodePtr hostnode,
-                                 virStorageNetHostDef *host)
+                                 virStorageNetHostDef *host,
+                                 bool allow_fd)
 {
-    int ret = -1;
-    g_autofree char *transport = NULL;
-    g_autofree char *port = NULL;
-
-    memset(host, 0, sizeof(*host));
+    g_autofree char *socket = NULL;
 
     if (virXMLPropEnumDefault(hostnode, "transport",
                               virStorageNetHostTransportTypeFromString,
                               VIR_XML_PROP_NONE,
                               &host->transport,
-                              VIR_STORAGE_NET_HOST_TRANS_TCP) < 0) {
-        goto cleanup;
-    }
+                              VIR_STORAGE_NET_HOST_TRANS_TCP) < 0)
+        return -1;
 
-    host->socket = virXMLPropString(hostnode, "socket");
+    socket = virXMLPropString(hostnode, "socket");
 
-    if (host->transport == VIR_STORAGE_NET_HOST_TRANS_UNIX &&
-        host->socket == NULL) {
-        virReportError(VIR_ERR_XML_ERROR, "%s",
-                       _("missing socket for unix transport"));
-        goto cleanup;
-    }
+    switch (host->transport) {
+    case VIR_STORAGE_NET_HOST_TRANS_UNIX:
+        if (!socket) {
+            virReportError(VIR_ERR_XML_ERROR, "%s",
+                           _("missing socket for unix transport"));
+            return -1;
+        }
 
-    if (host->transport != VIR_STORAGE_NET_HOST_TRANS_UNIX &&
-        host->socket != NULL) {
-        virReportError(VIR_ERR_XML_ERROR,
-                       _("transport '%1$s' does not support socket attribute"),
-                       transport);
-        goto cleanup;
-    }
+        host->socket = g_steal_pointer(&socket);
+        break;
 
-    if (host->transport != VIR_STORAGE_NET_HOST_TRANS_UNIX) {
+    case VIR_STORAGE_NET_HOST_TRANS_TCP:
+    case VIR_STORAGE_NET_HOST_TRANS_RDMA: {
+        g_autofree char *portstr = NULL;
+        unsigned int port = 0;
+
+        if (socket) {
+            virReportError(VIR_ERR_XML_ERROR,
+                           _("transport '%1$s' does not support socket attribute"),
+                           virStorageNetHostTransportTypeToString(host->transport));
+            return -1;
+        }
+
+        if ((portstr = virXMLPropString(hostnode, "port")) &&
+            virStringParsePort(portstr, &port) < 0)
+            return -1;
+
         if (!(host->name = virXMLPropString(hostnode, "name"))) {
             virReportError(VIR_ERR_XML_ERROR, "%s",
                            _("missing name for host"));
-            goto cleanup;
+            return -1;
         }
 
-        if ((port = virXMLPropString(hostnode, "port"))) {
-            if (virStringParsePort(port, &host->port) < 0)
-                goto cleanup;
+        host->port = port;
+    }
+        break;
+
+    case VIR_STORAGE_NET_HOST_TRANS_FD:
+        if (!allow_fd) {
+            virReportError(VIR_ERR_XML_ERROR, "%s",
+                           _("transport 'fd' is now allowed"));
+            return -1;
         }
+
+        if (socket) {
+            virReportError(VIR_ERR_XML_ERROR,
+                           _("transport '%1$s' does not support socket attribute"),
+                           virStorageNetHostTransportTypeToString(host->transport));
+            return -1;
+        }
+
+        if (!(host->fdgroup = virXMLPropStringRequired(hostnode, "fdgroup")))
+            return -1;
+
+        break;
+
+    case VIR_STORAGE_NET_HOST_TRANS_LAST:
+        break;
     }
 
-    ret = 0;
-
- cleanup:
-    if (ret < 0)
-        virStorageNetHostDefClear(host);
-    return ret;
+    return 0;
 }
 
 
@@ -6089,7 +6112,7 @@ virDomainStorageNetworkParseHosts(xmlNodePtr node,
     *nhosts = nhostnodes;
 
     for (i = 0; i < nhostnodes; i++) {
-        if (virDomainStorageNetworkParseHost(hostnodes[i], *hosts + i) < 0)
+        if (virDomainStorageNetworkParseHost(hostnodes[i], *hosts + i, false) < 0)
             return -1;
     }
 
@@ -30979,7 +31002,7 @@ virDomainNetTypeSharesHostView(const virDomainNetDef *net)
 }
 
 virNetworkPortDef *
-virDomainNetDefToNetworkPort(virDomainDef *dom,
+virDomainNetDefToNetworkPort(const virDomainDef *dom,
                              virDomainNetDef *iface)
 {
     g_autoptr(virNetworkPortDef) port = NULL;
@@ -31105,7 +31128,7 @@ virDomainNetDefActualFromNetworkPort(virDomainNetDef *iface,
 }
 
 virNetworkPortDef *
-virDomainNetDefActualToNetworkPort(virDomainDef *dom,
+virDomainNetDefActualToNetworkPort(const virDomainDef *dom,
                                    virDomainNetDef *iface)
 {
     virDomainActualNetDef *actual;
@@ -31217,7 +31240,7 @@ virDomainNetDefActualToNetworkPort(virDomainDef *dom,
 
 static int
 virDomainNetCreatePort(virConnectPtr conn,
-                       virDomainDef *dom,
+                       const virDomainDef *dom,
                        virDomainNetDef *iface,
                        unsigned int flags)
 {
@@ -31282,7 +31305,7 @@ virDomainNetCreatePort(virConnectPtr conn,
 
 int
 virDomainNetAllocateActualDevice(virConnectPtr conn,
-                                 virDomainDef *dom,
+                                 const virDomainDef *dom,
                                  virDomainNetDef *iface)
 {
     return virDomainNetCreatePort(conn, dom, iface, 0);
@@ -31290,7 +31313,7 @@ virDomainNetAllocateActualDevice(virConnectPtr conn,
 
 void
 virDomainNetNotifyActualDevice(virConnectPtr conn,
-                               virDomainDef *dom,
+                               const virDomainDef *dom,
                                virDomainNetDef *iface)
 {
     virDomainNetType actualType = virDomainNetGetActualType(iface);

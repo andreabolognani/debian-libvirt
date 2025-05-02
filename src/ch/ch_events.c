@@ -54,10 +54,10 @@ static int
 virCHEventStopProcess(virDomainObj *vm,
                       virDomainShutoffReason reason)
 {
-    virCHDriver *driver =  ((virCHDomainObjPrivate *)vm->privateData)->driver;
+    virCHDriver *driver = CH_DOMAIN_PRIVATE(vm)->driver;
 
     virObjectLock(vm);
-    if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY))
+    if (virDomainObjBeginJob(vm, VIR_JOB_DESTROY))
         return -1;
     virCHProcessStop(driver, vm, reason);
     virDomainObjEndJob(vm);
@@ -97,7 +97,6 @@ virCHProcessEvent(virCHMonitor *mon,
     case VIR_CH_EVENT_VM_BOOTING:
     case VIR_CH_EVENT_VM_BOOTED:
     case VIR_CH_EVENT_VM_REBOOTING:
-    case VIR_CH_EVENT_VM_REBOOTED:
     case VIR_CH_EVENT_VM_PAUSING:
     case VIR_CH_EVENT_VM_PAUSED:
     case VIR_CH_EVENT_VM_RESUMING:
@@ -109,15 +108,16 @@ virCHProcessEvent(virCHMonitor *mon,
     case VIR_CH_EVENT_VM_DELETED:
         break;
     case VIR_CH_EVENT_VMM_SHUTDOWN:
+    case VIR_CH_EVENT_VM_SHUTDOWN:
         if (virCHEventStopProcess(vm, VIR_DOMAIN_SHUTOFF_SHUTDOWN)) {
             VIR_WARN("Failed to mark the VM(%s) as SHUTDOWN!",
                      vm->def->name);
             ret = -1;
         }
         break;
-    case VIR_CH_EVENT_VM_SHUTDOWN:
+    case VIR_CH_EVENT_VM_REBOOTED:
         virObjectLock(vm);
-        virDomainObjSetState(vm, VIR_DOMAIN_SHUTOFF, VIR_DOMAIN_SHUTOFF_SHUTDOWN);
+        virCHProcessUpdateInfo(vm);
         virObjectUnlock(vm);
         break;
     case VIR_CH_EVENT_LAST:
@@ -297,7 +297,7 @@ int
 virCHStartEventHandler(virCHMonitor *mon)
 {
     g_autofree char *name = NULL;
-    name = g_strdup_printf("ch-evt-%d", mon->pid);
+    name = g_strdup_printf("ch-evt-%d", mon->vm->pid);
 
     virObjectRef(mon);
     if (virThreadCreateFull(&mon->event_handler_thread,

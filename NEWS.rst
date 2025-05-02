@@ -8,6 +8,64 @@ the changes introduced by each of them.
 For a more fine-grained view, use the `git log`_.
 
 
+v11.3.0 (2025-05-02)
+====================
+
+* **Removed features**
+
+  * Support for AppArmor versions prior to 3.0.0 has been dropped.
+
+* **New features**
+
+  * xen: Support configuration of ``<hyperv/>`` flags for Xen domains.
+
+    The following flags are now configurable for Xen: ``vapic``, ``synic``,
+    ``stimer``, ``frequencies``, ``tlbflush`` and ``ipi``.
+
+  * bhyve: Support virtio random number generator devices
+
+    Domain XMLs can now include virtio random number generator devices.
+    They are configured with::
+
+     <rng model='virtio'>
+       <backend model='random'/>
+     </rng>
+
+  * bhyve: Support ``<interface type='network'>``
+
+    At the moment it doesn't provide any new features compared to
+    ``<interface type='bridge'>``, but allows a more flexible configuration.
+
+* **Bug fixes**
+
+  * cpu_map: Install Ampere-1 ARM CPU models
+
+    The Ampere-1 CPU models added in the previous release were not properly
+    installed and thus every attempt to start an ARM domain with custom
+    CPU definition would fail.
+
+  * storage: Fix new volume creation
+
+    No more errors occur when new storage volume is being created using ``virsh
+    vol-create`` with ``--validate`` option and/or ``virStorageVolCreateXML()``
+    with ``VIR_VOL_XML_PARSE_VALIDATE`` flag.
+
+  * Don't spam logs with error about ``qemu-rdp`` when starting a qemu VM
+
+    On hosts where the ``qemu-rdp`` binary is not installed a start of a VM
+    would cause an error such as ::
+
+      error : qemuRdpNewForHelper:103 : 'qemu-rdp' is not a suitable qemu-rdp helper name: No such file or directory
+
+    to be logged in the system log. It is safe to ignore the error. The code
+    was fixed to avoid the message when probing for support.
+
+  * Fix libvirt daemon crash on failure to hotplug a disk into a ``qemu`` VM
+
+    Some failures of disk hotplug could cause the libvirt daemon to crash due
+    to a bug when rolling back disk throttling filters.
+
+
 v11.2.0 (2025-04-01)
 ====================
 

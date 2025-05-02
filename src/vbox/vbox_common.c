@@ -4553,6 +4553,507 @@ static int vboxCloseDisksRecursively(virDomainPtr dom, char *location)
     return ret;
 }
 
+
+static int
+vboxSnapshotReplaceRWDisks(struct _vboxDriver *data,
+                           virVBoxSnapshotConfMachine *snapshotMachineDesc,
+                           char *currentSnapshotXmlFilePath)
+{
+    g_auto(GStrv) realReadWriteDisksPath = NULL;
+    g_auto(GStrv) realReadOnlyDisksPath = NULL;
+    int realReadWriteDisksPathSize = 0;
+    int realReadOnlyDisksPathSize = 0;
+    int it = 0;
+
+    /*
+     * We have created fake disks, so we have to remove them and replace them with
+     * the read-write disks if there are any. The fake disks will be closed during
+     * the machine unregistration.
+     */
+    if (virVBoxSnapshotConfRemoveFakeDisks(snapshotMachineDesc) < 0) {
+        vboxReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                        _("Unable to remove Fake Disks"));
+        return -1;
+    }
+
+    realReadWriteDisksPathSize = virVBoxSnapshotConfGetRWDisksPathsFromLibvirtXML(currentSnapshotXmlFilePath,
+                                                                                  &realReadWriteDisksPath);
+    realReadOnlyDisksPathSize = virVBoxSnapshotConfGetRODisksPathsFromLibvirtXML(currentSnapshotXmlFilePath,
+                                                                                 &realReadOnlyDisksPath);
+    /* The read-only disk number is necessarily greater or equal to the
+     * read-write disk number */
+    if (realReadOnlyDisksPathSize < realReadWriteDisksPathSize) {
+        vboxReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                        _("The read only disk number must be greater or equal to the read write disk number"));
+        return -1;
+    }
+
+    for (it = 0; it < realReadWriteDisksPathSize; it++) {
+        virVBoxSnapshotConfHardDisk *readWriteDisk = NULL;
+        PRUnichar *locationUtf = NULL;
+        IMedium *readWriteMedium = NULL;
+        char *uuid = NULL;
+        PRUnichar *formatUtf = NULL;
+        char *format = NULL;
+        const char *parentUuid = NULL;
+        vboxIID iid;
+        nsresult rc;
+
+        VBOX_IID_INITIALIZE(&iid);
+        VBOX_UTF8_TO_UTF16(realReadWriteDisksPath[it], &locationUtf);
+        rc = gVBoxAPI.UIVirtualBox.OpenMedium(data->vboxObj,
+                                              locationUtf,
+                                              DeviceType_HardDisk,
+                                              AccessMode_ReadWrite,
+                                              &readWriteMedium);
+        if (NS_FAILED(rc)) {
+            vboxReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                            _("Unable to open HardDisk"));
+            VBOX_UTF16_FREE(locationUtf);
+            return -1;
+        }
+        VBOX_UTF16_FREE(locationUtf);
+
+        rc = gVBoxAPI.UIMedium.GetId(readWriteMedium, &iid);
+        if (NS_FAILED(rc)) {
+            vboxReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                            _("Unable to get the read write medium id"));
+            return -1;
+        }
+        gVBoxAPI.UIID.vboxIIDToUtf8(data, &iid, &uuid);
+        vboxIIDUnalloc(&iid);
+
+        rc = gVBoxAPI.UIMedium.GetFormat(readWriteMedium, &formatUtf);
+        if (NS_FAILED(rc)) {
+            vboxReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                            _("Unable to get the read write medium format"));
+            return -1;
+        }
+        VBOX_UTF16_TO_UTF8(formatUtf, &format);
+        VBOX_UTF16_FREE(formatUtf);
+
+        readWriteDisk = g_new0(virVBoxSnapshotConfHardDisk, 1);
+
+        readWriteDisk->format = format;
+        readWriteDisk->uuid = uuid;
+        readWriteDisk->location = realReadWriteDisksPath[it];
+        /*
+         * We get the current snapshot's read-only disk uuid in order to add the
+         * read-write disk to the media registry as its child. The read-only disk
+         * is already in the media registry because it is the fake disk's parent.
+         */
+        parentUuid = virVBoxSnapshotConfHardDiskUuidByLocation(snapshotMachineDesc,
+                                                               realReadOnlyDisksPath[it]);
+        if (parentUuid == NULL) {
+            VIR_FREE(readWriteDisk);
+            return -1;
+        }
+
+        if (virVBoxSnapshotConfAddHardDiskToMediaRegistry(readWriteDisk,
+                                                          snapshotMachineDesc->mediaRegistry,
+                                                          parentUuid) < 0) {
+            vboxReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                            _("Unable to add hard disk to media Registry"));
+            VIR_FREE(readWriteDisk);
+            return -1;
+        }
+        rc = gVBoxAPI.UIMedium.Close(readWriteMedium);
+        if (NS_FAILED(rc)) {
+            vboxReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                            _("Unable to close HardDisk"));
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+
+static int
+vboxSnapshotAddDisksToMediaRegistry(struct _vboxDriver *data,
+                                    virDomainSnapshotDef *def,
+                                    virVBoxSnapshotConfMachine *snapshotMachineDesc)
+{
+    int it = 0;
+
+    for (it = 0; it < def->parent.dom->ndisks; it++) {
+        int diskInMediaRegistry = 0;
+        IMedium *readOnlyMedium = NULL;
+        PRUnichar *locationUtf = NULL;
+        char *uuid = NULL;
+        PRUnichar *formatUtf = NULL;
+        char *format = NULL;
+        char *parentUuid = NULL;
+        virVBoxSnapshotConfHardDisk *readOnlyDisk = NULL;
+        vboxIID iid, parentiid;
+        IMedium *parentReadOnlyMedium = NULL;
+        nsresult rc;
+
+        VBOX_IID_INITIALIZE(&iid);
+        VBOX_IID_INITIALIZE(&parentiid);
+        diskInMediaRegistry = virVBoxSnapshotConfDiskIsInMediaRegistry(snapshotMachineDesc,
+                                                                       def->parent.dom->disks[it]->src->path);
+        if (diskInMediaRegistry == -1) {
+            vboxReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                            _("Unable to know if disk is in media registry"));
+            return -1;
+        }
+        if (diskInMediaRegistry == 1) /* Nothing to do. */
+            continue;
+        /* The read only disk is not in the media registry */
+
+        VBOX_UTF8_TO_UTF16(def->parent.dom->disks[it]->src->path, &locationUtf);
+        rc = gVBoxAPI.UIVirtualBox.OpenMedium(data->vboxObj,
+                                              locationUtf,
+                                              DeviceType_HardDisk,
+                                              AccessMode_ReadWrite,
+                                              &readOnlyMedium);
+        if (NS_FAILED(rc)) {
+            vboxReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                            _("Unable to open HardDisk"));
+            VBOX_UTF16_FREE(locationUtf);
+            return -1;
+        }
+        VBOX_UTF16_FREE(locationUtf);
+
+        rc = gVBoxAPI.UIMedium.GetId(readOnlyMedium, &iid);
+        if (NS_FAILED(rc)) {
+            vboxReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                            _("Unable to get hard disk id"));
+            return -1;
+        }
+        gVBoxAPI.UIID.vboxIIDToUtf8(data, &iid, &uuid);
+        vboxIIDUnalloc(&iid);
+
+        rc = gVBoxAPI.UIMedium.GetFormat(readOnlyMedium, &formatUtf);
+        if (NS_FAILED(rc)) {
+            vboxReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                            _("Unable to get hard disk format"));
+            VIR_FREE(uuid);
+            return -1;
+        }
+        VBOX_UTF16_TO_UTF8(formatUtf, &format);
+        VBOX_UTF16_FREE(formatUtf);
+
+        /* This disk is already in the media registry */
+        rc = gVBoxAPI.UIMedium.GetParent(readOnlyMedium, &parentReadOnlyMedium);
+        if (NS_FAILED(rc)) {
+            vboxReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                            _("Unable to get parent hard disk"));
+            VIR_FREE(uuid);
+            return -1;
+        }
+
+        rc = gVBoxAPI.UIMedium.GetId(parentReadOnlyMedium, &parentiid);
+        if (NS_FAILED(rc)) {
+            vboxReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                            _("Unable to get hard disk id"));
+            VIR_FREE(uuid);
+            return -1;
+        }
+        gVBoxAPI.UIID.vboxIIDToUtf8(data, &parentiid, &parentUuid);
+        vboxIIDUnalloc(&parentiid);
+
+        rc = gVBoxAPI.UIMedium.Close(readOnlyMedium);
+        if (NS_FAILED(rc)) {
+            vboxReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                            _("Unable to close HardDisk"));
+            VIR_FREE(uuid);
+            VIR_FREE(parentUuid);
+            return -1;
+        }
+
+        readOnlyDisk = g_new0(virVBoxSnapshotConfHardDisk, 1);
+
+        readOnlyDisk->format = format;
+        readOnlyDisk->uuid = uuid;
+        readOnlyDisk->location = g_strdup(def->parent.dom->disks[it]->src->path);
+
+        if (virVBoxSnapshotConfAddHardDiskToMediaRegistry(readOnlyDisk, snapshotMachineDesc->mediaRegistry,
+                                                          parentUuid) < 0) {
+            vboxReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                            _("Unable to add hard disk to media registry"));
+            VIR_FREE(readOnlyDisk);
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+
+static int
+vboxSnapshotAddRWDisks(struct _vboxDriver *data,
+                       virDomainSnapshotDef *def,
+                       virVBoxSnapshotConfMachine *snapshotMachineDesc,
+                       bool needToChangeStorageController)
+{
+    int it = 0;
+
+    for (it = 0; it < def->ndisks; it++) {
+        IMedium *medium = NULL;
+        PRUnichar *locationUtf16 = NULL;
+        virVBoxSnapshotConfHardDisk *disk = NULL;
+        PRUnichar *formatUtf16 = NULL;
+        char *format = NULL;
+        char *uuid = NULL;
+        IMedium *parentDisk = NULL;
+        char *parentUuid = NULL;
+        vboxIID iid, parentiid;
+        nsresult rc;
+
+        VBOX_IID_INITIALIZE(&iid);
+        VBOX_IID_INITIALIZE(&parentiid);
+        VBOX_UTF8_TO_UTF16(def->disks[it].src->path, &locationUtf16);
+        rc = gVBoxAPI.UIVirtualBox.OpenMedium(data->vboxObj,
+                                              locationUtf16,
+                                              DeviceType_HardDisk,
+                                              AccessMode_ReadWrite,
+                                              &medium);
+        if (NS_FAILED(rc)) {
+            vboxReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                            _("Unable to open HardDisk"));
+            return -1;
+        }
+        VBOX_UTF16_FREE(locationUtf16);
+
+        disk = g_new0(virVBoxSnapshotConfHardDisk, 1);
+
+        rc = gVBoxAPI.UIMedium.GetFormat(medium, &formatUtf16);
+        if (NS_FAILED(rc)) {
+            vboxReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                            _("Unable to get disk format"));
+            VIR_FREE(disk);
+            return -1;
+        }
+
+        VBOX_UTF16_TO_UTF8(formatUtf16, &format);
+        disk->format = format;
+        VBOX_UTF16_FREE(formatUtf16);
+
+        disk->location = g_strdup(def->disks[it].src->path);
+
+        rc = gVBoxAPI.UIMedium.GetId(medium, &iid);
+        if (NS_FAILED(rc)) {
+            vboxReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                            _("Unable to get disk uuid"));
+            VIR_FREE(disk);
+            return -1;
+        }
+        gVBoxAPI.UIID.vboxIIDToUtf8(data, &iid, &uuid);
+        disk->uuid = uuid;
+        vboxIIDUnalloc(&iid);
+
+        rc = gVBoxAPI.UIMedium.GetParent(medium, &parentDisk);
+        if (NS_FAILED(rc)) {
+            vboxReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                            _("Unable to get disk parent"));
+            VIR_FREE(disk);
+            return -1;
+        }
+
+        gVBoxAPI.UIMedium.GetId(parentDisk, &parentiid);
+        gVBoxAPI.UIID.vboxIIDToUtf8(data, &parentiid, &parentUuid);
+        vboxIIDUnalloc(&parentiid);
+        if (virVBoxSnapshotConfAddHardDiskToMediaRegistry(disk,
+                                                          snapshotMachineDesc->mediaRegistry,
+                                                          parentUuid) < 0) {
+            vboxReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                            _("Unable to add hard disk to the media registry"));
+            VIR_FREE(disk);
+            return -1;
+        }
+
+        if (needToChangeStorageController) {
+            /* We need to append this disk in the storage controller */
+            g_auto(GStrv) searchResultTab = NULL;
+            char *tmp = NULL;
+            ssize_t resultSize = 0;
+
+            resultSize = virStringSearch(snapshotMachineDesc->storageController,
+                                         VBOX_UUID_REGEX,
+                                         it + 1,
+                                         &searchResultTab);
+            if (resultSize != it + 1) {
+                vboxReportError(VIR_ERR_INTERNAL_ERROR,
+                                _("Unable to find UUID %1$s"), searchResultTab[it]);
+                return -1;
+            }
+
+            tmp = virStringReplace(snapshotMachineDesc->storageController,
+                                   searchResultTab[it],
+                                   disk->uuid);
+            VIR_FREE(snapshotMachineDesc->storageController);
+            if (!tmp)
+                return -1;
+            snapshotMachineDesc->storageController = g_strdup(tmp);
+
+            VIR_FREE(tmp);
+        }
+        /* Close disk */
+        rc = gVBoxAPI.UIMedium.Close(medium);
+        if (NS_FAILED(rc)) {
+            vboxReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                            _("Unable to close HardDisk"));
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+
+static int
+vboxSnapshotCreateFakeDiffStorage(struct _vboxDriver *data,
+                                  virDomainSnapshotDef *def,
+                                  char *machineLocationPath,
+                                  virVBoxSnapshotConfMachine *snapshotMachineDesc)
+{
+    virVBoxSnapshotConfHardDisk *newHardDisk = NULL;
+    int it;
+    int ret = -1;
+
+    for (it = 0; it < def->parent.dom->ndisks; it++) {
+        IMedium *medium = NULL;
+        PRUnichar *locationUtf16 = NULL;
+        char *parentUuid = NULL;
+        IMedium *newMedium = NULL;
+        PRUnichar *formatUtf16 = NULL;
+        PRUnichar *newLocation = NULL;
+        char *newLocationUtf8 = NULL;
+        resultCodeUnion resultCode;
+        char *uuid = NULL;
+        char *format = NULL;
+        char *tmp = NULL;
+        vboxIID iid, parentiid;
+        IProgress *progress = NULL;
+        PRUint32 tab[1];
+        nsresult rc;
+        g_auto(GStrv) searchResultTab = NULL;
+        ssize_t resultSize = 0;
+
+        VBOX_IID_INITIALIZE(&iid);
+        VBOX_IID_INITIALIZE(&parentiid);
+        VBOX_UTF8_TO_UTF16(def->parent.dom->disks[it]->src->path, &locationUtf16);
+        rc = gVBoxAPI.UIVirtualBox.OpenMedium(data->vboxObj,
+                                              locationUtf16,
+                                              DeviceType_HardDisk,
+                                              AccessMode_ReadWrite,
+                                              &medium);
+        if (NS_FAILED(rc)) {
+            vboxReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                            _("Unable to open HardDisk"));
+            VBOX_UTF16_FREE(locationUtf16);
+            goto cleanup;
+        }
+        VBOX_UTF16_FREE(locationUtf16);
+
+        rc = gVBoxAPI.UIMedium.GetId(medium, &parentiid);
+        if (NS_FAILED(rc)) {
+            vboxReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                            _("Unable to get hard disk id"));
+            goto cleanup;
+        }
+        gVBoxAPI.UIID.vboxIIDToUtf8(data, &parentiid, &parentUuid);
+        vboxIIDUnalloc(&parentiid);
+        VBOX_UTF8_TO_UTF16("VDI", &formatUtf16);
+
+        newLocationUtf8 = g_strdup_printf("%sfakedisk-%d.vdi",
+                                          machineLocationPath, it);
+        VBOX_UTF8_TO_UTF16(newLocationUtf8, &newLocation);
+        rc = gVBoxAPI.UIVirtualBox.CreateHardDisk(data->vboxObj,
+                                                  formatUtf16,
+                                                  newLocation,
+                                                  &newMedium);
+        VBOX_UTF16_FREE(newLocation);
+        VBOX_UTF16_FREE(formatUtf16);
+        if (NS_FAILED(rc)) {
+            vboxReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                            _("Unable to create HardDisk"));
+            goto cleanup;
+        }
+
+        tab[0] = MediumVariant_Diff;
+        gVBoxAPI.UIMedium.CreateDiffStorage(medium, newMedium, 1, tab, &progress);
+
+        gVBoxAPI.UIProgress.WaitForCompletion(progress, -1);
+        gVBoxAPI.UIProgress.GetResultCode(progress, &resultCode);
+        if (RC_FAILED(resultCode)) {
+            vboxReportError(VIR_ERR_INTERNAL_ERROR,
+                            _("Error while creating diff storage, rc=%1$08x"),
+                            resultCode.uResultCode);
+            goto cleanup;
+        }
+        VBOX_RELEASE(progress);
+        /*
+         * The differential newHardDisk is created, we add it to the
+         * media registry and the machine storage controllers.
+         */
+
+        newHardDisk = g_new0(virVBoxSnapshotConfHardDisk, 1);
+
+        rc = gVBoxAPI.UIMedium.GetId(newMedium, &iid);
+        if (NS_FAILED(rc)) {
+            vboxReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                            _("Unable to get medium uuid"));
+            goto cleanup;
+        }
+        gVBoxAPI.UIID.vboxIIDToUtf8(data, &iid, &uuid);
+        newHardDisk->uuid = uuid;
+        vboxIIDUnalloc(&iid);
+
+        newHardDisk->location = g_strdup(newLocationUtf8);
+
+        rc = gVBoxAPI.UIMedium.GetFormat(newMedium, &formatUtf16);
+        VBOX_UTF16_TO_UTF8(formatUtf16, &format);
+        newHardDisk->format = format;
+        VBOX_UTF16_FREE(formatUtf16);
+
+        if (virVBoxSnapshotConfAddHardDiskToMediaRegistry(newHardDisk,
+                                                          snapshotMachineDesc->mediaRegistry,
+                                                          parentUuid) < 0) {
+            vboxReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                            _("Unable to add hard disk to the media registry"));
+            goto cleanup;
+        }
+        newHardDisk = NULL;  /* Consumed by above */
+        /* Adding the fake disk to the machine storage controllers */
+
+        resultSize = virStringSearch(snapshotMachineDesc->storageController,
+                                     VBOX_UUID_REGEX,
+                                     it + 1,
+                                     &searchResultTab);
+        if (resultSize != it + 1) {
+            vboxReportError(VIR_ERR_INTERNAL_ERROR,
+                            _("Unable to find UUID %1$s"), searchResultTab[it]);
+            goto cleanup;
+        }
+
+        tmp = virStringReplace(snapshotMachineDesc->storageController,
+                               searchResultTab[it],
+                               uuid);
+        VIR_FREE(snapshotMachineDesc->storageController);
+        if (!tmp)
+            goto cleanup;
+        snapshotMachineDesc->storageController = g_strdup(tmp);
+
+        VIR_FREE(tmp);
+        /* Closing the "fake" disk */
+        rc = gVBoxAPI.UIMedium.Close(newMedium);
+        if (NS_FAILED(rc)) {
+            vboxReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                            _("Unable to close the new medium"));
+            goto cleanup;
+        }
+    }
+
+    ret = 0;
+ cleanup:
+    virVboxSnapshotConfHardDiskFree(newHardDisk);
+    return ret;
+}
+
+
 static int
 vboxSnapshotRedefine(virDomainPtr dom,
                      virDomainSnapshotDef *def,
@@ -4596,15 +5097,10 @@ vboxSnapshotRedefine(virDomainPtr dom,
     char *currentSnapshotXmlFilePath = NULL;
     PRUnichar *machineNameUtf16 = NULL;
     char *machineName = NULL;
-    g_auto(GStrv) realReadWriteDisksPath = NULL;
-    int realReadWriteDisksPathSize = 0;
-    g_auto(GStrv) realReadOnlyDisksPath = NULL;
-    int realReadOnlyDisksPathSize = 0;
     virVBoxSnapshotConfSnapshot *newSnapshotPtr = NULL;
     unsigned char snapshotUuid[VIR_UUID_BUFLEN];
     virVBoxSnapshotConfHardDisk **hardDiskToOpen = NULL;
     size_t hardDiskToOpenSize = 0;
-    virVBoxSnapshotConfHardDisk *newHardDisk = NULL;
     g_auto(GStrv) searchResultTab = NULL;
     ssize_t resultSize = 0;
     int it = 0;
@@ -4668,102 +5164,10 @@ vboxSnapshotRedefine(virDomainPtr dom,
     }
 
     if (snapshotFileExists) {
-        /*
-         * We have created fake disks, so we have to remove them and replace them with
-         * the read-write disks if there are any. The fake disks will be closed during
-         * the machine unregistration.
-         */
-        if (virVBoxSnapshotConfRemoveFakeDisks(snapshotMachineDesc) < 0) {
-            vboxReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                            _("Unable to remove Fake Disks"));
+        if (vboxSnapshotReplaceRWDisks(data, snapshotMachineDesc,
+                                       currentSnapshotXmlFilePath) < 0)
             goto cleanup;
-        }
-        realReadWriteDisksPathSize = virVBoxSnapshotConfGetRWDisksPathsFromLibvirtXML(currentSnapshotXmlFilePath,
-                                                             &realReadWriteDisksPath);
-        realReadOnlyDisksPathSize = virVBoxSnapshotConfGetRODisksPathsFromLibvirtXML(currentSnapshotXmlFilePath,
-                                                                         &realReadOnlyDisksPath);
-        /* The read-only disk number is necessarily greater or equal to the
-         * read-write disk number */
-        if (realReadOnlyDisksPathSize < realReadWriteDisksPathSize) {
-            vboxReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                            _("The read only disk number must be greater or equal to the  read write disk number"));
-            goto cleanup;
-        }
-        for (it = 0; it < realReadWriteDisksPathSize; it++) {
-            virVBoxSnapshotConfHardDisk *readWriteDisk = NULL;
-            PRUnichar *locationUtf = NULL;
-            IMedium *readWriteMedium = NULL;
-            char *uuid = NULL;
-            PRUnichar *formatUtf = NULL;
-            char *format = NULL;
-            const char *parentUuid = NULL;
-            vboxIID iid;
 
-            VBOX_IID_INITIALIZE(&iid);
-            VBOX_UTF8_TO_UTF16(realReadWriteDisksPath[it], &locationUtf);
-            rc = gVBoxAPI.UIVirtualBox.OpenMedium(data->vboxObj,
-                                                  locationUtf,
-                                                  DeviceType_HardDisk,
-                                                  AccessMode_ReadWrite,
-                                                  &readWriteMedium);
-            if (NS_FAILED(rc)) {
-                vboxReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                                _("Unable to open HardDisk"));
-                VBOX_UTF16_FREE(locationUtf);
-                goto cleanup;
-            }
-            VBOX_UTF16_FREE(locationUtf);
-
-            rc = gVBoxAPI.UIMedium.GetId(readWriteMedium, &iid);
-            if (NS_FAILED(rc)) {
-                vboxReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                                _("Unable to get the read write medium id"));
-                goto cleanup;
-            }
-            gVBoxAPI.UIID.vboxIIDToUtf8(data, &iid, &uuid);
-            vboxIIDUnalloc(&iid);
-
-            rc = gVBoxAPI.UIMedium.GetFormat(readWriteMedium, &formatUtf);
-            if (NS_FAILED(rc)) {
-                vboxReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                                _("Unable to get the read write medium format"));
-                goto cleanup;
-            }
-            VBOX_UTF16_TO_UTF8(formatUtf, &format);
-            VBOX_UTF16_FREE(formatUtf);
-
-            readWriteDisk = g_new0(virVBoxSnapshotConfHardDisk, 1);
-
-            readWriteDisk->format = format;
-            readWriteDisk->uuid = uuid;
-            readWriteDisk->location = realReadWriteDisksPath[it];
-            /*
-             * We get the current snapshot's read-only disk uuid in order to add the
-             * read-write disk to the media registry as its child. The read-only disk
-             * is already in the media registry because it is the fake disk's parent.
-             */
-            parentUuid = virVBoxSnapshotConfHardDiskUuidByLocation(snapshotMachineDesc,
-                                                                   realReadOnlyDisksPath[it]);
-            if (parentUuid == NULL) {
-                VIR_FREE(readWriteDisk);
-                goto cleanup;
-            }
-
-            if (virVBoxSnapshotConfAddHardDiskToMediaRegistry(readWriteDisk,
-                                           snapshotMachineDesc->mediaRegistry,
-                                           parentUuid) < 0) {
-                vboxReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                                _("Unable to add hard disk to media Registry"));
-                VIR_FREE(readWriteDisk);
-                goto cleanup;
-            }
-            rc = gVBoxAPI.UIMedium.Close(readWriteMedium);
-            if (NS_FAILED(rc)) {
-                vboxReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                                _("Unable to close HardDisk"));
-                goto cleanup;
-            }
-        }
         /*
          * Now we have done this swap, we remove the snapshot xml file from the
          * current machine location.
@@ -4779,106 +5183,8 @@ vboxSnapshotRedefine(virDomainPtr dom,
      * read-only disks are in the redefined snapshot's media registry (the disks need to
      * be open to query their uuid).
      */
-    for (it = 0; it < def->parent.dom->ndisks; it++) {
-        int diskInMediaRegistry = 0;
-        IMedium *readOnlyMedium = NULL;
-        PRUnichar *locationUtf = NULL;
-        char *uuid = NULL;
-        PRUnichar *formatUtf = NULL;
-        char *format = NULL;
-        char *parentUuid = NULL;
-        virVBoxSnapshotConfHardDisk *readOnlyDisk = NULL;
-        vboxIID iid, parentiid;
-        IMedium *parentReadOnlyMedium = NULL;
-
-        VBOX_IID_INITIALIZE(&iid);
-        VBOX_IID_INITIALIZE(&parentiid);
-        diskInMediaRegistry = virVBoxSnapshotConfDiskIsInMediaRegistry(snapshotMachineDesc,
-                                                        def->parent.dom->disks[it]->src->path);
-        if (diskInMediaRegistry == -1) {
-            vboxReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                            _("Unable to know if disk is in media registry"));
-            goto cleanup;
-        }
-        if (diskInMediaRegistry == 1) /* Nothing to do. */
-            continue;
-        /* The read only disk is not in the media registry */
-
-        VBOX_UTF8_TO_UTF16(def->parent.dom->disks[it]->src->path, &locationUtf);
-        rc = gVBoxAPI.UIVirtualBox.OpenMedium(data->vboxObj,
-                                              locationUtf,
-                                              DeviceType_HardDisk,
-                                              AccessMode_ReadWrite,
-                                              &readOnlyMedium);
-        if (NS_FAILED(rc)) {
-            vboxReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                            _("Unable to open HardDisk"));
-            VBOX_UTF16_FREE(locationUtf);
-            goto cleanup;
-        }
-        VBOX_UTF16_FREE(locationUtf);
-
-        rc = gVBoxAPI.UIMedium.GetId(readOnlyMedium, &iid);
-        if (NS_FAILED(rc)) {
-            vboxReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                            _("Unable to get hard disk id"));
-            goto cleanup;
-        }
-        gVBoxAPI.UIID.vboxIIDToUtf8(data, &iid, &uuid);
-        vboxIIDUnalloc(&iid);
-
-        rc = gVBoxAPI.UIMedium.GetFormat(readOnlyMedium, &formatUtf);
-        if (NS_FAILED(rc)) {
-            vboxReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                            _("Unable to get hard disk format"));
-            VIR_FREE(uuid);
-            goto cleanup;
-        }
-        VBOX_UTF16_TO_UTF8(formatUtf, &format);
-        VBOX_UTF16_FREE(formatUtf);
-
-        /* This disk is already in the media registry */
-        rc = gVBoxAPI.UIMedium.GetParent(readOnlyMedium, &parentReadOnlyMedium);
-        if (NS_FAILED(rc)) {
-            vboxReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                            _("Unable to get parent hard disk"));
-            VIR_FREE(uuid);
-            goto cleanup;
-        }
-
-        rc = gVBoxAPI.UIMedium.GetId(parentReadOnlyMedium, &parentiid);
-        if (NS_FAILED(rc)) {
-            vboxReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                            _("Unable to get hard disk id"));
-            VIR_FREE(uuid);
-            goto cleanup;
-        }
-        gVBoxAPI.UIID.vboxIIDToUtf8(data, &parentiid, &parentUuid);
-        vboxIIDUnalloc(&parentiid);
-
-        rc = gVBoxAPI.UIMedium.Close(readOnlyMedium);
-        if (NS_FAILED(rc)) {
-            vboxReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                            _("Unable to close HardDisk"));
-            VIR_FREE(uuid);
-            VIR_FREE(parentUuid);
-            goto cleanup;
-        }
-
-        readOnlyDisk = g_new0(virVBoxSnapshotConfHardDisk, 1);
-
-        readOnlyDisk->format = format;
-        readOnlyDisk->uuid = uuid;
-        readOnlyDisk->location = g_strdup(def->parent.dom->disks[it]->src->path);
-
-        if (virVBoxSnapshotConfAddHardDiskToMediaRegistry(readOnlyDisk, snapshotMachineDesc->mediaRegistry,
-                                                          parentUuid) < 0) {
-            vboxReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                            _("Unable to add hard disk to media registry"));
-            VIR_FREE(readOnlyDisk);
-            goto cleanup;
-        }
-    }
+    if (vboxSnapshotAddDisksToMediaRegistry(data, def, snapshotMachineDesc) < 0)
+        goto cleanup;
 
     /* Now, we can unregister the machine */
     rc = gVBoxAPI.UIMachine.Unregister(machine,
@@ -5062,243 +5368,20 @@ vboxSnapshotRedefine(virDomainPtr dom,
          * If the snapshot to redefine is the current snapshot, we add read-write disks in
          * the machine storage controllers.
          */
-        for (it = 0; it < def->ndisks; it++) {
-            IMedium *medium = NULL;
-            PRUnichar *locationUtf16 = NULL;
-            virVBoxSnapshotConfHardDisk *disk = NULL;
-            PRUnichar *formatUtf16 = NULL;
-            char *format = NULL;
-            char *uuid = NULL;
-            IMedium *parentDisk = NULL;
-            char *parentUuid = NULL;
-            vboxIID iid, parentiid;
-
-            VBOX_IID_INITIALIZE(&iid);
-            VBOX_IID_INITIALIZE(&parentiid);
-            VBOX_UTF8_TO_UTF16(def->disks[it].src->path, &locationUtf16);
-            rc = gVBoxAPI.UIVirtualBox.OpenMedium(data->vboxObj,
-                                                 locationUtf16,
-                                                 DeviceType_HardDisk,
-                                                 AccessMode_ReadWrite,
-                                                 &medium);
-            if (NS_FAILED(rc)) {
-                vboxReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                                _("Unable to open HardDisk"));
-                goto cleanup;
-            }
-            VBOX_UTF16_FREE(locationUtf16);
-
-            disk = g_new0(virVBoxSnapshotConfHardDisk, 1);
-
-            rc = gVBoxAPI.UIMedium.GetFormat(medium, &formatUtf16);
-            if (NS_FAILED(rc)) {
-                vboxReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                                _("Unable to get disk format"));
-                VIR_FREE(disk);
-                goto cleanup;
-            }
-
-            VBOX_UTF16_TO_UTF8(formatUtf16, &format);
-            disk->format = format;
-            VBOX_UTF16_FREE(formatUtf16);
-
-            disk->location = g_strdup(def->disks[it].src->path);
-
-            rc = gVBoxAPI.UIMedium.GetId(medium, &iid);
-            if (NS_FAILED(rc)) {
-                vboxReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                                _("Unable to get disk uuid"));
-                VIR_FREE(disk);
-                goto cleanup;
-            }
-            gVBoxAPI.UIID.vboxIIDToUtf8(data, &iid, &uuid);
-            disk->uuid = uuid;
-            vboxIIDUnalloc(&iid);
-
-            rc = gVBoxAPI.UIMedium.GetParent(medium, &parentDisk);
-            if (NS_FAILED(rc)) {
-                vboxReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                                _("Unable to get disk parent"));
-                VIR_FREE(disk);
-                goto cleanup;
-            }
-
-            gVBoxAPI.UIMedium.GetId(parentDisk, &parentiid);
-            gVBoxAPI.UIID.vboxIIDToUtf8(data, &parentiid, &parentUuid);
-            vboxIIDUnalloc(&parentiid);
-            if (virVBoxSnapshotConfAddHardDiskToMediaRegistry(disk,
-                                           snapshotMachineDesc->mediaRegistry,
-                                           parentUuid) < 0) {
-                vboxReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                                _("Unable to add hard disk to the media registry"));
-                VIR_FREE(disk);
-                goto cleanup;
-            }
-
-            if (needToChangeStorageController) {
-                /* We need to append this disk in the storage controller */
-                char *tmp = NULL;
-                resultSize = virStringSearch(snapshotMachineDesc->storageController,
-                                             VBOX_UUID_REGEX,
-                                             it + 1,
-                                             &searchResultTab);
-                if (resultSize != it + 1) {
-                    vboxReportError(VIR_ERR_INTERNAL_ERROR,
-                                    _("Unable to find UUID %1$s"), searchResultTab[it]);
-                    goto cleanup;
-                }
-
-                tmp = virStringReplace(snapshotMachineDesc->storageController,
-                                       searchResultTab[it],
-                                       disk->uuid);
-                VIR_FREE(snapshotMachineDesc->storageController);
-                if (!tmp)
-                    goto cleanup;
-                snapshotMachineDesc->storageController = g_strdup(tmp);
-
-                VIR_FREE(tmp);
-            }
-            /* Close disk */
-            rc = gVBoxAPI.UIMedium.Close(medium);
-            if (NS_FAILED(rc)) {
-                vboxReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                                _("Unable to close HardDisk"));
-                goto cleanup;
-            }
+        if (vboxSnapshotAddRWDisks(data, def, snapshotMachineDesc,
+                                   needToChangeStorageController) < 0) {
+            goto cleanup;
         }
     } else {
         char *snapshotContent;
+
         /* Create a "fake" disk to avoid corrupting children snapshot disks. */
-        for (it = 0; it < def->parent.dom->ndisks; it++) {
-            IMedium *medium = NULL;
-            PRUnichar *locationUtf16 = NULL;
-            char *parentUuid = NULL;
-            IMedium *newMedium = NULL;
-            PRUnichar *formatUtf16 = NULL;
-            PRUnichar *newLocation = NULL;
-            char *newLocationUtf8 = NULL;
-            resultCodeUnion resultCode;
-            char *uuid = NULL;
-            char *format = NULL;
-            char *tmp = NULL;
-            vboxIID iid, parentiid;
-            IProgress *progress = NULL;
-            PRUint32 tab[1];
-
-            VBOX_IID_INITIALIZE(&iid);
-            VBOX_IID_INITIALIZE(&parentiid);
-            VBOX_UTF8_TO_UTF16(def->parent.dom->disks[it]->src->path, &locationUtf16);
-            rc = gVBoxAPI.UIVirtualBox.OpenMedium(data->vboxObj,
-                                                  locationUtf16,
-                                                  DeviceType_HardDisk,
-                                                  AccessMode_ReadWrite,
-                                                  &medium);
-            if (NS_FAILED(rc)) {
-                vboxReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                                _("Unable to open HardDisk"));
-                VBOX_UTF16_FREE(locationUtf16);
-                goto cleanup;
-            }
-            VBOX_UTF16_FREE(locationUtf16);
-
-            rc = gVBoxAPI.UIMedium.GetId(medium, &parentiid);
-            if (NS_FAILED(rc)) {
-                vboxReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                                _("Unable to get hard disk id"));
-                goto cleanup;
-            }
-            gVBoxAPI.UIID.vboxIIDToUtf8(data, &parentiid, &parentUuid);
-            vboxIIDUnalloc(&parentiid);
-            VBOX_UTF8_TO_UTF16("VDI", &formatUtf16);
-
-            newLocationUtf8 = g_strdup_printf("%sfakedisk-%d.vdi",
-                                              machineLocationPath, it);
-            VBOX_UTF8_TO_UTF16(newLocationUtf8, &newLocation);
-            rc = gVBoxAPI.UIVirtualBox.CreateHardDisk(data->vboxObj,
-                                                      formatUtf16,
-                                                      newLocation,
-                                                      &newMedium);
-            VBOX_UTF16_FREE(newLocation);
-            VBOX_UTF16_FREE(formatUtf16);
-            if (NS_FAILED(rc)) {
-                vboxReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                                _("Unable to create HardDisk"));
-                goto cleanup;
-            }
-
-            tab[0] = MediumVariant_Diff;
-            gVBoxAPI.UIMedium.CreateDiffStorage(medium, newMedium, 1, tab, &progress);
-
-            gVBoxAPI.UIProgress.WaitForCompletion(progress, -1);
-            gVBoxAPI.UIProgress.GetResultCode(progress, &resultCode);
-            if (RC_FAILED(resultCode)) {
-                vboxReportError(VIR_ERR_INTERNAL_ERROR,
-                                _("Error while creating diff storage, rc=%1$08x"),
-                                resultCode.uResultCode);
-                goto cleanup;
-            }
-            VBOX_RELEASE(progress);
-            /*
-             * The differential newHardDisk is created, we add it to the
-             * media registry and the machine storage controllers.
-             */
-
-            newHardDisk = g_new0(virVBoxSnapshotConfHardDisk, 1);
-
-            rc = gVBoxAPI.UIMedium.GetId(newMedium, &iid);
-            if (NS_FAILED(rc)) {
-                vboxReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                                _("Unable to get medium uuid"));
-                goto cleanup;
-            }
-            gVBoxAPI.UIID.vboxIIDToUtf8(data, &iid, &uuid);
-            newHardDisk->uuid = uuid;
-            vboxIIDUnalloc(&iid);
-
-            newHardDisk->location = g_strdup(newLocationUtf8);
-
-            rc = gVBoxAPI.UIMedium.GetFormat(newMedium, &formatUtf16);
-            VBOX_UTF16_TO_UTF8(formatUtf16, &format);
-            newHardDisk->format = format;
-            VBOX_UTF16_FREE(formatUtf16);
-
-            if (virVBoxSnapshotConfAddHardDiskToMediaRegistry(newHardDisk,
-                                           snapshotMachineDesc->mediaRegistry,
-                                           parentUuid) < 0) {
-                vboxReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                                _("Unable to add hard disk to the media registry"));
-                goto cleanup;
-            }
-            newHardDisk = NULL;  /* Consumed by above */
-            /* Adding the fake disk to the machine storage controllers */
-
-            resultSize = virStringSearch(snapshotMachineDesc->storageController,
-                                         VBOX_UUID_REGEX,
-                                         it + 1,
-                                         &searchResultTab);
-            if (resultSize != it + 1) {
-                vboxReportError(VIR_ERR_INTERNAL_ERROR,
-                                _("Unable to find UUID %1$s"), searchResultTab[it]);
-                goto cleanup;
-            }
-
-            tmp = virStringReplace(snapshotMachineDesc->storageController,
-                                   searchResultTab[it],
-                                   uuid);
-            VIR_FREE(snapshotMachineDesc->storageController);
-            if (!tmp)
-                goto cleanup;
-            snapshotMachineDesc->storageController = g_strdup(tmp);
-
-            VIR_FREE(tmp);
-            /* Closing the "fake" disk */
-            rc = gVBoxAPI.UIMedium.Close(newMedium);
-            if (NS_FAILED(rc)) {
-                vboxReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                                _("Unable to close the new medium"));
-                goto cleanup;
-            }
+        if (vboxSnapshotCreateFakeDiffStorage(data, def,
+                                              machineLocationPath,
+                                              snapshotMachineDesc) < 0) {
+            goto cleanup;
         }
+
         /*
          * We save the snapshot xml file to retrieve the real read-write disk during the
          * next define. This file is saved as "'machineLocation'/snapshot-'uuid'.xml"
@@ -5387,7 +5470,6 @@ vboxSnapshotRedefine(virDomainPtr dom,
     VIR_FREE(currentSnapshotXmlFilePath);
     VBOX_UTF16_FREE(machineNameUtf16);
     VBOX_UTF8_FREE(machineName);
-    virVboxSnapshotConfHardDiskFree(newHardDisk);
     VIR_FREE(hardDiskToOpen);
     VIR_FREE(newSnapshotPtr);
     VIR_FREE(machineLocationPath);

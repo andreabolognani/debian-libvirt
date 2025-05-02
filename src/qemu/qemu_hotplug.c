@@ -740,10 +740,15 @@ qemuDomainAttachDiskGeneric(virDomainObj *vm,
         if (rc < 0)
             goto rollback;
 
-        if ((filterData = qemuBuildThrottleFiltersAttachPrepareBlockdev(disk))) {
+        if (!(filterData = qemuBuildThrottleFiltersAttachPrepareBlockdev(disk)))
+            return -1;
+
+        if (filterData->nfilterdata > 0) {
             if (qemuDomainObjEnterMonitorAsync(vm, asyncJob) < 0)
                 return -1;
+
             rc = qemuBlockThrottleFiltersAttach(priv->mon, filterData);
+
             qemuDomainObjExitMonitor(vm);
             if (rc < 0)
                 goto rollback;
@@ -1268,12 +1273,7 @@ qemuDomainAttachNetDevice(virQEMUDriver *driver,
 
         if (net->backend.type == VIR_DOMAIN_NET_BACKEND_PASST) {
 
-            /* vhostuser needs socket path in this location, and when
-             * backend is passt, the path is derived from other info,
-             * not taken from config.
-             */
-            g_free(net->data.vhostuser->data.nix.path);
-            net->data.vhostuser->data.nix.path = qemuPasstCreateSocketPath(vm, net);
+            qemuPasstPrepareVhostUser(vm, net);
 
             if (qemuPasstStart(vm, net) < 0)
                 goto cleanup;

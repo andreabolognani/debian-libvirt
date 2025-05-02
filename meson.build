@@ -1,6 +1,6 @@
 project(
   'libvirt', 'c',
-  version: '11.2.0',
+  version: '11.3.0',
   license: 'LGPLv2+',
   meson_version: '>= 0.56.0',
   default_options: [
@@ -257,11 +257,6 @@ alloc_max = run_command(
 )
 
 stack_frame_size = 2048
-
-# clang without optimization enlarges stack frames in certain corner cases
-if cc.get_id() == 'clang' and get_option('optimization') == '0'
-    stack_frame_size = 4096
-endif
 
 # sanitizer instrumentation may enlarge stack frames
 if get_option('b_sanitize') != 'none'
@@ -926,12 +921,11 @@ if acl_dep.found()
   conf.set('WITH_LIBACL', 1)
 endif
 
-apparmor_dep = dependency('libapparmor', required: get_option('apparmor'))
+apparmor_version = '3.0.0'
+apparmor_dep = dependency('libapparmor', version: '>=' + apparmor_version,
+                          required: get_option('apparmor'))
 if apparmor_dep.found()
   conf.set('WITH_APPARMOR', 1)
-  if apparmor_dep.version().version_compare('>=3.0.0')
-    conf.set('WITH_APPARMOR_3', 1)
-  endif
   conf.set_quoted('APPARMOR_DIR', sysconfdir / 'apparmor.d')
   conf.set_quoted('APPARMOR_PROFILES_PATH', '/sys/kernel/security/apparmor/profiles')
 endif

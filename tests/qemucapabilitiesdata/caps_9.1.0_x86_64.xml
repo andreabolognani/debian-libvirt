@@ -108,7 +108,6 @@
   <flag name='memory-backend-file.pmem'/>
   <flag name='nvdimm.unarmed'/>
   <flag name='virtio-pci-non-transitional'/>
-  <flag name='nbd-bitmap'/>
   <flag name='x86-max-cpu'/>
   <flag name='cpu-unavailable-features'/>
   <flag name='canonical-cpu-features'/>
@@ -133,7 +132,6 @@
   <flag name='numa.hmat'/>
   <flag name='usb-host.hostdevice'/>
   <flag name='virtio-balloon.free-page-reporting'/>
-  <flag name='block-export-add'/>
   <flag name='netdev.vhost-vdpa'/>
   <flag name='dc390'/>
   <flag name='am53c974'/>
@@ -200,7 +198,6 @@
   <flag name='acpi-erst'/>
   <flag name='intel-iommu.dma-translation'/>
   <flag name='machine-i8042-opt'/>
-  <flag name='snapshot-internal-qmp'/>
   <flag name='migrate-incoming.exit-on-error'/>
   <version>9001000</version>
   <microcodeVersion>43100246</microcodeVersion>

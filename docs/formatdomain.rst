@@ -2132,32 +2132,34 @@ are:
    based virtualization drivers, such as LXC.
 ``hyperv``
    Enable various features improving behavior of guests running Microsoft
-   Windows.
+   Windows. :since:`Since 11.3.0` some of these flags are also available for
+   Xen domains running Microsoft Windows.
 
    =============== ====================================================================== ============================================ ========================================================================
    Feature         Description                                                            Value                                        Since
    =============== ====================================================================== ============================================ ========================================================================
-   relaxed         Relax constraints on timers                                            on, off                                      :since:`1.0.0 (QEMU 2.0)`
-   vapic           Enable virtual APIC                                                    on, off                                      :since:`1.1.0 (QEMU 2.0)`
+   relaxed         Relax constraints on timers                                            on, off                                      :since:`1.0.0 (QEMU 2.0), 11.3.0 (Xen, always on)`
+   vapic           Enable virtual APIC                                                    on, off                                      :since:`1.1.0 (QEMU 2.0), 11.3.0 (Xen)`
    spinlocks       Enable spinlock support                                                on, off; retries - at least 4095             :since:`1.1.0 (QEMU 2.0)`
-   vpindex         Virtual processor index                                                on, off                                      :since:`1.3.3 (QEMU 2.5)`
+   vpindex         Virtual processor index                                                on, off                                      :since:`1.3.3 (QEMU 2.5), 11.3.0 (Xen, always on)`
    runtime         Processor time spent on running guest code and on behalf of guest code on, off                                      :since:`1.3.3 (QEMU 2.5)`
-   synic           Enable Synthetic Interrupt Controller (SynIC)                          on, off                                      :since:`1.3.3 (QEMU 2.6)`
-   stimer          Enable SynIC timers, optionally with Direct Mode support               on, off; direct - on,off                     :since:`1.3.3 (QEMU 2.6), direct mode 5.7.0 (QEMU 4.1)`
+   synic           Enable Synthetic Interrupt Controller (SynIC)                          on, off                                      :since:`1.3.3 (QEMU 2.6), 11.3.0 (Xen)`
+   stimer          Enable SynIC timers, optionally with Direct Mode support               on, off; direct - on,off                     :since:`1.3.3 (QEMU 2.6), direct mode 5.7.0 (QEMU 4.1), 11.3.0 (Xen, on/off only)`
    reset           Enable hypervisor reset                                                on, off                                      :since:`1.3.3 (QEMU 2.5)`
    vendor_id       Set hypervisor vendor id                                               on, off; value - string, up to 12 characters :since:`1.3.3 (QEMU 2.5)`
-   frequencies     Expose frequency MSRs                                                  on, off                                      :since:`4.7.0 (QEMU 2.12)`
+   frequencies     Expose frequency MSRs                                                  on, off                                      :since:`4.7.0 (QEMU 2.12), 11.3.0 (Xen)`
    reenlightenment Enable re-enlightenment notification on migration                      on, off                                      :since:`4.7.0 (QEMU 3.0)`
-   tlbflush        Enable PV TLB flush support                                            on, off; direct - on,off; extended - on,off  :since:`4.7.0 (QEMU 3.0), direct and extended modes 11.0.0 (QEMU 7.1.0)`
-   ipi             Enable PV IPI support                                                  on, off                                      :since:`4.10.0 (QEMU 3.1)`
+   tlbflush        Enable PV TLB flush support                                            on, off; direct - on,off; extended - on,off  :since:`4.7.0 (QEMU 3.0), direct and extended modes 11.0.0 (QEMU 7.1.0), 11.3.0 (Xen, on/off only)`
+   ipi             Enable PV IPI support                                                  on, off                                      :since:`4.10.0 (QEMU 3.1), 11.3.0 (Xen)`
    evmcs           Enable Enlightened VMCS                                                on, off                                      :since:`4.10.0 (QEMU 3.1)`
    avic            Enable use Hyper-V SynIC with hardware APICv/AVIC                      on, off                                      :since:`8.10.0 (QEMU 6.2)`
    emsr_bitmap     Avoid unnecessary updates to L2 MSR Bitmap upon vmexits.               on, off                                      :since:`10.7.0 (QEMU 7.1)`
    xmm_input       Enable XMM Fast Hypercall Input                                        on, off                                      :since:`10.7.0 (QEMU 7.1)`
    =============== ====================================================================== ============================================ ========================================================================
 
-   :since:`Since 8.0.0`, the hypervisor can be configured further by setting
-   the ``mode`` attribute to one of the following values:
+   :since:`Since 8.0.0 (QEMU) Since 11.3.0 (Xen)`, the hypervisor can be
+   configured further by setting the ``mode`` attribute to one of the following
+   values:
 
    ``custom``
       Set exactly the specified features.
@@ -5054,8 +5056,8 @@ MAC address is outside of the reserved VMWare ranges.
 
 :since:`Since 11.2.0`, the ``<mac/>`` element can optionally contain
 ``currentAddress`` attribute (output only), which contains new MAC address if the
-guest changed it. This is currently implemented only for QEMU/KVM and requires
-setting ``trustGuestRxFilters`` to ``yes``.
+guest changed it. This is currently implemented only for the model type ``virtio``
+in QEMU/KVM and requires setting ``trustGuestRxFilters`` to ``yes``.
 
 :since:`Since 7.3.0`, one can set the ACPI index against network interfaces.
 With some operating systems (eg Linux with systemd), the ACPI index is used
@@ -5244,15 +5246,7 @@ network address by including an ``ip`` element specifying an IPv4
 address in its one mandatory attribute, ``address``. Optionally, a
 second ``ip`` element with a ``family`` attribute set to "ipv6" can be
 specified to add an IPv6 address to the interface. ``address``.
-Optionally, an address ``prefix`` can be specified. These settings are
-surprisingly **not** used by SLIRP to set the exact IP address;
-instead they are used to determine what network/subnet the guest's IP
-address should be on, and the guest will be given an address in that
-subnet, but the host portion of the address will still be "2.15". In
-the example below, for example, the guest will be given the IP address
-172.17.2.15 (**note that the '1.1' in the host portion of the address
-has been ignored**), default route of 172.17.2.2, and DNS server
-172.17.2.3.
+Optionally, an address ``prefix`` can be specified.
 
 ::
 
@@ -5267,6 +5261,59 @@ has been ignored**), default route of 172.17.2.2, and DNS server
      </interface>
    </devices>
    ...
+
+These settings are surprisingly **not** used by SLIRP to set the exact
+IP address; instead they are used to determine what **network/subnet**
+the guest's IP address should be on, and the guest will be given an
+address in that subnet, but the host portion of the address will still
+be the host portion of "10.0.2.15" (based on the configured prefix (or
+a prefix of 24 if no prefix is specified). The DNS and default gateway
+addresses given to the guest will be similarly based on the network
+portion of the configuration-provided <ip> combined with the host
+portion of SLIRPs default settings for DNS/gateway
+(10.0.2.3/10.0.2.2). To help resolve the confusion of the previous
+sentences, the table below shows examples of the settings that will be
+provided to the guest (via a DHCP response) to use for its interface
+config (ip/prefix, DNS, default gateway) for various settings of <ip>
+element address and prefix in libvirt's <interface type='user'>
+config:
+
+.. list-table::
+   :header-rows: 1
+
+   * - libvirt <ip> element
+     - guest ip/prefix
+     - guest DNS
+     - guest default gateway
+
+   * - (unspecified)
+     - 10.0.2.15/24
+     - 10.0.2.3
+     - 10.0.2.2
+
+   * - address='172.17.1.1'
+       prefix='16'
+     - 172.17.2.15/16
+     - 172.17.2.3
+     - 172.17.2.2
+
+   * - address='172.17.1.1'
+       prefix='24'
+     - 172.17.1.15/24
+     - 172.17.1.3
+     - 172.17.1.2
+
+   * - address='172.17.1.1'
+       prefix='8'
+     - 172.0.2.15/16
+     - 172.0.2.3
+     - 172.0.2.2
+
+   * - address='172.17.1.1'
+       prefix='23'
+     - 172.17.0.15/23
+     - 172.17.0.3
+     - 172.17.0.2
 
 Userspace connection using passt
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -5309,8 +5356,10 @@ any conflict).
 Also different from SLIRP's behavior: if you do specify IP
 address(es), the exact address and netmask/prefix you specify will be
 provided to the guest (i.e. passt doesn't interpret the <ip> settings
-as a network address like SLIRP does, but as a host address). In
-example given above, the guest IP would be set to exactly 172.17.1.1.
+as a network address like SLIRP does, but as a host address). In the
+table of examples given above, the guest IP would be set to exactly
+172.17.1.1 in all cases (the DNS and default gateway will be set
+the same as they are on the host).
 
 Just as with SLIRP, though, once traffic from the guest leaves the
 host towards the rest of the network, it will always appear as if it

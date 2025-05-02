@@ -85,6 +85,7 @@ static void qemuMonitorJSONHandleMemoryFailure(qemuMonitor *mon, virJSONValue *d
 static void qemuMonitorJSONHandleMemoryDeviceSizeChange(qemuMonitor *mon, virJSONValue *data);
 static void qemuMonitorJSONHandleDeviceUnplugErr(qemuMonitor *mon, virJSONValue *data);
 static void qemuMonitorJSONHandleNetdevStreamDisconnected(qemuMonitor *mon, virJSONValue *data);
+static void qemuMonitorJSONHandleNetdevVhostUserDisconnected(qemuMonitor *mon, virJSONValue *data);
 
 typedef struct {
     const char *type;
@@ -108,6 +109,7 @@ static qemuEventHandler eventHandlers[] = {
     { "MIGRATION", qemuMonitorJSONHandleMigrationStatus, },
     { "MIGRATION_PASS", qemuMonitorJSONHandleMigrationPass, },
     { "NETDEV_STREAM_DISCONNECTED", qemuMonitorJSONHandleNetdevStreamDisconnected, },
+    { "NETDEV_VHOST_USER_DISCONNECTED", qemuMonitorJSONHandleNetdevVhostUserDisconnected, },
     { "NIC_RX_FILTER_CHANGED", qemuMonitorJSONHandleNicRxFilterChanged, },
     { "PR_MANAGER_STATUS_CHANGED", qemuMonitorJSONHandlePRManagerStatusChanged, },
     { "RDMA_GID_STATUS_CHANGED", qemuMonitorJSONHandleRdmaGidStatusChanged, },
@@ -1041,6 +1043,20 @@ qemuMonitorJSONHandleNetdevStreamDisconnected(qemuMonitor *mon, virJSONValue *da
     }
 
     qemuMonitorEmitNetdevStreamDisconnected(mon, name);
+}
+
+
+static void
+qemuMonitorJSONHandleNetdevVhostUserDisconnected(qemuMonitor *mon, virJSONValue *data)
+{
+    const char *name;
+
+    if (!(name = virJSONValueObjectGetString(data, "netdev-id"))) {
+        VIR_WARN("missing device in NETDEV_VHOST_USER_DISCONNECTED event");
+        return;
+    }
+
+    qemuMonitorEmitNetdevVhostUserDisconnected(mon, name);
 }
 
 
@@ -6323,6 +6339,24 @@ qemuMonitorJSONBuildUnixSocketAddress(const char *path)
 }
 
 
+static virJSONValue *
+qemuMonitorJSONBuildFDSocketAddress(const char *name)
+{
+    g_autoptr(virJSONValue) addr = NULL;
+    g_autoptr(virJSONValue) data = NULL;
+
+    if (virJSONValueObjectAdd(&data, "s:str", name, NULL) < 0)
+        return NULL;
+
+    if (virJSONValueObjectAdd(&addr,
+                              "s:type", "fd",
+                              "a:data", &data, NULL) < 0)
+        return NULL;
+
+    return g_steal_pointer(&addr);
+}
+
+
 int
 qemuMonitorJSONNBDServerStart(qemuMonitor *mon,
                               const virStorageNetHostDef *server,
@@ -6341,6 +6375,9 @@ qemuMonitorJSONNBDServerStart(qemuMonitor *mon,
     case VIR_STORAGE_NET_HOST_TRANS_UNIX:
         addr = qemuMonitorJSONBuildUnixSocketAddress(server->socket);
         break;
+    case VIR_STORAGE_NET_HOST_TRANS_FD:
+        addr = qemuMonitorJSONBuildFDSocketAddress(server->qemu_fdname);
+        break;
     case VIR_STORAGE_NET_HOST_TRANS_RDMA:
     case VIR_STORAGE_NET_HOST_TRANS_LAST:
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
@@ -6353,34 +6390,6 @@ qemuMonitorJSONNBDServerStart(qemuMonitor *mon,
     if (!(cmd = qemuMonitorJSONMakeCommand("nbd-server-start",
                                            "a:addr", &addr,
                                            "S:tls-creds", tls_alias,
-                                           NULL)))
-        return -1;
-
-    if (qemuMonitorJSONCommand(mon, cmd, &reply) < 0)
-        return -1;
-
-    if (qemuMonitorJSONCheckError(cmd, reply) < 0)
-        return -1;
-
-    return 0;
-}
-
-int
-qemuMonitorJSONNBDServerAdd(qemuMonitor *mon,
-                            const char *deviceID,
-                            const char *export,
-                            bool writable,
-                            const char *bitmap)
-{
-    g_autoptr(virJSONValue) cmd = NULL;
-    g_autoptr(virJSONValue) reply = NULL;
-
-    /* Note: bitmap must be NULL if QEMU_CAPS_NBD_BITMAP is lacking */
-    if (!(cmd = qemuMonitorJSONMakeCommand("nbd-server-add",
-                                           "s:device", deviceID,
-                                           "S:name", export,
-                                           "b:writable", writable,
-                                           "S:bitmap", bitmap,
                                            NULL)))
         return -1;
 

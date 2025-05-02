@@ -28,7 +28,6 @@
 
 #include "qemu_alias.h"
 #include "qemu_monitor.h"
-#include "qemu_monitor_text.h"
 #include "qemu_monitor_json.h"
 #include "qemu_domain.h"
 #include "qemu_capabilities.h"
@@ -80,7 +79,7 @@ VIR_LOG_INIT("qemu.qemu_monitor");
                            _("monitor must not be NULL")); \
             exit; \
         } \
-        VIR_DEBUG("mon:%p vm:%p fd:%d", mon, mon->vm, mon->fd); \
+        VIR_DEBUG("mon:%p vm:%p monfd:%d", mon, mon->vm, mon->fd); \
     } while (0)
 
 /* Check monitor and return NULL on error */
@@ -1261,6 +1260,17 @@ qemuMonitorEmitNetdevStreamDisconnected(qemuMonitor *mon,
     VIR_DEBUG("mon=%p", mon);
 
     QEMU_MONITOR_CALLBACK(mon, domainNetdevStreamDisconnected,
+                          mon->vm, devAlias);
+}
+
+
+void
+qemuMonitorEmitNetdevVhostUserDisconnected(qemuMonitor *mon,
+                                           const char *devAlias)
+{
+    VIR_DEBUG("mon=%p", mon);
+
+    QEMU_MONITOR_CALLBACK(mon, domainNetdevVhostUserDisconnected,
                           mon->vm, devAlias);
 }
 
@@ -2746,30 +2756,6 @@ qemuMonitorDelObject(qemuMonitor *mon,
 
 
 int
-qemuMonitorCreateSnapshot(qemuMonitor *mon, const char *name)
-{
-    VIR_DEBUG("name=%s", name);
-
-    QEMU_CHECK_MONITOR(mon);
-
-    /* there won't ever be a direct QMP replacement for this function */
-    return qemuMonitorTextCreateSnapshot(mon, name);
-}
-
-
-int
-qemuMonitorDeleteSnapshot(qemuMonitor *mon, const char *name)
-{
-    VIR_DEBUG("name=%s", name);
-
-    QEMU_CHECK_MONITOR(mon);
-
-    /* there won't ever be a direct QMP replacement for this function */
-    return qemuMonitorTextDeleteSnapshot(mon, name);
-}
-
-
-int
 qemuMonitorSnapshotSave(qemuMonitor *mon,
                         const char *jobname,
                         const char *snapshotname,
@@ -3534,23 +3520,6 @@ qemuMonitorNBDServerStart(qemuMonitor *mon,
     QEMU_CHECK_MONITOR(mon);
 
     return qemuMonitorJSONNBDServerStart(mon, server, tls_alias);
-}
-
-
-int
-qemuMonitorNBDServerAdd(qemuMonitor *mon,
-                        const char *deviceID,
-                        const char *export,
-                        bool writable,
-                        const char *bitmap)
-{
-    VIR_DEBUG("deviceID=%s, export=%s, bitmap=%s", deviceID, NULLSTR(export),
-              NULLSTR(bitmap));
-
-    QEMU_CHECK_MONITOR(mon);
-
-    return qemuMonitorJSONNBDServerAdd(mon, deviceID, export, writable,
-                                       bitmap);
 }
 
 

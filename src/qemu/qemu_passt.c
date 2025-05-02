@@ -36,7 +36,7 @@ VIR_LOG_INIT("qemu.passt");
 
 
 #define PASST "passt"
-
+#define QEMU_PASST_RECONNECT_TIMEOUT 5
 
 static char *
 qemuPasstCreatePidFilename(virDomainObj *vm,
@@ -106,11 +106,15 @@ qemuPasstAddNetProps(virDomainObj *vm,
 
     if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_NETDEV_STREAM_RECONNECT)) {
         if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_NETDEV_STREAM_RECONNECT_MILISECONDS)) {
-            if (virJSONValueObjectAdd(netprops, "u:reconnect-ms", 5000, NULL) < 0)
+            if (virJSONValueObjectAdd(netprops, "u:reconnect-ms",
+                                      QEMU_PASST_RECONNECT_TIMEOUT * 1000, NULL) < 0) {
                 return -1;
+            }
         } else {
-            if (virJSONValueObjectAdd(netprops, "u:reconnect", 5, NULL) < 0)
+            if (virJSONValueObjectAdd(netprops, "u:reconnect",
+                                      QEMU_PASST_RECONNECT_TIMEOUT, NULL) < 0) {
                 return -1;
+            }
         }
     }
 
@@ -164,6 +168,31 @@ qemuPasstSetupCgroup(virDomainObj *vm,
     return virCgroupAddProcess(cgroup, pid);
 }
 
+
+void
+qemuPasstPrepareVhostUser(virDomainObj *vm,
+                          virDomainNetDef *net)
+{
+    /* There are some options on the QEMU commandline for a vhost-user
+     * chr device that are normally configurable, but when it is passt
+     * speaking to the vhost-user device those things are
+     * derived/fixed. This function, which is called prior to
+     * generating the QEMU commandline, sets thos derived/fixed things
+     * in the chr device object.
+     */
+
+    /* The socket path is not user-configurable for passt - it is
+     * derived from other info
+     */
+    g_free(net->data.vhostuser->data.nix.path);
+    net->data.vhostuser->data.nix.path = qemuPasstCreateSocketPath(vm, net);
+
+    /* reconnect is always enabled, with timeout always at 5 seconds, when
+     * using passt
+     */
+    net->data.vhostuser->data.nix.reconnect.enabled = VIR_TRISTATE_BOOL_YES;
+    net->data.vhostuser->data.nix.reconnect.timeout = QEMU_PASST_RECONNECT_TIMEOUT;
+}
 
 int
 qemuPasstStart(virDomainObj *vm,

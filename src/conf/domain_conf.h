@@ -4024,7 +4024,8 @@ virDomainDiskByTarget(virDomainDef *def,
 
 void virDomainDiskInsert(virDomainDef *def, virDomainDiskDef *disk);
 int virDomainStorageNetworkParseHost(xmlNodePtr hostnode,
-                                     virStorageNetHostDef *host);
+                                     virStorageNetHostDef *host,
+                                     bool allow_fd);
 int virDomainDiskDefAssignAddress(virDomainXMLOption *xmlopt,
                                   virDomainDiskDef *def,
                                   const virDomainDef *vmdef);
@@ -4530,7 +4531,7 @@ virDomainDefLifecycleActionAllowed(virDomainLifecycle type,
                                    virDomainLifecycleAction action);
 
 virNetworkPortDef *
-virDomainNetDefToNetworkPort(virDomainDef *dom,
+virDomainNetDefToNetworkPort(const virDomainDef *dom,
                              virDomainNetDef *iface);
 
 int
@@ -4538,18 +4539,18 @@ virDomainNetDefActualFromNetworkPort(virDomainNetDef *iface,
                                      virNetworkPortDef *port);
 
 virNetworkPortDef *
-virDomainNetDefActualToNetworkPort(virDomainDef *dom,
+virDomainNetDefActualToNetworkPort(const virDomainDef *dom,
                                    virDomainNetDef *iface);
 
 int
 virDomainNetAllocateActualDevice(virConnectPtr conn,
-                                 virDomainDef *dom,
+                                 const virDomainDef *dom,
                                  virDomainNetDef *iface)
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2);
 
 void
 virDomainNetNotifyActualDevice(virConnectPtr conn,
-                               virDomainDef *dom,
+                               const virDomainDef *dom,
                                virDomainNetDef *iface)
     ATTRIBUTE_NONNULL(2) ATTRIBUTE_NONNULL(3);
 

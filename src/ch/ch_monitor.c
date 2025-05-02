@@ -27,6 +27,7 @@
 
 #include "datatypes.h"
 #include "ch_conf.h"
+#include "ch_domain.h"
 #include "ch_events.h"
 #include "ch_interface.h"
 #include "ch_monitor.h"
@@ -37,6 +38,7 @@
 #include "virfile.h"
 #include "virjson.h"
 #include "virlog.h"
+#include "virpidfile.h"
 #include "virstring.h"
 
 #define VIR_FROM_THIS VIR_FROM_CH
@@ -154,7 +156,7 @@ virCHMonitorBuildPayloadJson(virJSONValue *content, virDomainDef *vmdef)
             buf = g_base64_decode(vmdef->sec->data.sev_snp.host_data, &len);
             if (len != host_data_len) {
                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                               _("Invalid host_data provided. Expected '%1$ld' bytes"),
+                               _("Invalid host_data provided. Expected '%1$zu' bytes"),
                                host_data_len);
                 return -1;
             }
@@ -582,10 +584,12 @@ chMonitorCreateSocket(const char *socket_path)
 virCHMonitor *
 virCHMonitorNew(virDomainObj *vm, virCHDriverConfig *cfg, int logfile)
 {
+    virCHDomainObjPrivate *priv = vm->privateData;
     g_autoptr(virCHMonitor) mon = NULL;
     g_autoptr(virCommand) cmd = NULL;
     int socket_fd = 0;
     int event_monitor_fd;
+    int rv;
 
     if (virCHMonitorInitialize() < 0)
         return NULL;
@@ -644,6 +648,7 @@ virCHMonitorNew(virDomainObj *vm, virCHDriverConfig *cfg, int logfile)
     virCommandSetErrorFD(cmd, &logfile);
     virCommandNonblockingFDs(cmd);
     virCommandSetUmask(cmd, 0x002);
+
     socket_fd = chMonitorCreateSocket(mon->socketpath);
     if (socket_fd < 0) {
         virReportSystemError(errno,
@@ -655,13 +660,26 @@ virCHMonitorNew(virDomainObj *vm, virCHDriverConfig *cfg, int logfile)
     virCommandAddArg(cmd, "--api-socket");
     virCommandAddArgFormat(cmd, "fd=%d", socket_fd);
     virCommandPassFD(cmd, socket_fd, VIR_COMMAND_PASS_FD_CLOSE_PARENT);
-
     virCommandAddArg(cmd, "--event-monitor");
     virCommandAddArgFormat(cmd, "path=%s", mon->eventmonitorpath);
+    virCommandSetPidFile(cmd, priv->pidfile);
+    virCommandDaemonize(cmd);
 
     /* launch Cloud-Hypervisor socket */
-    if (virCommandRunAsync(cmd, &mon->pid) < 0)
+    if (virCommandRun(cmd, NULL) < 0) {
+        VIR_DEBUG("CH vm=%p name=%s failed to spawn",
+                  vm, vm->def->name);
         return NULL;
+    }
+
+    if ((rv = virPidFileReadPath(priv->pidfile, &vm->pid)) < 0) {
+        virReportSystemError(-rv,
+                             _("Domain %1$s didn't show up"),
+                             vm->def->name);
+        return NULL;
+    }
+    VIR_DEBUG("CH vm=%p name=%s running with pid=%lld",
+              vm, vm->def->name, (long long)vm->pid);
 
     /* open the reader end of fifo before start Event Handler */
     while ((event_monitor_fd = open(mon->eventmonitorpath, O_RDONLY)) < 0) {
@@ -708,12 +726,6 @@ void virCHMonitorClose(virCHMonitor *mon)
 {
     if (!mon)
         return;
-
-    if (mon->pid > 0) {
-        /* try cleaning up the Cloud-Hypervisor process */
-        virProcessAbort(mon->pid);
-        mon->pid = 0;
-    }
 
     if (mon->handle)
         curl_easy_cleanup(mon->handle);
@@ -1127,7 +1139,7 @@ virCHMonitorBuildRestoreJson(virDomainDef *vmdef,
         g_autoptr(virJSONValue) nets = virJSONValueNewArray();
         for (i = 0; i < vmdef->nnets; i++) {
             g_autoptr(virJSONValue) net_json = virJSONValueNewObject();
-            g_autofree char *id = g_strdup_printf("%s_%ld", CH_NET_ID_PREFIX, i);
+            g_autofree char *id = g_strdup_printf("%s_%zu", CH_NET_ID_PREFIX, i);
             if (virJSONValueObjectAppendString(net_json, "id", id) < 0)
                 return -1;
             if (virJSONValueObjectAppendNumberInt(net_json, "num_fds", vmdef->nets[i]->driver.virtio.queues))
@@ -1196,10 +1208,7 @@ virCHMonitorGetIOThreads(virCHMonitor *mon,
             if (!(map = virProcessGetAffinity(iothreadinfo->iothread_id)))
                 goto error;
 
-            if (virBitmapToData(map, &(iothreadinfo->cpumap),
-                                &(iothreadinfo->cpumaplen)) < 0) {
-                goto error;
-            }
+            virBitmapToData(map, &(iothreadinfo->cpumap), &(iothreadinfo->cpumaplen));
 
             /* Append to iothreadinfolist */
             iothreadinfolist[niothreads] = g_steal_pointer(&iothreadinfo);

@@ -141,6 +141,7 @@ typedef enum {
     VIR_STORAGE_NET_HOST_TRANS_TCP,
     VIR_STORAGE_NET_HOST_TRANS_UNIX,
     VIR_STORAGE_NET_HOST_TRANS_RDMA,
+    VIR_STORAGE_NET_HOST_TRANS_FD,
 
     VIR_STORAGE_NET_HOST_TRANS_LAST
 } virStorageNetHostTransport;
@@ -154,6 +155,9 @@ struct _virStorageNetHostDef {
     unsigned int port;
     virStorageNetHostTransport transport;
     char *socket;  /* path to unix socket */
+
+    char *fdgroup;
+    char *qemu_fdname; /* name used with 'getfd' to pass to qemu - internal */
 };
 
 
@@ -501,9 +505,6 @@ virStorageSourceChainHasNVMe(const virStorageSource *src);
 virSecurityDeviceLabelDef *
 virStorageSourceGetSecurityLabelDef(virStorageSource *src,
                                     const char *model);
-
-void
-virStorageNetHostDefClear(virStorageNetHostDef *def);
 
 void
 virStorageNetHostDefFree(size_t nhosts,

@@ -56,7 +56,6 @@
   <flag name='memory-backend-memfd.hugetlb'/>
   <flag name='egl-headless.rendernode'/>
   <flag name='virtio-pci-non-transitional'/>
-  <flag name='nbd-bitmap'/>
   <flag name='migration-file-drop-cache'/>
   <flag name='dbus-vmstate'/>
   <flag name='vhost-user-gpu'/>
@@ -72,7 +71,6 @@
   <flag name='numa.hmat'/>
   <flag name='usb-host.hostdevice'/>
   <flag name='virtio-balloon.free-page-reporting'/>
-  <flag name='block-export-add'/>
   <flag name='netdev.vhost-vdpa'/>
   <flag name='vhost-user-fs.bootindex'/>
   <flag name='vhost-user-blk'/>
@@ -125,7 +123,6 @@
   <flag name='usb-mtp'/>
   <flag name='virtio-sound'/>
   <flag name='netdev.user'/>
-  <flag name='snapshot-internal-qmp'/>
   <flag name='chardev-reconnect-miliseconds'/>
   <flag name='virtio-ccw.loadparm'/>
   <flag name='netdev-stream-reconnect-miliseconds'/>

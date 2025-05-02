@@ -410,17 +410,20 @@ virConnectGetMaxVcpus(virConnectPtr conn,
  * Use of this API is strongly discouraged as the information provided
  * is not guaranteed to be accurate on all hardware platforms.
  *
- * The mHZ value merely reflects the speed that the first CPU in the
- * machine is currently running at. This speed may vary across CPUs
- * and changes continually as the host OS throttles.
+ * The CPU frequency value (field 'mhz' in virNodeInfo) merely reflects the
+ * speed that the first CPU in the machine is currently running at. This speed
+ * may vary across CPUs and changes continually as the host OS throttles.
  *
- * The nodes/sockets/cores/threads data is potentially inaccurate as
- * it assumes a symmetric installation. If one NUMA node has more
- * sockets populated that another NUMA node this information will be
- * wrong. It is also not able to report about CPU dies.
+ * The virNodeInfo structure is not extensible thus only supports global
+ * nodes/sockets/cores/threads (sockets/cores/threads is per NUMA node)
+ * topology information. If the host CPU has any further groupings (e.g.
+ * dies, clusters, etc) or the NUMA topology is non-symmetrical the structure
+ * can't faithfully represent the system. In such cases a fake topology
+ * (nodes = 1, sockets = 1, cores = number of host cpus, threads = 1) which
+ * only correctly represents the total host CPU count is reported.
  *
  * Applications are recommended to use the virConnectGetCapabilities()
- * call instead, which provides all the information except CPU mHZ,
+ * call instead, which provides all the information except CPU frequency,
  * in a more accurate representation.
  *
  * Returns 0 in case of success and -1 in case of failure.

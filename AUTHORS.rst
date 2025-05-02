@@ -537,6 +537,7 @@ Patches have also been contributed by:
 * Kiarie Kahurani <davidkiarie4@gmail.com>
 * Kim InSoo <simmon@nplob.com>
 * Kirill Shchetiniuk <kshcheti@redhat.com>
+* Kirill Shchetiniuk via Devel <devel@lists.libvirt.org>
 * Klaus Ethgen <Klaus@Ethgen.de>
 * Koichi Murase <myoga.murase@gmail.com>
 * Konrad Rzeszutek Wilk <konrad@kernel.org>
@@ -776,6 +777,7 @@ Patches have also been contributed by:
 * Pritesh Kothari <pritesh.kothari@sun.com>
 * Purna Pavan Chandra Aekkaladevi <paekkaladevi@linux.microsoft.com>
 * Purna Pavan Chandra <paekkaladevi@linux.microsoft.com>
+* QiangWei Zhang <zhang.qiangwei@zte.com.cn>
 * Qiao Nuohan <qiaonuohan@cn.fujitsu.com>
 * Qiaowei Ren <qiaowei.ren@intel.com>
 * Radoslaw Biernacki <radoslaw.biernacki@linaro.org>
@@ -985,6 +987,7 @@ Patches have also been contributed by:
 * William Douglas <william.douglas@intel.com>
 * William Grant <wgrant@ubuntu.com>
 * William Jon McCann <william.jon.mccann@gmail.com>
+* Will <tcosprojects@gmail.com>
 * Wim ten Have <wim.ten.have@oracle.com>
 * Wojciech Macek <wma@semihalf.com>
 * Wolfgang Mauerer <wolfgang.mauerer@siemens.com>

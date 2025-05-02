@@ -687,7 +687,9 @@ esxConnectToVCenter(esxPrivate *priv,
     g_autofree char *url = NULL;
 
     if (!hostSystemIPAddress &&
-        (!priv->parsedUri->path || STREQ(priv->parsedUri->path, "/"))) {
+        (!priv->parsedUri->path ||
+         STREQ(priv->parsedUri->path, "") ||
+         STREQ(priv->parsedUri->path, "/"))) {
         virReportError(VIR_ERR_INVALID_ARG, "%s",
                        _("Path has to specify the datacenter and compute resource"));
         return -1;
@@ -799,6 +801,7 @@ esxConnectOpen(virConnectPtr conn, virConnectAuthPtr auth,
     virCheckFlags(VIR_CONNECT_RO, VIR_DRV_OPEN_ERROR);
 
     if (STRCASENEQ(conn->uri->scheme, "vpx") &&
+        STRNEQ(conn->uri->path, "") &&
         STRNEQ(conn->uri->path, "/")) {
         VIR_WARN("Ignoring unexpected path '%s' for non-vpx scheme '%s'",
                  conn->uri->path, conn->uri->scheme);
@@ -4792,18 +4795,20 @@ esxConnectListAllDomains(virConnectPtr conn,
          virtualMachine = virtualMachine->_next) {
         g_autofree char *name = NULL;
 
-        if (needIdentity) {
-            if (esxVI_GetVirtualMachineIdentity(virtualMachine, &id,
-                                                &name, uuid) < 0) {
-                goto cleanup;
-            }
-        }
+        /* If the lookup of the required properties fails for some of the machines
+         * in the list it's preferrable to return the valid objects instead of
+         * failing outright */
+        if ((needIdentity && esxVI_GetVirtualMachineIdentity(virtualMachine, &id, &name, uuid) < 0) ||
+            (needPowerState && esxVI_GetVirtualMachinePowerState(virtualMachine, &powerState) < 0)) {
 
-        if (needPowerState) {
-            if (esxVI_GetVirtualMachinePowerState(virtualMachine,
-                                                  &powerState) < 0) {
+            /* Raise error only if we didn't successfuly fill any domain */
+            if (count == 0 && !virtualMachine->_next)
                 goto cleanup;
-            }
+
+            /* failure to fetch information of a single VM must not interrupt
+             * the lookup of the rest */
+            virResetLastError();
+            continue;
         }
 
         /* filter by active state */

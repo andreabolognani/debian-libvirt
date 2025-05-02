@@ -529,7 +529,7 @@ VIR_ENUM_IMPL(virQEMUCaps,
 
               /* 330 */
               "bitmap-merge", /* X_QEMU_CAPS_BITMAP_MERGE */
-              "nbd-bitmap", /* QEMU_CAPS_NBD_BITMAP */
+              "nbd-bitmap", /* X_QEMU_CAPS_NBD_BITMAP */
               "x86-max-cpu", /* QEMU_CAPS_X86_MAX_CPU */
               "cpu-unavailable-features", /* QEMU_CAPS_CPU_UNAVAILABLE_FEATURES */
               "canonical-cpu-features", /* QEMU_CAPS_CANONICAL_CPU_FEATURES */
@@ -600,7 +600,7 @@ VIR_ENUM_IMPL(virQEMUCaps,
               /* 380 */
               "usb-host.hostdevice", /* QEMU_CAPS_USB_HOST_HOSTDEVICE */
               "virtio-balloon.free-page-reporting", /* QEMU_CAPS_VIRTIO_BALLOON_FREE_PAGE_REPORTING */
-              "block-export-add", /* QEMU_CAPS_BLOCK_EXPORT_ADD */
+              "block-export-add", /* X_QEMU_CAPS_BLOCK_EXPORT_ADD */
               "netdev.vhost-vdpa", /* QEMU_CAPS_NETDEV_VHOST_VDPA */
               "fsdev.createmode", /* X_QEMU_CAPS_FSDEV_CREATEMODE */
 
@@ -717,7 +717,7 @@ VIR_ENUM_IMPL(virQEMUCaps,
               "machine-i8042-opt", /* QEMU_CAPS_MACHINE_I8042_OPT */
 
               /* 465 */
-              "snapshot-internal-qmp", /* QEMU_CAPS_SNAPSHOT_INTERNAL_QMP */
+              "snapshot-internal-qmp", /* X_QEMU_CAPS_SNAPSHOT_INTERNAL_QMP */
               "chardev-reconnect-miliseconds", /* QEMU_CAPS_CHARDEV_RECONNECT_MILISECONDS */
               "virtio-ccw.loadparm", /* QEMU_CAPS_VIRTIO_CCW_DEVICE_LOADPARM */
               "netdev-stream-reconnect-miliseconds", /* QEMU_CAPS_NETDEV_STREAM_RECONNECT_MILISECONDS */
@@ -1243,7 +1243,6 @@ struct virQEMUCapsStringFlags virQEMUCapsCommands[] = {
     { "query-cpu-definitions", QEMU_CAPS_QUERY_CPU_DEFINITIONS },
     { "query-cpu-model-baseline", QEMU_CAPS_QUERY_CPU_MODEL_BASELINE },
     { "query-cpu-model-comparison", QEMU_CAPS_QUERY_CPU_MODEL_COMPARISON },
-    { "block-export-add", QEMU_CAPS_BLOCK_EXPORT_ADD },
     { "set-action", QEMU_CAPS_SET_ACTION },
     { "query-dirty-rate", QEMU_CAPS_QUERY_DIRTY_RATE },
     { "sev-inject-launch-secret", QEMU_CAPS_SEV_INJECT_LAUNCH_SECRET },
@@ -1251,7 +1250,6 @@ struct virQEMUCapsStringFlags virQEMUCapsCommands[] = {
     { "query-stats", QEMU_CAPS_QUERY_STATS },
     { "query-stats-schemas", QEMU_CAPS_QUERY_STATS_SCHEMAS },
     { "display-reload", QEMU_CAPS_DISPLAY_RELOAD },
-    { "snapshot-save", QEMU_CAPS_SNAPSHOT_INTERNAL_QMP },
     { "blockdev-set-active", QEMU_CAPS_BLOCKDEV_SET_ACTIVE },
 };
 
@@ -1583,7 +1581,6 @@ static struct virQEMUCapsStringFlags virQEMUCapsQMPSchemaQueries[] = {
     { "chardev-add/arg-type/backend/+qemu-vdagent", QEMU_CAPS_CHARDEV_QEMU_VDAGENT },
     { "device_add/$json-cli-hotplug", QEMU_CAPS_DEVICE_JSON },
     { "nbd-server-start/arg-type/tls-creds", QEMU_CAPS_NBD_TLS },
-    { "nbd-server-add/arg-type/bitmap", QEMU_CAPS_NBD_BITMAP },
     { "netdev_add/arg-type/+stream", QEMU_CAPS_NETDEV_STREAM },
     { "netdev_add/arg-type/+stream/reconnect", QEMU_CAPS_NETDEV_STREAM_RECONNECT },
     { "netdev_add/arg-type/+vhost-vdpa", QEMU_CAPS_NETDEV_VHOST_VDPA },

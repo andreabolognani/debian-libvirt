@@ -80,7 +80,6 @@
   <flag name='memory-backend-memfd.hugetlb'/>
   <flag name='nvdimm.unarmed'/>
   <flag name='virtio-pci-non-transitional'/>
-  <flag name='nbd-bitmap'/>
   <flag name='bochs-display'/>
   <flag name='migration-file-drop-cache'/>
   <flag name='dbus-vmstate'/>
@@ -100,7 +99,6 @@
   <flag name='spapr-tpm-proxy'/>
   <flag name='numa.hmat'/>
   <flag name='virtio-balloon.free-page-reporting'/>
-  <flag name='block-export-add'/>
   <flag name='netdev.vhost-vdpa'/>
   <flag name='dc390'/>
   <flag name='am53c974'/>
@@ -132,7 +130,6 @@
   <flag name='display-reload'/>
   <flag name='usb-mtp'/>
   <flag name='netdev.user'/>
-  <flag name='snapshot-internal-qmp'/>
   <version>6002000</version>
   <microcodeVersion>42900244</microcodeVersion>
   <package>v6.2.0</package>

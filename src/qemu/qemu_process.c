@@ -1403,6 +1403,23 @@ qemuProcessHandleNetdevStreamDisconnected(qemuMonitor *mon G_GNUC_UNUSED,
 
 
 static void
+qemuProcessHandleNetdevVhostUserDisconnected(qemuMonitor *mon G_GNUC_UNUSED,
+                                             virDomainObj *vm,
+                                             const char *devAlias)
+{
+    virObjectLock(vm);
+
+    VIR_DEBUG("Device %s Netdev vhost-user Disconnected in domain %p %s",
+              devAlias, vm, vm->def->name);
+
+    qemuProcessEventSubmit(vm, QEMU_PROCESS_EVENT_NETDEV_VHOST_USER_DISCONNECTED,
+                           0, 0, g_strdup(devAlias));
+
+    virObjectUnlock(vm);
+}
+
+
+static void
 qemuProcessHandleNicRxFilterChanged(qemuMonitor *mon G_GNUC_UNUSED,
                                     virDomainObj *vm,
                                     const char *devAlias)
@@ -1848,6 +1865,7 @@ static qemuMonitorCallbacks monitorCallbacks = {
     .domainMemoryDeviceSizeChange = qemuProcessHandleMemoryDeviceSizeChange,
     .domainDeviceUnplugError = qemuProcessHandleDeviceUnplugErr,
     .domainNetdevStreamDisconnected = qemuProcessHandleNetdevStreamDisconnected,
+    .domainNetdevVhostUserDisconnected = qemuProcessHandleNetdevVhostUserDisconnected,
 };
 
 static void
@@ -6004,13 +6022,8 @@ qemuProcessPrepareDomainNetwork(virDomainObj *vm)
 
         case VIR_DOMAIN_NET_TYPE_VHOSTUSER:
             if (net->backend.type == VIR_DOMAIN_NET_BACKEND_PASST) {
-                /* when using the passt backend, the path of the
-                 * unix socket is always derived from other info
-                 * *not* manually given in the config, but all the
-                 * vhostuser code looks for it there.
-                 */
-                g_free(net->data.vhostuser->data.nix.path);
-                net->data.vhostuser->data.nix.path = qemuPasstCreateSocketPath(vm, net);
+                /* some extra setup of internal data for passt vhostuser mode */
+                qemuPasstPrepareVhostUser(vm, net);
             }
             break;
 
@@ -8239,8 +8252,7 @@ qemuProcessLaunch(virConnectPtr conn,
 
     qemuDomainVcpuPersistOrder(vm->def);
 
-    if (snapshot &&
-        virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_SNAPSHOT_INTERNAL_QMP)) {
+    if (snapshot) {
         VIR_DEBUG("reverting internal snapshot via QMP");
         if (qemuSnapshotInternalRevert(vm, snapshot, asyncJob) < 0)
             goto cleanup;
@@ -8914,7 +8926,6 @@ void qemuProcessStop(virQEMUDriver *driver,
     size_t i;
     g_autofree char *timestamp = NULL;
     g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
-    bool outgoingMigration;
 
     VIR_DEBUG("Shutting down vm=%p name=%s id=%d pid=%lld, "
               "reason=%s, asyncJob=%s, flags=0x%x",
@@ -8990,10 +9001,7 @@ void qemuProcessStop(virQEMUDriver *driver,
 
     qemuDomainCleanupRun(driver, vm);
 
-    outgoingMigration = (flags & VIR_QEMU_PROCESS_STOP_MIGRATED) &&
-        (asyncJob == VIR_ASYNC_JOB_MIGRATION_OUT);
-
-    qemuExtDevicesStop(driver, vm, outgoingMigration);
+    qemuExtDevicesStop(driver, vm, !!(flags & VIR_QEMU_PROCESS_STOP_MIGRATED));
 
     qemuDBusStop(driver, vm);
 
@@ -9259,7 +9267,7 @@ qemuProcessAutoDestroy(virDomainObj *dom,
                                      VIR_DOMAIN_EVENT_STOPPED,
                                      VIR_DOMAIN_EVENT_STOPPED_DESTROYED);
 
-    qemuDomainRemoveInactive(driver, dom, 0, false);
+    qemuDomainRemoveInactive(driver, dom, 0, !!(stopFlags & VIR_QEMU_PROCESS_STOP_MIGRATED));
 
     qemuProcessEndStopJob(dom);
 

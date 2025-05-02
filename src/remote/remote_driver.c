@@ -742,6 +742,42 @@ remoteConnectFormatURI(virURI *uri,
 }
 
 
+static int
+remoteCallOpen(virConnectPtr conn,
+               struct private_data *priv,
+               const char *name,
+               unsigned int flags)
+{
+    remote_connect_open_args args = { (char**) &name, flags };
+
+    VIR_DEBUG("Trying to open URI '%s'", name);
+    if (call(conn, priv, 0, REMOTE_PROC_CONNECT_OPEN,
+             (xdrproc_t) xdr_remote_connect_open_args, (char *) &args,
+             (xdrproc_t) xdr_void, (char *) NULL) == -1)
+        return -1;
+
+    /* Now try and find out what URI the daemon used */
+    if (conn->uri == NULL) {
+        remote_connect_get_uri_ret uriret = { 0 };
+
+        VIR_DEBUG("Trying to query remote URI");
+        if (call(conn, priv, 0,
+                 REMOTE_PROC_CONNECT_GET_URI,
+                 (xdrproc_t) xdr_void, (char *) NULL,
+                 (xdrproc_t) xdr_remote_connect_get_uri_ret, (char *) &uriret) < 0)
+            return -1;
+
+        VIR_DEBUG("Auto-probed URI is %s", uriret.uri);
+        conn->uri = virURIParse(uriret.uri);
+        VIR_FREE(uriret.uri);
+        if (!conn->uri)
+            return -1;
+    }
+
+    return 0;
+}
+
+
 /* helper macro to ease extraction of arguments from the URI */
 #define EXTRACT_URI_ARG_STR(ARG_NAME, ARG_VAR) \
     if (STRCASEEQ(var->name, ARG_NAME)) { \
@@ -758,12 +794,73 @@ remoteConnectFormatURI(virURI *uri,
             virReportError(VIR_ERR_INVALID_ARG, \
                            _("Failed to parse value of URI component %1$s"), \
                            var->name); \
-            goto error; \
+            return -1; \
         } \
         ARG_VAR = tmp == 0; \
         var->ignore = 1; \
         continue; \
     }
+
+static int
+doRemoteOpenExtractURIArgs(virConnectPtr conn,
+                           char **name,
+                           char **command,
+                           char **sockname,
+                           char **authtype,
+                           char **sshauth,
+                           char **netcat,
+                           char **keyfile,
+                           char **pkipath,
+                           char **knownHosts,
+                           char **knownHostsVerify,
+                           char **tls_priority,
+                           char **mode_str,
+                           char **proxy_str,
+#ifndef WIN32
+                           bool *tty,
+#endif
+                           bool *sanity,
+                           bool *verify)
+{
+    size_t i;
+
+    for (i = 0; i < conn->uri->paramsCount; i++) {
+        virURIParam *var = &conn->uri->params[i];
+
+        EXTRACT_URI_ARG_STR("name", *name);
+        EXTRACT_URI_ARG_STR("command", *command);
+        EXTRACT_URI_ARG_STR("socket", *sockname);
+        EXTRACT_URI_ARG_STR("auth", *authtype);
+        EXTRACT_URI_ARG_STR("sshauth", *sshauth);
+        EXTRACT_URI_ARG_STR("netcat", *netcat);
+        EXTRACT_URI_ARG_STR("keyfile", *keyfile);
+        EXTRACT_URI_ARG_STR("pkipath", *pkipath);
+        EXTRACT_URI_ARG_STR("known_hosts", *knownHosts);
+        EXTRACT_URI_ARG_STR("known_hosts_verify", *knownHostsVerify);
+        EXTRACT_URI_ARG_STR("tls_priority", *tls_priority);
+        EXTRACT_URI_ARG_STR("mode", *mode_str);
+        EXTRACT_URI_ARG_STR("proxy", *proxy_str);
+        EXTRACT_URI_ARG_BOOL("no_sanity", *sanity);
+        EXTRACT_URI_ARG_BOOL("no_verify", *verify);
+#ifndef WIN32
+        EXTRACT_URI_ARG_BOOL("no_tty", *tty);
+#endif
+
+        if (STRCASEEQ(var->name, "authfile")) {
+            /* Strip this param, used by virauth.c */
+            var->ignore = 1;
+            continue;
+        }
+
+        VIR_DEBUG("passing through variable '%s' ('%s') to remote end",
+                  var->name, var->value);
+    }
+
+    return 0;
+}
+
+#undef EXTRACT_URI_ARG_STR
+#undef EXTRACT_URI_ARG_BOOL
 
 
 /*
@@ -818,7 +915,6 @@ doRemoteOpen(virConnectPtr conn,
     bool tty = true;
 #endif
     int mode;
-    size_t i;
     int proxy;
 
     /* We handle *ALL* URIs here. The caller has rejected any
@@ -844,35 +940,28 @@ doRemoteOpen(virConnectPtr conn,
      * although that won't be the case for now).
      */
     if (conn->uri) {
-        for (i = 0; i < conn->uri->paramsCount; i++) {
-            virURIParam *var = &conn->uri->params[i];
-            EXTRACT_URI_ARG_STR("name", name);
-            EXTRACT_URI_ARG_STR("command", command);
-            EXTRACT_URI_ARG_STR("socket", sockname);
-            EXTRACT_URI_ARG_STR("auth", authtype);
-            EXTRACT_URI_ARG_STR("sshauth", sshauth);
-            EXTRACT_URI_ARG_STR("netcat", netcat);
-            EXTRACT_URI_ARG_STR("keyfile", keyfile);
-            EXTRACT_URI_ARG_STR("pkipath", pkipath);
-            EXTRACT_URI_ARG_STR("known_hosts", knownHosts);
-            EXTRACT_URI_ARG_STR("known_hosts_verify", knownHostsVerify);
-            EXTRACT_URI_ARG_STR("tls_priority", tls_priority);
-            EXTRACT_URI_ARG_STR("mode", mode_str);
-            EXTRACT_URI_ARG_STR("proxy", proxy_str);
-            EXTRACT_URI_ARG_BOOL("no_sanity", sanity);
-            EXTRACT_URI_ARG_BOOL("no_verify", verify);
+        /* This really needs to be a separate function to keep
+         * the stack size at sane levels. */
+        if (doRemoteOpenExtractURIArgs(conn,
+                                       &name,
+                                       &command,
+                                       &sockname,
+                                       &authtype,
+                                       &sshauth,
+                                       &netcat,
+                                       &keyfile,
+                                       &pkipath,
+                                       &knownHosts,
+                                       &knownHostsVerify,
+                                       &tls_priority,
+                                       &mode_str,
+                                       &proxy_str,
 #ifndef WIN32
-            EXTRACT_URI_ARG_BOOL("no_tty", tty);
+                                       &tty,
 #endif
-
-            if (STRCASEEQ(var->name, "authfile")) {
-                /* Strip this param, used by virauth.c */
-                var->ignore = 1;
-                continue;
-            }
-
-            VIR_DEBUG("passing through variable '%s' ('%s') to remote end",
-                       var->name, var->value);
+                                       &sanity,
+                                       &verify) < 0) {
+            goto error;
         }
 
         /* Construct the original name. */
@@ -974,7 +1063,7 @@ doRemoteOpen(virConnectPtr conn,
 
     VIR_DEBUG("Connecting with transport %d", transport);
 
-    switch ((remoteDriverTransport)transport) {
+    switch (transport) {
     case REMOTE_DRIVER_TRANSPORT_UNIX:
     case REMOTE_DRIVER_TRANSPORT_SSH:
     case REMOTE_DRIVER_TRANSPORT_LIBSSH:
@@ -999,7 +1088,7 @@ doRemoteOpen(virConnectPtr conn,
     VIR_DEBUG("Chosen UNIX socket %s", NULLSTR(sockname));
 
     /* Connect to the remote service. */
-    switch ((remoteDriverTransport)transport) {
+    switch (transport) {
     case REMOTE_DRIVER_TRANSPORT_TLS:
         if (conf && !tls_priority &&
             virConfGetValueString(conf, "tls_priority", &tls_priority) < 0)
@@ -1188,33 +1277,8 @@ doRemoteOpen(virConnectPtr conn,
     }
 
     /* Finally we can call the remote side's open function. */
-    {
-        remote_connect_open_args args = { &name, flags };
-
-        VIR_DEBUG("Trying to open URI '%s'", name);
-        if (call(conn, priv, 0, REMOTE_PROC_CONNECT_OPEN,
-                 (xdrproc_t) xdr_remote_connect_open_args, (char *) &args,
-                 (xdrproc_t) xdr_void, (char *) NULL) == -1)
-            goto error;
-    }
-
-    /* Now try and find out what URI the daemon used */
-    if (conn->uri == NULL) {
-        remote_connect_get_uri_ret uriret = { 0 };
-
-        VIR_DEBUG("Trying to query remote URI");
-        if (call(conn, priv, 0,
-                 REMOTE_PROC_CONNECT_GET_URI,
-                 (xdrproc_t) xdr_void, (char *) NULL,
-                 (xdrproc_t) xdr_remote_connect_get_uri_ret, (char *) &uriret) < 0)
-            goto error;
-
-        VIR_DEBUG("Auto-probed URI is %s", uriret.uri);
-        conn->uri = virURIParse(uriret.uri);
-        VIR_FREE(uriret.uri);
-        if (!conn->uri)
-            goto error;
-    }
+    if (remoteCallOpen(conn, priv, name, flags) < 0)
+        goto error;
 
     /* Set up events */
     if (!(priv->eventState = virObjectEventStateNew()))
@@ -1248,8 +1312,6 @@ doRemoteOpen(virConnectPtr conn,
     VIR_FREE(priv->hostname);
     return VIR_DRV_OPEN_ERROR;
 }
-#undef EXTRACT_URI_ARG_STR
-#undef EXTRACT_URI_ARG_BOOL
 
 static struct private_data *
 remoteAllocPrivateData(void)
