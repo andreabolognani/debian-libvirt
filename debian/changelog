@@ -1,4 +1,4 @@
-libvirt (11.3.0-1) UNRELEASED; urgency=medium
+libvirt (11.3.0-1) unstable; urgency=medium
 
   * [228f666] New upstream version 11.3.0
 
