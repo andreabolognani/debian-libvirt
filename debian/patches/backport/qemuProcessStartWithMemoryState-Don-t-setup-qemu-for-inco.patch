@@ -1,0 +1,62 @@
+From: Peter Krempa <pkrempa@redhat.com>
+Date: Tue, 13 May 2025 19:07:20 +0200
+Subject: qemuProcessStartWithMemoryState: Don't setup qemu for incoming
+ migration when reverting internal snapshot
+
+The memory/device state of the VM for an internal snapshot is restored
+by qemu itself via a QMP command and is taken from the qcow2 image, thus
+we don't actually do any form of incoming migration.
+
+Commit 5b324c0a739fe00 which refactored the setup of the incoming
+migration state didn't take the above into account and inadvertently
+caused that qemu is being started with '-incoming defer' also when
+libvirt would want to revert an internal snapshot.
+
+Now when qemu expects incoming migration it doesn't activate the block
+backends as that would cause locking problems and image inconsistency,
+but also doesn't allow the use of the images. Since the block backends
+are not activated qemu then thinks that they don't actually support
+internal snapshots and reports:
+
+  error: operation failed: load of internal snapshot 'foo1' job failed: Device 'libvirt-1-format' is writable but does not support snapshots
+
+Due to the above bug it's not possible to revert to internal snapshots
+in libvirt-11.2 and libvirt-11.3.
+
+Fixes: 5b324c0a739fe00cbec209219db4488742492112
+Resolves: https://issues.redhat.com/browse/RHEL-88747
+Closes: https://gitlab.com/libvirt/libvirt/-/issues/771
+Signed-off-by: Peter Krempa <pkrempa@redhat.com>
+Reviewed-by: Jim Fehlig <jfehlig@suse.com>
+Reviewed-by: Michal Privoznik <mprivozn@redhat.com>
+(cherry picked from commit 889d2ae289cd95d612575ebc7a4e111ac33b0939)
+
+Bug-Debian: https://bugs.debian.org/1104735
+
+Forwarded: not-needed
+Origin: https://gitlab.com/libvirt/libvirt/-/commits/889d2ae289cd95d612575ebc7a4e111ac33b0939
+---
+ src/qemu/qemu_process.c | 10 +++++++---
+ 1 file changed, 7 insertions(+), 3 deletions(-)
+
+diff --git a/src/qemu/qemu_process.c b/src/qemu/qemu_process.c
+index 1af91c5..5f2203d 100644
+--- a/src/qemu/qemu_process.c
++++ b/src/qemu/qemu_process.c
+@@ -8636,9 +8636,13 @@ qemuProcessStartWithMemoryState(virConnectPtr conn,
+     /* The fd passed to qemuProcessIncomingDefNew is used to create the migration
+      * URI, so it must be called after starting the decompression program.
+      */
+-    incoming = qemuProcessIncomingDefNew(driver, vm, NULL, "stdio", fd, path, data, migParams);
+-    if (!incoming)
+-        return -1;
++    if (!snapshot) {
++        /* Internal snapshots are reverted by a QMP command after qemu is started,
++         * so we don't actually want to setup incoming migration. */
++        if (!(incoming = qemuProcessIncomingDefNew(driver, vm, NULL, "stdio",
++                                                   fd, path, data, migParams)))
++            return -1;
++    }
+ 
+     /* No cookie means libvirt which saved the domain was too old to mess up
+      * the CPU definitions.
