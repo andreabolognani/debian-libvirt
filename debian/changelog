@@ -1,3 +1,9 @@
+libvirt (11.4.0-1) UNRELEASED; urgency=medium
+
+  * [f8bc946] New upstream version 11.4.0
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Wed, 04 Jun 2025 20:34:13 +0200
+
 libvirt (11.3.0-2) unstable; urgency=medium
 
   * [eb4a97a] patches: Add backports
