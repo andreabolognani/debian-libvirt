@@ -1,8 +1,10 @@
-libvirt (11.4.0-1) UNRELEASED; urgency=medium
+libvirt (11.4.0-1) experimental; urgency=medium
 
   * [f8bc946] New upstream version 11.4.0
+  * [f4cca9f] control: daemon-common Depends on kmod
+  * [3dd784b] control: Drop several Build-Depends
 
- -- Andrea Bolognani <eof@kiyuko.org>  Wed, 04 Jun 2025 20:34:13 +0200
+ -- Andrea Bolognani <eof@kiyuko.org>  Thu, 05 Jun 2025 00:07:28 +0200
 
 libvirt (11.3.0-2) unstable; urgency=medium
 
