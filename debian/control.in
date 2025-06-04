@@ -178,6 +178,7 @@ Depends:
  dmidecode [${ARCHES_DMIDECODE}],
  gettext-base,
  iproute2,
+ kmod [linux-any],
  libvirt-common (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
  polkitd (>= 121+compat0.1-2),
