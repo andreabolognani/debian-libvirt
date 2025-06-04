@@ -29,19 +29,24 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h>
+#include <stdlib.h>
 
 
 #if 0
 # include <errno.h>
 # include <stdio.h>
+# include <string.h>
 # define NULLSTR(s) ((s) ? (s) : "<null>")
 # define ERROR(...) \
 do { \
-    char ebuf[512]; \
-    const char *errmsg = strerror_r(errno, ebuf, sizeof(ebuf)); \
+    int saved_errno = errno; \
+    const size_t ebuf_size = 512; \
+    g_autofree char *ebuf = calloc(ebuf_size, sizeof(*ebuf)); \
+    if (ebuf) \
+        strerror_r(saved_errno, ebuf, ebuf_size); \
     fprintf(stderr, "ERROR %s:%d : ", __FUNCTION__, __LINE__); \
     fprintf(stderr, __VA_ARGS__); \
-    fprintf(stderr, " : %s\n", errmsg); \
+    fprintf(stderr, " : %s\n", NULLSTR(ebuf)); \
     fprintf(stderr, "\n"); \
 } while (0)
 
@@ -61,6 +66,29 @@ do { \
 #else
 # define NSS_NAME(s) _nss_libvirt_guest_##s##_r
 #endif
+
+#if !defined(g_autofree)
+static inline void
+generic_free(void *p)
+{
+    free(*((void **)p));
+}
+# define g_autofree __attribute__((cleanup(generic_free)))
+#endif
+
+#if !defined(g_steal_pointer)
+static inline void *
+g_steal_pointer(void *p)
+{
+    void **pp = (void **)p;
+    void *ptr = *pp;
+
+    *pp = NULL;
+    return ptr;
+}
+# define g_steal_pointer(x) (__typeof__(*(x))) g_steal_pointer(x)
+#endif
+
 
 enum nss_status
 NSS_NAME(gethostbyname)(const char *name, struct hostent *result,

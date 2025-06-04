@@ -1723,7 +1723,7 @@ qemuMigrationSrcIsAllowed(virDomainObj *vm,
 
         if (qemuTPMHasSharedStorage(driver, vm->def) &&
             !qemuTPMCanMigrateSharedStorage(vm->def)) {
-            virReportError(VIR_ERR_NO_SUPPORT, "%s",
+            virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
                            _("the running swtpm does not support migration with shared storage"));
             return false;
         }
@@ -3438,7 +3438,7 @@ qemuMigrationDstPrepareActive(virQEMUDriver *driver,
         if (!relabel)
             stopFlags |= VIR_QEMU_PROCESS_STOP_NO_RELABEL;
         virDomainAuditStart(vm, "migrated", false);
-        qemuProcessStop(driver, vm, VIR_DOMAIN_SHUTOFF_FAILED,
+        qemuProcessStop(vm, VIR_DOMAIN_SHUTOFF_FAILED,
                         VIR_ASYNC_JOB_MIGRATION_IN, stopFlags);
         virPortAllocatorRelease(priv->nbdPort);
         priv->nbdPort = 0;
@@ -3609,7 +3609,7 @@ qemuMigrationDstPrepareFresh(virQEMUDriver *driver,
          * and there is no 'goto cleanup;' in the middle of those */
         VIR_FREE(priv->origname);
         virDomainObjRemoveTransientDef(vm);
-        qemuDomainRemoveInactive(driver, vm, 0, true);
+        qemuDomainRemoveInactive(vm, 0, true);
     }
     virDomainObjEndAPI(&vm);
     virErrorRestore(&origErr);
@@ -3642,6 +3642,7 @@ qemuMigrationDstPrepareResume(virQEMUDriver *driver,
     virDomainJobStatus status;
     virDomainObj *vm;
     int ret = -1;
+    int nofd = -1;
 
     VIR_DEBUG("name=%s, origname=%s, protocol=%s, port=%hu, "
               "listenAddress=%s, flags=0x%x",
@@ -3684,7 +3685,7 @@ qemuMigrationDstPrepareResume(virQEMUDriver *driver,
     priv->origname = g_strdup(origname);
 
     if (!(incoming = qemuMigrationDstPrepare(driver, vm, false, protocol,
-                                             listenAddress, port, NULL)))
+                                             listenAddress, port, &nofd)))
         goto cleanup;
 
     if (qemuDomainObjEnterMonitorAsync(vm, VIR_ASYNC_JOB_MIGRATION_IN) < 0)
@@ -4082,7 +4083,7 @@ qemuMigrationSrcComplete(virQEMUDriver *driver,
      * up domain shutdown until SPICE server transfers its data */
     qemuMigrationSrcWaitForSpice(vm);
 
-    qemuProcessStop(driver, vm, VIR_DOMAIN_SHUTOFF_MIGRATED, asyncJob,
+    qemuProcessStop(vm, VIR_DOMAIN_SHUTOFF_MIGRATED, asyncJob,
                     VIR_QEMU_PROCESS_STOP_MIGRATED);
     virDomainAuditStop(vm, "migrated");
 
@@ -4256,7 +4257,7 @@ qemuMigrationSrcConfirm(virQEMUDriver *driver,
             virDomainDeleteConfig(cfg->configDir, cfg->autostartDir, vm);
             vm->persistent = 0;
         }
-        qemuDomainRemoveInactive(driver, vm, VIR_DOMAIN_UNDEFINE_TPM, true);
+        qemuDomainRemoveInactive(vm, VIR_DOMAIN_UNDEFINE_TPM, true);
     }
 
  cleanup:
@@ -6301,7 +6302,7 @@ qemuMigrationSrcPerformJob(virQEMUDriver *driver,
      * confirm step.
      */
     if (!v3proto) {
-        qemuProcessStop(driver, vm, VIR_DOMAIN_SHUTOFF_MIGRATED,
+        qemuProcessStop(vm, VIR_DOMAIN_SHUTOFF_MIGRATED,
                         VIR_ASYNC_JOB_MIGRATION_OUT,
                         VIR_QEMU_PROCESS_STOP_MIGRATED);
         virDomainAuditStop(vm, "migrated");
@@ -6335,7 +6336,7 @@ qemuMigrationSrcPerformJob(virQEMUDriver *driver,
             virDomainDeleteConfig(cfg->configDir, cfg->autostartDir, vm);
             vm->persistent = 0;
         }
-        qemuDomainRemoveInactive(driver, vm, 0, true);
+        qemuDomainRemoveInactive(vm, 0, true);
     }
 
     virErrorRestore(&orig_err);
@@ -6420,7 +6421,7 @@ qemuMigrationSrcPerformPhase(virQEMUDriver *driver,
     }
 
     if (!virDomainObjIsActive(vm))
-        qemuDomainRemoveInactive(driver, vm, 0, true);
+        qemuDomainRemoveInactive(vm, 0, true);
 
     return ret;
 }
@@ -6954,7 +6955,7 @@ qemuMigrationDstFinishActive(virQEMUDriver *driver,
 
     if (qemuDomainObjIsActive(vm)) {
         if (doKill) {
-            qemuProcessStop(driver, vm, VIR_DOMAIN_SHUTOFF_FAILED,
+            qemuProcessStop(vm, VIR_DOMAIN_SHUTOFF_FAILED,
                             VIR_ASYNC_JOB_MIGRATION_IN,
                             VIR_QEMU_PROCESS_STOP_MIGRATED);
             virDomainAuditStop(vm, "failed");
@@ -6977,7 +6978,7 @@ qemuMigrationDstFinishActive(virQEMUDriver *driver,
     }
 
     if (!qemuDomainObjIsActive(vm))
-        qemuDomainRemoveInactive(driver, vm, VIR_DOMAIN_UNDEFINE_TPM, true);
+        qemuDomainRemoveInactive(vm, VIR_DOMAIN_UNDEFINE_TPM, true);
 
     virErrorRestore(&orig_err);
     return NULL;
@@ -7113,7 +7114,7 @@ qemuMigrationProcessUnattended(virQEMUDriver *driver,
     qemuMigrationJobFinish(vm);
 
     if (!virDomainObjIsActive(vm))
-        qemuDomainRemoveInactive(driver, vm, 0, true);
+        qemuDomainRemoveInactive(vm, 0, true);
 }
 
 

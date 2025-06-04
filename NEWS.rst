@@ -8,6 +8,78 @@ the changes introduced by each of them.
 For a more fine-grained view, use the `git log`_.
 
 
+v11.4.0 (2025-06-02)
+====================
+
+* **New features**
+
+  * qemu: ppc64 POWER11 processor support
+
+    Support for the recently released IBM POWER11 processor was added.
+
+* **Packaging changes**
+
+  * All helper programs are now detected from ``$PATH`` during runtime
+
+    All of the code was now converted to dynamically look up helper programs
+    in ``$PATH`` rather than doing the lookup at build time and then compiling
+    in the result.
+
+    Programs ``mount``, ``umount``, ``mkfs``, ``modprobe``, ``rmmod``,
+    ``numad``, ``dmidecode``, ``ip``, ``tc``, ``mdevctl``, ``mm-ctl``,
+    ``iscsiadm``, ``ovs-vsctl``, ``pkttyagent``, ``bhyveload``, ``bhyvectl``,
+    ``bhyve``, ``ifconfig``, ``vzlist``, ``vzctl``, ``vzmigrate``, and the
+    tools from the lvm suite (``vgchange``, ``lvcreate``, etc..) are now not
+    needed during build and will still work properly if placed in ``$PATH``.
+
+    This also ensures that libvirt works correctly on distros that are
+    transitioning ``/sbin`` into ``/bin`` and upgraded installations have
+    a different layout from fresh installations.
+
+* **Improvements**
+
+  * virsh: Add option ``--no-pkttyagent``
+
+    That option suppresses registration of pkttyagent with polkitd.
+
+  * bhyve: support NVRAM configuration for UEFI firmwares
+
+    The bhyve driver now supports specifying NVRAM store file, such as::
+
+      <os firmware='efi'>
+        <nvram/>
+      </os>
+
+  * qemu: Improve accuracy of FDC/floppy device support statement in capabilities XML
+
+    The data is now based on the presence of the controller in qemu rather than
+    just a denylist of machine types where floppies not work.
+
+* **Bug fixes**
+
+  * qemu: Fix failure when reverting to internal snapshots
+
+    A regression in ``libvirt-11.2`` and ``libvirt-11.3`` prevents reverting to
+    an internal snapshot. Attempts to revert would produce the following error::
+
+      error: operation failed: load of internal snapshot 'foo1' job failed: Device 'libvirt-1-format' is writable but does not support snapshots
+
+    The only workaround is to avoid the broken versions.
+
+  * qemu: Fix virtqemud crash when resuming failed post-copy migration
+
+    A regression introduced in ``libvirt-11.2.0`` caused virtqemud on the
+    destination host to crash when trying to resume failed post-copy
+    migration.
+
+  * qemu: Treat the ``queues`` configuration of ``virtio-net`` as guest ABI
+
+    The queue count itself isn't a device frontend property but libvirt uses
+    it to calculate ``vectors`` option of the device which is a guest OS visible
+    property, thus ``queues`` must not change during migration. The ABI stability
+    check now handles this properly.
+
+
 v11.3.0 (2025-05-02)
 ====================
 
@@ -492,6 +564,7 @@ v10.9.0 (2024-11-01)
     ``<blockers model='...'>`` element is added for that CPU model listing
     features required by the CPU model, but not supported on the host.
 
+
 v10.8.0 (2024-10-01)
 ====================
 
@@ -626,6 +699,7 @@ v10.7.0 (2024-09-02)
   * ch: support basic networking modes
     Cloud-Hypervisor driver now supports Ethernet, Network (NAT) and Bridge
     networking modes.
+
 
 v10.6.0 (2024-08-05)
 ====================

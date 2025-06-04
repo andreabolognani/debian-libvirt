@@ -2087,66 +2087,71 @@ virCPUx86Compare(virCPUDef *host,
 }
 
 
-/* Base penalty for disabled features. */
-#define BASE_PENALTY 2
+struct virCPUx86Weight {
+    size_t total;
+    size_t enabled;
+    size_t disabled;
+};
+
+static void
+virCPUx86WeightFeatures(const virCPUDef *cpu,
+                        struct virCPUx86Weight *weight)
+{
+    size_t i;
+    size_t half; /* half of disabled features rounded up */
+
+    weight->enabled = cpu->nfeatures;
+
+    if (cpu->type == VIR_CPU_TYPE_HOST) {
+        weight->disabled = 0;
+        weight->total = cpu->nfeatures;
+        return;
+    }
+
+    for (i = 0; i < cpu->nfeatures; i++) {
+        if (cpu->features[i].policy == VIR_CPU_FEATURE_DISABLE)
+            weight->enabled--;
+    }
+
+    half = (cpu->nfeatures - weight->enabled + 1) / 2;
+    weight->disabled = half * (half + 3) / 2;
+    weight->total = cpu->nfeatures - half + weight->disabled;
+}
+
 
 static int
 virCPUx86CompareCandidateFeatureList(virCPUDef *cpuCurrent,
                                      virCPUDef *cpuCandidate,
                                      bool isPreferred)
 {
-    size_t current = cpuCurrent->nfeatures;
-    size_t enabledCurrent = current;
-    size_t disabledCurrent = 0;
-    size_t candidate = cpuCandidate->nfeatures;
-    size_t enabled = candidate;
-    size_t disabled = 0;
+    struct virCPUx86Weight current = { 0 };
+    struct virCPUx86Weight candidate = { 0 };
 
-    if (cpuCandidate->type != VIR_CPU_TYPE_HOST) {
-        size_t i;
-        int penalty = BASE_PENALTY;
+    virCPUx86WeightFeatures(cpuCurrent, &current);
+    virCPUx86WeightFeatures(cpuCandidate, &candidate);
 
-        for (i = 0; i < enabledCurrent; i++) {
-            if (cpuCurrent->features[i].policy == VIR_CPU_FEATURE_DISABLE) {
-                enabledCurrent--;
-                disabledCurrent += penalty;
-                penalty++;
-            }
-        }
-        current = enabledCurrent + disabledCurrent;
-
-        penalty = BASE_PENALTY;
-        for (i = 0; i < enabled; i++) {
-            if (cpuCandidate->features[i].policy == VIR_CPU_FEATURE_DISABLE) {
-                enabled--;
-                disabled += penalty;
-                penalty++;
-            }
-        }
-        candidate = enabled + disabled;
-    }
-
-    if (candidate < current ||
-        (candidate == current && disabled < disabledCurrent)) {
+    if (candidate.total < current.total ||
+        (candidate.total == current.total &&
+         candidate.disabled < current.disabled)) {
         VIR_DEBUG("%s is better than %s: %zu (%zu, %zu) < %zu (%zu, %zu)",
                   cpuCandidate->model, cpuCurrent->model,
-                  candidate, enabled, disabled,
-                  current, enabledCurrent, disabledCurrent);
+                  candidate.total, candidate.enabled, candidate.disabled,
+                  current.total, current.enabled, current.disabled);
         return 1;
     }
 
-    if (isPreferred && disabled < disabledCurrent) {
+    if (isPreferred && candidate.disabled < current.disabled) {
         VIR_DEBUG("%s is in the list of preferred models and provides fewer "
                   "disabled features than %s: %zu < %zu",
                   cpuCandidate->model, cpuCurrent->model,
-                  disabled, disabledCurrent);
+                  candidate.disabled, current.disabled);
         return 1;
     }
 
     VIR_DEBUG("%s is not better than %s: %zu (%zu, %zu) >= %zu (%zu, %zu)",
               cpuCandidate->model, cpuCurrent->model,
-              candidate, enabled, disabled,
-              current, enabledCurrent, disabledCurrent);
+              candidate.total, candidate.enabled, candidate.disabled,
+              current.total, current.enabled, current.disabled);
     return 0;
 }
 
@@ -2559,7 +2564,7 @@ virCPUx86DataCheckFeature(const virCPUData *data,
 
 
 #if defined(__i386__) || defined(__x86_64__)
-static inline void
+static void
 cpuidCall(virCPUx86CPUID *cpuid)
 {
     virHostCPUX86GetCPUID(cpuid->eax_in,

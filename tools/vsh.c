@@ -46,6 +46,8 @@
 #include "virstring.h"
 #include "virutil.h"
 
+#include "vsh-completer.h"
+
 #ifdef WITH_READLINE
 /* For autocompletion */
 vshControl *autoCompleteOpaque;
@@ -2121,7 +2123,11 @@ vshPrintStderr(vshControl *ctl,
      * printing to stderr will not interleave correctly with stdout
      * unless we flush between every transition between streams.  */
     fflush(stdout);
-    fprintf(stderr, _("error: %1$s\n"), NULLSTR(str));
+
+    if (level == VSH_ERR_WARNING)
+        fprintf(stderr, _("warning: %1$s\n"), NULLSTR(str));
+    else
+        fprintf(stderr, _("error: %1$s\n"), NULLSTR(str));
     fflush(stderr);
 }
 
@@ -3283,6 +3289,7 @@ const vshCmdOptDef opts_cd[] = {
     {.name = "dir",
      .type = VSH_OT_STRING,
      .positional = true,
+     .completer = vshCompletePathLocalExisting,
      .help = N_("directory to switch to (default: home or else root)")
     },
     {.name = NULL}
@@ -3340,11 +3347,13 @@ const vshCmdOptDef opts_echo[] = {
     },
     {.name = "prefix",
      .type = VSH_OT_STRING,
+     .completer = vshCompleteEmpty,
      .help = N_("prefix the message")
     },
     {.name = "string",
      .type = VSH_OT_ARGV,
      .positional = true,
+     .completer = vshCompleteEmpty,
      .help = N_("arguments to echo")
     },
     {.name = NULL}
@@ -3491,6 +3500,7 @@ const vshCmdOptDef opts_complete[] = {
      .type = VSH_OT_ARGV,
      .positional = true,
      .allowEmpty = true,
+     .completer = vshCompleteEmpty,
      .help = N_("partial string to autocomplete")
     },
     {.name = NULL}

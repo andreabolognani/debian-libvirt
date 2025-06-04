@@ -231,7 +231,7 @@ int virNetDevTapCreate(char **ifname,
 
         if (ioctl(fd, TUNSETIFF, &ifr) < 0) {
             if (flags & VIR_NETDEV_TAP_CREATE_ALLOW_EXISTING &&
-                tapfdSize > 0) {
+                tapfdSize > 1) {
                 virReportSystemError(errno,
                                      _("Unable to create multiple fds for tap device %1$s (maybe existing device was created without multi_queue flag)"),
                                      *ifname);
@@ -541,6 +541,9 @@ virNetDevTapReattachBridge(const char *tapname,
     /* IFLA_MASTER for a tap on an OVS switch is always "ovs-system" */
     if (STREQ_NULLABLE(master, "ovs-system")) {
         useOVS = true;
+
+        /* master needs to be released here because it will be reassigned */
+        g_clear_pointer(&master, g_free);
         if (virNetDevOpenvswitchInterfaceGetMaster(tapname, &master) < 0)
             return -1;
     }

@@ -35,6 +35,8 @@
 #include <errno.h>
 #include <string.h>
 #include <time.h>
+#include <sys/socket.h>
+#include <netdb.h>
 
 
 #if defined(WITH_BSD_NSS)
@@ -132,7 +134,7 @@ findLease(const char *name,
 
     DEBUG("Dir: %s", leaseDir);
     while ((entry = readdir(dir)) != NULL) {
-        char *path;
+        g_autofree char *path = NULL;
         size_t dlen = strlen(entry->d_name);
 
         if (dlen >= 7 && !strcmp(entry->d_name + dlen - 7, ".status")) {
@@ -146,18 +148,15 @@ findLease(const char *name,
             if (asprintf(&path, "%s/%s", leaseDir, entry->d_name) < 0)
                 goto cleanup;
 
-            leaseFiles[nleaseFiles++] = path;
+            leaseFiles[nleaseFiles++] = g_steal_pointer(&path);
 #if defined(LIBVIRT_NSS_GUEST)
         } else if (dlen >= 5 && !strcmp(entry->d_name + dlen - 5, ".macs")) {
             if (asprintf(&path, "%s/%s", leaseDir, entry->d_name) < 0)
                 goto cleanup;
 
             DEBUG("Processing %s", path);
-            if (findMACs(path, name, &macs, &nmacs) < 0) {
-                free(path);
+            if (findMACs(path, name, &macs, &nmacs) < 0)
                 goto cleanup;
-            }
-            free(path);
 #endif /* LIBVIRT_NSS_GUEST */
         }
 
@@ -230,7 +229,7 @@ NSS_NAME(gethostbyname2)(const char *name, int af, struct hostent *result,
                                     errnop, herrnop, NULL, NULL);
 }
 
-static inline void *
+static void *
 move_and_align(void *buf, size_t len, size_t *idx)
 {
     char *buffer = buf;
@@ -249,9 +248,8 @@ NSS_NAME(gethostbyname3)(const char *name, int af, struct hostent *result,
                          char *buffer, size_t buflen, int *errnop,
                          int *herrnop, int32_t *ttlp, char **canonp)
 {
-    enum nss_status ret = NSS_STATUS_UNAVAIL;
     char *r_name, **r_aliases, *r_addr, *r_addr_next, **r_addr_list;
-    leaseAddress *addr = NULL;
+    g_autofree leaseAddress *addr = NULL;
     size_t naddr, i;
     bool found = false;
     size_t nameLen, need, idx = 0;
@@ -304,8 +302,7 @@ NSS_NAME(gethostbyname3)(const char *name, int af, struct hostent *result,
     if (buflen < need) {
         *errnop = ENOMEM;
         *herrnop = TRY_AGAIN;
-        ret = NSS_STATUS_TRYAGAIN;
-        goto cleanup;
+        return NSS_STATUS_TRYAGAIN;
     }
 
     /* First, append name */
@@ -355,10 +352,7 @@ NSS_NAME(gethostbyname3)(const char *name, int af, struct hostent *result,
     *herrnop = NETDB_SUCCESS;
     h_errno = 0;
 
-    ret = NSS_STATUS_SUCCESS;
- cleanup:
-    free(addr);
-    return ret;
+    return NSS_STATUS_SUCCESS;
 }
 
 #ifdef WITH_STRUCT_GAIH_ADDRTUPLE
@@ -367,8 +361,7 @@ NSS_NAME(gethostbyname4)(const char *name, struct gaih_addrtuple **pat,
                          char *buffer, size_t buflen, int *errnop,
                          int *herrnop, int32_t *ttlp)
 {
-    enum nss_status ret = NSS_STATUS_UNAVAIL;
-    leaseAddress *addr = NULL;
+    g_autofree leaseAddress *addr = NULL;
     size_t naddr, i;
     bool found = false;
     int r;
@@ -410,8 +403,7 @@ NSS_NAME(gethostbyname4)(const char *name, struct gaih_addrtuple **pat,
     if (buflen < need) {
         *errnop = ENOMEM;
         *herrnop = TRY_AGAIN;
-        ret = NSS_STATUS_TRYAGAIN;
-        goto cleanup;
+        return NSS_STATUS_TRYAGAIN;
     }
 
     /* First, append name */
@@ -449,10 +441,7 @@ NSS_NAME(gethostbyname4)(const char *name, struct gaih_addrtuple **pat,
     /* Explicitly reset all error variables */
     *errnop = 0;
     *herrnop = NETDB_SUCCESS;
-    ret = NSS_STATUS_SUCCESS;
- cleanup:
-    free(addr);
-    return ret;
+    return NSS_STATUS_SUCCESS;
 }
 #endif /* WITH_STRUCT_GAIH_ADDRTUPLE */
 
@@ -475,18 +464,17 @@ aiforaf(const char *name,
     struct hostent resolved;
     int err;
     char **addrList;
+    g_autofree char *buf = NULL;
+    const size_t buf_size = 1024;
+    int herr;
 
-    /* Note: The do-while blocks in this function are used to scope off large
-     * stack allocated buffers, which are not needed at the same time */
-    do {
-        char buf[1024] = { 0 };
-        int herr;
+    if (!(buf = calloc(buf_size, sizeof(*buf))))
+        return;
 
-        if (NSS_NAME(gethostbyname2)(name, af, &resolved,
-                                     buf, sizeof(buf),
-                                     &err, &herr) != NS_SUCCESS)
-            return;
-    } while (false);
+    if (NSS_NAME(gethostbyname2)(name, af, &resolved,
+                                 buf, buf_size,
+                                 &err, &herr) != NS_SUCCESS)
+        return;
 
     addrList = resolved.h_addr_list;
     while (*addrList) {

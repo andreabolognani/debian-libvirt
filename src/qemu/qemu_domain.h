@@ -691,14 +691,12 @@ int qemuDomainMomentDiscardAll(void *payload,
                                const char *name,
                                void *data);
 
-void qemuDomainRemoveInactive(virQEMUDriver *driver,
-                              virDomainObj *vm,
+void qemuDomainRemoveInactive(virDomainObj *vm,
                               virDomainUndefineFlagsValues flags,
                               bool migration);
 
 void
-qemuDomainRemoveInactiveLocked(virQEMUDriver *driver,
-                               virDomainObj *vm);
+qemuDomainRemoveInactiveLocked(virDomainObj *vm);
 
 void qemuDomainSetFakeReboot(virDomainObj *vm,
                              bool value);
@@ -1169,3 +1167,7 @@ qemuDomainCheckCPU(virArch arch,
                    virCPUDef *cpu,
                    virQEMUCapsHostCPUType compatCPU,
                    bool failIncompatible);
+
+bool
+qemuDomainMachineSupportsFloppy(const char *machine,
+                                virQEMUCaps *qemuCaps);

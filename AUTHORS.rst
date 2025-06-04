@@ -115,6 +115,7 @@ Patches have also been contributed by:
 * Alexander Todorov <atodorov@otb.bg>
 * Alexander Vasilenko <kaperang07@gmail.com>
 * Alexandra Diupina <adiupina@astralinux.ru>
+* Alexey Dokuchaev <danfe@FreeBSD.org>
 * Alex Jia <ajia@redhat.com>
 * Alex Williamson <alex.williamson@redhat.com>
 * Aline Manera <alinefm@br.ibm.com>
@@ -343,6 +344,7 @@ Patches have also been contributed by:
 * Fabian Freyer <fabian.freyer@physik.tu-berlin.de>
 * Fabian Leditzky <fabian@ldsoft.dev>
 * Fabiano Fidêncio <fidencio@redhat.com>
+* Fabio Estevam <festevam@gmail.com>
 * Fabricio Duarte <fabricio.duarte.jr@gmail.com>
 * Fangge Jin <fjin@redhat.com>
 * Farhan Ali <alifm@linux.ibm.com>
@@ -423,6 +425,7 @@ Patches have also been contributed by:
 * Huaqiang <huaqiang.wang@intel.com>
 * Hu Jianwei <jiahu@redhat.com>
 * Hu Tao <hutao@cn.fujitsu.com>
+* Hyman Huang <yong.huang@smartx.com>
 * Hyman Huang(黄勇) <huangy81@chinatelecom.cn>
 * Ian Campbell <ian.campbell@citrix.com>
 * Ian Campbell <Ian.Campbell@citrix.com>
@@ -469,6 +472,7 @@ Patches have also been contributed by:
 * Jean-Louis Dupond <jean-louis@dupond.be>
 * Jean-Marc Liger <jean-marc.liger@parisdescartes.fr>
 * Jens Petersen <petersen@redhat.com>
+* Jens Schmidt <farblos@vodafonemail.de>
 * Jérémie Tarot <silopolis@gmail.com>
 * Jeremy Fitzhardinge <jeremy@goop.org>
 * Jesse Cook <code.crashenx@gmail.com>
@@ -626,6 +630,7 @@ Patches have also been contributed by:
 * MATSUDA Daiki <matsudadik@intellilink.co.jp>
 * Matt Coleman <matt@datto.com>
 * Matthew Booth <mbooth@redhat.com>
+* Matthew R. Ochs <mochs@nvidia.com>
 * Matthew Rosato <mjrosato@linux.vnet.ibm.com>
 * Matthias Bolte <matthias.bolte@googlemail.com>
 * Matthias Dahl <mdvirt@designassembly.de>
@@ -764,6 +769,7 @@ Patches have also been contributed by:
 * Pino Toscano <ptoscano@redhat.com>
 * Pino Toscano <toscano.pino@tiscali.it>
 * Piotr Drąg <piotrdrag@gmail.com>
+* Poesty Li <poesty7450@gmail.com>
 * Pradipta Kr. Banerjee <bpradip@in.ibm.com>
 * Pradipta Kr. Banerjee <pradipta.banerjee@gmail.com>
 * Prafullkumar Tale <talep158@gmail.com>
@@ -891,6 +897,7 @@ Patches have also been contributed by:
 * Stefan Hajnoczi <stefanha@linux.vnet.ibm.com>
 * Stefan Hajnoczi <stefanha@redhat.com>
 * Stefan Hellermann <stefan@the2masters.de>
+* Stefan Kober <stefan.kober@cyberus-technology.de>
 * Stefano Brivio <sbrivio@redhat.com>
 * Stefan Schallenberg <infos@nafets.de>
 * Stefan Seyfried <seife@b1-systems.de>

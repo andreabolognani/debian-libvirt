@@ -732,6 +732,8 @@ VIR_ENUM_IMPL(virQEMUCaps,
 
               /* 475 */
               "virtio-scsi.iothread-mapping", /* QEMU_CAPS_VIRTIO_SCSI_IOTHREAD_MAPPING */
+              "machine.virt.highmem-mmio-size", /* QEMU_CAPS_MACHINE_VIRT_HIGHMEM_MMIO_SIZE */
+              "bus-floppy", /* QEMU_CAPS_BUS_FLOPPY */
     );
 
 
@@ -1385,6 +1387,8 @@ struct virQEMUCapsStringFlags virQEMUCapsObjectTypes[] = {
     { "pvscsi", QEMU_CAPS_SCSI_PVSCSI },
     { "spapr-tpm-proxy", QEMU_CAPS_DEVICE_SPAPR_TPM_PROXY },
     { "vmport", QEMU_CAPS_MACHINE_VMPORT_OPT },
+    { "isa-fdc", QEMU_CAPS_BUS_FLOPPY },
+    { "sysbus-fdc", QEMU_CAPS_BUS_FLOPPY },
     /*
      * We don't probe 'esp' directly, because it is often reported
      * as present for all QEMU binaries, due to it being enabled
@@ -1551,6 +1555,7 @@ static struct virQEMUCapsDevicePropsFlags virQEMUCapsDevicePropsVhostUserFS[] = 
     { "bootindex", QEMU_CAPS_VHOST_USER_FS_BOOTINDEX, NULL },
 };
 
+/* This is used also for QEMU_CAPS_DEVICE_VIRTIO_MEM_CCW */
 static struct virQEMUCapsDevicePropsFlags virQEMUCapsDevicePropsVirtioMemPCI[] = {
     { "prealloc", QEMU_CAPS_DEVICE_VIRTIO_MEM_PCI_PREALLOC, NULL },
     { "dynamic-memslots", QEMU_CAPS_DEVICE_VIRTIO_MEM_PCI_DYNAMIC_MEMSLOTS, NULL },
@@ -1716,6 +1721,9 @@ static virQEMUCapsDeviceTypeProps virQEMUCapsDeviceProps[] = {
     { "virtio-mem-pci", virQEMUCapsDevicePropsVirtioMemPCI,
       G_N_ELEMENTS(virQEMUCapsDevicePropsVirtioMemPCI),
       QEMU_CAPS_DEVICE_VIRTIO_MEM_PCI },
+    { "virtio-mem-ccw", virQEMUCapsDevicePropsVirtioMemPCI,
+      G_N_ELEMENTS(virQEMUCapsDevicePropsVirtioMemPCI),
+      QEMU_CAPS_DEVICE_VIRTIO_MEM_CCW },
     { "virtio-iommu-pci", virQEMUCapsDevicePropsVirtioIOMMU,
       G_N_ELEMENTS(virQEMUCapsDevicePropsVirtioIOMMU),
       QEMU_CAPS_DEVICE_VIRTIO_IOMMU_PCI },
@@ -1767,6 +1775,7 @@ static struct virQEMUCapsStringFlags virQEMUCapsMachinePropsVirt[] = {
     { "iommu", QEMU_CAPS_MACHINE_VIRT_IOMMU },
     { "ras", QEMU_CAPS_MACHINE_VIRT_RAS },
     { "aia", QEMU_CAPS_MACHINE_VIRT_AIA },
+    { "highmem-mmio-size", QEMU_CAPS_MACHINE_VIRT_HIGHMEM_MMIO_SIZE },
 };
 
 static struct virQEMUCapsStringFlags virQEMUCapsMachinePropsGeneric[] = {
@@ -6444,8 +6453,7 @@ virQEMUCapsFillDomainDeviceDiskCaps(virQEMUCaps *qemuCaps,
                              VIR_DOMAIN_DISK_DEVICE_CDROM,
                              VIR_DOMAIN_DISK_DEVICE_LUN);
 
-    /* PowerPC pseries based VMs do not support floppy device */
-    if (!qemuDomainMachineIsPSeries(machine, qemuCaps->arch)) {
+    if (qemuDomainMachineSupportsFloppy(machine, qemuCaps)) {
         VIR_DOMAIN_CAPS_ENUM_SET(disk->diskDevice, VIR_DOMAIN_DISK_DEVICE_FLOPPY);
         VIR_DOMAIN_CAPS_ENUM_SET(disk->bus, VIR_DOMAIN_DISK_BUS_FDC);
     }

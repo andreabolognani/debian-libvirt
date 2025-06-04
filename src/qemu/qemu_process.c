@@ -5620,14 +5620,6 @@ qemuProcessStartValidateDisks(virDomainObj *vm,
             return -1;
         }
 
-        /* PowerPC pseries based VMs do not support floppy device */
-        if (disk->device == VIR_DOMAIN_DISK_DEVICE_FLOPPY &&
-            qemuDomainIsPSeries(vm->def)) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("PowerPC pseries machines do not support floppy device"));
-            return -1;
-        }
-
         if (src->type == VIR_STORAGE_TYPE_NVME &&
             !virQEMUCapsGet(qemuCaps, QEMU_CAPS_DRIVE_NVME)) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
@@ -5961,7 +5953,7 @@ qemuProcessInit(virQEMUDriver *driver,
     stopFlags = VIR_QEMU_PROCESS_STOP_NO_RELABEL;
     if (migration)
         stopFlags |= VIR_QEMU_PROCESS_STOP_MIGRATED;
-    qemuProcessStop(driver, vm, VIR_DOMAIN_SHUTOFF_FAILED, asyncJob, stopFlags);
+    qemuProcessStop(vm, VIR_DOMAIN_SHUTOFF_FAILED, asyncJob, stopFlags);
     return -1;
 }
 
@@ -6405,7 +6397,7 @@ qemuProcessValidateHotpluggableVcpus(virDomainDef *def)
 }
 
 
-static int
+static bool
 qemuDomainHasHotpluggableStartupVcpus(virDomainDef *def)
 {
     size_t maxvcpus = virDomainDefGetVcpusMax(def);
@@ -7963,7 +7955,7 @@ qemuProcessLaunch(virConnectPtr conn,
                   virDomainObj *vm,
                   virDomainAsyncJob asyncJob,
                   qemuProcessIncomingDef *incoming,
-                  virDomainMomentObj *snapshot,
+                  virDomainMomentObj *internalSnapshotRevert,
                   virNetDevVPortProfileOp vmop,
                   unsigned int flags)
 {
@@ -7983,12 +7975,13 @@ qemuProcessLaunch(virConnectPtr conn,
     VIR_DEBUG("conn=%p driver=%p vm=%p name=%s id=%d asyncJob=%d "
               "incoming.uri=%s "
               "incoming.fd=%d incoming.path=%s "
-              "snapshot=%p vmop=%d flags=0x%x",
+              "internalSnapshotRevert='%s' vmop=%d flags=0x%x",
               conn, driver, vm, vm->def->name, vm->def->id, asyncJob,
               NULLSTR(incoming ? incoming->uri : NULL),
               incoming ? incoming->fd : -1,
               NULLSTR(incoming ? incoming->path : NULL),
-              snapshot, vmop, flags);
+              NULLSTR(internalSnapshotRevert ? internalSnapshotRevert->def->name : NULL),
+              vmop, flags);
 
     /* Okay, these are just internal flags,
      * but doesn't hurt to check */
@@ -8046,7 +8039,7 @@ qemuProcessLaunch(virConnectPtr conn,
 
     if (!(cmd = qemuBuildCommandLine(vm,
                                      incoming ? "defer" : NULL,
-                                     snapshot, vmop,
+                                     vmop,
                                      &nnicindexes, &nicindexes)))
         goto cleanup;
 
@@ -8252,9 +8245,9 @@ qemuProcessLaunch(virConnectPtr conn,
 
     qemuDomainVcpuPersistOrder(vm->def);
 
-    if (snapshot) {
+    if (internalSnapshotRevert) {
         VIR_DEBUG("reverting internal snapshot via QMP");
-        if (qemuSnapshotInternalRevert(vm, snapshot, asyncJob) < 0)
+        if (qemuSnapshotInternalRevert(vm, internalSnapshotRevert, asyncJob) < 0)
             goto cleanup;
     }
 
@@ -8306,14 +8299,14 @@ qemuProcessLaunch(virConnectPtr conn,
     /* Since CPUs were not started yet, the balloon could not return the memory
      * to the host and thus cur_balloon needs to be updated so that GetXMLdesc
      * and friends return the correct size in case they can't grab the job */
-    if (!incoming && !snapshot &&
+    if (!incoming && !internalSnapshotRevert &&
         qemuProcessRefreshBalloonState(vm, asyncJob) < 0)
         goto cleanup;
 
     if (flags & VIR_QEMU_PROCESS_START_AUTODESTROY)
         virCloseCallbacksDomainAdd(vm, conn, qemuProcessAutoDestroy);
 
-    if (!incoming && !snapshot) {
+    if (!incoming && !internalSnapshotRevert) {
         VIR_DEBUG("Setting up transient disk");
         if (qemuProcessSetupDisksTransient(vm, asyncJob) < 0)
             goto cleanup;
@@ -8471,7 +8464,7 @@ qemuProcessStart(virConnectPtr conn,
                  qemuProcessIncomingDef *incoming,
                  int migrateFd,
                  const char *migratePath,
-                 virDomainMomentObj *snapshot,
+                 virDomainMomentObj *internalSnapshotRevert,
                  qemuMigrationParams *migParams,
                  virNetDevVPortProfileOp vmop,
                  unsigned int flags)
@@ -8485,11 +8478,12 @@ qemuProcessStart(virConnectPtr conn,
 
     VIR_DEBUG("conn=%p driver=%p vm=%p name=%s id=%d asyncJob=%s "
               "incoming=%p migrateFd=%d migratePath=%s "
-              "snapshot=%p vmop=%d flags=0x%x",
+              "internalSnapshotRevert=%s vmop=%d flags=0x%x",
               conn, driver, vm, vm->def->name, vm->def->id,
               virDomainAsyncJobTypeToString(asyncJob),
               incoming, migrateFd, NULLSTR(migratePath),
-              snapshot, vmop, flags);
+              NULLSTR(internalSnapshotRevert ? internalSnapshotRevert->def->name : NULL),
+              vmop, flags);
 
     virCheckFlagsGoto(VIR_QEMU_PROCESS_START_COLD |
                       VIR_QEMU_PROCESS_START_PAUSED |
@@ -8497,7 +8491,7 @@ qemuProcessStart(virConnectPtr conn,
                       VIR_QEMU_PROCESS_START_GEN_VMID |
                       VIR_QEMU_PROCESS_START_RESET_NVRAM, cleanup);
 
-    if (!incoming && !snapshot)
+    if (!incoming && !internalSnapshotRevert)
         flags |= VIR_QEMU_PROCESS_START_NEW;
 
     if (qemuProcessInit(driver, vm, updatedCPU,
@@ -8518,7 +8512,7 @@ qemuProcessStart(virConnectPtr conn,
     }
 
     if ((rv = qemuProcessLaunch(conn, driver, vm, asyncJob, incoming,
-                                snapshot, vmop, flags)) < 0) {
+                                internalSnapshotRevert, vmop, flags)) < 0) {
         if (rv == -2)
             relabel = true;
         goto stop;
@@ -8566,7 +8560,7 @@ qemuProcessStart(virConnectPtr conn,
         stopFlags |= VIR_QEMU_PROCESS_STOP_MIGRATED;
     if (priv->mon)
         qemuMonitorSetDomainLog(priv->mon, NULL, NULL, NULL);
-    qemuProcessStop(driver, vm, VIR_DOMAIN_SHUTOFF_FAILED, asyncJob, stopFlags);
+    qemuProcessStop(vm, VIR_DOMAIN_SHUTOFF_FAILED, asyncJob, stopFlags);
     goto cleanup;
 }
 
@@ -8578,7 +8572,7 @@ qemuProcessStart(virConnectPtr conn,
  * @vm: domain object
  * @fd: FD pointer of memory state file
  * @path: path to memory state file
- * @snapshot: internal snapshot to load when starting QEMU process or NULL
+ * @internalSnapshotRevert: internal snapshot to load when starting QEMU process or NULL
  * @data: data from memory state file or NULL
  * @migParams: Migration params to use on restore or NULL
  * @asyncJob: type of asynchronous job
@@ -8589,11 +8583,11 @@ qemuProcessStart(virConnectPtr conn,
  * Start VM with existing memory state. Make sure that the stored memory state
  * is correctly decompressed so it can be loaded by QEMU process.
  *
- * When reverting to internal snapshot caller needs to pass @snapshot
+ * When reverting to internal snapshot caller needs to pass @internalSnapshotRevert
  * to correctly start QEMU process, @fd, @path, @data needs to be NULL.
  *
  * When restoring VM from saved image caller needs to pass @fd, @path and
- * @data to correctly start QEMU process, @snapshot needs to be NULL.
+ * @data to correctly start QEMU process, @internalSnapshotRevert needs to be NULL.
  *
  * For audit purposes the expected @reason is one of `restored` or `from-snapshot`.
  *
@@ -8605,7 +8599,7 @@ qemuProcessStartWithMemoryState(virConnectPtr conn,
                                 virDomainObj *vm,
                                 int *fd,
                                 const char *path,
-                                virDomainMomentObj *snapshot,
+                                virDomainMomentObj *internalSnapshotRevert,
                                 virQEMUSaveData *data,
                                 qemuMigrationParams *migParams,
                                 virDomainAsyncJob asyncJob,
@@ -8636,9 +8630,13 @@ qemuProcessStartWithMemoryState(virConnectPtr conn,
     /* The fd passed to qemuProcessIncomingDefNew is used to create the migration
      * URI, so it must be called after starting the decompression program.
      */
-    incoming = qemuProcessIncomingDefNew(driver, vm, NULL, "stdio", fd, path, data, migParams);
-    if (!incoming)
-        return -1;
+    if (!internalSnapshotRevert) {
+        /* Internal snapshots are reverted by a QMP command after qemu is started,
+         * so we don't actually want to setup incoming migration. */
+        if (!(incoming = qemuProcessIncomingDefNew(driver, vm, NULL, "stdio",
+                                                   fd, path, data, migParams)))
+            return -1;
+    }
 
     /* No cookie means libvirt which saved the domain was too old to mess up
      * the CPU definitions.
@@ -8650,7 +8648,7 @@ qemuProcessStartWithMemoryState(virConnectPtr conn,
         priv->disableSlirp = true;
 
     if (qemuProcessStart(conn, driver, vm, cookie ? cookie->cpu : NULL,
-                         asyncJob, incoming, *fd, path, snapshot,
+                         asyncJob, incoming, *fd, path, internalSnapshotRevert,
                          migParams, VIR_NETDEV_VPORT_PROFILE_OP_RESTORE,
                          start_flags) == 0)
         *started = true;
@@ -8708,7 +8706,6 @@ qemuProcessCreatePretendCmdBuild(virDomainObj *vm,
 {
     return qemuBuildCommandLine(vm,
                                 migrateURI,
-                                NULL,
                                 VIR_NETDEV_VPORT_PROFILE_OP_NO_OP,
                                 NULL,
                                 NULL);
@@ -8912,15 +8909,16 @@ qemuProcessEndStopJob(virDomainObj *vm)
 }
 
 
-void qemuProcessStop(virQEMUDriver *driver,
-                     virDomainObj *vm,
-                     virDomainShutoffReason reason,
-                     virDomainAsyncJob asyncJob,
-                     unsigned int flags)
+void
+qemuProcessStop(virDomainObj *vm,
+                virDomainShutoffReason reason,
+                virDomainAsyncJob asyncJob,
+                unsigned int flags)
 {
     int ret;
     int retries = 0;
     qemuDomainObjPrivate *priv = vm->privateData;
+    virQEMUDriver *driver = priv->driver;
     virErrorPtr orig_err;
     virDomainDef *def = vm->def;
     size_t i;
@@ -9259,7 +9257,7 @@ qemuProcessAutoDestroy(virDomainObj *dom,
     if (qemuProcessBeginStopJob(dom, VIR_JOB_DESTROY, true) < 0)
         return;
 
-    qemuProcessStop(driver, dom, VIR_DOMAIN_SHUTOFF_DESTROYED,
+    qemuProcessStop(dom, VIR_DOMAIN_SHUTOFF_DESTROYED,
                     VIR_ASYNC_JOB_NONE, stopFlags);
 
     virDomainAuditStop(dom, "destroyed");
@@ -9267,7 +9265,7 @@ qemuProcessAutoDestroy(virDomainObj *dom,
                                      VIR_DOMAIN_EVENT_STOPPED,
                                      VIR_DOMAIN_EVENT_STOPPED_DESTROYED);
 
-    qemuDomainRemoveInactive(driver, dom, 0, !!(stopFlags & VIR_QEMU_PROCESS_STOP_MIGRATED));
+    qemuDomainRemoveInactive(dom, 0, !!(stopFlags & VIR_QEMU_PROCESS_STOP_MIGRATED));
 
     qemuProcessEndStopJob(dom);
 
@@ -9506,7 +9504,6 @@ qemuProcessReloadMachineTypes(virDomainObj *vm)
 
 
 struct qemuProcessReconnectData {
-    virQEMUDriver *driver;
     virDomainObj *obj;
     virIdentity *identity;
 };
@@ -9531,16 +9528,16 @@ struct qemuProcessReconnectData {
 static void
 qemuProcessReconnect(void *opaque)
 {
-    struct qemuProcessReconnectData *data = opaque;
-    virQEMUDriver *driver = data->driver;
+    g_autofree struct qemuProcessReconnectData *data = opaque;
     virDomainObj *obj = data->obj;
-    qemuDomainObjPrivate *priv;
+    qemuDomainObjPrivate *priv = obj->privateData;
+    virQEMUDriver *driver = priv->driver;
+    g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
     g_auto(virDomainJobObj) oldjob = {
       .cb = NULL,
     };
     int state;
     int reason;
-    g_autoptr(virQEMUDriverConfig) cfg = NULL;
     size_t i;
     unsigned int stopFlags = 0;
     bool jobStarted = false;
@@ -9548,10 +9545,6 @@ qemuProcessReconnect(void *opaque)
 
     virIdentitySetCurrent(data->identity);
     g_clear_object(&data->identity);
-    VIR_FREE(data);
-
-    cfg = virQEMUDriverGetConfig(driver);
-    priv = obj->privateData;
 
     virDomainObjPreserveJob(obj->job, &oldjob);
     if (oldjob.asyncJob == VIR_ASYNC_JOB_MIGRATION_IN)
@@ -9572,7 +9565,7 @@ qemuProcessReconnect(void *opaque)
     if (qemuDomainMasterKeyReadFile(priv) < 0)
         goto error;
 
-    if (qemuExtDevicesInitPaths(driver, obj->def) < 0)
+    if (qemuExtDevicesInitPaths(cfg, obj->def) < 0)
         goto error;
 
     /* If we are connecting to a guest started by old libvirt there is no
@@ -9794,7 +9787,7 @@ qemuProcessReconnect(void *opaque)
     if (jobStarted)
         virDomainObjEndJob(obj);
     if (!virDomainObjIsActive(obj))
-        qemuDomainRemoveInactive(driver, obj, 0, false);
+        qemuDomainRemoveInactive(obj, 0, false);
     virDomainObjEndAPI(&obj);
     virIdentitySetCurrent(NULL);
     return;
@@ -9823,17 +9816,16 @@ qemuProcessReconnect(void *opaque)
          * thread didn't have a chance to start playing with the domain yet
          * (it's all we can do anyway).
          */
-        qemuProcessStop(driver, obj, state, VIR_ASYNC_JOB_NONE, stopFlags);
+        qemuProcessStop(obj, state, VIR_ASYNC_JOB_NONE, stopFlags);
     }
     goto cleanup;
 }
 
 static int
 qemuProcessReconnectHelper(virDomainObj *obj,
-                           void *opaque)
+                           void *opaque G_GNUC_UNUSED)
 {
     virThread thread;
-    struct qemuProcessReconnectData *src = opaque;
     struct qemuProcessReconnectData *data;
     g_autofree char *name = NULL;
 
@@ -9843,7 +9835,6 @@ qemuProcessReconnectHelper(virDomainObj *obj,
 
     data = g_new0(struct qemuProcessReconnectData, 1);
 
-    memcpy(data, src, sizeof(*data));
     data->obj = obj;
     data->identity = virIdentityGetCurrent();
 
@@ -9863,9 +9854,9 @@ qemuProcessReconnectHelper(virDomainObj *obj,
          * is no thread that could be doing anything else with the same domain
          * object.
          */
-        qemuProcessStop(src->driver, obj, VIR_DOMAIN_SHUTOFF_FAILED,
+        qemuProcessStop(obj, VIR_DOMAIN_SHUTOFF_FAILED,
                         VIR_ASYNC_JOB_NONE, 0);
-        qemuDomainRemoveInactiveLocked(src->driver, obj);
+        qemuDomainRemoveInactiveLocked(obj);
 
         virDomainObjEndAPI(&obj);
         g_clear_object(&data->identity);
@@ -9885,9 +9876,8 @@ qemuProcessReconnectHelper(virDomainObj *obj,
 void
 qemuProcessReconnectAll(virQEMUDriver *driver)
 {
-    struct qemuProcessReconnectData data = {.driver = driver};
     virDomainObjListForEach(driver->domains, true,
-                            qemuProcessReconnectHelper, &data);
+                            qemuProcessReconnectHelper, NULL);
 }
 
 
