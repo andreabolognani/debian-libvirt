@@ -31,7 +31,7 @@ int
 qemuMonitorJSONIOProcessLine(qemuMonitor *mon,
                              const char *line,
                              qemuMonitorMessage *msg)
-    G_NO_INLINE;
+    ATTRIBUTE_MOCKABLE;
 
 int
 qemuMonitorJSONIOProcess(qemuMonitor *mon,
@@ -193,8 +193,7 @@ qemuMonitorJSONGetDumpGuestMemoryCapability(qemuMonitor *mon,
 int
 qemuMonitorJSONDump(qemuMonitor *mon,
                     const char *protocol,
-                    const char *dumpformat,
-                    bool detach);
+                    const char *dumpformat);
 
 int
 qemuMonitorJSONGraphicsRelocate(qemuMonitor *mon,

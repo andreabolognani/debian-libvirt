@@ -3198,7 +3198,6 @@ int qemuMonitorJSONMigrate(qemuMonitor *mon,
 {
     bool resume = !!(flags & QEMU_MONITOR_MIGRATE_RESUME);
     g_autoptr(virJSONValue) cmd = qemuMonitorJSONMakeCommand("migrate",
-                                                             "b:detach", true,
                                                              "b:resume", resume,
                                                              "s:uri", uri,
                                                              NULL);
@@ -3371,8 +3370,7 @@ qemuMonitorJSONGetDumpGuestMemoryCapability(qemuMonitor *mon,
 int
 qemuMonitorJSONDump(qemuMonitor *mon,
                     const char *protocol,
-                    const char *dumpformat,
-                    bool detach)
+                    const char *dumpformat)
 {
     g_autoptr(virJSONValue) cmd = NULL;
     g_autoptr(virJSONValue) reply = NULL;
@@ -3381,7 +3379,7 @@ qemuMonitorJSONDump(qemuMonitor *mon,
                                      "b:paging", false,
                                      "s:protocol", protocol,
                                      "S:format", dumpformat,
-                                     "B:detach", detach,
+                                     "b:detach", true,
                                      NULL);
     if (!cmd)
         return -1;

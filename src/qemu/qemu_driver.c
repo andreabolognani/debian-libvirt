@@ -1577,7 +1577,7 @@ static virDomainPtr qemuDomainCreateXML(virConnectPtr conn,
         goto cleanup;
 
     if (qemuProcessBeginJob(vm, VIR_DOMAIN_JOB_OPERATION_START, flags) < 0) {
-        qemuDomainRemoveInactive(driver, vm, 0, false);
+        qemuDomainRemoveInactive(vm, 0, false);
         goto cleanup;
     }
 
@@ -1586,7 +1586,7 @@ static virDomainPtr qemuDomainCreateXML(virConnectPtr conn,
                          VIR_NETDEV_VPORT_PROFILE_OP_CREATE,
                          start_flags) < 0) {
         virDomainAuditStart(vm, "booted", false);
-        qemuDomainRemoveInactive(driver, vm, 0, false);
+        qemuDomainRemoveInactive(vm, 0, false);
         qemuProcessEndJob(vm);
         goto cleanup;
     }
@@ -2057,8 +2057,7 @@ qemuDomainDestroyFlags(virDomainPtr dom,
     if (vm->job->asyncJob == VIR_ASYNC_JOB_MIGRATION_IN)
         stopFlags |= VIR_QEMU_PROCESS_STOP_MIGRATED;
 
-    qemuProcessStop(driver, vm, VIR_DOMAIN_SHUTOFF_DESTROYED,
-                    VIR_ASYNC_JOB_NONE, stopFlags);
+    qemuProcessStop(vm, VIR_DOMAIN_SHUTOFF_DESTROYED, VIR_ASYNC_JOB_NONE, stopFlags);
 
     if ((flags & VIR_DOMAIN_DESTROY_REMOVE_LOGS) &&
         qemuDomainRemoveLogs(driver, vm->def->name) < 0)
@@ -2072,7 +2071,7 @@ qemuDomainDestroyFlags(virDomainPtr dom,
     ret = 0;
  endjob:
     if (ret == 0)
-        qemuDomainRemoveInactive(driver, vm, 0, false);
+        qemuDomainRemoveInactive(vm, 0, false);
     qemuProcessEndStopJob(vm);
 
  cleanup:
@@ -2681,8 +2680,7 @@ qemuDomainSaveInternal(virQEMUDriver *driver,
         goto endjob;
 
     /* Shut it down */
-    qemuProcessStop(driver, vm, VIR_DOMAIN_SHUTOFF_SAVED,
-                    VIR_ASYNC_JOB_SAVE, 0);
+    qemuProcessStop(vm, VIR_DOMAIN_SHUTOFF_SAVED, VIR_ASYNC_JOB_SAVE, 0);
     virDomainAuditStop(vm, "saved");
     event = virDomainEventLifecycleNewFromObj(vm, VIR_DOMAIN_EVENT_STOPPED,
                                               VIR_DOMAIN_EVENT_STOPPED_SAVED);
@@ -2709,7 +2707,7 @@ qemuDomainSaveInternal(virQEMUDriver *driver,
     }
     virDomainObjEndAsyncJob(vm);
     if (ret == 0)
-        qemuDomainRemoveInactive(driver, vm, 0, false);
+        qemuDomainRemoveInactive(vm, 0, false);
 
  cleanup:
     virQEMUSaveDataFree(data);
@@ -3047,7 +3045,7 @@ qemuDumpToFd(virQEMUDriver *driver,
         }
     }
 
-    rc = qemuMonitorDumpToFd(priv->mon, fd, dumpformat, true);
+    rc = qemuMonitorDumpToFd(priv->mon, fd, dumpformat);
 
     qemuDomainObjExitMonitor(vm);
     if (rc < 0)
@@ -3212,8 +3210,7 @@ qemuDomainCoreDumpWithFormat(virDomainPtr dom,
 
  endjob:
     if ((ret == 0) && (flags & VIR_DUMP_CRASH)) {
-        qemuProcessStop(driver, vm, VIR_DOMAIN_SHUTOFF_CRASHED,
-                        VIR_ASYNC_JOB_DUMP, 0);
+        qemuProcessStop(vm, VIR_DOMAIN_SHUTOFF_CRASHED, VIR_ASYNC_JOB_DUMP, 0);
         virDomainAuditStop(vm, "crashed");
         event = virDomainEventLifecycleNewFromObj(vm,
                                          VIR_DOMAIN_EVENT_STOPPED,
@@ -3246,7 +3243,7 @@ qemuDomainCoreDumpWithFormat(virDomainPtr dom,
 
     virDomainObjEndAsyncJob(vm);
     if (ret == 0 && flags & VIR_DUMP_CRASH)
-        qemuDomainRemoveInactive(driver, vm, 0, false);
+        qemuDomainRemoveInactive(vm, 0, false);
 
  cleanup:
     virDomainObjEndAPI(&vm);
@@ -3535,8 +3532,7 @@ processGuestPanicEvent(virQEMUDriver *driver,
         G_GNUC_FALLTHROUGH;
 
     case VIR_DOMAIN_LIFECYCLE_ACTION_DESTROY:
-        qemuProcessStop(driver, vm, VIR_DOMAIN_SHUTOFF_CRASHED,
-                        VIR_ASYNC_JOB_DUMP, 0);
+        qemuProcessStop(vm, VIR_DOMAIN_SHUTOFF_CRASHED, VIR_ASYNC_JOB_DUMP, 0);
         event = virDomainEventLifecycleNewFromObj(vm,
                                                   VIR_DOMAIN_EVENT_STOPPED,
                                                   VIR_DOMAIN_EVENT_STOPPED_CRASHED);
@@ -3567,7 +3563,7 @@ processGuestPanicEvent(virQEMUDriver *driver,
  endjob:
     virDomainObjEndAsyncJob(vm);
     if (removeInactive)
-        qemuDomainRemoveInactive(driver, vm, 0, false);
+        qemuDomainRemoveInactive(vm, 0, false);
 }
 
 
@@ -3890,12 +3886,12 @@ processMonitorEOFEvent(virQEMUDriver *driver,
 
     event = virDomainEventLifecycleNewFromObj(vm, VIR_DOMAIN_EVENT_STOPPED,
                                               eventReason);
-    qemuProcessStop(driver, vm, stopReason, VIR_ASYNC_JOB_NONE, stopFlags);
+    qemuProcessStop(vm, stopReason, VIR_ASYNC_JOB_NONE, stopFlags);
     virDomainAuditStop(vm, auditReason);
     virObjectEventStateQueue(driver->domainEventState, event);
 
  endjob:
-    qemuDomainRemoveInactive(driver, vm, 0, migration);
+    qemuDomainRemoveInactive(vm, 0, migration);
     qemuProcessEndStopJob(vm);
 }
 
@@ -4050,15 +4046,13 @@ processNbdkitExitedEvent(virDomainObj *vm,
 
 
 static void
-processShutdownCompletedEvent(virQEMUDriver *driver,
-                              virDomainObj *vm)
+processShutdownCompletedEvent(virDomainObj *vm)
 {
     if (qemuProcessBeginStopJob(vm, VIR_JOB_DESTROY, true) < 0)
         return;
 
     if (virDomainObjIsActive(vm)) {
-        qemuProcessStop(driver, vm, VIR_DOMAIN_SHUTOFF_UNKNOWN,
-                        VIR_ASYNC_JOB_NONE, 0);
+        qemuProcessStop(vm, VIR_DOMAIN_SHUTOFF_UNKNOWN, VIR_ASYNC_JOB_NONE, 0);
     }
 
     qemuProcessEndStopJob(vm);
@@ -4129,7 +4123,7 @@ static void qemuProcessEventHandler(void *data, void *opaque)
         processNbdkitExitedEvent(vm, processEvent->data);
         break;
     case QEMU_PROCESS_EVENT_SHUTDOWN_COMPLETED:
-        processShutdownCompletedEvent(driver, vm);
+        processShutdownCompletedEvent(vm);
         break;
     case QEMU_PROCESS_EVENT_LAST:
         break;
@@ -5859,7 +5853,7 @@ qemuDomainRestoreInternal(virConnectPtr conn,
     virFileWrapperFdFree(wrapperFd);
     virQEMUSaveDataFree(data);
     if (vm && ret < 0)
-        qemuDomainRemoveInactive(driver, vm, 0, false);
+        qemuDomainRemoveInactive(vm, 0, false);
     virDomainObjEndAPI(&vm);
     return ret;
 }
@@ -6511,7 +6505,7 @@ qemuDomainDefineXMLFlags(virConnectPtr conn,
         } else {
             /* Brand new domain. Remove it */
             VIR_INFO("Deleting domain '%s'", vm->def->name);
-            qemuDomainRemoveInactive(driver, vm, 0, false);
+            qemuDomainRemoveInactive(vm, 0, false);
         }
     }
 
@@ -6587,7 +6581,7 @@ qemuDomainUndefineFlags(virDomainPtr dom,
                            nsnapshots);
             goto endjob;
         }
-        if (qemuSnapshotDiscardAllMetadata(driver, vm) < 0)
+        if (qemuSnapshotDiscardAllMetadata(vm) < 0)
             goto endjob;
     }
     if (!virDomainObjIsActive(vm) &&
@@ -6599,7 +6593,7 @@ qemuDomainUndefineFlags(virDomainPtr dom,
                            ncheckpoints);
             goto endjob;
         }
-        if (qemuCheckpointDiscardAllMetadata(driver, vm) < 0)
+        if (qemuCheckpointDiscardAllMetadata(vm) < 0)
             goto endjob;
     }
 
@@ -6654,7 +6648,7 @@ qemuDomainUndefineFlags(virDomainPtr dom,
      */
     vm->persistent = 0;
     if (!virDomainObjIsActive(vm))
-        qemuDomainRemoveInactive(driver, vm, flags, false);
+        qemuDomainRemoveInactive(vm, flags, false);
 
     ret = 0;
  endjob:

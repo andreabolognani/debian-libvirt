@@ -1551,7 +1551,7 @@ mymain(void)
     DO_TEST_CAPS_LATEST("disk-cdrom-tray");
     DO_TEST_CAPS_LATEST("disk-floppy");
     DO_TEST_CAPS_LATEST("disk-floppy-q35");
-    DO_TEST_CAPS_ARCH_LATEST_FAILURE("disk-floppy-pseries", "ppc64");
+    DO_TEST_CAPS_ARCH_LATEST_PARSE_ERROR("disk-floppy-pseries", "ppc64");
     DO_TEST_CAPS_LATEST("disk-floppy-tray");
     DO_TEST_CAPS_LATEST("disk-virtio");
     DO_TEST_CAPS_ARCH_LATEST("disk-virtio-ccw", "s390x");
@@ -1764,7 +1764,7 @@ mymain(void)
      *     - firmware-manual-efi-acpi-aarch64
      *     - firmware-auto-efi-loongarch64
      *
-     *  - negative case for aarch64 with 'borzoi' machine not supporting ACPI
+     *  - negative case for aarch64 with 'collie' machine not supporting ACPI
      *
      *  - s390x has hack to strip ACPI to preserve migration of old configs,
      *    but should produce error when ABI_UPDATE is requested
@@ -2379,6 +2379,10 @@ mymain(void)
                                               QEMU_CPU_DEF_POWER9);
     DO_TEST_CAPS_LATEST_PPC64_HOSTCPU("pseries-cpu-compat-power10",
                                       QEMU_CPU_DEF_POWER10);
+    DO_TEST_CAPS_LATEST_PPC64_HOSTCPU_FAILURE("pseries-cpu-compat-power11",
+                                              QEMU_CPU_DEF_POWER10);
+    DO_TEST_CAPS_LATEST_PPC64_HOSTCPU("pseries-cpu-compat-power11",
+                                      QEMU_CPU_DEF_POWER11);
 
     qemuTestSetHostArch(&driver, VIR_ARCH_NONE);
 
@@ -2587,6 +2591,7 @@ mymain(void)
 
     DO_TEST_CAPS_LATEST("pcihole64");
     DO_TEST_CAPS_LATEST("pcihole64-q35");
+    DO_TEST_CAPS_ARCH_LATEST("pcihole64-virt", "aarch64");
 
     DO_TEST_CAPS_ARCH_LATEST("arm-vexpressa9-nodevs", "aarch64");
     DO_TEST_CAPS_ARCH_LATEST("arm-vexpressa9-basic", "aarch64");
@@ -2902,8 +2907,8 @@ mymain(void)
 
     DO_TEST_CAPS_ARCH_LATEST("aarch64-default-cpu-kvm-virt-4.2", "aarch64");
     DO_TEST_CAPS_ARCH_LATEST("aarch64-default-cpu-tcg-virt-4.2", "aarch64");
-    DO_TEST_CAPS_ARCH_LATEST("ppc64-default-cpu-kvm-pseries-2.7", "ppc64");
-    DO_TEST_CAPS_ARCH_LATEST("ppc64-default-cpu-tcg-pseries-2.7", "ppc64");
+    DO_TEST_CAPS_ARCH_VER("ppc64-default-cpu-kvm-pseries-2.7", "ppc64", "7.0.0");
+    DO_TEST_CAPS_ARCH_VER("ppc64-default-cpu-tcg-pseries-2.7", "ppc64", "7.0.0");
     DO_TEST_CAPS_ARCH_LATEST("ppc64-default-cpu-kvm-pseries-3.1", "ppc64");
     DO_TEST_CAPS_ARCH_LATEST("ppc64-default-cpu-tcg-pseries-3.1", "ppc64");
     DO_TEST_CAPS_ARCH_LATEST("ppc64-default-cpu-kvm-pseries-4.2", "ppc64");

@@ -2033,7 +2033,7 @@ qemuBuildBlockStorageSourceAttachDataCommandline(virCommand *cmd,
 }
 
 
-static inline bool
+static bool
 qemuDiskConfigThrottleGroupEnabled(const virDomainThrottleGroupDef *group)
 {
     return !!group->group_name &&
@@ -3770,6 +3770,8 @@ qemuBuildNicDevProps(virDomainDef *def,
                  * we should add vectors=2*N+2 where N is the vhostfdSize
                  */
                 mq = VIR_TRISTATE_SWITCH_ON;
+                /* As 'vectors' is a guest-OS visible property and thus
+                 * effectively guest ABI this formula *MUST NOT* change */
                 vectors = 2 * net->driver.virtio.queues + 2;
             }
         }
@@ -6195,7 +6197,8 @@ qemuBuildGlobalControllerCommandLine(virCommand *cmd,
     for (i = 0; i < def->ncontrollers; i++) {
         virDomainControllerDef *cont = def->controllers[i];
         if (cont->type == VIR_DOMAIN_CONTROLLER_TYPE_PCI &&
-            cont->opts.pciopts.pcihole64) {
+            cont->opts.pciopts.pcihole64 &&
+            (qemuDomainIsQ35(def) || qemuDomainIsI440FX(def))) {
             const char *hoststr = NULL;
 
             switch (cont->model) {
@@ -7111,6 +7114,17 @@ qemuBuildMachineCommandLine(virCommand *cmd,
     }
 
     qemuBuildMachineACPI(&buf, def, qemuCaps);
+
+    if (qemuDomainIsARMVirt(def)) {
+        for (i = 0; i < def->ncontrollers; i++) {
+            virDomainControllerDef *cont = def->controllers[i];
+            if (cont->type == VIR_DOMAIN_CONTROLLER_TYPE_PCI &&
+                cont->opts.pciopts.pcihole64) {
+                virBufferAsprintf(&buf, ",highmem-mmio-size=%lluK", cont->opts.pciopts.pcihole64size);
+                break;
+            }
+        }
+    }
 
     virCommandAddArgBuffer(cmd, &buf);
 
@@ -10469,7 +10483,6 @@ qemuBuildCompatDeprecatedCommandLine(virCommand *cmd,
 virCommand *
 qemuBuildCommandLine(virDomainObj *vm,
                      const char *migrateURI,
-                     virDomainMomentObj *snapshot,
                      virNetDevVPortProfileOp vmop,
                      size_t *nnicindexes,
                      int **nicindexes)
@@ -10483,8 +10496,8 @@ qemuBuildCommandLine(virDomainObj *vm,
     virDomainDef *def = vm->def;
     virQEMUCaps *qemuCaps = priv->qemuCaps;
 
-    VIR_DEBUG("Building qemu commandline for def=%s(%p) migrateURI=%s snapshot=%p vmop=%d",
-              def->name, def, migrateURI, snapshot, vmop);
+    VIR_DEBUG("Building qemu commandline for def=%s(%p) migrateURI=%s vmop=%d",
+              def->name, def, migrateURI, vmop);
 
     if (qemuBuildCommandLineValidate(driver, def) < 0)
         return NULL;

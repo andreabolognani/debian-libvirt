@@ -91,7 +91,7 @@ int qemuProcessStart(virConnectPtr conn,
                      qemuProcessIncomingDef *incoming,
                      int stdin_fd,
                      const char *stdin_path,
-                     virDomainMomentObj *snapshot,
+                     virDomainMomentObj *internalSnapshotRevert,
                      qemuMigrationParams *migParams,
                      virNetDevVPortProfileOp vmop,
                      unsigned int flags);
@@ -132,7 +132,7 @@ int qemuProcessOpenVhostVsock(virDomainVsockDef *vsock);
 
 int qemuProcessPrepareHostBackendChardevHotplug(virDomainObj *vm,
                                                 virDomainDeviceDef *dev)
-    G_NO_INLINE;
+    ATTRIBUTE_MOCKABLE;
 
 
 int qemuProcessPrepareHost(virQEMUDriver *driver,
@@ -153,7 +153,7 @@ int qemuProcessLaunch(virConnectPtr conn,
                       virDomainObj *vm,
                       virDomainAsyncJob asyncJob,
                       qemuProcessIncomingDef *incoming,
-                      virDomainMomentObj *snapshot,
+                      virDomainMomentObj *internalSnapshotRevert,
                       virNetDevVPortProfileOp vmop,
                       unsigned int flags);
 
@@ -176,8 +176,7 @@ int qemuProcessBeginStopJob(virDomainObj *vm,
                             virDomainJob job,
                             bool forceKill);
 void qemuProcessEndStopJob(virDomainObj *vm);
-void qemuProcessStop(virQEMUDriver *driver,
-                     virDomainObj *vm,
+void qemuProcessStop(virDomainObj *vm,
                      virDomainShutoffReason reason,
                      virDomainAsyncJob asyncJob,
                      unsigned int flags);
@@ -219,9 +218,9 @@ int qemuProcessRefreshBalloonState(virDomainObj *vm,
 int qemuProcessRefreshDisks(virDomainObj *vm,
                             virDomainAsyncJob asyncJob);
 
-int qemuProcessStartManagedPRDaemon(virDomainObj *vm) G_NO_INLINE;
+int qemuProcessStartManagedPRDaemon(virDomainObj *vm) ATTRIBUTE_MOCKABLE;
 
-void qemuProcessKillManagedPRDaemon(virDomainObj *vm) G_NO_INLINE;
+void qemuProcessKillManagedPRDaemon(virDomainObj *vm) ATTRIBUTE_MOCKABLE;
 
 typedef struct _qemuProcessQMP qemuProcessQMP;
 struct _qemuProcessQMP {

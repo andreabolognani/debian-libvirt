@@ -5787,17 +5787,16 @@ int qemuDomainMomentDiscardAll(void *payload,
 
 
 static void
-qemuDomainRemoveInactiveCommon(virQEMUDriver *driver,
-                               virDomainObj *vm,
+qemuDomainRemoveInactiveCommon(virDomainObj *vm,
                                virDomainUndefineFlagsValues flags,
                                bool migration)
 {
-    g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
+    g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(QEMU_DOMAIN_PRIVATE(vm)->driver);
     g_autofree char *snapDir = NULL;
     g_autofree char *chkDir = NULL;
 
     /* Remove any snapshot metadata prior to removing the domain */
-    if (qemuSnapshotDiscardAllMetadata(driver, vm) < 0) {
+    if (qemuSnapshotDiscardAllMetadata(vm) < 0) {
         VIR_WARN("unable to remove all snapshots for domain %s",
                  vm->def->name);
     } else {
@@ -5807,7 +5806,7 @@ qemuDomainRemoveInactiveCommon(virQEMUDriver *driver,
             VIR_WARN("unable to remove snapshot directory %s", snapDir);
     }
     /* Remove any checkpoint metadata prior to removing the domain */
-    if (qemuCheckpointDiscardAllMetadata(driver, vm) < 0) {
+    if (qemuCheckpointDiscardAllMetadata(vm) < 0) {
         VIR_WARN("unable to remove all checkpoints for domain %s",
                  vm->def->name);
     } else {
@@ -5816,7 +5815,7 @@ qemuDomainRemoveInactiveCommon(virQEMUDriver *driver,
         if (rmdir(chkDir) < 0 && errno != ENOENT)
             VIR_WARN("unable to remove checkpoint directory %s", chkDir);
     }
-    qemuExtDevicesCleanupHost(driver, vm->def, flags, migration);
+    qemuExtDevicesCleanupHost(cfg, vm->def, flags, migration);
 }
 
 
@@ -5826,8 +5825,7 @@ qemuDomainRemoveInactiveCommon(virQEMUDriver *driver,
  * The caller must hold a lock to the vm.
  */
 void
-qemuDomainRemoveInactive(virQEMUDriver *driver,
-                         virDomainObj *vm,
+qemuDomainRemoveInactive(virDomainObj *vm,
                          virDomainUndefineFlagsValues flags,
                          bool migration)
 {
@@ -5836,9 +5834,9 @@ qemuDomainRemoveInactive(virQEMUDriver *driver,
         return;
     }
 
-    qemuDomainRemoveInactiveCommon(driver, vm, flags, migration);
+    qemuDomainRemoveInactiveCommon(vm, flags, migration);
 
-    virDomainObjListRemove(driver->domains, vm);
+    virDomainObjListRemove(QEMU_DOMAIN_PRIVATE(vm)->driver->domains, vm);
 }
 
 
@@ -5850,17 +5848,16 @@ qemuDomainRemoveInactive(virQEMUDriver *driver,
  * from locked list method.
  */
 void
-qemuDomainRemoveInactiveLocked(virQEMUDriver *driver,
-                               virDomainObj *vm)
+qemuDomainRemoveInactiveLocked(virDomainObj *vm)
 {
     if (vm->persistent) {
         /* Short-circuit, we don't want to remove a persistent domain */
         return;
     }
 
-    qemuDomainRemoveInactiveCommon(driver, vm, 0, false);
+    qemuDomainRemoveInactiveCommon(vm, 0, false);
 
-    virDomainObjListRemoveLocked(driver->domains, vm);
+    virDomainObjListRemoveLocked(QEMU_DOMAIN_PRIVATE(vm)->driver->domains, vm);
 }
 
 void
@@ -9920,53 +9917,44 @@ static int
 qemuDomainPrepareHostdevPCI(virDomainHostdevDef *hostdev,
                             virQEMUCaps *qemuCaps)
 {
-    bool supportsPassthroughVFIO = virHostdevHostSupportsPassthroughVFIO();
     virDeviceHostdevPCIDriverName *driverName = &hostdev->source.subsys.u.pci.driver.name;
 
     /* assign defaults for hostdev passthrough */
     switch (*driverName) {
     case VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_DEFAULT:
-        if (supportsPassthroughVFIO) {
-            if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_VFIO_PCI)) {
-                *driverName = VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_VFIO;
-            } else {
-                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                               _("VFIO PCI device assignment is not supported by this version of QEMU"));
-                return -1;
-            }
-        } else {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("host doesn't support passthrough of host PCI devices"));
-            return -1;
-        }
+        /* Since nowadays only VFIO is supported default to it */
+        *driverName = VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_VFIO;
         break;
 
     case VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_VFIO:
-        if (!supportsPassthroughVFIO) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("host doesn't support VFIO PCI passthrough"));
-            return false;
-        }
         break;
 
     case VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_KVM:
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("host doesn't support legacy PCI passthrough"));
-        return false;
-
     case VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_XEN:
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                        _("QEMU does not support device assignment mode '%1$s'"),
                        virDeviceHostdevPCIDriverNameTypeToString(*driverName));
-        return false;
+        return -1;
 
     default:
     case VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_LAST:
         virReportEnumRangeError(virDeviceHostdevPCIDriverName, *driverName);
-        break;
+        return -1;
     }
 
-    return true;
+    if (!virHostdevHostSupportsPassthroughVFIO()) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("VFIO PCI device assignment is not supported by the host"));
+        return -1;
+    }
+
+    if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_VFIO_PCI)) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("VFIO PCI device assignment is not supported by this QEMU binary"));
+        return -1;
+    }
+
+    return 0;
 }
 
 
@@ -11536,4 +11524,19 @@ qemuDomainCheckCPU(virArch arch,
 
     return virCPUCompareUnusable(arch, hypervisorCPU, cpu,
                                  blockers, failIncompatible);
+}
+
+
+bool
+qemuDomainMachineSupportsFloppy(const char *machine,
+                                virQEMUCaps *qemuCaps)
+{
+    if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_BUS_FLOPPY))
+        return false;
+
+    /* PowerPC pseries based VMs do not support floppy device */
+    if (qemuDomainMachineIsPSeries(machine, virQEMUCapsGetArch(qemuCaps)))
+        return false;
+
+    return true;
 }

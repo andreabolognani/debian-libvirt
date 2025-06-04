@@ -436,7 +436,7 @@ int qemuMonitorSetLink(qemuMonitor *mon,
 /* These APIs are for use by the internal Text/JSON monitor impl code only */
 char *qemuMonitorNextCommandID(qemuMonitor *mon);
 int qemuMonitorSend(qemuMonitor *mon,
-                    qemuMonitorMessage *msg) G_NO_INLINE;
+                    qemuMonitorMessage *msg) ATTRIBUTE_MOCKABLE;
 int qemuMonitorUpdateVideoMemorySize(qemuMonitor *mon,
                                      virDomainVideoDef *video,
                                      const char *videoName)
@@ -893,8 +893,7 @@ int qemuMonitorQueryDump(qemuMonitor *mon,
 
 int qemuMonitorDumpToFd(qemuMonitor *mon,
                         int fd,
-                        const char *dumpformat,
-                        bool detach);
+                        const char *dumpformat);
 
 int qemuMonitorGraphicsRelocate(qemuMonitor *mon,
                                 int type,

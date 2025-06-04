@@ -30,9 +30,7 @@
 #endif
 
 #ifdef __linux__
-# if defined(WITH_LIBNL)
-#  include "virnetlink.h"
-# endif
+# include "virnetlink.h"
 # include <linux/sockios.h>
 # include <linux/param.h>     /* HZ                 */
 # include <linux/in6.h>
@@ -322,8 +320,8 @@ virNetDevBridgeSetupVlans(const char *ifname, const virNetDevVlan *virtVlan)
     if (!virtVlan || !virtVlan->nTags)
         return 0;
 
-    // The interface will have been automatically added to vlan 1, so remove it
-    if (virNetlinkBridgeVlanFilterSet(ifname, RTM_DELLINK, 0, 1, &error) < 0) {
+    /* The interface will have been automatically added to vlan 1, so remove it. */
+    if (virNetlinkBridgeVlanFilterDel(ifname, 1, &error) < 0) {
         if (error != 0) {
             virReportSystemError(-error,
                                  _("error removing vlan filter from interface %1$s"),
@@ -332,7 +330,7 @@ virNetDevBridgeSetupVlans(const char *ifname, const virNetDevVlan *virtVlan)
         return -1;
     }
 
-    // If trunk mode, add the native VLAN then add the others, if any
+    /* If trunk mode, add the native VLAN then add the others, if any. */
     if (virtVlan->trunk) {
         size_t i;
 
@@ -343,7 +341,7 @@ virNetDevBridgeSetupVlans(const char *ifname, const virNetDevVlan *virtVlan)
                 flags |= BRIDGE_VLAN_INFO_UNTAGGED;
             }
 
-            if (virNetlinkBridgeVlanFilterSet(ifname, RTM_SETLINK, flags,
+            if (virNetlinkBridgeVlanFilterSet(ifname, flags,
                                               virtVlan->nativeTag, &error) < 0) {
                 goto error;
             }
@@ -351,15 +349,15 @@ virNetDevBridgeSetupVlans(const char *ifname, const virNetDevVlan *virtVlan)
 
         for (i = 0; i < virtVlan->nTags; i++) {
             if (virtVlan->tag[i] != virtVlan->nativeTag)
-                if (virNetlinkBridgeVlanFilterSet(ifname, RTM_SETLINK, 0,
+                if (virNetlinkBridgeVlanFilterSet(ifname, 0,
                                                   virtVlan->tag[i], &error) < 0) {
                     goto error;
                 }
         }
     } else {
-        // In native mode, add the single VLAN as pvid untagged
+        /* In native mode, add the single VLAN as pvid untagged. */
         flags = BRIDGE_VLAN_INFO_PVID | BRIDGE_VLAN_INFO_UNTAGGED;
-        if (virNetlinkBridgeVlanFilterSet(ifname, RTM_SETLINK, flags,
+        if (virNetlinkBridgeVlanFilterSet(ifname, flags,
                                           virtVlan->tag[0], &error) < 0) {
             goto error;
         }

@@ -1326,9 +1326,9 @@ sc_spacing-check:
 	$(PERL) $(top_srcdir)/build-aux/check-spacing.pl || \
 	  { echo 'incorrect formatting' 1>&2; exit 1; }
 
-sc_mock-noinline:
+sc_mockable-attribute:
 	$(AM_V_GEN)$(VC_LIST_EXCEPT) | $(GREP) '\.[ch]$$' | $(RUNUTF8) \
-	$(PYTHON) $(top_srcdir)/scripts/mock-noinline.py
+	$(PYTHON) $(top_srcdir)/scripts/mockable-attribute.py
 
 sc_header-ifdef:
 	$(AM_V_GEN)$(VC_LIST_EXCEPT) | $(GREP) '\.[h]$$' | $(RUNUTF8) xargs \
@@ -1347,6 +1347,13 @@ sc_prohibit_enum_impl_with_vir_prefix_in_virsh:
 sc_rst_since:
 	@prohibit=':since:`[^`]+$|:since:`[^`]+[.,;]`|:since:`[^`]+` [.,;]' \
 	halt='format :since: correctly' \
+	  $(_sc_search_regexp)
+
+sc_prohibit_inline_functions:
+	@prohibit='\binline\b' \
+	in_vc_files='\.c$$' \
+	exclude='exempt from syntax-check' \
+	halt='avoid inline functions in .c files' \
 	  $(_sc_search_regexp)
 
 
@@ -1414,7 +1421,7 @@ exclude_file_name_regexp--sc_prohibit_canonicalize_file_name = \
   ^(build-aux/syntax-check\.mk|tests/virfilemock\.c)$$
 
 exclude_file_name_regexp--sc_prohibit_raw_allocation = \
-  ^(docs/advanced-tests\.rst|src/util/viralloc\.[ch]|examples/.*|tests/(securityselinuxhelper|(vircgroup|nss)mock|commandhelper)\.c|tools/wireshark/src/packet-libvirt\.c|tools/nss/libvirt_nss(_leases|_macs)?\.c)$$
+  ^(docs/advanced-tests\.rst|src/util/viralloc\.[ch]|examples/.*|tests/(securityselinuxhelper|(vircgroup|nss)mock|commandhelper)\.c|tools/wireshark/src/packet-libvirt\.c|tools/nss/libvirt_nss(_leases|_macs)?\.[ch])$$
 
 exclude_file_name_regexp--sc_prohibit_readlink = \
   ^src/(util/virutil|lxc/lxc_container)\.c$$
@@ -1505,6 +1512,9 @@ exclude_file_name_regexp--sc_black = \
 
 exclude_file_name_regexp--sc_spacing-check = \
   ^scripts/rpcgen/tests/test_demo\.[ch]$$
+
+exclude_file_name_regexp--sc_prohibit_inline_functions = \
+  ^src/storage_file/storage_source.*.c$$
 
 ## -------------- ##
 ## Implementation ##
