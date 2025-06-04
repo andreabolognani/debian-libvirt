@@ -1,6 +1,6 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: libvirt
-Source: https://libvirt.org/git/?p=libvirt.git
+Source: https://gitlab.com/libvirt/libvirt/
 Comment: in addition see the upstream maintainer AUTHORS file
 
 Files: *
