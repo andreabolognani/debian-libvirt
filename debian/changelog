@@ -1,3 +1,11 @@
+libvirt (11.3.0-2) unstable; urgency=medium
+
+  * [eb4a97a] patches: Add backports
+    - backport/[...]-Don-t-setup-qemu-for-inco.patch
+      - Closes: #1104735
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Sun, 01 Jun 2025 16:39:44 +0200
+
 libvirt (11.3.0-1) unstable; urgency=medium
 
   * [228f666] New upstream version 11.3.0
