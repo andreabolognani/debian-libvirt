@@ -1556,6 +1556,7 @@ qemuValidateDomainDeviceDefAddressDrive(virDomainDeviceInfo *info,
     case VIR_DOMAIN_DISK_BUS_SD:
     case VIR_DOMAIN_DISK_BUS_NONE:
     case VIR_DOMAIN_DISK_BUS_UML:
+    case VIR_DOMAIN_DISK_BUS_NVME:
     case VIR_DOMAIN_DISK_BUS_LAST:
         break;
     }
@@ -2945,6 +2946,7 @@ qemuValidateDomainDeviceDefDiskIOThreads(const virDomainDef *def,
     case VIR_DOMAIN_DISK_BUS_SATA:
     case VIR_DOMAIN_DISK_BUS_SD:
     case VIR_DOMAIN_DISK_BUS_NONE:
+    case VIR_DOMAIN_DISK_BUS_NVME:
     case VIR_DOMAIN_DISK_BUS_LAST:
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                        _("IOThreads not available for bus %1$s target %2$s"),
@@ -3086,6 +3088,7 @@ qemuValidateDomainDeviceDefDiskFrontend(const virDomainDiskDef *disk,
         case VIR_DOMAIN_DISK_BUS_UML:
         case VIR_DOMAIN_DISK_BUS_SATA:
         case VIR_DOMAIN_DISK_BUS_SD:
+        case VIR_DOMAIN_DISK_BUS_NVME:
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                            _("disk device='lun' is not supported for bus='%1$s'"),
                            virDomainDiskBusTypeToString(disk->bus));
@@ -3180,15 +3183,40 @@ qemuValidateDomainDeviceDefDiskFrontend(const virDomainDiskDef *disk,
         break;
 
     case VIR_DOMAIN_DISK_BUS_USB:
-        if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_USB_STORAGE)) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("This QEMU doesn't support '-device usb-storage'"));
+        switch (disk->model) {
+        case VIR_DOMAIN_DISK_MODEL_DEFAULT:
+            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                           _("USB disk model was not selected. This QEMU doesn't support 'usb-storage' or 'usb-bot'."));
             return -1;
-        }
 
-        if (virStorageSourceIsEmpty(disk->src)) {
+        case VIR_DOMAIN_DISK_MODEL_USB_STORAGE:
+            if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_USB_STORAGE)) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                               _("This QEMU doesn't support '-device usb-storage'"));
+                return -1;
+            }
+
+            if (virStorageSourceIsEmpty(disk->src)) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                               _("'usb' disk must not be empty"));
+                return -1;
+            }
+            break;
+
+        case VIR_DOMAIN_DISK_MODEL_USB_BOT:
+            if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_USB_BOT)) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                               _("This QEMU doesn't support '-device usb-bot'"));
+                return -1;
+            }
+            break;
+
+        case VIR_DOMAIN_DISK_MODEL_VIRTIO_TRANSITIONAL:
+        case VIR_DOMAIN_DISK_MODEL_VIRTIO:
+        case VIR_DOMAIN_DISK_MODEL_VIRTIO_NON_TRANSITIONAL:
+        case VIR_DOMAIN_DISK_MODEL_LAST:
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("'usb' disk must not be empty"));
+                           _("USB disk supports only the following models: 'usb-storage', 'usb-bot'"));
             return -1;
         }
 
@@ -3199,6 +3227,20 @@ qemuValidateDomainDeviceDefDiskFrontend(const virDomainDiskDef *disk,
             return -1;
         }
 
+        break;
+
+    case VIR_DOMAIN_DISK_BUS_NVME:
+        if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_NVME_NS)) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("NVMe disks are not supported with this QEMU binary"));
+            return -1;
+        }
+
+        if (disk->info.type != VIR_DOMAIN_DEVICE_ADDRESS_TYPE_DRIVE) {
+            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                           _("unexpected address type for nvme disk"));
+            return -1;
+        }
         break;
 
     case VIR_DOMAIN_DISK_BUS_XEN:
@@ -3397,6 +3439,7 @@ qemuValidateDomainDeviceDefDiskTransient(const virDomainDiskDef *disk,
         case VIR_DOMAIN_DISK_BUS_UML:
         case VIR_DOMAIN_DISK_BUS_SATA:
         case VIR_DOMAIN_DISK_BUS_SD:
+        case VIR_DOMAIN_DISK_BUS_NVME:
         case VIR_DOMAIN_DISK_BUS_NONE:
         case VIR_DOMAIN_DISK_BUS_LAST:
         default:
@@ -3418,6 +3461,7 @@ qemuValidateDomainDeviceDefDisk(const virDomainDiskDef *disk,
 {
     const char *driverName = virDomainDiskGetDriver(disk);
     virStorageSource *n;
+    int nvme_ctrl;
     int idx;
     int partition;
 
@@ -3445,7 +3489,7 @@ qemuValidateDomainDeviceDefDisk(const virDomainDiskDef *disk,
         return -1;
     }
 
-    if (virDiskNameParse(disk->dst, &idx, &partition) < 0) {
+    if (virDiskNameParse(disk->dst, &nvme_ctrl, &idx, &partition) < 0) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                        _("invalid disk target '%1$s'"), disk->dst);
         return -1;
@@ -3629,6 +3673,26 @@ qemuValidateDomainDeviceDefControllerSATA(const virDomainControllerDef *controll
 
 
 static int
+qemuValidateDomainDeviceDefControllerNVME(const virDomainControllerDef *controller,
+                                          const virDomainDef *def G_GNUC_UNUSED,
+                                          virQEMUCaps *qemuCaps)
+{
+    if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_NVME)) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("NVMe controllers are not supported with this QEMU binary"));
+    }
+
+    if (!controller->opts.nvmeopts.serial) {
+        virReportError(VIR_ERR_XML_ERROR, "%s",
+                       _("Missing mandatory serial for NVMe controller"));
+        return -1;
+    }
+
+    return 0;
+}
+
+
+static int
 qemuValidateDomainDeviceDefControllerIDE(const virDomainControllerDef *controller,
                                          const virDomainDef *def)
 {
@@ -3799,10 +3863,17 @@ qemuValidateDomainDeviceDefControllerAttributes(const virDomainControllerDef *co
           (controller->model == VIR_DOMAIN_CONTROLLER_MODEL_SCSI_VIRTIO_SCSI ||
            controller->model == VIR_DOMAIN_CONTROLLER_MODEL_SCSI_VIRTIO_TRANSITIONAL ||
            controller->model == VIR_DOMAIN_CONTROLLER_MODEL_SCSI_VIRTIO_NON_TRANSITIONAL))) {
-        if (controller->queues) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("'queues' is only supported by virtio-scsi controller"));
-            return -1;
+        if (controller->type != VIR_DOMAIN_CONTROLLER_TYPE_NVME) {
+            if (controller->queues) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                               _("'queues' is only supported by virtio-scsi and nvme controllers"));
+                return -1;
+            }
+            if (controller->ioeventfd) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                               _("'ioeventfd' is only supported by virtio-scsi and nvme controllers"));
+                return -1;
+            }
         }
         if (controller->cmd_per_lun) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
@@ -3812,11 +3883,6 @@ qemuValidateDomainDeviceDefControllerAttributes(const virDomainControllerDef *co
         if (controller->max_sectors) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                            _("'max_sectors' is only supported by virtio-scsi controller"));
-            return -1;
-        }
-        if (controller->ioeventfd) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("'ioeventfd' is only supported by virtio-scsi controller"));
             return -1;
         }
         if (controller->iothread) {
@@ -4402,6 +4468,11 @@ qemuValidateDomainDeviceDefController(const virDomainControllerDef *controller,
                                                         qemuCaps);
         break;
 
+    case VIR_DOMAIN_CONTROLLER_TYPE_NVME:
+        ret = qemuValidateDomainDeviceDefControllerNVME(controller, def,
+                                                        qemuCaps);
+        break;
+
     case VIR_DOMAIN_CONTROLLER_TYPE_FDC:
     case VIR_DOMAIN_CONTROLLER_TYPE_VIRTIO_SERIAL:
     case VIR_DOMAIN_CONTROLLER_TYPE_CCID:
@@ -4424,6 +4495,12 @@ qemuValidateDomainDeviceDefSPICEGraphics(const virDomainGraphicsDef *graphics,
     g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
     virDomainGraphicsListenDef *glisten = NULL;
     int tlsPort = graphics->data.spice.tlsPort;
+
+    if (graphics->nListens > 1) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("QEMU does not support multiple listens for one graphics device."));
+        return -1;
+    }
 
     glisten = virDomainGraphicsGetListen((virDomainGraphicsDef *)graphics, 0);
     if (!glisten) {
@@ -4472,6 +4549,12 @@ static int
 qemuValidateDomainDeviceDefVNCGraphics(const virDomainGraphicsDef *graphics,
                                        virQEMUCaps *qemuCaps)
 {
+    if (graphics->nListens > 1) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("QEMU does not support multiple listens for one graphics device."));
+        return -1;
+    }
+
     if (graphics->data.vnc.powerControl != VIR_TRISTATE_BOOL_ABSENT &&
         !virQEMUCapsGet(qemuCaps, QEMU_CAPS_VNC_POWER_CONTROL)) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
@@ -4510,14 +4593,23 @@ qemuValidateDomainDeviceDefDBusGraphics(const virDomainGraphicsDef *graphics,
 
 
 static int
-qemuValidateDomainDeviceDefRDPGraphics(const virDomainGraphicsDef *graphics)
+qemuValidateDomainDeviceDefRDPGraphics(const virDomainGraphicsDef *graphics,
+                                       const virDomainDef *def)
 {
-    if (graphics->data.rdp.replaceUser) {
+    size_t i;
+
+    if (graphics->nListens > 1) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("qemu-rdp does not support multiple listens for one graphics device."));
+        return -1;
+    }
+
+    if (graphics->data.rdp.replaceUser == VIR_TRISTATE_BOOL_YES) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                        _("RDP doesn't support 'replaceUser'"));
         return -1;
     }
-    if (graphics->data.rdp.multiUser) {
+    if (graphics->data.rdp.multiUser == VIR_TRISTATE_BOOL_YES) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                        _("RDP doesn't support 'multiUser'"));
         return -1;
@@ -4525,6 +4617,19 @@ qemuValidateDomainDeviceDefRDPGraphics(const virDomainGraphicsDef *graphics)
     if (graphics->data.rdp.auth.expires) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                        _("RDP password expiration isn't supported"));
+        return -1;
+    }
+
+    for (i = 0; i < def->ngraphics; i++) {
+        virDomainGraphicsDef *g = def->graphics[i];
+
+        if (g->type == VIR_DOMAIN_GRAPHICS_TYPE_DBUS && g->data.dbus.p2p == false)
+            break;
+    }
+
+    if (i == def->ngraphics) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("qemu-rdp support requires a D-Bus bus graphics device."));
         return -1;
     }
 
@@ -4605,7 +4710,7 @@ qemuValidateDomainDeviceDefGraphics(const virDomainGraphicsDef *graphics,
         break;
 
     case VIR_DOMAIN_GRAPHICS_TYPE_RDP:
-        if (qemuValidateDomainDeviceDefRDPGraphics(graphics) < 0)
+        if (qemuValidateDomainDeviceDefRDPGraphics(graphics, def) < 0)
             return -1;
 
         break;
@@ -5234,6 +5339,28 @@ qemuValidateDomainDeviceDefIOMMU(const virDomainIOMMUDef *iommu,
         }
         break;
 
+    case VIR_DOMAIN_IOMMU_MODEL_AMD:
+        if (!qemuDomainIsQ35(def)) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                           _("IOMMU device: '%1$s' is only supported with Q35 machines"),
+                           virDomainIOMMUModelTypeToString(iommu->model));
+            return -1;
+        }
+        if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_AMD_IOMMU_PCI_ID)) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                           _("IOMMU device: '%1$s' is not supported with this QEMU binary"),
+                           virDomainIOMMUModelTypeToString(iommu->model));
+            return -1;
+        }
+        if (iommu->info.type != VIR_DOMAIN_DEVICE_ADDRESS_TYPE_NONE &&
+            iommu->info.type != VIR_DOMAIN_DEVICE_ADDRESS_TYPE_PCI) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                           _("IOMMU device: '%1$s' needs a PCI address"),
+                           virDomainIOMMUModelTypeToString(iommu->model));
+            return -1;
+        }
+        break;
+
     case VIR_DOMAIN_IOMMU_MODEL_LAST:
     default:
         virReportEnumRangeError(virDomainIOMMUModel, iommu->model);
@@ -5472,6 +5599,13 @@ static int
 qemuValidateDomainDeviceDefShmem(virDomainShmemDef *shmem,
                                  virQEMUCaps *qemuCaps)
 {
+    if (strchr(shmem->name, '/')) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("shmem name '%1$s' must not contain '/'"),
+                       shmem->name);
+        return -1;
+    }
+
     if (shmem->size > 0) {
         if (shmem->size < 1024 * 1024 ||
             !VIR_IS_POW2(shmem->size)) {

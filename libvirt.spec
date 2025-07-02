@@ -288,7 +288,7 @@
 
 Summary: Library providing a simple virtualization API
 Name: libvirt
-Version: 11.4.0
+Version: 11.5.0
 Release: 1%{?dist}
 License: GPL-2.0-or-later AND LGPL-2.1-only AND LGPL-2.1-or-later AND OFL-1.1
 URL: https://libvirt.org/
@@ -371,12 +371,7 @@ BuildRequires: sanlock-devel >= 2.4
 BuildRequires: libpcap-devel >= 1.5.0
 BuildRequires: libnl3-devel
 BuildRequires: libselinux-devel
-# For modprobe
-BuildRequires: kmod
 BuildRequires: cyrus-sasl-devel
-BuildRequires: polkit >= 0.112
-# For mount/umount in FS driver
-BuildRequires: util-linux
     %if %{with_qemu}
 # For managing ACLs
 BuildRequires: libacl-devel
@@ -387,10 +382,6 @@ BuildRequires: /usr/bin/qemu-img
     %if %{with_nbdkit}
 BuildRequires: libnbd-devel
     %endif
-# For LVM drivers
-BuildRequires: lvm2
-# For pool type=iscsi
-BuildRequires: iscsi-initiator-utils
     %if %{with_storage_iscsi_direct}
 # For pool type=iscsi-direct
 BuildRequires: libiscsi-devel
@@ -430,11 +421,6 @@ BuildRequires: libwsman-devel >= 2.6.3
 BuildRequires: audit-libs-devel
 BuildRequires: systemtap-sdt-devel
 BuildRequires: /usr/bin/dtrace
-# For mount/umount in FS driver
-BuildRequires: util-linux
-    %if %{with_numad}
-BuildRequires: numad
-    %endif
     %if %{with_wireshark}
 BuildRequires: wireshark-devel
     %endif
@@ -515,6 +501,8 @@ Requires: libvirt-libs = %{version}-%{release}
 # Recommends here will install libvirt-client by default (if available), but
 # RPM won't complain if the package is unavailable, masked, or removed later.
 Recommends: libvirt-client = %{version}-%{release}
+# For modprobe and rmmod
+Requires: kmod
 # for /sbin/ip
 Requires: iproute
 # for /sbin/tc
@@ -674,7 +662,7 @@ Summary: Storage driver plugin including base backends for the libvirtd daemon
 Requires: libvirt-daemon-common = %{version}-%{release}
 Requires: libvirt-libs = %{version}-%{release}
 Recommends: nfs-utils
-# For mkfs
+# For mkfs and mount/umount
 Requires: util-linux
 # For storage wiping with different algorithms
 Requires: scrub

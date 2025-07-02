@@ -152,7 +152,7 @@ testQemuHotplug(const void *data)
     const char *const *tmp;
     bool fail = test->fail;
     bool keep = test->keep;
-    unsigned int device_parse_flags = 0;
+    unsigned int device_parse_flags = VIR_DOMAIN_DEF_PARSE_ABI_UPDATE;
     virDomainObj *vm = NULL;
     g_autoptr(virDomainDeviceDef) dev = NULL;
     g_autoptr(qemuMonitorTest) test_mon = NULL;
@@ -191,7 +191,7 @@ testQemuHotplug(const void *data)
     }
 
     if (test->action == ATTACH)
-        device_parse_flags = VIR_DOMAIN_DEF_PARSE_INACTIVE;
+        device_parse_flags |= VIR_DOMAIN_DEF_PARSE_INACTIVE;
 
     if (!(dev = virDomainDeviceDefParse(device_xml, vm->def,
                                         driver.xmlopt, NULL,
@@ -746,7 +746,9 @@ mymain(void)
     DO_TEST_ATTACH("x86_64", "base-live", "cdrom-usb", false, true,
                    "blockdev-add", QMP_OK,
                    "device_add", QMP_OK,
-                   "query-block", QMP_EMPTY_ARRAY);
+                   "device_add", QMP_OK,
+                   "query-block", QMP_EMPTY_ARRAY,
+                   "qom-set", QMP_OK);
     DO_TEST_DETACH("x86_64", "base-live", "cdrom-usb", true, true,
                    "device_del", QMP_OK);
     DO_TEST_DETACH("x86_64", "base-live", "cdrom-usb", false, false,

@@ -616,6 +616,9 @@ qemuDomainDeviceCalculatePCIConnectFlags(virDomainDeviceDef *dev,
             }
             break;
 
+        case VIR_DOMAIN_CONTROLLER_TYPE_NVME:
+            return pciFlags;
+
         case VIR_DOMAIN_CONTROLLER_TYPE_FDC:
         case VIR_DOMAIN_CONTROLLER_TYPE_CCID:
         case VIR_DOMAIN_CONTROLLER_TYPE_XENBUS:
@@ -726,6 +729,8 @@ qemuDomainDeviceCalculatePCIConnectFlags(virDomainDeviceDef *dev,
             case VIR_DOMAIN_DISK_MODEL_DEFAULT:
                 return virtioFlags;
             case VIR_DOMAIN_DISK_MODEL_LAST:
+            case VIR_DOMAIN_DISK_MODEL_USB_STORAGE:
+            case VIR_DOMAIN_DISK_MODEL_USB_BOT:
                 break;
             }
             return 0;
@@ -738,6 +743,7 @@ qemuDomainDeviceCalculatePCIConnectFlags(virDomainDeviceDef *dev,
         case VIR_DOMAIN_DISK_BUS_UML:
         case VIR_DOMAIN_DISK_BUS_SATA:
         case VIR_DOMAIN_DISK_BUS_SD:
+        case VIR_DOMAIN_DISK_BUS_NVME:
         case VIR_DOMAIN_DISK_BUS_NONE:
         case VIR_DOMAIN_DISK_BUS_LAST:
             return 0;
@@ -940,6 +946,9 @@ qemuDomainDeviceCalculatePCIConnectFlags(virDomainDeviceDef *dev,
         switch (dev->data.iommu->model) {
             case VIR_DOMAIN_IOMMU_MODEL_VIRTIO:
                 return virtioFlags | VIR_PCI_CONNECT_INTEGRATED;
+
+            case VIR_DOMAIN_IOMMU_MODEL_AMD:
+                return pciFlags | VIR_PCI_CONNECT_INTEGRATED;
 
             case VIR_DOMAIN_IOMMU_MODEL_INTEL:
             case VIR_DOMAIN_IOMMU_MODEL_SMMUV3:
@@ -1919,6 +1928,7 @@ qemuDomainValidateDevicePCISlotsQ35(virDomainDef *def,
         case VIR_DOMAIN_CONTROLLER_TYPE_CCID:
         case VIR_DOMAIN_CONTROLLER_TYPE_XENBUS:
         case VIR_DOMAIN_CONTROLLER_TYPE_ISA:
+        case VIR_DOMAIN_CONTROLLER_TYPE_NVME:
         case VIR_DOMAIN_CONTROLLER_TYPE_LAST:
             break;
         }
@@ -2359,6 +2369,7 @@ qemuDomainAssignDevicePCISlots(virDomainDef *def,
 
         switch (iommu->model) {
         case VIR_DOMAIN_IOMMU_MODEL_VIRTIO:
+        case VIR_DOMAIN_IOMMU_MODEL_AMD:
             if (virDeviceInfoPCIAddressIsWanted(&iommu->info) &&
                 qemuDomainPCIAddressReserveNextAddr(addrs, &iommu->info) < 0) {
                 return -1;

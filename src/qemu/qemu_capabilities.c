@@ -734,6 +734,13 @@ VIR_ENUM_IMPL(virQEMUCaps,
               "virtio-scsi.iothread-mapping", /* QEMU_CAPS_VIRTIO_SCSI_IOTHREAD_MAPPING */
               "machine.virt.highmem-mmio-size", /* QEMU_CAPS_MACHINE_VIRT_HIGHMEM_MMIO_SIZE */
               "bus-floppy", /* QEMU_CAPS_BUS_FLOPPY */
+              "nvme", /* QEMU_CAPS_DEVICE_NVME */
+              "nvme-ns", /* QEMU_CAPS_DEVICE_NVME_NS */
+
+              /* 480 */
+              "amd-iommu", /* QEMU_CAPS_AMD_IOMMU */
+              "amd-iommu.pci-id", /* QEMU_CAPS_AMD_IOMMU_PCI_ID */
+              "usb-bot", /* QEMU_CAPS_DEVICE_USB_BOT */
     );
 
 
@@ -970,14 +977,9 @@ static char *
 virQEMUCapsFindBinary(const char *format,
                       const char *archstr)
 {
-    char *ret = NULL;
-    char *binary = NULL;
+    g_autofree char *binary = g_strdup_printf(format, archstr);
 
-    binary = g_strdup_printf(format, archstr);
-
-    ret = virFindFileInPath(binary);
-    VIR_FREE(binary);
-    return ret;
+    return virFindFileInPath(binary);
 }
 
 char *
@@ -1423,6 +1425,10 @@ struct virQEMUCapsStringFlags virQEMUCapsObjectTypes[] = {
     { "sev-snp-guest", QEMU_CAPS_SEV_SNP_GUEST },
     { "acpi-erst", QEMU_CAPS_DEVICE_ACPI_ERST },
     { "virtio-mem-ccw", QEMU_CAPS_DEVICE_VIRTIO_MEM_CCW },
+    { "nvme", QEMU_CAPS_DEVICE_NVME },
+    { "nvme-ns", QEMU_CAPS_DEVICE_NVME_NS },
+    { "amd-iommu", QEMU_CAPS_AMD_IOMMU },
+    { "usb-bot", QEMU_CAPS_DEVICE_USB_BOT },
 };
 
 
@@ -1567,6 +1573,10 @@ static struct virQEMUCapsDevicePropsFlags virQEMUCapsDevicePropsVirtioIOMMU[] = 
 
 static struct virQEMUCapsDevicePropsFlags virQEMUCapsDevicePropsVirtioBlkCCW[] = {
     { "loadparm", QEMU_CAPS_VIRTIO_CCW_DEVICE_LOADPARM, NULL },
+};
+
+static struct virQEMUCapsDevicePropsFlags virQEMUCapsDevicePropsAMDIOMMU[] = {
+    { "pci-id", QEMU_CAPS_AMD_IOMMU_PCI_ID, NULL },
 };
 
 /* see documentation for virQEMUQAPISchemaPathGet for the query format */
@@ -1730,6 +1740,9 @@ static virQEMUCapsDeviceTypeProps virQEMUCapsDeviceProps[] = {
     { "virtio-blk-ccw", virQEMUCapsDevicePropsVirtioBlkCCW,
       G_N_ELEMENTS(virQEMUCapsDevicePropsVirtioBlkCCW),
       QEMU_CAPS_VIRTIO_CCW },
+    { "amd-iommu", virQEMUCapsDevicePropsAMDIOMMU,
+      G_N_ELEMENTS(virQEMUCapsDevicePropsAMDIOMMU),
+      QEMU_CAPS_AMD_IOMMU },
 };
 
 static struct virQEMUCapsStringFlags virQEMUCapsObjectPropsMemoryBackendFile[] = {
@@ -3086,6 +3099,9 @@ virQEMUCapsProbeQMPCPUDefinitions(virQEMUCaps *qemuCaps,
 
     if (virQEMUCapsFetchCPUDefinitions(mon, qemuCaps->arch, &accel->cpuModels) < 0)
         return -1;
+
+    if (!accel->cpuModels)
+        return 0;
 
     defs = accel->cpuModels;
     for (i = 0; i < defs->ncpus; i++) {
@@ -6466,11 +6482,15 @@ virQEMUCapsFillDomainDeviceDiskCaps(virQEMUCaps *qemuCaps,
                              VIR_DOMAIN_DISK_BUS_VIRTIO,
                              /* VIR_DOMAIN_DISK_BUS_SD */);
 
-    if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_USB_STORAGE))
+    if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_USB_STORAGE) ||
+        virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_USB_BOT))
         VIR_DOMAIN_CAPS_ENUM_SET(disk->bus, VIR_DOMAIN_DISK_BUS_USB);
 
     if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_ICH9_AHCI))
         VIR_DOMAIN_CAPS_ENUM_SET(disk->bus, VIR_DOMAIN_DISK_BUS_SATA);
+
+    if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_NVME_NS))
+        VIR_DOMAIN_CAPS_ENUM_SET(disk->bus, VIR_DOMAIN_DISK_BUS_NVME);
 
     /* disk->model values */
     VIR_DOMAIN_CAPS_ENUM_SET(disk->model, VIR_DOMAIN_DISK_MODEL_VIRTIO);
@@ -6785,6 +6805,36 @@ virQEMUCapsFillDomainDevicePanicCaps(virQEMUCaps *qemuCaps,
 }
 
 
+void
+virQEMUCapsFillDomainDeviceConsoleCaps(virQEMUCaps *qemuCaps,
+                                       virDomainCapsDeviceConsole *console)
+{
+    console->supported = VIR_TRISTATE_BOOL_YES;
+    console->type.report = true;
+    VIR_DOMAIN_CAPS_ENUM_SET(console->type,
+                             VIR_DOMAIN_CHR_TYPE_DBUS,
+                             VIR_DOMAIN_CHR_TYPE_DEV,
+                             VIR_DOMAIN_CHR_TYPE_FILE,
+                             VIR_DOMAIN_CHR_TYPE_NULL,
+                             VIR_DOMAIN_CHR_TYPE_PIPE,
+                             VIR_DOMAIN_CHR_TYPE_PTY,
+                             VIR_DOMAIN_CHR_TYPE_STDIO,
+                             VIR_DOMAIN_CHR_TYPE_TCP,
+                             VIR_DOMAIN_CHR_TYPE_UDP,
+                             VIR_DOMAIN_CHR_TYPE_UNIX,
+                             VIR_DOMAIN_CHR_TYPE_VC);
+
+    if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_CHARDEV_QEMU_VDAGENT))
+        VIR_DOMAIN_CAPS_ENUM_SET(console->type,
+                                 VIR_DOMAIN_CHR_TYPE_QEMU_VDAGENT);
+
+    if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_SPICE))
+        VIR_DOMAIN_CAPS_ENUM_SET(console->type,
+                                 VIR_DOMAIN_CHR_TYPE_SPICEVMC,
+                                 VIR_DOMAIN_CHR_TYPE_SPICEPORT);
+}
+
+
 /**
  * virQEMUCapsSupportsGICVersion:
  * @qemuCaps: QEMU capabilities
@@ -6963,6 +7013,7 @@ virQEMUCapsFillDomainCaps(virQEMUDriverConfig *cfg,
     virDomainCapsLaunchSecurity *launchSecurity = &domCaps->launchSecurity;
     virDomainCapsDeviceNet *net = &domCaps->net;
     virDomainCapsDevicePanic *panic = &domCaps->panic;
+    virDomainCapsDeviceConsole *console = &domCaps->console;
     virFirmware **firmwares = cfg->firmwares;
     size_t nfirmwares = cfg->nfirmwares;
 
@@ -7008,6 +7059,7 @@ virQEMUCapsFillDomainCaps(virQEMUDriverConfig *cfg,
     virQEMUCapsFillDomainLaunchSecurity(qemuCaps, launchSecurity);
     virQEMUCapsFillDomainDeviceNetCaps(qemuCaps, net);
     virQEMUCapsFillDomainDevicePanicCaps(qemuCaps, domCaps->machine, panic);
+    virQEMUCapsFillDomainDeviceConsoleCaps(qemuCaps, console);
 
     return 0;
 }

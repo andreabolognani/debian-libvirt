@@ -2274,7 +2274,7 @@ If no *--inbound* or *--outbound* is specified, this command will
 query and show the bandwidth settings. Otherwise, it will set the
 inbound or outbound bandwidth. *average,peak,burst,floor* is the same as
 in command *attach-interface*.  Values for *average*, *peak* and *floor*
-are expressed in kilobytes per second, while *burst* is expressed in kilobytes
+are expressed in kiB per second, while *burst* is expressed in kiB
 in a single burst at *peak* speed as described in the Network XML
 documentation at
 `https://libvirt.org/formatnetwork.html#quality-of-service <https://libvirt.org/formatnetwork.html#quality-of-service>`__.
@@ -3062,6 +3062,36 @@ When *--timestamp* is used, a human-readable timestamp will be printed
 before the event.
 
 
+await
+-----
+
+**Syntax:**
+
+::
+
+  await <domain> --condition <string> [--timeout seconds]
+
+Wait until the *--condition* for <domain> is satisfied. Uses events for
+efficient state updates.
+
+Supported conditions:
+
+ *domain-inactive*
+
+    domain is or becomes inactive
+
+ *guest-agent-available*
+
+    the guest agent inside the guest connects and becomes available for commands
+    (usually means that the guest has booted)
+
+If *--timeout* is specified, the command gives up waiting for the condition to
+satisfy after *seconds* have elapsed. If SIGINT is delivered to virsh
+(usually via ``Ctrl-C``) the wait is given up immediately. In non-interactive
+mode virsh will return '2' if either of those cases instead of '1' which means
+an error happened.
+
+
 get-user-sshkeys
 ----------------
 
@@ -3641,10 +3671,9 @@ host. By default only non-shared non-readonly images are transferred. Use
 transfer via the comma separated ``disk-list`` argument.
 The *--migrate-disks-detect-zeroes* option which takes a comma separated list of
 disk target names enables zeroed block detection for the listed migrated disks.
-These blocks are not transferred or allocated on destination, effectively
-sparsifying the disk at the cost of CPU overhead. Users must ensure that any
-pre-created storage source is cleared and thus reads all-zeroes before using
-this option as otherwise the destination image may become corrupted.
+These blocks are not transferred or allocated (requires that 'discard' option
+on given disk is set to 'unmap') on destination, effectively sparsifying the
+disk at the cost of CPU overhead.
 With *--copy-storage-synchronous-writes* flag used the disk data migration will
 synchronously handle guest disk writes to both the original source and the
 destination to ensure that the disk migration converges at the price of possibly
@@ -5261,8 +5290,8 @@ interface.  At least one from the *average*, *floor* pair must be
 specified.  The other two *peak* and *burst* are optional, so
 "average,peak", "average,,burst", "average,,,floor", "average" and
 ",,,floor" are also legal.  Values for *average*, *floor* and *peak*
-are expressed in kilobytes per second, while *burst* is expressed in
-kilobytes in a single burst at *peak* speed as described in the
+are expressed in kiB per second, while *burst* is expressed in
+kiB in a single burst at *peak* speed as described in the
 Network XML documentation at
 `https://libvirt.org/formatnetwork.html#quality-of-service <https://libvirt.org/formatnetwork.html#quality-of-service>`__.
 

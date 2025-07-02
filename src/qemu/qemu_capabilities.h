@@ -715,6 +715,13 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     QEMU_CAPS_VIRTIO_SCSI_IOTHREAD_MAPPING, /* virtio-scsi supports per-virtqueue iothread mapping */
     QEMU_CAPS_MACHINE_VIRT_HIGHMEM_MMIO_SIZE, /* -machine virt,highmem-mmio-size=<size> */
     QEMU_CAPS_BUS_FLOPPY, /* floppy bus supported (isa-fdc/sysbus-fdc) */
+    QEMU_CAPS_DEVICE_NVME, /* -device nvme */
+    QEMU_CAPS_DEVICE_NVME_NS, /* -device nvme-ns */
+
+    /* 480 */
+    QEMU_CAPS_AMD_IOMMU, /* -device amd-iommu */
+    QEMU_CAPS_AMD_IOMMU_PCI_ID, /* amd-iommu.pci-id */
+    QEMU_CAPS_DEVICE_USB_BOT, /* -device usb-bot */
 
     QEMU_CAPS_LAST /* this must always be the last item */
 } virQEMUCapsFlags;
@@ -915,6 +922,9 @@ void virQEMUCapsFillDomainDeviceNetCaps(virQEMUCaps *qemuCaps,
 void virQEMUCapsFillDomainDevicePanicCaps(virQEMUCaps *qemuCaps,
                                           const char *machine,
                                           virDomainCapsDevicePanic *panic);
+
+void virQEMUCapsFillDomainDeviceConsoleCaps(virQEMUCaps *qemuCaps,
+                                            virDomainCapsDeviceConsole *console);
 
 bool virQEMUCapsGuestIsNative(virArch host,
                               virArch guest);

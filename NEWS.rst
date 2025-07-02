@@ -8,6 +8,87 @@ the changes introduced by each of them.
 For a more fine-grained view, use the `git log`_.
 
 
+v11.5.0 (2025-07-01)
+====================
+
+* **Removed features**
+
+  * qemu: Don't accept VIR_DUMP_LIVE flag in virDomainCoreDumpWithFormat()
+
+    Unfortunately, QEMU always pauses vCPUs when doing a core dump. Therefore,
+    there is no way for Libvirt to honor VIR_DUMP_LIVE flag semantics. Instead
+    of silently pretending the flag works, an appropriate error is now
+    reported.
+
+* **New features**
+
+  * vmx: Add support for reporting NVMe disks in the domain XML
+
+  * qemu: Add support for NVMe disks
+
+    NVMe disks can now be emulated by using an ``nvme`` bus, but require a
+    serial due to the hypervisor::
+
+      <target dev='nvme0n1' bus='nvme'/>
+      <serial>qwertyuiop</serial>
+
+    Multiple disks can be represented as different namespaces on the same
+    controller, but they cannot have a different serial number due to the fact
+    that it is the controller which ultimately has the serial number attached to
+    it, but for ease of use it is automatically copied from the disk serial.
+
+  * esx: Add support for specifying alternative CA bundle for remote peer verification
+
+    Users can now use ``cacert`` parameter in the URI to specify a file path
+    with CA certificate(s) that will be used for remote peer certificate
+    validation.
+
+  * qemu: add support for AMD IOMMU device
+
+    The ``amd`` model for the ``<iommu>`` device is now supported.
+    New attributes ``passtrhough`` and ``xtsup`` are also supported for this
+    model.
+
+* **Improvements**
+
+  * Include supported console types in domain capabilities
+
+    Domain capabilities now include information about supported console types, such as::
+
+      <console supported='yes'>
+        <enum name='type'>
+          <value>pty</value>
+          <value>tcp</value>
+        </enum>
+      </console>
+
+  * virsh: Add waiting for domain state via ``virsh await``
+
+    The new helper command ``virsh await`` simplifies waiting on domain state
+    which is normally announced via events. Currently two waiting conditions are
+    implemented: ``domain-inactive``, and ``guest-agent-available``.
+
+* **Bug fixes**
+
+  * qemu: Be more forgiving when acquiring QUERY job when formatting domain XML
+
+    Since ``libvirt-11.0.0`` the ``virDomainGetXMLDesc()`` API used to format
+    domain XML acquires QUERY job. But this caused a regression when the API
+    might timeout for incoming migration. This is now fixed.
+
+  * qemu: Fix shared filesystem detection on nonexistent paths
+
+    Since ``libvirt-11.1.0`` nonexistent paths within directories marked as
+    shared filesystem (via the ``shared_filesystems`` option in ``qemu.conf``
+    would not be properly detected as being on a shared filesystem.
+
+  * qemu: Properly emulate USB cdrom device
+
+    CD-ROM devices on USB bus are now properly emulated as such which was not
+    the case since libvirt switched to the modern qemu commandline sytnax for
+    storage backends.
+
+
 v11.4.0 (2025-06-02)
 ====================
 
