@@ -1,3 +1,10 @@
+libvirt (11.3.0-3) unstable; urgency=medium
+
+  * [d10b70f] patches: Add backports
+    - backport/qemu-Be-more-forgiving-when-acquiring-QUERY-job-[...]
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Wed, 02 Jul 2025 22:15:28 +0200
+
 libvirt (11.3.0-2) unstable; urgency=medium
 
   * [eb4a97a] patches: Add backports
