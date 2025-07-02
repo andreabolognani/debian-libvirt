@@ -1,3 +1,9 @@
+libvirt (11.5.0-1) UNRELEASED; urgency=medium
+
+  * [0ae9dd8] New upstream version 11.5.0
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Wed, 02 Jul 2025 20:06:05 +0200
+
 libvirt (11.4.0-1) experimental; urgency=medium
 
   * [f8bc946] New upstream version 11.4.0
