@@ -948,6 +948,7 @@ hypervDomainAttachStorage(virDomainPtr domain, virDomainDef *def, const char *ho
         case VIR_DOMAIN_DISK_BUS_UML:
         case VIR_DOMAIN_DISK_BUS_SATA:
         case VIR_DOMAIN_DISK_BUS_SD:
+        case VIR_DOMAIN_DISK_BUS_NVME:
         case VIR_DOMAIN_DISK_BUS_LAST:
         default:
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s", _("Unsupported controller type"));
@@ -1230,7 +1231,7 @@ hypervDomainDefAppendDisk(virDomainDef *def,
     }
 
     disk->bus = busType;
-    disk->dst = virIndexToDiskName(ctrlr_idx * diskNameOffset + addr, diskNamePrefix);
+    disk->dst = virIndexToDiskName(0, ctrlr_idx * diskNameOffset + addr, diskNamePrefix);
     if (busType == VIR_DOMAIN_DISK_BUS_IDE) {
         disk->info.addr.drive.controller = 0;
         disk->info.addr.drive.bus = ctrlr_idx;
@@ -1398,7 +1399,7 @@ hypervDomainDefParsePhysicalDisk(hypervPrivate *priv,
             }
         }
         disk->bus = VIR_DOMAIN_DISK_BUS_SCSI;
-        disk->dst = virIndexToDiskName(ctrlr_idx * 64 + addr, "sd");
+        disk->dst = virIndexToDiskName(0, ctrlr_idx * 64 + addr, "sd");
         disk->info.addr.drive.unit = addr;
         disk->info.addr.drive.controller = ctrlr_idx;
         disk->info.addr.drive.bus = 0;
@@ -1410,7 +1411,7 @@ hypervDomainDefParsePhysicalDisk(hypervPrivate *priv,
             }
         }
         disk->bus = VIR_DOMAIN_DISK_BUS_IDE;
-        disk->dst = virIndexToDiskName(ctrlr_idx * 4 + addr, "hd");
+        disk->dst = virIndexToDiskName(0, ctrlr_idx * 4 + addr, "hd");
         disk->info.addr.drive.unit = addr;
         disk->info.addr.drive.controller = 0;
         disk->info.addr.drive.bus = ctrlr_idx;
@@ -3078,6 +3079,7 @@ hypervDomainAttachDeviceFlags(virDomainPtr domain, const char *xml, unsigned int
         case VIR_DOMAIN_DISK_BUS_UML:
         case VIR_DOMAIN_DISK_BUS_SATA:
         case VIR_DOMAIN_DISK_BUS_SD:
+        case VIR_DOMAIN_DISK_BUS_NVME:
         case VIR_DOMAIN_DISK_BUS_LAST:
         default:
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s", _("Invalid disk bus in definition"));

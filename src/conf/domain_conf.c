@@ -372,6 +372,7 @@ VIR_ENUM_IMPL(virDomainDiskBus,
               "uml",
               "sata",
               "sd",
+              "nvme",
 );
 
 VIR_ENUM_IMPL(virDomainDiskCache,
@@ -420,6 +421,7 @@ VIR_ENUM_IMPL(virDomainController,
               "pci",
               "xenbus",
               "isa",
+              "nvme",
 );
 
 VIR_ENUM_IMPL(virDomainControllerModelPCI,
@@ -1350,6 +1352,7 @@ VIR_ENUM_IMPL(virDomainIOMMUModel,
               "intel",
               "smmuv3",
               "virtio",
+              "amd",
 );
 
 VIR_ENUM_IMPL(virDomainVsockModel,
@@ -1397,6 +1400,8 @@ VIR_ENUM_IMPL(virDomainDiskModel,
               "virtio",
               "virtio-transitional",
               "virtio-non-transitional",
+              "usb-storage",
+              "usb-bot",
 );
 
 VIR_ENUM_IMPL(virDomainDiskMirrorState,
@@ -2563,6 +2568,7 @@ virDomainControllerDefNew(virDomainControllerType type)
     case VIR_DOMAIN_CONTROLLER_TYPE_SATA:
     case VIR_DOMAIN_CONTROLLER_TYPE_CCID:
     case VIR_DOMAIN_CONTROLLER_TYPE_ISA:
+    case VIR_DOMAIN_CONTROLLER_TYPE_NVME:
     case VIR_DOMAIN_CONTROLLER_TYPE_LAST:
         break;
     }
@@ -2580,6 +2586,9 @@ void virDomainControllerDefFree(virDomainControllerDef *def)
 
     virDomainDeviceInfoClear(&def->info);
     g_free(def->virtio);
+
+    if (def->type == VIR_DOMAIN_CONTROLLER_TYPE_NVME)
+        g_free(def->opts.nvmeopts.serial);
 
     g_free(def);
 }
@@ -6786,13 +6795,32 @@ virDomainDeviceFindSCSIController(const virDomainDef *def,
     return NULL;
 }
 
+
+virDomainControllerDef *
+virDomainDeviceFindNvmeController(const virDomainDef *def,
+                                  const virDomainDeviceDriveAddress *addr)
+{
+    size_t i;
+
+    for (i = 0; i < def->ncontrollers; i++) {
+        if (def->controllers[i]->type == VIR_DOMAIN_CONTROLLER_TYPE_NVME &&
+            def->controllers[i]->idx == addr->controller)
+            return def->controllers[i];
+    }
+
+    return NULL;
+}
+
+
 int
 virDomainDiskDefAssignAddress(virDomainXMLOption *xmlopt G_GNUC_UNUSED,
                               virDomainDiskDef *def,
                               const virDomainDef *vmdef)
 {
-    int idx = virDiskNameToIndex(def->dst);
-    if (idx < 0) {
+    int idx = 0;
+    int nvme_ctrl = 0;
+
+    if (virDiskNameParse(def->dst, &nvme_ctrl, &idx, NULL) < 0) {
         virReportError(VIR_ERR_XML_ERROR,
                        _("Unknown disk name '%1$s' and no address specified"),
                        def->dst);
@@ -6867,6 +6895,13 @@ virDomainDiskDefAssignAddress(virDomainXMLOption *xmlopt G_GNUC_UNUSED,
         def->info.addr.drive.controller = idx / 2;
         def->info.addr.drive.bus = 0;
         def->info.addr.drive.unit = idx % 2;
+        break;
+
+    case VIR_DOMAIN_DISK_BUS_NVME:
+        def->info.type = VIR_DOMAIN_DEVICE_ADDRESS_TYPE_DRIVE;
+        def->info.addr.drive.controller = nvme_ctrl;
+        def->info.addr.drive.bus = 0;
+        def->info.addr.drive.unit = idx;
         break;
 
     case VIR_DOMAIN_DISK_BUS_NONE:
@@ -8784,6 +8819,7 @@ virDomainControllerModelTypeFromString(const virDomainControllerDef *def,
     case VIR_DOMAIN_CONTROLLER_TYPE_SATA:
     case VIR_DOMAIN_CONTROLLER_TYPE_CCID:
     case VIR_DOMAIN_CONTROLLER_TYPE_XENBUS:
+    case VIR_DOMAIN_CONTROLLER_TYPE_NVME:
     case VIR_DOMAIN_CONTROLLER_TYPE_LAST:
         return -1;
     }
@@ -8812,6 +8848,7 @@ virDomainControllerModelTypeToString(virDomainControllerDef *def,
     case VIR_DOMAIN_CONTROLLER_TYPE_SATA:
     case VIR_DOMAIN_CONTROLLER_TYPE_CCID:
     case VIR_DOMAIN_CONTROLLER_TYPE_XENBUS:
+    case VIR_DOMAIN_CONTROLLER_TYPE_NVME:
     case VIR_DOMAIN_CONTROLLER_TYPE_LAST:
         return NULL;
     }
@@ -9047,6 +9084,10 @@ virDomainControllerDefParseXML(virDomainXMLOption *xmlopt,
             return NULL;
         break;
     }
+
+    case VIR_DOMAIN_CONTROLLER_TYPE_NVME:
+        def->opts.nvmeopts.serial = virXPathString("string(./serial)", ctxt);
+        break;
 
     case VIR_DOMAIN_CONTROLLER_TYPE_IDE:
     case VIR_DOMAIN_CONTROLLER_TYPE_FDC:
@@ -11815,46 +11856,46 @@ virDomainGraphicsDefParseXMLVNC(virDomainGraphicsDef *def,
                                 xmlXPathContextPtr ctxt,
                                 unsigned int flags)
 {
-    g_autofree char *port = virXMLPropString(node, "port");
-    g_autofree char *websocketGenerated = virXMLPropString(node, "websocketGenerated");
-    g_autofree char *autoport = virXMLPropString(node, "autoport");
     xmlNodePtr audioNode;
+    virTristateBool autoport;
+    virTristateBool websocketGenerated;
     VIR_XPATH_NODE_AUTORESTORE(ctxt)
 
     if (virDomainGraphicsListensParseXML(def, node, ctxt, flags) < 0)
         return -1;
 
-    if (port) {
-        if (virStrToLong_i(port, NULL, 10, &def->data.vnc.port) < 0) {
-            virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("cannot parse vnc port %1$s"), port);
-            return -1;
-        }
+    if (virXMLPropInt(node, "port", 10, VIR_XML_PROP_NONE,
+                      &def->data.vnc.port, 0) < 0)
+        return -1;
+
+    if (def->data.vnc.port == -1) {
         /* Legacy compat syntax, used -1 for auto-port */
-        if (def->data.vnc.port == -1) {
-            if (flags & VIR_DOMAIN_DEF_PARSE_INACTIVE)
-                def->data.vnc.port = 0;
-            def->data.vnc.autoport = true;
-        }
-    } else {
-        def->data.vnc.port = 0;
         def->data.vnc.autoport = true;
     }
 
-    if (autoport) {
-        ignore_value(virStringParseYesNo(autoport, &def->data.vnc.autoport));
-
-        if (def->data.vnc.autoport && flags & VIR_DOMAIN_DEF_PARSE_INACTIVE)
-            def->data.vnc.port = 0;
+    if (def->data.vnc.port == 0) {
+        /* No port specified */
+        def->data.vnc.autoport = true;
     }
+
+    if (virXMLPropTristateBool(node, "autoport", VIR_XML_PROP_NONE,
+                               &autoport) < 0)
+        return -1;
+
+    virTristateBoolToBool(autoport, &def->data.vnc.autoport);
+
+    if (def->data.vnc.autoport && (flags & VIR_DOMAIN_DEF_PARSE_INACTIVE))
+        def->data.vnc.port = 0;
 
     if (virXMLPropInt(node, "websocket", 10, VIR_XML_PROP_NONE,
                       &def->data.vnc.websocket, 0) < 0)
         return -1;
 
-    if (websocketGenerated)
-        ignore_value(virStringParseYesNo(websocketGenerated,
-                     &def->data.vnc.websocketGenerated));
+    if (virXMLPropTristateBool(node, "websocketGenerated", VIR_XML_PROP_NONE,
+                               &websocketGenerated) < 0)
+        return -1;
+
+    virTristateBoolToBool(websocketGenerated, &def->data.vnc.websocketGenerated);
 
     if (virXMLPropEnum(node, "sharePolicy",
                        virDomainGraphicsVNCSharePolicyTypeFromString,
@@ -11891,15 +11932,13 @@ virDomainGraphicsDefParseXMLSDL(virDomainGraphicsDef *def,
 {
     VIR_XPATH_NODE_AUTORESTORE(ctxt)
     xmlNodePtr glNode;
-    virTristateBool fullscreen;
 
     ctxt->node = node;
 
     if (virXMLPropTristateBool(node, "fullscreen", VIR_XML_PROP_NONE,
-                               &fullscreen) < 0)
+                               &def->data.sdl.fullscreen) < 0)
         return -1;
 
-    virTristateBoolToBool(fullscreen, &def->data.sdl.fullscreen);
     def->data.sdl.xauth = virXMLPropString(node, "xauth");
     def->data.sdl.display = virXMLPropString(node, "display");
 
@@ -11919,40 +11958,41 @@ virDomainGraphicsDefParseXMLRDP(virDomainGraphicsDef *def,
                                 xmlXPathContextPtr ctxt,
                                 unsigned int flags)
 {
-    g_autofree char *port = virXMLPropString(node, "port");
-    g_autofree char *autoport = virXMLPropString(node, "autoport");
-    g_autofree char *replaceUser = virXMLPropString(node, "replaceUser");
-    g_autofree char *multiUser = virXMLPropString(node, "multiUser");
+    virTristateBool autoport;
 
     if (virDomainGraphicsListensParseXML(def, node, ctxt, flags) < 0)
         return -1;
 
-    if (port) {
-        if (virStrToLong_i(port, NULL, 10, &def->data.rdp.port) < 0) {
-            virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("cannot parse rdp port %1$s"), port);
-            return -1;
-        }
-        /* Legacy compat syntax, used -1 for auto-port */
-        if (def->data.rdp.port == -1)
-            def->data.rdp.autoport = true;
+    if (virXMLPropInt(node, "port", 10, VIR_XML_PROP_NONE,
+                      &def->data.rdp.port, 0) < 0)
+        return -1;
 
-    } else {
-        def->data.rdp.port = 0;
+    if (def->data.rdp.port == -1) {
+        /* Legacy compat syntax, used -1 for auto-port */
         def->data.rdp.autoport = true;
     }
 
-    if (STREQ_NULLABLE(autoport, "yes"))
+    if (def->data.rdp.port == 0) {
+        /* No port specified */
         def->data.rdp.autoport = true;
+    }
+
+    if (virXMLPropTristateBool(node, "autoport", VIR_XML_PROP_NONE,
+                               &autoport) < 0)
+        return -1;
+
+    virTristateBoolToBool(autoport, &def->data.rdp.autoport);
 
     if (def->data.rdp.autoport && (flags & VIR_DOMAIN_DEF_PARSE_INACTIVE))
         def->data.rdp.port = 0;
 
-    if (STREQ_NULLABLE(replaceUser, "yes"))
-        def->data.rdp.replaceUser = true;
+    if (virXMLPropTristateBool(node, "replaceUser", VIR_XML_PROP_NONE,
+                               &def->data.rdp.replaceUser))
+        return -1;
 
-    if (STREQ_NULLABLE(multiUser, "yes"))
-        def->data.rdp.multiUser = true;
+    if (virXMLPropTristateBool(node, "multiUser", VIR_XML_PROP_NONE,
+                               &def->data.rdp.replaceUser))
+        return -1;
 
     if (virDomainGraphicsAuthDefParseXML(node, &def->data.rdp.auth,
                                          def->type) < 0)
@@ -11962,20 +12002,11 @@ virDomainGraphicsDefParseXMLRDP(virDomainGraphicsDef *def,
 }
 
 
-static int
+static void
 virDomainGraphicsDefParseXMLDesktop(virDomainGraphicsDef *def,
                                     xmlNodePtr node)
 {
-    virTristateBool fullscreen;
-
-    if (virXMLPropTristateBool(node, "fullscreen", VIR_XML_PROP_NONE,
-                               &fullscreen) < 0)
-        return -1;
-
-    virTristateBoolToBool(fullscreen, &def->data.desktop.fullscreen);
     def->data.desktop.display = virXMLPropString(node, "display");
-
-    return 0;
 }
 
 
@@ -12261,8 +12292,7 @@ virDomainGraphicsDefParseXML(virDomainXMLOption *xmlopt,
             goto error;
         break;
     case VIR_DOMAIN_GRAPHICS_TYPE_DESKTOP:
-        if (virDomainGraphicsDefParseXMLDesktop(def, node) < 0)
-            goto error;
+        virDomainGraphicsDefParseXMLDesktop(def, node);
         break;
     case VIR_DOMAIN_GRAPHICS_TYPE_SPICE:
         if (virDomainGraphicsDefParseXMLSpice(def, node, ctxt, flags) < 0)
@@ -14332,6 +14362,14 @@ virDomainIOMMUDefParseXML(virDomainXMLOption *xmlopt,
         if (virXMLPropTristateSwitch(driver, "dma_translation", VIR_XML_PROP_NONE,
                                      &iommu->dma_translation) < 0)
             return NULL;
+
+        if (virXMLPropTristateSwitch(driver, "xtsup", VIR_XML_PROP_NONE,
+                                     &iommu->xtsup) < 0)
+            return NULL;
+
+        if (virXMLPropTristateSwitch(driver, "passthrough", VIR_XML_PROP_NONE,
+                                     &iommu->pt) < 0)
+            return NULL;
     }
 
     if (virDomainDeviceInfoParseXML(xmlopt, node, ctxt,
@@ -14996,6 +15034,10 @@ virDomainDiskControllerMatch(int controller_type, int disk_bus)
 
     if (controller_type == VIR_DOMAIN_CONTROLLER_TYPE_SATA &&
         disk_bus == VIR_DOMAIN_DISK_BUS_SATA)
+        return true;
+
+    if (controller_type == VIR_DOMAIN_CONTROLLER_TYPE_NVME &&
+        disk_bus == VIR_DOMAIN_DISK_BUS_NVME)
         return true;
 
     return false;
@@ -21962,6 +22004,20 @@ virDomainIOMMUDefCheckABIStability(virDomainIOMMUDef *src,
                        virTristateSwitchTypeToString(src->dma_translation));
         return false;
     }
+    if (src->pt != dst->pt) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("Target domain IOMMU device dma translation '%1$s' does not match source '%2$s'"),
+                       virTristateSwitchTypeToString(dst->pt),
+                       virTristateSwitchTypeToString(src->pt));
+        return false;
+    }
+    if (src->xtsup != dst->xtsup) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("Target domain IOMMU device dma translation '%1$s' does not match source '%2$s'"),
+                       virTristateSwitchTypeToString(dst->xtsup),
+                       virTristateSwitchTypeToString(src->xtsup));
+        return false;
+    }
 
     return virDomainDeviceInfoCheckABIStability(&src->info, &dst->info);
 }
@@ -22647,6 +22703,36 @@ virDomainDefMaybeAddSmartcardController(virDomainDef *def)
     }
 }
 
+static int
+virDomainDefMaybeAssignNvmeControllerSerials(virDomainDef *def)
+{
+    size_t i = 0;
+
+    for (i = 0; i < def->ndisks; i++) {
+        virDomainDiskDef *disk = def->disks[i];
+        virDomainControllerDef *ctrl = NULL;
+
+        if (!disk->serial ||
+            disk->bus != VIR_DOMAIN_DISK_BUS_NVME ||
+            def->disks[i]->info.type != VIR_DOMAIN_DEVICE_ADDRESS_TYPE_DRIVE)
+            continue;
+
+        ctrl = virDomainDeviceFindNvmeController(def, &disk->info.addr.drive);
+        if (ctrl) {
+            if (!ctrl->opts.nvmeopts.serial) {
+                ctrl->opts.nvmeopts.serial = g_strdup(disk->serial);
+            } else if (STRNEQ_NULLABLE(disk->serial, ctrl->opts.nvmeopts.serial)) {
+                virReportError(VIR_ERR_XML_DETAIL, "%s",
+                               _("Conflicting NVME disk serial number, all disks on a controller must have the same serial number as the controller itself"));
+                return -1;
+            }
+        }
+    }
+
+    return 0;
+}
+
+
 /*
  * Based on the declared <address/> info for any devices,
  * add necessary drive controllers which are not already present
@@ -22664,6 +22750,8 @@ virDomainDefAddImplicitControllers(virDomainDef *def)
                                           VIR_DOMAIN_DISK_BUS_IDE);
     virDomainDefAddDiskControllersForType(def, VIR_DOMAIN_CONTROLLER_TYPE_SATA,
                                           VIR_DOMAIN_DISK_BUS_SATA);
+    virDomainDefAddDiskControllersForType(def, VIR_DOMAIN_CONTROLLER_TYPE_NVME,
+                                          VIR_DOMAIN_DISK_BUS_NVME);
 
     virDomainDefMaybeAddVirtioSerialController(def);
     virDomainDefMaybeAddSmartcardController(def);
@@ -22695,6 +22783,9 @@ virDomainDefAddImplicitDevices(virDomainDef *def, virDomainXMLOption *xmlopt)
             return -1;
     }
     virDomainDefAddImplicitControllers(def);
+
+    if (virDomainDefMaybeAssignNvmeControllerSerials(def) < 0)
+        return -1;
 
     if (virDomainDefAddImplicitVideo(def, xmlopt) < 0)
         return -1;
@@ -24037,6 +24128,11 @@ virDomainControllerDefFormat(virBuffer *buf,
             virBufferAsprintf(&attrBuf, " maxEventChannels='%d'",
                               def->opts.xenbusopts.maxEventChannels);
         }
+        break;
+
+    case VIR_DOMAIN_CONTROLLER_TYPE_NVME:
+        virBufferEscapeString(&childBuf, "<serial>%s</serial>\n",
+                              def->opts.nvmeopts.serial);
         break;
 
     case VIR_DOMAIN_CONTROLLER_TYPE_PCI:
@@ -26956,8 +27052,9 @@ virDomainGraphicsDefFormatSDL(virBuffer *attrBuf,
 
     virBufferEscapeString(attrBuf, " xauth='%s'", def->data.sdl.xauth);
 
-    if (def->data.sdl.fullscreen)
-        virBufferAddLit(attrBuf, " fullscreen='yes'");
+    if (def->data.sdl.fullscreen != VIR_TRISTATE_BOOL_ABSENT)
+        virBufferAsprintf(attrBuf, " fullscreen='%s'",
+                          virTristateBoolTypeToString(def->data.sdl.fullscreen));
 
     virDomainGraphicsDefFormatGL(childBuf, def->data.sdl.gl, NULL);
 }
@@ -26978,11 +27075,13 @@ virDomainGraphicsDefFormatRDP(virBuffer *attrBuf,
     if (def->data.rdp.autoport)
         virBufferAddLit(attrBuf, " autoport='yes'");
 
-    if (def->data.rdp.replaceUser)
-        virBufferAddLit(attrBuf, " replaceUser='yes'");
+    if (def->data.rdp.replaceUser != VIR_TRISTATE_BOOL_ABSENT)
+        virBufferAsprintf(attrBuf, " replaceUser='%s'",
+                          virTristateBoolTypeToString(def->data.rdp.replaceUser));
 
-    if (def->data.rdp.multiUser)
-        virBufferAddLit(attrBuf, " multiUser='yes'");
+    if (def->data.rdp.multiUser != VIR_TRISTATE_BOOL_ABSENT)
+        virBufferAsprintf(attrBuf, " multiUser='%s'",
+                          virTristateBoolTypeToString(def->data.rdp.multiUser));
 
     virDomainGraphicsListenDefFormatAddr(attrBuf, glisten, flags);
 
@@ -26996,9 +27095,6 @@ virDomainGraphicsDefFormatDesktop(virBuffer *attrBuf,
                                   virDomainGraphicsDef *def)
 {
     virBufferEscapeString(attrBuf, " display='%s'", def->data.desktop.display);
-
-    if (def->data.desktop.fullscreen)
-        virBufferAddLit(attrBuf, " fullscreen='yes'");
 }
 
 static int
@@ -28188,6 +28284,14 @@ virDomainIOMMUDefFormat(virBuffer *buf,
     if (iommu->dma_translation != VIR_TRISTATE_SWITCH_ABSENT) {
         virBufferAsprintf(&driverAttrBuf, " dma_translation='%s'",
                           virTristateSwitchTypeToString(iommu->dma_translation));
+    }
+    if (iommu->pt != VIR_TRISTATE_SWITCH_ABSENT) {
+        virBufferAsprintf(&driverAttrBuf, " passthrough='%s'",
+                          virTristateSwitchTypeToString(iommu->pt));
+    }
+    if (iommu->xtsup != VIR_TRISTATE_SWITCH_ABSENT) {
+        virBufferAsprintf(&driverAttrBuf, " xtsup='%s'",
+                          virTristateSwitchTypeToString(iommu->xtsup));
     }
 
     virXMLFormatElement(&childBuf, "driver", &driverAttrBuf, NULL);
@@ -29652,8 +29756,10 @@ virDiskNameToBusDeviceIndex(virDomainDiskDef *disk,
                             int *busIdx,
                             int *devIdx)
 {
-    int idx = virDiskNameToIndex(disk->dst);
-    if (idx < 0)
+    int idx = -1;
+    int nvme_ctrl = 0;
+
+    if (virDiskNameParse(disk->dst, &nvme_ctrl, &idx, NULL) < 0 || idx < 0)
         return -1;
 
     switch (disk->bus) {
@@ -29664,6 +29770,10 @@ virDiskNameToBusDeviceIndex(virDomainDiskDef *disk,
         case VIR_DOMAIN_DISK_BUS_SCSI:
             *busIdx = idx / 7;
             *devIdx = idx % 7;
+            break;
+        case VIR_DOMAIN_DISK_BUS_NVME:
+            *busIdx = nvme_ctrl;
+            *devIdx = idx;
             break;
         case VIR_DOMAIN_DISK_BUS_FDC:
         case VIR_DOMAIN_DISK_BUS_USB:

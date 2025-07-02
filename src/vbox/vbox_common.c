@@ -447,7 +447,7 @@ vboxGenerateMediumName(PRUint32 storageBus,
         return NULL;
     }
 
-    name = virIndexToDiskName(total, prefix);
+    name = virIndexToDiskName(0, total, prefix);
 
     return name;
 }
@@ -494,6 +494,7 @@ vboxSetStorageController(virDomainControllerDef *controller,
     case VIR_DOMAIN_CONTROLLER_TYPE_PCI:
     case VIR_DOMAIN_CONTROLLER_TYPE_XENBUS:
     case VIR_DOMAIN_CONTROLLER_TYPE_ISA:
+    case VIR_DOMAIN_CONTROLLER_TYPE_NVME:
     case VIR_DOMAIN_CONTROLLER_TYPE_LAST:
         vboxReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                         _("The vbox driver does not support %1$s controller type"),
@@ -1238,6 +1239,7 @@ vboxAttachDrives(virDomainDef *def, struct _vboxDriver *data, IMachine *machine)
         case VIR_DOMAIN_DISK_BUS_USB:
         case VIR_DOMAIN_DISK_BUS_UML:
         case VIR_DOMAIN_DISK_BUS_SD:
+        case VIR_DOMAIN_DISK_BUS_NVME:
         case VIR_DOMAIN_DISK_BUS_NONE:
         case VIR_DOMAIN_DISK_BUS_LAST:
             vboxReportError(VIR_ERR_CONFIG_UNSUPPORTED,
@@ -1703,13 +1705,13 @@ vboxAttachDisplay(virDomainDef *def, struct _vboxDriver *data, IMachine *machine
 
                 gVBoxAPI.UIVRDEServer.SetPorts(data, VRDEServer, def->graphics[i]);
 
-                if (def->graphics[i]->data.rdp.replaceUser) {
+                if (def->graphics[i]->data.rdp.replaceUser == VIR_TRISTATE_BOOL_YES) {
                     gVBoxAPI.UIVRDEServer.SetReuseSingleConnection(VRDEServer,
                                                                    PR_TRUE);
                     VIR_DEBUG("VRDP set to reuse single connection");
                 }
 
-                if (def->graphics[i]->data.rdp.multiUser) {
+                if (def->graphics[i]->data.rdp.multiUser == VIR_TRISTATE_BOOL_YES) {
                     gVBoxAPI.UIVRDEServer.SetAllowMultiConnection(VRDEServer,
                                                                   PR_TRUE);
                     VIR_DEBUG("VRDP set to allow multiple connection");
@@ -3611,11 +3613,11 @@ vboxDumpDisplay(virDomainDef *def, struct _vboxDriver *data, IMachine *machine)
 
         gVBoxAPI.UIVRDEServer.GetAllowMultiConnection(VRDEServer, &allowMultiConnection);
         if (allowMultiConnection)
-            graphics->data.rdp.multiUser = true;
+            graphics->data.rdp.multiUser = VIR_TRISTATE_BOOL_YES;
 
         gVBoxAPI.UIVRDEServer.GetReuseSingleConnection(VRDEServer, &reuseSingleConnection);
         if (reuseSingleConnection)
-            graphics->data.rdp.replaceUser = true;
+            graphics->data.rdp.replaceUser = VIR_TRISTATE_BOOL_YES;
 
         VIR_APPEND_ELEMENT(def->graphics, def->ngraphics, graphics);
     }

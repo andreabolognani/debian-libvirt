@@ -1139,7 +1139,7 @@ influence how virtual memory pages are backed by host pages.
    element is introduced. It has one compulsory attribute ``size`` which
    specifies which hugepages should be used (especially useful on systems
    supporting hugepages of different sizes). The default unit for the ``size``
-   attribute is kilobytes (multiplier of 1024). If you want to use different
+   attribute is kiB (multiplier of 1024). If you want to use different
    unit, use optional ``unit`` attribute. For systems with NUMA, the optional
    ``nodeset`` attribute may come handy as it ties given guest's NUMA nodes to
    certain hugepage sizes. From the example snippet, one gigabyte hugepages are
@@ -2824,7 +2824,7 @@ paravirtualized driver is specified via the ``disk`` element.
      <disk type='file' device='disk'>
        <driver name='qemu' type='qcow2' />
        <source file='/var/lib/libvirt/images/disk.qcow2'/>
-       <target dev='vdh' bus='virtio'/>
+       <target dev='nvme0n1' bus='nvme'/>
        <throttlefilters>
          <throttlefilter group='limit2'/>
          <throttlefilter group='limit012'/>
@@ -2862,10 +2862,25 @@ paravirtualized driver is specified via the ``disk`` element.
 
    ``model``
       Indicates the emulated device model of the disk. Typically this is
-      indicated solely by the ``bus`` property but for ``bus`` "virtio" the
-      model can be specified further with "virtio", "virtio-transitional" or
-      "virtio-non-transitional". See `virtio device models`_
-      for more details. :since:`Since 5.2.0`
+      indicated solely by the ``bus`` property.
+
+      For ``bus`` "virtio" the model can be specified further with "virtio",
+      "virtio-transitional" or "virtio-non-transitional". See `virtio device
+      models`_ for more details. :since:`Since 5.2.0`
+
+      For ``bus`` "usb" the model can be specified further with ``usb-storage``
+      or ``usb-bot``. There is no difference between the two models for
+      ``<disk type='disk'>``. However  with ``usb-bot`` a device configured as
+      ``<disk type='cdrom'>`` is properly exposed as a cdrom device inside the
+      guest OS. Unfortunately this configuration is not ABI compatible with
+      ``usb-storage`` and thus it can't be interchanged during migration.
+
+      The QEMU hypervisor driver will pick ``usb-bot`` for cold starts or
+      hotplug for cdrom devices to properly configure the devices. This is
+      not compatible for migration to older versions of libvirt and explicit
+      configuration needs to be used.
+      :since:`Since 11.5.0`; relevant only for ``QEMU`` hypervisor.
+
    ``rawio``
       Indicates whether the disk needs rawio capability. Valid settings are
       "yes" or "no" (default is "no"). If any one disk in a domain has
@@ -3313,7 +3328,8 @@ paravirtualized driver is specified via the ``disk`` element.
    name in the guest OS. Treat it as a device ordering hint. The optional
    ``bus`` attribute specifies the type of disk device to emulate; possible
    values are driver specific, with typical values being "ide", "scsi",
-   "virtio", "xen", "usb", "sata", or "sd" :since:`"sd" since 1.1.2`. If
+   "virtio", "xen", "usb", "sata", "sd", or "nvme"
+   :since:`"sd" since 1.1.2, "nvme" since 11.5.0`. If
    omitted, the bus type is inferred from the style of the device name (e.g. a
    device named 'sda' will typically be exported using a SCSI bus). The optional
    attribute ``tray`` indicates the tray status of the removable disks (i.e.
@@ -3651,7 +3667,9 @@ paravirtualized driver is specified via the ``disk`` element.
    If present, this specify serial number of virtual hard drive. For example, it
    may look like ``<serial>WD-WMAP9A966149</serial>``. Not supported for
    scsi-block devices, that is those using disk ``type`` 'block' using
-   ``device`` 'lun' on ``bus`` 'scsi'. :since:`Since 0.7.1`
+   ``device`` 'lun' on ``bus`` 'scsi'. Also not supported for multiple NVMe
+   devices on the same controller since those have serial number per controller
+   and not per disk. :since:`Since 0.7.1`
 
    Note that depending on hypervisor and device type the serial number may be
    truncated silently. IDE/SATA devices are commonly limited to 20 characters.
@@ -4140,6 +4158,10 @@ device hotplug is expected.
        <address type='pci' domain='0x0000' bus='0x00' slot='0x0b' function='0x0'/>
      </controller>
      <controller type='xenbus' maxGrantFrames='64' maxEventChannels='2047'/>
+     <controller type='nvme'>
+       <serial>
+       ...
+       </serial>
      ...
    </devices>
    ...
@@ -4185,6 +4207,12 @@ specific features, such as:
    xenbus controller supports the optional ``maxEventChannels`` attribute, which
    specifies maximum number of event channels (PV interrupts) that can be used
    by the guest.
+
+``nvme``
+   Supported :since:`Since 11.5.0`, the ``nvme`` controller can be used to
+   support NVMe disks.  It has an optional ``serial`` sub-element just like
+   regular disks do.
+
 
 Note: The PowerPC64 "spapr-vio" addresses do not have an associated controller.
 
@@ -4298,7 +4326,7 @@ attribute are
 -  ``pcie-to-pci-bridge`` ( :since:`since 4.3.0` )
 
 The root controllers (``pci-root`` and ``pcie-root``) have an optional
-``pcihole64`` element specifying how big (in kilobytes, or in the unit specified
+``pcihole64`` element specifying how big (in kiB, or in the unit specified
 by ``pcihole64``'s ``unit`` attribute) the 64-bit PCI hole should be. Some
 guests (like Windows XP or Windows Server 2003) might crash when QEMU and
 Seabios are recent enough to support 64-bit PCI holes, unless this is disabled
@@ -4600,15 +4628,15 @@ or:
      ...
      <devices>
        <hostdev mode='subsystem' type='mdev' model='vfio-pci'>
-       <source>
-         <address uuid='c2177883-f1bb-47f0-914d-32a22e3a8804'/>
-       </source>
+         <source>
+           <address uuid='c2177883-f1bb-47f0-914d-32a22e3a8804'/>
+         </source>
        </hostdev>
        <hostdev mode='subsystem' type='mdev' model='vfio-ccw'>
          <source>
            <address uuid='9063cba3-ecef-47b6-abcf-3fef4fdcad85'/>
          </source>
-       <address type='ccw' cssid='0xfe' ssid='0x0' devno='0x0001'/>
+         <address type='ccw' cssid='0xfe' ssid='0x0' devno='0x0001'/>
        </hostdev>
      </devices>
      ...
@@ -6697,7 +6725,7 @@ interaction with the admin.
        <listen type='address' address='1.2.3.4'/>
      </graphics>
      <graphics type='rdp' autoport='yes' multiUser='yes'/>
-     <graphics type='desktop' fullscreen='yes'/>
+     <graphics type='desktop'/>
      <graphics type='spice'>
        <listen type='network' network='rednet'/>
      </graphics>
@@ -6878,8 +6906,7 @@ interaction with the admin.
    ``desktop``
       This value is reserved for VirtualBox domains for the moment. It displays
       a window on the host desktop, similarly to "sdl", but using the VirtualBox
-      viewer. Just like "sdl", it accepts the optional attributes ``display``
-      and ``fullscreen``.
+      viewer. Just like "sdl", it accepts the optional attribute ``display``.
 
    ``egl-headless`` :since:`Since 4.6.0`
       This display type provides support for an OpenGL accelerated display
@@ -9048,8 +9075,9 @@ Example:
 
 ``model``
    Supported values are ``intel`` (for Q35 guests) ``smmuv3``
-   (:since:`since 5.5.0`, for ARM virt guests), and ``virtio``
-   (:since:`since 8.3.0`, for Q35 and ARM virt guests).
+   (:since:`since 5.5.0`, for ARM virt guests), ``virtio``
+   (:since:`since 8.3.0`, for Q35 and ARM virt guests) and
+   ``amd`` (:since:`since 11.5.0`).
 
 ``driver``
    The ``driver`` subelement can be used to configure additional options, some
@@ -9064,14 +9092,15 @@ Example:
    ``caching_mode``
       The ``caching_mode`` attribute with possible values ``on`` and ``off`` can
       be used to turn on the VT-d caching mode (useful for assigned devices).
-      :since:`Since 3.4.0` (QEMU/KVM only)
+      :since:`Since 3.4.0` (QEMU/KVM and ``intel`` model only)
 
    ``eim``
       The ``eim`` attribute (with possible values ``on`` and ``off``) can be
       used to configure Extended Interrupt Mode. A q35 domain with split I/O
       APIC (as described in `Hypervisor features`_), and
       both interrupt remapping and EIM turned on for the IOMMU, will be able to
-      use more than 255 vCPUs. :since:`Since 3.4.0` (QEMU/KVM only)
+      use more than 255 vCPUs. :since:`Since 3.4.0` (QEMU/KVM and ``intel`` model
+      only)
 
    ``iotlb``
       The ``iotlb`` attribute with possible values ``on`` and ``off`` can be
@@ -9081,14 +9110,22 @@ Example:
    ``aw_bits``
       The ``aw_bits`` attribute can be used to set the address width to allow
       mapping larger iova addresses in the guest. :since:`Since 6.5.0` (QEMU/KVM
-      only)
+      and ``intel`` model only)
 
    ``dma_translation``
       The ``dma_translation`` attribute with possible values ``on`` and ``off`` can
       be used to turn off the dma translation for IOMMU. It is useful when only
       interrupt remapping is required but dma translation overhead is unwanted, for
       example to efficiently enable more than 255 vCPUs.
-      :since:`Since 10.7.0` (QEMU/KVM only)
+      :since:`Since 10.7.0` (QEMU/KVM and ``intel`` model only)
+
+   ``passthrough``
+      Enable passthrough. In this mode, DMA read/writes are not translated.
+      :since:`Since 11.5.0` (QEMU/KVM and ``amd`` model only)
+
+   ``xtsup``
+      Enable x2APIC mode. Useful for higher number of guest CPUs.
+      :since:`Since 11.5.0` (QEMU/KVM and ``amd`` model only)
 
 The ``virtio`` IOMMU devices can further have ``address`` element as described
 in `Device addresses`_ (address has to by type of ``pci``).

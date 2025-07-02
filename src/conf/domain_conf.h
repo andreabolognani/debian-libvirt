@@ -401,6 +401,7 @@ typedef enum {
     VIR_DOMAIN_DISK_BUS_UML,
     VIR_DOMAIN_DISK_BUS_SATA,
     VIR_DOMAIN_DISK_BUS_SD,
+    VIR_DOMAIN_DISK_BUS_NVME,
 
     VIR_DOMAIN_DISK_BUS_LAST
 } virDomainDiskBus;
@@ -437,6 +438,8 @@ typedef enum {
     VIR_DOMAIN_DISK_MODEL_VIRTIO,
     VIR_DOMAIN_DISK_MODEL_VIRTIO_TRANSITIONAL,
     VIR_DOMAIN_DISK_MODEL_VIRTIO_NON_TRANSITIONAL,
+    VIR_DOMAIN_DISK_MODEL_USB_STORAGE,
+    VIR_DOMAIN_DISK_MODEL_USB_BOT,
 
     VIR_DOMAIN_DISK_MODEL_LAST
 } virDomainDiskModel;
@@ -611,6 +614,7 @@ typedef enum {
     VIR_DOMAIN_CONTROLLER_TYPE_PCI,
     VIR_DOMAIN_CONTROLLER_TYPE_XENBUS,
     VIR_DOMAIN_CONTROLLER_TYPE_ISA,
+    VIR_DOMAIN_CONTROLLER_TYPE_NVME,
 
     VIR_DOMAIN_CONTROLLER_TYPE_LAST
 } virDomainControllerType;
@@ -766,6 +770,10 @@ struct _virDomainXenbusControllerOpts {
     int maxEventChannels; /* -1 == undef */
 };
 
+struct _virDomainNVMeControllerOpts {
+    char *serial;
+};
+
 /* Stores the virtual disk controller configuration */
 struct _virDomainControllerDef {
     virDomainControllerType type;
@@ -782,6 +790,7 @@ struct _virDomainControllerDef {
         virDomainPCIControllerOpts pciopts;
         virDomainUSBControllerOpts usbopts;
         virDomainXenbusControllerOpts xenbusopts;
+        virDomainNVMeControllerOpts nvmeopts;
     } opts;
     virDomainDeviceInfo info;
     virDomainVirtioOptions *virtio;
@@ -2036,20 +2045,19 @@ struct _virDomainGraphicsDef {
         struct {
             char *display;
             char *xauth;
-            bool fullscreen;
+            virTristateBool fullscreen;
             virTristateBool gl;
         } sdl;
         struct {
             int port;
             bool portReserved;
             bool autoport;
-            bool replaceUser;
-            bool multiUser;
+            virTristateBool replaceUser;
+            virTristateBool multiUser;
             virDomainGraphicsAuthDef auth;
         } rdp;
         struct {
             char *display;
-            bool fullscreen;
         } desktop;
         struct {
             int port;
@@ -3005,6 +3013,7 @@ typedef enum {
     VIR_DOMAIN_IOMMU_MODEL_INTEL,
     VIR_DOMAIN_IOMMU_MODEL_SMMUV3,
     VIR_DOMAIN_IOMMU_MODEL_VIRTIO,
+    VIR_DOMAIN_IOMMU_MODEL_AMD,
 
     VIR_DOMAIN_IOMMU_MODEL_LAST
 } virDomainIOMMUModel;
@@ -3018,6 +3027,8 @@ struct _virDomainIOMMUDef {
     unsigned int aw_bits;
     virDomainDeviceInfo info;
     virTristateSwitch dma_translation;
+    virTristateSwitch xtsup;
+    virTristateSwitch pt;
 };
 
 typedef enum {
@@ -3693,6 +3704,9 @@ int virDomainDiskGetFormat(virDomainDiskDef *def);
 void virDomainDiskSetFormat(virDomainDiskDef *def, int format);
 virDomainControllerDef *
 virDomainDeviceFindSCSIController(const virDomainDef *def,
+                                  const virDomainDeviceDriveAddress *addr);
+virDomainControllerDef *
+virDomainDeviceFindNvmeController(const virDomainDef *def,
                                   const virDomainDeviceDriveAddress *addr);
 virDomainControllerDef *virDomainControllerDefNew(virDomainControllerType type);
 void virDomainControllerDefFree(virDomainControllerDef *def);

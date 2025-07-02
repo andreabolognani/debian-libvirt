@@ -169,6 +169,9 @@
   <flag name='shim'/>
   <flag name='virtio-scsi.iothread-mapping'/>
   <flag name='bus-floppy'/>
+  <flag name='nvme'/>
+  <flag name='nvme-ns'/>
+  <flag name='usb-bot'/>
   <version>10000000</version>
   <microcodeVersion>42900285</microcodeVersion>
   <package>v10.0.0</package>

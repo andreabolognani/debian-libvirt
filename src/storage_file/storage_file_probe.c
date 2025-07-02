@@ -89,30 +89,32 @@ struct FileTypeInfo {
                            * or NULL if there is no COW base image, to RES;
                            * return BACKING_STORE_* */
     const struct FileEncryptionInfo *cryptInfo; /* Encryption info */
-    unsigned long long (*getClusterSize)(const char *buf,
-                                         size_t buf_size);
-    int (*getBackingStore)(char **res, int *format,
-                           const char *buf, size_t buf_size);
-    int (*getDataFile)(char **res, virBitmap *features, char *buf, size_t buf_size);
-    int (*getFeatures)(virBitmap **features, int format,
-                       char *buf, ssize_t len);
+    int (*getImageSpecific)(virStorageSource *meta,
+                            const char *buf,
+                            size_t buf_size);
 };
 
 
-static int cowGetBackingStore(char **, int *,
-                              const char *, size_t);
-static unsigned long long
-qcow2GetClusterSize(const char *buf,
-                    size_t buf_size);
-static int qcowXGetBackingStore(char **, int *,
-                                const char *, size_t);
-static int qcow2GetDataFile(char **, virBitmap *, char *, size_t);
-static int qcow2GetFeatures(virBitmap **features, int format,
-                            char *buf, ssize_t len);
-static int vmdk4GetBackingStore(char **, int *,
-                                const char *, size_t);
 static int
-qedGetBackingStore(char **, int *, const char *, size_t);
+cowGetImageSpecific(virStorageSource *meta,
+                    const char *buf,
+                    size_t buf_size);
+static int
+qcowGetImageSpecific(virStorageSource *meta,
+                     const char *buf,
+                     size_t buf_size);
+static int
+qcow2GetImageSpecific(virStorageSource *meta,
+                      const char *buf,
+                      size_t buf_size);
+static int
+vmdk4GetImageSpecific(virStorageSource *meta,
+                      const char *buf,
+                      size_t buf_size);
+static int
+qedGetImageSpecific(virStorageSource *meta,
+                    const char *buf,
+                    size_t buf_size);
 
 #define QCOWX_HDR_VERSION (4)
 #define QCOWX_HDR_BACKING_FILE_OFFSET (QCOWX_HDR_VERSION+4)
@@ -240,95 +242,156 @@ static struct FileEncryptionInfo const qcow2EncryptionInfo[] = {
 };
 
 static struct FileTypeInfo const fileTypeInfo[] = {
-    [VIR_STORAGE_FILE_NONE] = { 0, NULL, LV_LITTLE_ENDIAN,
-                                -1, 0, {0}, 0, 0, 0, NULL, NULL, NULL, NULL, NULL },
-    [VIR_STORAGE_FILE_RAW] = { 0, NULL, LV_LITTLE_ENDIAN,
-                               -1, 0, {0}, 0, 0, 0,
-                               luksEncryptionInfo,
-                               NULL, NULL, NULL, NULL },
-    [VIR_STORAGE_FILE_DIR] = { 0, NULL, LV_LITTLE_ENDIAN,
-                               -1, 0, {0}, 0, 0, 0, NULL, NULL, NULL, NULL, NULL },
+    [VIR_STORAGE_FILE_NONE] = {
+        .endian = LV_LITTLE_ENDIAN,
+        .versionOffset = -1,
+    },
+    [VIR_STORAGE_FILE_RAW] = {
+        .endian = LV_LITTLE_ENDIAN,
+        .versionOffset = -1,
+        .cryptInfo = luksEncryptionInfo,
+    },
+    [VIR_STORAGE_FILE_DIR] = {
+        .endian = LV_LITTLE_ENDIAN,
+        .versionOffset = -1,
+        .cryptInfo = luksEncryptionInfo,
+    },
     [VIR_STORAGE_FILE_BOCHS] = {
         /*"Bochs Virtual HD Image", */ /* Untested */
-        0, NULL,
-        LV_LITTLE_ENDIAN, 64, 4, {0x20000},
-        32+16+16+4+4+4+4+4, 8, 1, NULL, NULL, NULL, NULL, NULL
+        .endian = LV_LITTLE_ENDIAN,
+        .versionOffset = 64,
+        .versionSize = 4,
+        .versionNumbers = {0x20000},
+        .sizeOffset = 32 + 16 + 16 + 4 + 4 + 4 + 4 + 4,
+        .sizeBytes = 8,
+        .sizeMultiplier = 1,
     },
+
     [VIR_STORAGE_FILE_CLOOP] = {
         /* #!/bin/sh
            #V2.0 Format
            modprobe cloop file=$0 && mount -r -t iso9660 /dev/cloop $1
         */ /* Untested */
-        0, NULL,
-        LV_LITTLE_ENDIAN, -1, 0, {0},
-        -1, 0, 0, NULL, NULL, NULL, NULL, NULL
+        .endian = LV_LITTLE_ENDIAN,
+        .versionOffset = -1,
+        .sizeOffset = -1,
     },
     [VIR_STORAGE_FILE_DMG] = {
         /* XXX QEMU says there's no magic for dmg,
          * /usr/share/misc/magic lists double magic (both offsets
          * would have to match) but then disables that check. */
-        0, NULL,
-        0, -1, 0, {0},
-        -1, 0, 0, NULL, NULL, NULL, NULL, NULL
+        .endian = LV_LITTLE_ENDIAN,
+        .versionOffset = -1,
+        .sizeOffset = -1,
     },
     [VIR_STORAGE_FILE_ISO] = {
-        32769, "CD001",
-        LV_LITTLE_ENDIAN, -2, 0, {0},
-        -1, 0, 0, NULL, NULL, NULL, NULL, NULL
+        .magicOffset = 32769,
+        .magic = "CD001",
+        .endian = LV_LITTLE_ENDIAN,
+        .versionOffset = -2,
+        .sizeOffset = -1,
     },
     [VIR_STORAGE_FILE_VPC] = {
-        0, "conectix",
-        LV_BIG_ENDIAN, 12, 4, {0x10000},
-        8 + 4 + 4 + 8 + 4 + 4 + 2 + 2 + 4, 8, 1, NULL, NULL, NULL, NULL, NULL
+        .magicOffset = 0,
+        .magic = "conectix",
+        .endian = LV_BIG_ENDIAN,
+        .versionOffset = 12,
+        .versionSize = 4,
+        .versionNumbers = {0x10000},
+        .sizeOffset = 8 + 4 + 4 + 8 + 4 + 4 + 2 + 2 + 4,
+        .sizeBytes = 8,
+        .sizeMultiplier = 1,
     },
-    /* TODO: add getBackingStore function */
     [VIR_STORAGE_FILE_VDI] = {
-        64, "\x7f\x10\xda\xbe",
-        LV_LITTLE_ENDIAN, 68, 4, {0x00010001},
-        64 + 5 * 4 + 256 + 7 * 4, 8, 1, NULL, NULL, NULL, NULL, NULL},
-
+        .magicOffset = 64,
+        .magic = "\x7f\x10\xda\xbe",
+        .endian = LV_LITTLE_ENDIAN,
+        .versionOffset = 68,
+        .versionSize = 4,
+        .versionNumbers = {0x00010001},
+        .sizeOffset = 64 + 5 * 4 + 256 + 7 * 4,
+        .sizeBytes = 8,
+        .sizeMultiplier = 1,
+    },
     /* Not direct file formats, but used for various drivers */
-    [VIR_STORAGE_FILE_FAT] = { 0, NULL, LV_LITTLE_ENDIAN,
-                               -1, 0, {0}, 0, 0, 0, NULL, NULL, NULL, NULL, NULL },
-    [VIR_STORAGE_FILE_VHD] = { 0, NULL, LV_LITTLE_ENDIAN,
-                               -1, 0, {0}, 0, 0, 0, NULL, NULL, NULL, NULL, NULL },
-    [VIR_STORAGE_FILE_PLOOP] = { 0, "WithouFreSpacExt", LV_LITTLE_ENDIAN,
-                                 -2, 0, {0}, PLOOP_IMAGE_SIZE_OFFSET, 8,
-                                 PLOOP_SIZE_MULTIPLIER, NULL, NULL, NULL, NULL, NULL },
-
+    [VIR_STORAGE_FILE_FAT] = {
+        .endian = LV_LITTLE_ENDIAN,
+        .versionOffset = -1,
+    },
+    [VIR_STORAGE_FILE_VHD] = {
+        .endian = LV_LITTLE_ENDIAN,
+        .versionOffset = -1,
+    },
+    [VIR_STORAGE_FILE_PLOOP] = {
+        .magicOffset = 0,
+        .magic = "WithouFreSpacExt",
+        .endian = LV_LITTLE_ENDIAN,
+        .versionOffset = -2,
+        .sizeOffset = PLOOP_IMAGE_SIZE_OFFSET,
+        .sizeBytes = 8,
+        .sizeMultiplier = PLOOP_SIZE_MULTIPLIER,
+    },
     /* All formats with a backing store probe below here */
     [VIR_STORAGE_FILE_COW] = {
-        0, "OOOM",
-        LV_BIG_ENDIAN, 4, 4, {2},
-        4+4+1024+4, 8, 1, NULL, NULL, cowGetBackingStore, NULL, NULL
+        .magicOffset = 0,
+        .magic = "OOOM",
+        .endian = LV_BIG_ENDIAN,
+        .versionOffset = 4,
+        .versionSize = 4,
+        .versionNumbers = {2},
+        .sizeOffset = 4 + 4 + 1024 + 4,
+        .sizeBytes = 8,
+        .sizeMultiplier = 1,
+        .getImageSpecific = cowGetImageSpecific,
     },
     [VIR_STORAGE_FILE_QCOW] = {
-        0, "QFI",
-        LV_BIG_ENDIAN, 4, 4, {1},
-        QCOWX_HDR_IMAGE_SIZE, 8, 1,
-        qcow1EncryptionInfo,
-        NULL, qcowXGetBackingStore, NULL, NULL
+        .magicOffset = 0,
+        .magic = "QFI",
+        .endian = LV_BIG_ENDIAN,
+        .versionOffset = 4,
+        .versionSize = 4,
+        .versionNumbers = {1},
+        .sizeOffset = QCOWX_HDR_IMAGE_SIZE,
+        .sizeBytes = 8,
+        .sizeMultiplier = 1,
+        .cryptInfo = qcow1EncryptionInfo,
+        .getImageSpecific = qcowGetImageSpecific,
     },
     [VIR_STORAGE_FILE_QCOW2] = {
-        0, "QFI",
-        LV_BIG_ENDIAN, 4, 4, {2, 3},
-        QCOWX_HDR_IMAGE_SIZE, 8, 1,
-        qcow2EncryptionInfo,
-        qcow2GetClusterSize,
-        qcowXGetBackingStore,
-        qcow2GetDataFile,
-        qcow2GetFeatures
+        .magicOffset = 0,
+        .magic = "QFI",
+        .endian = LV_BIG_ENDIAN,
+        .versionOffset = 4,
+        .versionSize = 4,
+        .versionNumbers = {2, 3},
+        .sizeOffset = QCOWX_HDR_IMAGE_SIZE,
+        .sizeBytes = 8,
+        .sizeMultiplier = 1,
+        .cryptInfo = qcow2EncryptionInfo,
+        .getImageSpecific = qcow2GetImageSpecific,
     },
     [VIR_STORAGE_FILE_QED] = {
         /* https://wiki.qemu.org/Features/QED */
-        0, "QED",
-        LV_LITTLE_ENDIAN, -2, 0, {0},
-        QED_HDR_IMAGE_SIZE, 8, 1, NULL, NULL, qedGetBackingStore, NULL, NULL
+        .magicOffset = 0,
+        .magic = "QED",
+        .endian = LV_LITTLE_ENDIAN,
+        .versionOffset = -2,
+        .sizeOffset = QED_HDR_IMAGE_SIZE,
+        .sizeBytes = 8,
+        .sizeMultiplier = 1,
+        .getImageSpecific = qedGetImageSpecific,
     },
     [VIR_STORAGE_FILE_VMDK] = {
-        0, "KDMV",
-        LV_LITTLE_ENDIAN, 4, 4, {1, 2, 3},
-        4+4+4, 8, 512, NULL, NULL, vmdk4GetBackingStore, NULL, NULL
+        .magicOffset = 0,
+        .magic = "KDMV",
+        .endian = LV_LITTLE_ENDIAN,
+        .versionOffset = 4,
+        .versionSize = 4,
+        .versionNumbers = {1, 2, 3},
+        .sizeOffset = 4 + 4 + 4,
+        .sizeBytes = 8,
+        .sizeMultiplier = 512,
+        .getImageSpecific = vmdk4GetImageSpecific,
     },
 };
 G_STATIC_ASSERT(G_N_ELEMENTS(fileTypeInfo) == VIR_STORAGE_FILE_LAST);
@@ -371,43 +434,37 @@ G_STATIC_ASSERT(G_N_ELEMENTS(qcow2IncompatibleFeatureArray) == QCOW2_INCOMPATIBL
 
 
 static int
-cowGetBackingStore(char **res,
-                   int *format,
-                   const char *buf,
-                   size_t buf_size)
+cowGetImageSpecific(virStorageSource *meta,
+                    const char *buf,
+                    size_t buf_size)
 {
 #define COW_FILENAME_MAXLEN 1024
-    *res = NULL;
-    *format = VIR_STORAGE_FILE_AUTO;
 
-    if (buf_size < 4+4+ COW_FILENAME_MAXLEN)
+    g_clear_pointer(&meta->backingStoreRaw, g_free);
+
+    if (buf_size < 4 + 4 + COW_FILENAME_MAXLEN)
         return 0;
-    if (buf[4+4] == '\0') { /* cow_header_v2.backing_file[0] */
-        *format = VIR_STORAGE_FILE_NONE;
+    if (buf[4 + 4] == '\0') { /* cow_header_v2.backing_file[0] */
+        meta->backingStoreRawFormat = VIR_STORAGE_FILE_NONE;
         return 0;
     }
 
-    *res = g_strndup((const char *)buf + 4 + 4, COW_FILENAME_MAXLEN);
+    meta->backingStoreRaw = g_strndup((const char *)buf + 4 + 4, COW_FILENAME_MAXLEN);
     return 0;
 }
 
 
 static int
-qcow2GetExtensions(const char *buf,
-                   size_t buf_size,
-                   int *backingFormat,
-                   char **dataFilePath)
+qcow2GetExtensions(virStorageSource *meta,
+                   const char *buf,
+                   size_t buf_size)
 {
     size_t offset;
     size_t extension_start;
     size_t extension_end;
     int version = virReadBufInt32BE(buf + QCOWX_HDR_VERSION);
 
-    if (version < 2) {
-        /* QCow1 doesn't have the extensions capability
-         * used to store backing format */
-        return 0;
-    }
+    g_clear_pointer(&meta->dataFileRaw, g_free);
 
     if (version == 2)
         extension_start = QCOW2_HDR_TOTAL_SIZE;
@@ -415,51 +472,56 @@ qcow2GetExtensions(const char *buf,
         extension_start = virReadBufInt32BE(buf + QCOW2v3_HDR_SIZE);
 
     /*
-     * Traditionally QCow2 files had a layout of
-     *
-     * [header]
-     * [backingStoreName]
-     *
-     * Although the backingStoreName typically followed
-     * the header immediately, this was not required by
-     * the format. By specifying a higher byte offset for
-     * the backing file offset in the header, it was
-     * possible to leave space between the header and
-     * start of backingStore.
-     *
-     * This hack is now used to store extensions to the
-     * qcow2 format:
+     * QCow2 header extensions are stored directly after the header before
+     * the (optional) backing store filename:
      *
      * [header]
      * [extensions]
      * [backingStoreName]
      *
-     * Thus the file region to search for extensions is
-     * between the end of the header (QCOW2_HDR_TOTAL_SIZE)
-     * and the start of the backingStoreName (offset)
+     * For qcow2(v2) the [header] portion has a fixed size (QCOW2_HDR_TOTAL_SIZE),
+     * whereas for qcow2v3 the size of the header itself is recorded inside
+     * the header (at offset QCOW2v3_HDR_SIZE).
      *
-     * for qcow2 v3 images, the length of the header
-     * is stored at QCOW2v3_HDR_SIZE
+     * Thus the file region to search for header extensions is
+     * between the end of the header and the start of the backingStoreName
+     * (QCOWX_HDR_BACKING_FILE_OFFSET) if a backing file is present (as
+     * otherwise the value at QCOWX_HDR_BACKING_FILE_OFFSET is 0)
      */
     extension_end = virReadBufInt64BE(buf + QCOWX_HDR_BACKING_FILE_OFFSET);
+
+    VIR_DEBUG("extension_start:%zu, extension_end:%zu, buf_size:%zu",
+              extension_start, extension_end, buf_size);
+
     if (extension_end > buf_size)
         return -1;
 
-    /*
-     * The extensions take format of
-     *
-     * int32: magic
-     * int32: length
-     * byte[length]: payload
-     *
-     * Unknown extensions can be ignored by skipping
-     * over "length" bytes in the data stream.
-     */
     offset = extension_start;
     while (offset < (buf_size-8) &&
-           offset < (extension_end-8)) {
+           (extension_end == 0 || offset <= (extension_end - 8))) {
+        /**
+         * Directly after the image header, optional sections called header
+         * extensions can
+         * be stored. Each extension has a structure like the following:
+         *
+         * Byte 0 -  3:   Header extension type:
+         *      0x00000000 - End of the header extension area
+         *      0xe2792aca - Backing file format name string
+         *      0x6803f857 - Feature name table
+         *      0x23852875 - Bitmaps extension
+         *      0x0537be77 - Full disk encryption header pointer
+         *      0x44415441 - External data file name string
+         *      other      - Unknown header extension, can be safely ignored
+         *
+         *      4 -  7:   Length of the header extension data
+         *      8 -  n:   Header extension data
+         *      n -  m:   Padding to round up the header extension size to the
+         *                next multiple of 8.
+         */
         unsigned int magic = virReadBufInt32BE(buf + offset);
         unsigned int len = virReadBufInt32BE(buf + offset + 4);
+
+        VIR_DEBUG("offset:%zu, len:%u, magic:0x%x", offset, len, magic);
 
         offset += 8;
 
@@ -471,13 +533,7 @@ qcow2GetExtensions(const char *buf,
 
         switch (magic) {
         case QCOW2_HDR_EXTENSION_BACKING_FORMAT: {
-            g_autofree char *tmp = NULL;
-            if (!backingFormat)
-                break;
-
-            tmp = g_new0(char, len + 1);
-            memcpy(tmp, buf + offset, len);
-            tmp[len] = '\0';
+            g_autofree char *tmp = g_strndup(buf + offset, len);
 
             /* qemu and qemu-img allow using the protocol driver name inside
              * of the format field in cases when the dummy 'raw' driver should
@@ -485,119 +541,152 @@ qcow2GetExtensions(const char *buf,
              * doesn't look like a format driver name to be a protocol driver
              * directly and thus the image is in fact still considered raw
              */
-            *backingFormat = virStorageFileFormatTypeFromString(tmp);
-            if (*backingFormat <= VIR_STORAGE_FILE_NONE)
-                *backingFormat = VIR_STORAGE_FILE_RAW;
+            meta->backingStoreRawFormat = virStorageFileFormatTypeFromString(tmp);
+            if (meta->backingStoreRawFormat <= VIR_STORAGE_FILE_NONE)
+                meta->backingStoreRawFormat = VIR_STORAGE_FILE_RAW;
             break;
         }
 
-        case QCOW2_HDR_EXTENSION_DATA_FILE_NAME: {
-            if (!dataFilePath)
-                break;
-
-            *dataFilePath = g_new0(char, len + 1);
-            memcpy(*dataFilePath, buf + offset, len);
+        case QCOW2_HDR_EXTENSION_DATA_FILE_NAME:
+            if (virBitmapIsBitSet(meta->features, VIR_STORAGE_FILE_FEATURE_DATA_FILE))
+                meta->dataFileRaw = g_strndup(buf + offset, len);
             break;
-        }
 
         case QCOW2_HDR_EXTENSION_END:
             return 0;
         }
 
-        offset += len;
+        /* take padding into account; see above */
+        offset += VIR_ROUND_UP(len, 8);
     }
 
     return 0;
 }
 
 
-static unsigned long long
-qcow2GetClusterSize(const char *buf,
-                    size_t buf_size)
-{
-    int clusterBits = 0;
-
-    if ((QCOWX_HDR_CLUSTER_BITS_OFFSET + 4) > buf_size)
-        return 0;
-
-    clusterBits = virReadBufInt32BE(buf + QCOWX_HDR_CLUSTER_BITS_OFFSET);
-
-    if (clusterBits > 0)
-        return 1ULL << clusterBits;
-
-    return 0;
-}
-
-
 static int
-qcowXGetBackingStore(char **res,
-                     int *format,
+qcowXGetBackingStore(virStorageSource *meta,
                      const char *buf,
                      size_t buf_size)
 {
     unsigned long long offset;
     unsigned int size;
 
-    *res = NULL;
-    *format = VIR_STORAGE_FILE_AUTO;
+    g_clear_pointer(&meta->backingStoreRaw, g_free);
+    meta->backingStoreRawFormat = VIR_STORAGE_FILE_AUTO;
 
     if (buf_size < QCOWX_HDR_BACKING_FILE_OFFSET+8+4)
         return 0;
 
     offset = virReadBufInt64BE(buf + QCOWX_HDR_BACKING_FILE_OFFSET);
+    size = virReadBufInt32BE(buf + QCOWX_HDR_BACKING_FILE_SIZE);
+
+    if (offset == 0 || size == 0) {
+        meta->backingStoreRawFormat = VIR_STORAGE_FILE_NONE;
+        return 0;
+    }
+
     if (offset > buf_size)
         return 0;
-
-    if (offset == 0) {
-        *format = VIR_STORAGE_FILE_NONE;
-        return 0;
-    }
-
-    size = virReadBufInt32BE(buf + QCOWX_HDR_BACKING_FILE_SIZE);
-    if (size == 0) {
-        *format = VIR_STORAGE_FILE_NONE;
-        return 0;
-    }
     if (size > 1023)
         return 0;
     if (offset + size > buf_size || offset + size < offset)
         return 0;
-    *res = g_new0(char, size + 1);
-    memcpy(*res, buf + offset, size);
-    (*res)[size] = '\0';
 
-    if (qcow2GetExtensions(buf, buf_size, format, NULL) < 0)
-        return 0;
+    meta->backingStoreRaw = g_strndup(buf + offset, size);
 
     return 0;
 }
 
 
 static int
-qcow2GetDataFile(char **res,
-                 virBitmap *features,
-                 char *buf,
-                 size_t buf_size)
-{
-    *res = NULL;
-
-    if (buf_size < QCOW2v3_HDR_FEATURES_INCOMPATIBLE + 8)
-        return 0;
-
-    if (features && virBitmapIsBitSet(features, VIR_STORAGE_FILE_FEATURE_DATA_FILE)) {
-        if (qcow2GetExtensions(buf, buf_size, NULL, res) < 0)
-            return -1;
-    }
-
-    return 0;
-}
-
-
-static int
-vmdk4GetBackingStore(char **res,
-                     int *format,
+qcowGetImageSpecific(virStorageSource *meta,
                      const char *buf,
                      size_t buf_size)
+{
+    return qcowXGetBackingStore(meta, buf, buf_size);
+}
+
+
+static void
+qcow2GetFeaturesProcessGroup(uint64_t bits,
+                             const virStorageFileFeature *featuremap,
+                             size_t nfeatures,
+                             virBitmap *features)
+{
+    size_t i;
+
+    for (i = 0; i < nfeatures; i++) {
+        if ((bits & ((uint64_t) 1 << i)) &&
+            featuremap[i] != VIR_STORAGE_FILE_FEATURE_LAST)
+            ignore_value(virBitmapSetBit(features, featuremap[i]));
+    }
+}
+
+
+static int
+qcow2GetFeatures(virStorageSource *meta,
+                 const char *buf,
+                 ssize_t len)
+{
+    int version = virReadBufInt32BE(buf + QCOWX_HDR_VERSION);
+
+    g_clear_pointer(&meta->features, virBitmapFree);
+    g_clear_pointer(&meta->compat, g_free);
+
+    if (version == 2)
+        return 0;
+
+    if (len < QCOW2v3_HDR_SIZE)
+        return -1;
+
+    meta->features = virBitmapNew(VIR_STORAGE_FILE_FEATURE_LAST);
+    meta->compat = g_strdup("1.1");
+
+    qcow2GetFeaturesProcessGroup(virReadBufInt64BE(buf + QCOW2v3_HDR_FEATURES_COMPATIBLE),
+                                 qcow2CompatibleFeatureArray,
+                                 G_N_ELEMENTS(qcow2CompatibleFeatureArray),
+                                 meta->features);
+
+    qcow2GetFeaturesProcessGroup(virReadBufInt64BE(buf + QCOW2v3_HDR_FEATURES_INCOMPATIBLE),
+                                 qcow2IncompatibleFeatureArray,
+                                 G_N_ELEMENTS(qcow2IncompatibleFeatureArray),
+                                 meta->features);
+
+    return 0;
+}
+
+
+static int
+qcow2GetImageSpecific(virStorageSource *meta,
+                      const char *buf,
+                      size_t buf_size)
+{
+    meta->clusterSize = 0;
+    if (buf_size > (QCOWX_HDR_CLUSTER_BITS_OFFSET + 4)) {
+        int clusterBits = virReadBufInt32BE(buf + QCOWX_HDR_CLUSTER_BITS_OFFSET);
+
+        if (clusterBits > 0)
+            meta->clusterSize = 1ULL << clusterBits;
+    }
+
+    if (qcowXGetBackingStore(meta, buf, buf_size) < 0)
+        return -1;
+
+    if (qcow2GetFeatures(meta, buf, buf_size) < 0)
+        return -1;
+
+    if (qcow2GetExtensions(meta, buf, buf_size) < 0)
+        return 0;
+
+    return 0;
+}
+
+
+static int
+vmdk4GetImageSpecific(virStorageSource *meta,
+                      const char *buf,
+                      size_t buf_size)
 {
     static const char prefix[] = "parentFileNameHint=\"";
     char *start, *end;
@@ -606,7 +695,7 @@ vmdk4GetBackingStore(char **res,
 
     desc = g_new0(char, VIR_STORAGE_MAX_HEADER);
 
-    *res = NULL;
+    g_clear_pointer(&meta->backingStoreRaw, g_free);
     /*
      * Technically this should have been VMDK, since
      * VMDK spec / VMware impl only support VMDK backed
@@ -614,7 +703,7 @@ vmdk4GetBackingStore(char **res,
      * does probing on VMDK backing files, hence we set
      * AUTO
      */
-    *format = VIR_STORAGE_FILE_AUTO;
+    meta->backingStoreRawFormat = VIR_STORAGE_FILE_AUTO;
 
     if (buf_size <= 0x200)
         return 0;
@@ -626,7 +715,7 @@ vmdk4GetBackingStore(char **res,
     desc[len] = '\0';
     start = strstr(desc, prefix);
     if (start == NULL) {
-        *format = VIR_STORAGE_FILE_NONE;
+        meta->backingStoreRawFormat = VIR_STORAGE_FILE_NONE;
         return 0;
     }
     start += strlen(prefix);
@@ -635,31 +724,32 @@ vmdk4GetBackingStore(char **res,
         return 0;
 
     if (end == start) {
-        *format = VIR_STORAGE_FILE_NONE;
+        meta->backingStoreRawFormat = VIR_STORAGE_FILE_NONE;
         return 0;
     }
     *end = '\0';
-    *res = g_strdup(start);
+    meta->backingStoreRaw = g_strdup(start);
 
     return 0;
 }
 
 static int
-qedGetBackingStore(char **res,
-                   int *format,
-                   const char *buf,
-                   size_t buf_size)
+qedGetImageSpecific(virStorageSource *meta,
+                    const char *buf,
+                    size_t buf_size)
 {
     unsigned long long flags;
     unsigned long offset, size;
 
-    *res = NULL;
+    g_clear_pointer(&meta->backingStoreRaw, g_free);
+
     /* Check if this image has a backing file */
     if (buf_size < QED_HDR_FEATURES_OFFSET+8)
         return 0;
+
     flags = virReadBufInt64LE(buf + QED_HDR_FEATURES_OFFSET);
     if (!(flags & QED_F_BACKING_FILE)) {
-        *format = VIR_STORAGE_FILE_NONE;
+        meta->backingStoreRawFormat = VIR_STORAGE_FILE_NONE;
         return 0;
     }
 
@@ -674,14 +764,13 @@ qedGetBackingStore(char **res,
         return 0;
     if (offset + size > buf_size || offset + size < offset)
         return 0;
-    *res = g_new0(char, size + 1);
-    memcpy(*res, buf + offset, size);
-    (*res)[size] = '\0';
+
+    meta->backingStoreRaw = g_strndup(buf + offset, size);
 
     if (flags & QED_F_BACKING_FORMAT_NO_PROBE)
-        *format = VIR_STORAGE_FILE_RAW;
+        meta->backingStoreRawFormat = VIR_STORAGE_FILE_RAW;
     else
-        *format = VIR_STORAGE_FILE_AUTO_SAFE;
+        meta->backingStoreRawFormat = VIR_STORAGE_FILE_AUTO_SAFE;
 
     return 0;
 }
@@ -804,54 +893,6 @@ virStorageFileProbeFormatFromBuf(const char *path,
 }
 
 
-static void
-qcow2GetFeaturesProcessGroup(uint64_t bits,
-                             const virStorageFileFeature *featuremap,
-                             size_t nfeatures,
-                             virBitmap *features)
-{
-    size_t i;
-
-    for (i = 0; i < nfeatures; i++) {
-        if ((bits & ((uint64_t) 1 << i)) &&
-            featuremap[i] != VIR_STORAGE_FILE_FEATURE_LAST)
-            ignore_value(virBitmapSetBit(features, featuremap[i]));
-    }
-}
-
-
-static int
-qcow2GetFeatures(virBitmap **features,
-                 int format,
-                 char *buf,
-                 ssize_t len)
-{
-    int version = -1;
-
-    version = virReadBufInt32BE(buf + fileTypeInfo[format].versionOffset);
-
-    if (version == 2)
-        return 0;
-
-    if (len < QCOW2v3_HDR_SIZE)
-        return -1;
-
-    *features = virBitmapNew(VIR_STORAGE_FILE_FEATURE_LAST);
-
-    qcow2GetFeaturesProcessGroup(virReadBufInt64BE(buf + QCOW2v3_HDR_FEATURES_COMPATIBLE),
-                                 qcow2CompatibleFeatureArray,
-                                 G_N_ELEMENTS(qcow2CompatibleFeatureArray),
-                                 *features);
-
-    qcow2GetFeaturesProcessGroup(virReadBufInt64BE(buf + QCOW2v3_HDR_FEATURES_INCOMPATIBLE),
-                                 qcow2IncompatibleFeatureArray,
-                                 G_N_ELEMENTS(qcow2IncompatibleFeatureArray),
-                                 *features);
-
-    return 0;
-}
-
-
 static bool
 virStorageFileHasEncryptionFormat(const struct FileEncryptionInfo *info,
                                   char *buf,
@@ -923,7 +964,6 @@ virStorageFileProbeGetMetadata(virStorageSource *meta,
                                char *buf,
                                size_t len)
 {
-    int format;
     size_t i;
 
     VIR_DEBUG("path=%s, buf=%p, len=%zu, meta->format=%d",
@@ -985,30 +1025,9 @@ virStorageFileProbeGetMetadata(virStorageSource *meta,
         meta->capacity *= fileTypeInfo[meta->format].sizeMultiplier;
     }
 
-    if (fileTypeInfo[meta->format].getClusterSize != NULL)
-        meta->clusterSize = fileTypeInfo[meta->format].getClusterSize(buf, len);
-
-    VIR_FREE(meta->backingStoreRaw);
-    if (fileTypeInfo[meta->format].getBackingStore != NULL) {
-        fileTypeInfo[meta->format].getBackingStore(&meta->backingStoreRaw,
-                                                   &format, buf, len);
-        meta->backingStoreRawFormat = format;
-    }
-
-    g_clear_pointer(&meta->features, virBitmapFree);
-    if (fileTypeInfo[meta->format].getFeatures != NULL &&
-        fileTypeInfo[meta->format].getFeatures(&meta->features, meta->format, buf, len) < 0)
+    if (fileTypeInfo[meta->format].getImageSpecific &&
+        fileTypeInfo[meta->format].getImageSpecific(meta, buf, len) < 0)
         return -1;
-
-    VIR_FREE(meta->dataFileRaw);
-    if (fileTypeInfo[meta->format].getDataFile != NULL) {
-        fileTypeInfo[meta->format].getDataFile(&meta->dataFileRaw, meta->features,
-                                               buf, len);
-    }
-
-    VIR_FREE(meta->compat);
-    if (meta->format == VIR_STORAGE_FILE_QCOW2 && meta->features)
-        meta->compat = g_strdup("1.1");
 
     return 0;
 }

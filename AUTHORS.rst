@@ -122,6 +122,7 @@ Patches have also been contributed by:
 * Allen, John <John.Allen@amd.com>
 * Alon Levy <alevy@redhat.com>
 * Alvaro Polo <apoloval@gmail.com>
+* Américo Monteiro <a_monteiro@gmx.com>
 * Amneesh Singh <natto@weirdnatto.in>
 * Amy Fong <amy.fong@windriver.com>
 * Amy Griffis <amy.griffis@hp.com>
@@ -131,6 +132,7 @@ Patches have also been contributed by:
 * Andi Chandler <andi@gowling.com>
 * Andika Triwidada <andika@gmail.com>
 * Andrea Bolognani <abologna@redhat.com>
+* Andrea Morelli <morelliandrea973@gmail.com>
 * Andres Lagar-Cavilla <andres@lagarcavilla.org>
 * Andrew Melnychenko <andrew@daynix.com>
 * Andrew Miloradovsky <andrew@interpretmath.pw>
@@ -139,6 +141,7 @@ Patches have also been contributed by:
 * Ani Sinha <ani@anisinha.ca>
 * Ani Sinha <ani.sinha@nutanix.com>
 * Ankush Menat <ankushmenat@gmail.com>
+* anonymix007 <48598263+anonymix007@users.noreply.github.com>
 * Anonymous <noreply@weblate.org>
 * Ansis Atteka <aatteka@nicira.com>
 * Anthony Liguori <aliguori@us.ibm.com>
@@ -319,6 +322,7 @@ Patches have also been contributed by:
 * Dwight Engen <dwight.engen@oracle.com>
 * eater <=@eater.me>
 * Edan David <edand@mellanox.com>
+* Edmon Begoli <ebegoli@gmail.com>
 * Ed Swierk <eswierk@aristanetworks.com>
 * Eduardo Costa <eduardobmc@gmail.com>
 * Eduardo Habkost <ehabkost@redhat.com>
@@ -492,6 +496,7 @@ Patches have also been contributed by:
 * Jim Fehlig via Devel <devel@lists.libvirt.org>
 * Jim Meyering <meyering@redhat.com>
 * Jim Paris <jim@jtan.com>
+* Jim Spentzos <jimspentzos2000@gmail.com>
 * Jincheng Miao <jmiao@redhat.com>
 * Jingjing Shao <jishao@redhat.com>
 * Jing Qi <jinqi@redhat.com>
@@ -547,6 +552,7 @@ Patches have also been contributed by:
 * Konrad Rzeszutek Wilk <konrad@kernel.org>
 * Konstantin Neumoin <kneumoin@virtuozzo.com>
 * Kothapally Madhu Pavan <kmp@linux.vnet.ibm.com>
+* Krisstoffe <krisstoffe@free.fr>
 * Kristina Hanicova <khanicov@redhat.com>
 * Kshitij Jha <kshitij.jha@nutanix.com>
 * K Shiva Kiran <shiva_kr@riseup.net>

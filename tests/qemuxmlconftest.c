@@ -1545,7 +1545,7 @@ mymain(void)
 
     DO_TEST_CAPS_LATEST("disk-cdrom");
     DO_TEST_CAPS_LATEST("disk-cdrom-empty-network-invalid");
-    DO_TEST_CAPS_LATEST("disk-cdrom-bus-other");
+    DO_TEST_CAPS_ARCH_LATEST_ABI_UPDATE("disk-cdrom-usb-empty", "x86_64");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("disk-cdrom-usb-empty");
     DO_TEST_CAPS_LATEST("disk-cdrom-network");
     DO_TEST_CAPS_LATEST("disk-cdrom-tray");
@@ -1593,19 +1593,16 @@ mymain(void)
     DO_TEST_CAPS_LATEST("disk-network-source-auth");
     DO_TEST_CAPS_LATEST("disk-network-source-curl");
     DO_TEST_CAPS_LATEST("disk-network-nfs");
-    driver.config->vxhsTLS = 1;
     driver.config->nbdTLSx509secretUUID = g_strdup("6fd3f62d-9fe7-4a4e-a869-7acd6376d8ea");
-    driver.config->vxhsTLSx509secretUUID = g_strdup("6fd3f62d-9fe7-4a4e-a869-7acd6376d8ea");
     DO_TEST_CAPS_LATEST("disk-network-tlsx509-nbd");
     DO_TEST_CAPS_VER_PARSE_ERROR("disk-network-tlsx509-nbd-hostname", "6.2.0");
     DO_TEST_CAPS_LATEST("disk-network-tlsx509-nbd-hostname");
     DO_TEST_CAPS_LATEST("disk-network-http");
     VIR_FREE(driver.config->nbdTLSx509secretUUID);
-    VIR_FREE(driver.config->vxhsTLSx509secretUUID);
-    driver.config->vxhsTLS = 0;
     DO_TEST_CAPS_LATEST("disk-network-ssh");
     DO_TEST_CAPS_LATEST("disk-no-boot");
     DO_TEST_CAPS_LATEST("disk-nvme");
+    DO_TEST_CAPS_LATEST("disk-target-nvme");
     DO_TEST_CAPS_LATEST("disk-vhostuser-numa");
     DO_TEST_CAPS_LATEST("disk-vhostuser");
     DO_TEST_CAPS_ARCH_LATEST_FULL("disk-vhostvdpa", "x86_64",
@@ -1613,7 +1610,19 @@ mymain(void)
     DO_TEST_CAPS_LATEST_PARSE_ERROR("disk-device-lun-type-invalid");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("disk-attaching-partition-nosupport");
     DO_TEST_CAPS_LATEST("disk-usb-device");
-    DO_TEST_CAPS_LATEST("disk-device-removable");
+    DO_TEST_CAPS_ARCH_LATEST_ABI_UPDATE("disk-usb-device", "x86_64");
+    DO_TEST_FULL("disk-usb-device", ".x86_64-latest.QEMU_CAPS_DEVICE_USB_BOT-disabled",
+                 ARG_CAPS_ARCH, "x86_64",
+                 ARG_CAPS_VER, "latest",
+                 ARG_QEMU_CAPS_DEL, QEMU_CAPS_DEVICE_USB_BOT, QEMU_CAPS_LAST,
+                 ARG_END);
+    DO_TEST_FULL("disk-usb-device", ".x86_64-latest.abi-update.QEMU_CAPS_DEVICE_USB_BOT-disabled",
+                 ARG_CAPS_ARCH, "x86_64",
+                 ARG_CAPS_VER, "latest",
+                 ARG_PARSEFLAGS, VIR_DOMAIN_DEF_PARSE_ABI_UPDATE,
+                 ARG_QEMU_CAPS_DEL, QEMU_CAPS_DEVICE_USB_BOT, QEMU_CAPS_LAST,
+                 ARG_END);
+    DO_TEST_CAPS_LATEST("disk-usb-device-model");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("disk-usb-pci");
     DO_TEST_CAPS_LATEST("disk-scsi");
     DO_TEST_CAPS_LATEST("disk-scsi-device-auto");
@@ -2752,6 +2761,8 @@ mymain(void)
 
     DO_TEST_CAPS_LATEST("acpi-table");
     DO_TEST_CAPS_LATEST("acpi-table-many");
+
+    DO_TEST_CAPS_LATEST("amd-iommu");
 
     DO_TEST_CAPS_LATEST("intel-iommu");
     DO_TEST_CAPS_LATEST("intel-iommu-caching-mode");

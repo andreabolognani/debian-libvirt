@@ -4453,6 +4453,13 @@ qemuDomainValidateStorageSource(virStorageSource *src,
         }
     }
 
+    if (actualType == VIR_STORAGE_TYPE_NVME &&
+        !virQEMUCapsGet(qemuCaps, QEMU_CAPS_DRIVE_NVME)) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("NVMe disks are not supported with this QEMU binary"));
+        return -1;
+    }
+
     if (src->pr &&
         !virQEMUCapsGet(qemuCaps, QEMU_CAPS_PR_MANAGER_HELPER)) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
@@ -4525,34 +4532,54 @@ qemuDomainValidateStorageSource(virStorageSource *src,
         return -1;
     }
 
-    /* TFTP protocol is not supported since QEMU 2.8.0 */
-    if (actualType == VIR_STORAGE_TYPE_NETWORK &&
-        src->protocol == VIR_STORAGE_NET_PROTOCOL_TFTP) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("'tftp' protocol is not supported with this QEMU binary"));
-        return -1;
-    }
+    if (actualType == VIR_STORAGE_TYPE_NETWORK) {
+        switch ((virStorageNetProtocol) src->protocol) {
+        case VIR_STORAGE_NET_PROTOCOL_GLUSTER:
+        case VIR_STORAGE_NET_PROTOCOL_HTTP:
+        case VIR_STORAGE_NET_PROTOCOL_HTTPS:
+        case VIR_STORAGE_NET_PROTOCOL_FTP:
+        case VIR_STORAGE_NET_PROTOCOL_FTPS:
+        case VIR_STORAGE_NET_PROTOCOL_ISCSI:
+        case VIR_STORAGE_NET_PROTOCOL_NBD:
+        case VIR_STORAGE_NET_PROTOCOL_RBD:
+        case VIR_STORAGE_NET_PROTOCOL_SSH:
+        case VIR_STORAGE_NET_PROTOCOL_SHEEPDOG:
+            break;
 
-    if (actualType == VIR_STORAGE_TYPE_NETWORK &&
-        src->protocol == VIR_STORAGE_NET_PROTOCOL_NFS) {
-        /* NFS protocol must have exactly one host */
-        if (src->nhosts != 1) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("'nfs' protocol requires the usage of exactly one host"));
+        case VIR_STORAGE_NET_PROTOCOL_NFS:
+            /* NFS protocol must have exactly one host */
+            if (src->nhosts != 1) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                               _("'nfs' protocol requires the usage of exactly one host"));
+                return -1;
+            }
+
+            /* NFS can only use a TCP protocol */
+            if (src->hosts[0].transport != VIR_STORAGE_NET_HOST_TRANS_TCP) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                               _("'nfs' host must use TCP protocol"));
+                return -1;
+            }
+
+            /* NFS host cannot have a port */
+            if (src->hosts[0].port != 0) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                               _("port cannot be specified in 'nfs' protocol host"));
+                return -1;
+            }
+            break;
+
+        /* TFTP protocol is not supported since QEMU 2.8.0 */
+        case VIR_STORAGE_NET_PROTOCOL_VXHS:
+        case VIR_STORAGE_NET_PROTOCOL_TFTP:
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                           _("storage protocol '%1$s' is not supported by this QEMU"),
+                           virStorageNetProtocolTypeToString(src->protocol));
             return -1;
-        }
 
-        /* NFS can only use a TCP protocol */
-        if (src->hosts[0].transport != VIR_STORAGE_NET_HOST_TRANS_TCP) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("'nfs' host must use TCP protocol"));
-            return -1;
-        }
-
-        /* NFS host cannot have a port */
-        if (src->hosts[0].port != 0) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("port cannot be specified in 'nfs' protocol host"));
+        case VIR_STORAGE_NET_PROTOCOL_NONE:
+        case VIR_STORAGE_NET_PROTOCOL_LAST:
+            virReportEnumRangeError(virStorageNetProtocol, src->protocol);
             return -1;
         }
     }
@@ -5313,6 +5340,27 @@ qemuDomainDefFormatBufInternal(virQEMUDriver *driver,
                     break;
                 }
             }
+        }
+
+        for (i = 0; i < def->ndisks; i++) {
+            virDomainDiskDef *disk = def->disks[i];
+
+            /* The 'model' property for USB disks was introduced long after USB
+             * disks to allow switching between 'usb-storage' and 'usb-bot'
+             * device. Despite sharing identical implementation 'usb-bot' allows
+             * proper configuration of USB cdroms. Unfortunately it is not ABI
+             * compatible.
+             *
+             * To preserve migration to older daemons we can strip the model to
+             * the default if:
+             * - it's a normal disk (not cdrom) as both are identical
+             * - for a usb-cdrom strip the model if it's not 'usb-bot' as that
+             *   was the old configuration
+             */
+            if (disk->bus == VIR_DOMAIN_DISK_BUS_USB &&
+                (disk->model == VIR_DOMAIN_DISK_MODEL_USB_STORAGE ||
+                 disk->device == VIR_DOMAIN_DISK_DEVICE_DISK))
+                disk->model = VIR_DOMAIN_DISK_MODEL_DEFAULT;
         }
 
         /* Replace the CPU definition updated according to QEMU with the one
@@ -8772,40 +8820,6 @@ qemuDomainPrepareChardevSourceOne(virDomainDeviceDef *dev,
 
 
 static int
-qemuProcessPrepareStorageSourceTLSVxhs(virStorageSource *src,
-                                       virQEMUDriverConfig *cfg,
-                                       qemuDomainObjPrivate *priv,
-                                       const char *parentAlias)
-{
-    /* VxHS uses only client certificates and thus has no need for
-     * the server-key.pem nor a secret that could be used to decrypt
-     * the it, so no need to add a secinfo for a secret UUID. */
-    if (src->haveTLS == VIR_TRISTATE_BOOL_ABSENT) {
-        if (cfg->vxhsTLS)
-            src->haveTLS = VIR_TRISTATE_BOOL_YES;
-        else
-            src->haveTLS = VIR_TRISTATE_BOOL_NO;
-        src->tlsFromConfig = true;
-    }
-
-    if (src->haveTLS == VIR_TRISTATE_BOOL_YES) {
-        src->tlsAlias = qemuAliasTLSObjFromSrcAlias(parentAlias);
-        src->tlsCertdir = g_strdup(cfg->vxhsTLSx509certdir);
-
-        if (cfg->vxhsTLSx509secretUUID) {
-            qemuDomainStorageSourcePrivate *srcpriv = qemuDomainStorageSourcePrivateFetch(src);
-
-            if (!(srcpriv->tlsKeySecret = qemuDomainSecretInfoTLSNew(priv, src->tlsAlias,
-                                                                     cfg->vxhsTLSx509secretUUID)))
-                return -1;
-        }
-    }
-
-    return 0;
-}
-
-
-static int
 qemuProcessPrepareStorageSourceTLSNBD(virStorageSource *src,
                                       virQEMUDriverConfig *cfg,
                                       qemuDomainObjPrivate *priv,
@@ -8931,8 +8945,7 @@ qemuDomainPrepareStorageSourceTLS(virStorageSource *src,
 
     switch ((virStorageNetProtocol) src->protocol) {
     case VIR_STORAGE_NET_PROTOCOL_VXHS:
-        if (qemuProcessPrepareStorageSourceTLSVxhs(src, cfg, priv, parentAlias) < 0)
-            return -1;
+        /* vxhs is no longer supported */
         break;
 
     case VIR_STORAGE_NET_PROTOCOL_NBD:

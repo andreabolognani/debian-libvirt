@@ -703,8 +703,10 @@ qemuDomainAttachDiskGeneric(virDomainObj *vm,
     g_autoptr(qemuBlockStorageSourceChainData) data = NULL;
     g_autoptr(qemuBlockThrottleFiltersData) filterData = NULL;
     qemuDomainObjPrivate *priv = vm->privateData;
+    g_autoptr(virJSONValue) busprops = NULL;
     g_autoptr(virJSONValue) devprops = NULL;
     bool extensionDeviceAttached = false;
+    bool busAdded = false;
     int rc;
     g_autoptr(qemuSnapshotDiskContext) transientDiskSnapshotCtxt = NULL;
     bool origReadonly = disk->src->readonly;
@@ -774,6 +776,9 @@ qemuDomainAttachDiskGeneric(virDomainObj *vm,
         }
     }
 
+    if (qemuBuildDiskBusProps(vm->def, disk, &busprops) < 0)
+        goto rollback;
+
     if (!(devprops = qemuBuildDiskDeviceProps(vm->def, disk, priv->qemuCaps)))
         goto rollback;
 
@@ -782,6 +787,10 @@ qemuDomainAttachDiskGeneric(virDomainObj *vm,
 
     if ((rc = qemuDomainAttachExtensionDevice(priv->mon, &disk->info)) == 0)
         extensionDeviceAttached = true;
+
+    if (rc == 0 && busprops &&
+        (rc = qemuMonitorAddDeviceProps(priv->mon, &busprops)) == 0)
+        busAdded = true;
 
     if (rc == 0)
         rc = qemuMonitorAddDeviceProps(priv->mon, &devprops);
@@ -811,6 +820,11 @@ qemuDomainAttachDiskGeneric(virDomainObj *vm,
         }
     }
 
+    if (rc == 0 &&
+        disk->bus == VIR_DOMAIN_DISK_BUS_USB &&
+        disk->model == VIR_DOMAIN_DISK_MODEL_USB_BOT)
+        rc = qemuMonitorSetUSBDiskAttached(priv->mon, disk->info.alias);
+
     qemuDomainObjExitMonitor(vm);
 
     if (rc < 0)
@@ -821,6 +835,9 @@ qemuDomainAttachDiskGeneric(virDomainObj *vm,
  rollback:
     if (qemuDomainObjEnterMonitorAsync(vm, asyncJob) < 0)
         return -1;
+
+    if (busAdded)
+        ignore_value(qemuMonitorDelDevice(priv->mon, disk->info.alias));
 
     if (extensionDeviceAttached)
         ignore_value(qemuDomainDetachExtensionDevice(priv->mon, &disk->info));
@@ -1058,6 +1075,7 @@ qemuDomainAttachDeviceDiskLiveInternal(virQEMUDriver *driver,
         /* Note that SD card hotplug support should be added only once
          * they support '-device' (don't require -drive only).
          * See also: qemuDiskBusIsSD */
+    case VIR_DOMAIN_DISK_BUS_NVME:
     case VIR_DOMAIN_DISK_BUS_NONE:
     case VIR_DOMAIN_DISK_BUS_LAST:
         virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
@@ -5776,6 +5794,7 @@ qemuDomainDetachPrepDisk(virDomainObj *vm,
         case VIR_DOMAIN_DISK_BUS_SCSI:
             break;
 
+        case VIR_DOMAIN_DISK_BUS_NVME:
         case VIR_DOMAIN_DISK_BUS_IDE:
         case VIR_DOMAIN_DISK_BUS_FDC:
         case VIR_DOMAIN_DISK_BUS_XEN:
@@ -5856,6 +5875,10 @@ qemuDomainDiskControllerIsBusy(virDomainObj *vm,
                 continue;
             break;
 
+        case VIR_DOMAIN_CONTROLLER_TYPE_NVME:
+            /* nvme is not supported by the qemu driver */
+            break;
+
         case VIR_DOMAIN_CONTROLLER_TYPE_XENBUS:
             /* xenbus is not supported by the qemu driver */
             continue;
@@ -5905,6 +5928,7 @@ qemuDomainControllerIsBusy(virDomainObj *vm,
     case VIR_DOMAIN_CONTROLLER_TYPE_FDC:
     case VIR_DOMAIN_CONTROLLER_TYPE_SCSI:
     case VIR_DOMAIN_CONTROLLER_TYPE_SATA:
+    case VIR_DOMAIN_CONTROLLER_TYPE_NVME:
         return qemuDomainDiskControllerIsBusy(vm, detach);
 
     case VIR_DOMAIN_CONTROLLER_TYPE_VIRTIO_SERIAL:
@@ -5934,7 +5958,8 @@ qemuDomainDetachPrepController(virDomainObj *vm,
     int idx;
     virDomainControllerDef *controller = NULL;
 
-    if (match->type != VIR_DOMAIN_CONTROLLER_TYPE_SCSI) {
+    if (match->type != VIR_DOMAIN_CONTROLLER_TYPE_SCSI &&
+        match->type != VIR_DOMAIN_CONTROLLER_TYPE_NVME) {
         virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
                        _("'%1$s' controller cannot be hot unplugged."),
                        virDomainControllerTypeToString(match->type));

@@ -5509,129 +5509,6 @@ qemuProcessMakeDir(virQEMUDriver *driver,
 }
 
 
-static bool
-virDomainDefHasDBus(const virDomainDef *def, bool p2p)
-{
-    size_t i = 0;
-
-    for (i = 0; i < def->ngraphics; i++) {
-        virDomainGraphicsDef *graphics = def->graphics[i];
-
-        if (graphics->type == VIR_DOMAIN_GRAPHICS_TYPE_DBUS) {
-            return graphics->data.dbus.p2p == p2p;
-        }
-    }
-
-    return false;
-}
-
-
-static int
-qemuProcessStartValidateGraphics(virDomainObj *vm)
-{
-    size_t i;
-
-    for (i = 0; i < vm->def->ngraphics; i++) {
-        virDomainGraphicsDef *graphics = vm->def->graphics[i];
-
-        switch (graphics->type) {
-        case VIR_DOMAIN_GRAPHICS_TYPE_VNC:
-        case VIR_DOMAIN_GRAPHICS_TYPE_SPICE:
-            if (graphics->nListens > 1) {
-                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                               _("QEMU does not support multiple listens for one graphics device."));
-                return -1;
-            }
-            break;
-
-        case VIR_DOMAIN_GRAPHICS_TYPE_RDP:
-            if (graphics->nListens > 1) {
-                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                               _("qemu-rdp does not support multiple listens for one graphics device."));
-                return -1;
-            }
-            if (graphics->data.rdp.multiUser) {
-                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                               _("qemu-rdp doesn't support the 'multiUser' attribute."));
-                return -1;
-            }
-            if (graphics->data.rdp.replaceUser) {
-                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                               _("qemu-rdp doesn't support the 'replaceUser' attribute."));
-                return -1;
-            }
-            if (!virDomainDefHasDBus(vm->def, false)) {
-                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                               _("qemu-rdp support requires a D-Bus bus graphics device."));
-                return -1;
-            }
-            break;
-
-        case VIR_DOMAIN_GRAPHICS_TYPE_SDL:
-        case VIR_DOMAIN_GRAPHICS_TYPE_DESKTOP:
-        case VIR_DOMAIN_GRAPHICS_TYPE_EGL_HEADLESS:
-        case VIR_DOMAIN_GRAPHICS_TYPE_DBUS:
-        case VIR_DOMAIN_GRAPHICS_TYPE_LAST:
-            break;
-        }
-    }
-
-    return 0;
-}
-
-
-static int
-qemuProcessStartValidateShmem(virDomainObj *vm)
-{
-    size_t i;
-
-    for (i = 0; i < vm->def->nshmems; i++) {
-        virDomainShmemDef *shmem = vm->def->shmems[i];
-
-        if (strchr(shmem->name, '/')) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("shmem name '%1$s' must not contain '/'"),
-                           shmem->name);
-            return -1;
-        }
-    }
-
-    return 0;
-}
-
-
-static int
-qemuProcessStartValidateDisks(virDomainObj *vm,
-                              virQEMUCaps *qemuCaps)
-{
-    size_t i;
-
-    for (i = 0; i < vm->def->ndisks; i++) {
-        virDomainDiskDef *disk = vm->def->disks[i];
-        virStorageSource *src = disk->src;
-
-        /* This is a best effort check as we can only check if the command
-         * option exists, but we cannot determine whether the running QEMU
-         * was build with '--enable-vxhs'. */
-        if (src->type == VIR_STORAGE_TYPE_NETWORK &&
-            src->protocol == VIR_STORAGE_NET_PROTOCOL_VXHS) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("VxHS protocol is not supported with this QEMU binary"));
-            return -1;
-        }
-
-        if (src->type == VIR_STORAGE_TYPE_NVME &&
-            !virQEMUCapsGet(qemuCaps, QEMU_CAPS_DRIVE_NVME)) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("NVMe disks are not supported with this QEMU binary"));
-            return -1;
-        }
-    }
-
-    return 0;
-}
-
-
 /* 250 parts per million (ppm) is a half of NTP threshold */
 #define TSC_TOLERANCE 250
 
@@ -5736,12 +5613,6 @@ qemuProcessStartValidate(virQEMUDriver *driver,
     if (virDomainDefValidate(vm->def, 0, driver->xmlopt, qemuCaps) < 0)
         return -1;
 
-    if (qemuProcessStartValidateGraphics(vm) < 0)
-        return -1;
-
-    if (qemuProcessStartValidateShmem(vm) < 0)
-        return -1;
-
     if (vm->def->cpu) {
         if (virCPUValidateFeatures(vm->def->os.arch, vm->def->cpu) < 0)
             return -1;
@@ -5767,9 +5638,6 @@ qemuProcessStartValidate(virQEMUDriver *driver,
             }
         }
     }
-
-    if (qemuProcessStartValidateDisks(vm, qemuCaps) < 0)
-        return -1;
 
     if (qemuProcessStartValidateTSC(driver, vm) < 0)
         return -1;

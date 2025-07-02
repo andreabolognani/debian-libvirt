@@ -532,8 +532,34 @@ qemuBuildDeviceAddresDriveProps(virJSONValue *props,
 
         break;
 
-    case VIR_DOMAIN_DISK_BUS_VIRTIO:
+    case VIR_DOMAIN_DISK_BUS_NVME:
+        if (!(controllerAlias = virDomainControllerAliasFind(domainDef,
+                                                             VIR_DOMAIN_CONTROLLER_TYPE_NVME,
+                                                             info->addr.drive.controller)))
+            return -1;
+
+        if (virJSONValueObjectAdd(&props,
+                                  "s:bus", controllerAlias,
+                                  "u:nsid", info->addr.drive.unit + 1,
+                                  NULL) < 0)
+            return -1;
+        break;
+
     case VIR_DOMAIN_DISK_BUS_USB:
+        /* Device info with type VIR_DOMAIN_DEVICE_ADDRESS_TYPE_DRIVE and
+         * VIR_DOMAIN_DISK_BUS_USB diskbus is an internal representation
+         * for the device address for 'usb-bot'. */
+        bus = g_strdup_printf("%s.0", info->alias);
+
+        if (virJSONValueObjectAdd(&props,
+                                  "s:bus", bus,
+                                  "u:scsi-id", info->addr.drive.target,
+                                  "u:lun", info->addr.drive.unit,
+                                  NULL) < 0)
+            return -1;
+        break;
+
+    case VIR_DOMAIN_DISK_BUS_VIRTIO:
     case VIR_DOMAIN_DISK_BUS_XEN:
     case VIR_DOMAIN_DISK_BUS_UML:
     case VIR_DOMAIN_DISK_BUS_SD:
@@ -1600,6 +1626,33 @@ qemuBuildIothreadMappingProps(GSList *iothreads)
     return g_steal_pointer(&ret);
 }
 
+int
+qemuBuildDiskBusProps(const virDomainDef *def,
+                      const virDomainDiskDef *disk,
+                      virJSONValue **propsRet)
+{
+    g_autoptr(virJSONValue) props = NULL;
+
+    *propsRet = NULL;
+
+    if (disk->bus != VIR_DOMAIN_DISK_BUS_USB ||
+        disk->model != VIR_DOMAIN_DISK_MODEL_USB_BOT)
+        return 0;
+
+    if (virJSONValueObjectAdd(&props,
+                              "s:driver", "usb-bot",
+                              "s:id", disk->info.alias,
+                              "S:serial", disk->serial,
+                              NULL) < 0)
+        return -1;
+
+    if (qemuBuildDeviceAddressProps(props, def, &disk->info) < 0)
+        return -1;
+
+    *propsRet = g_steal_pointer(&props);
+
+    return 0;
+}
 
 virJSONValue *
 qemuBuildDiskDeviceProps(const virDomainDef *def,
@@ -1626,6 +1679,18 @@ qemuBuildDiskDeviceProps(const virDomainDef *def,
     const char *rpolicy = NULL;
     const char *model = NULL;
     const char *product = NULL;
+    const char *alias = disk->info.alias;
+    g_autofree char *usbdiskalias = NULL;
+    const virDomainDeviceInfo *deviceinfo = &disk->info;
+    virDomainDeviceInfo usbSCSIinfo = {
+        .type = VIR_DOMAIN_DEVICE_ADDRESS_TYPE_DRIVE,
+        .addr.drive = { .diskbus = VIR_DOMAIN_DISK_BUS_USB },
+        .effectiveBootIndex = deviceinfo->effectiveBootIndex,
+        .alias = deviceinfo->alias,
+    };
+
+    if (disk->info.type == VIR_DOMAIN_DEVICE_ADDRESS_TYPE_DRIVE)
+        disk->info.addr.drive.diskbus = disk->bus;
 
     switch (disk->bus) {
     case VIR_DOMAIN_DISK_BUS_IDE:
@@ -1709,17 +1774,43 @@ qemuBuildDiskDeviceProps(const virDomainDef *def,
         break;
 
     case VIR_DOMAIN_DISK_BUS_USB:
-        driver = "usb-storage";
+        switch (disk->model) {
+        case VIR_DOMAIN_DISK_MODEL_USB_STORAGE:
+            driver = "usb-storage";
 
-        if (disk->removable == VIR_TRISTATE_SWITCH_ABSENT)
-            removable = VIR_TRISTATE_SWITCH_OFF;
-        else
-            removable = disk->removable;
+            if (disk->removable == VIR_TRISTATE_SWITCH_ABSENT)
+                removable = VIR_TRISTATE_SWITCH_OFF;
+            else
+                removable = disk->removable;
+            break;
 
+        case VIR_DOMAIN_DISK_MODEL_USB_BOT:
+            if (disk->device == VIR_DOMAIN_DISK_DEVICE_CDROM) {
+                driver = "scsi-cd";
+            } else {
+                driver = "scsi-hd";
+                removable = disk->removable;
+            }
+
+            deviceinfo = &usbSCSIinfo;
+            alias = usbdiskalias = g_strdup_printf("%s-device", disk->info.alias);
+            break;
+
+        case VIR_DOMAIN_DISK_MODEL_DEFAULT:
+        case VIR_DOMAIN_DISK_MODEL_VIRTIO:
+        case VIR_DOMAIN_DISK_MODEL_VIRTIO_TRANSITIONAL:
+        case VIR_DOMAIN_DISK_MODEL_VIRTIO_NON_TRANSITIONAL:
+        case VIR_DOMAIN_DISK_MODEL_LAST:
+            break;
+        }
         break;
 
     case VIR_DOMAIN_DISK_BUS_FDC:
         driver = "floppy";
+        break;
+
+    case VIR_DOMAIN_DISK_BUS_NVME:
+        driver = "nvme-ns";
         break;
 
     case VIR_DOMAIN_DISK_BUS_XEN:
@@ -1741,10 +1832,7 @@ qemuBuildDiskDeviceProps(const virDomainDef *def,
             return NULL;
     }
 
-    if (disk->info.type == VIR_DOMAIN_DEVICE_ADDRESS_TYPE_DRIVE)
-        disk->info.addr.drive.diskbus = disk->bus;
-
-    if (qemuBuildDeviceAddressProps(props, def, &disk->info) < 0)
+    if (qemuBuildDeviceAddressProps(props, def, deviceinfo) < 0)
         return NULL;
 
     if (disk->src->shared)
@@ -1791,7 +1879,8 @@ qemuBuildDiskDeviceProps(const virDomainDef *def,
     if (disk->geometry.trans != VIR_DOMAIN_DISK_TRANS_DEFAULT)
         biosCHSTrans = virDomainDiskGeometryTransTypeToString(disk->geometry.trans);
 
-    if (disk->serial) {
+    /* NVMe disks have serial numbers attached to controllers, not namespaces */
+    if (disk->serial && disk->bus != VIR_DOMAIN_DISK_BUS_NVME) {
         virBuffer buf = VIR_BUFFER_INITIALIZER;
 
         virBufferEscape(&buf, '\\', " ", "%s", disk->serial);
@@ -1805,7 +1894,7 @@ qemuBuildDiskDeviceProps(const virDomainDef *def,
                               "T:share-rw", shareRW,
                               "S:drive", drive,
                               "S:chardev", chardev,
-                              "s:id", disk->info.alias,
+                              "s:id", alias,
                               "p:bootindex", bootindex,
                               "S:loadparm", bootLoadparm,
                               "p:logical_block_size", logical_block_size,
@@ -2170,6 +2259,7 @@ qemuBuildDiskCommandLine(virCommand *cmd,
                          virQEMUCaps *qemuCaps)
 {
     g_autoptr(virJSONValue) devprops = NULL;
+    g_autoptr(virJSONValue) busprops = NULL;
 
     if (qemuBuildDiskSourceCommandLine(cmd, disk, qemuCaps) < 0)
         return -1;
@@ -2183,6 +2273,13 @@ qemuBuildDiskCommandLine(virCommand *cmd,
         return 0;
 
     if (qemuCommandAddExtDevice(cmd, &disk->info, def, qemuCaps) < 0)
+        return -1;
+
+    if (qemuBuildDiskBusProps(def, disk, &busprops) < 0)
+        return -1;
+
+    if (busprops &&
+        qemuBuildDeviceCommandlineFromJSON(cmd, busprops, def, qemuCaps) < 0)
         return -1;
 
     if (!(devprops = qemuBuildDiskDeviceProps(def, disk, qemuCaps)))
@@ -2851,6 +2948,18 @@ qemuBuildControllerDevProps(const virDomainDef *domainDef,
 
         break;
 
+    case VIR_DOMAIN_CONTROLLER_TYPE_NVME:
+        if (virJSONValueObjectAdd(&props,
+                                  "s:driver", "nvme",
+                                  "s:id", def->info.alias,
+                                  "s:serial", def->opts.nvmeopts.serial,
+                                  "p:num_queues", def->queues,
+                                  "T:ioeventfd", def->ioeventfd,
+                                  NULL) < 0)
+            return -1;
+
+        break;
+
     case VIR_DOMAIN_CONTROLLER_TYPE_IDE:
     case VIR_DOMAIN_CONTROLLER_TYPE_FDC:
     case VIR_DOMAIN_CONTROLLER_TYPE_XENBUS:
@@ -3013,6 +3122,7 @@ qemuBuildControllersCommandLine(virCommand *cmd,
         VIR_DOMAIN_CONTROLLER_TYPE_IDE,
         VIR_DOMAIN_CONTROLLER_TYPE_SATA,
         VIR_DOMAIN_CONTROLLER_TYPE_VIRTIO_SERIAL,
+        VIR_DOMAIN_CONTROLLER_TYPE_NVME,
     };
 
     for (i = 0; i < G_N_ELEMENTS(contOrder); i++) {
@@ -6134,6 +6244,7 @@ qemuBuildIOMMUCommandLine(virCommand *cmd,
                           virQEMUCaps *qemuCaps)
 {
     g_autoptr(virJSONValue) props = NULL;
+    g_autoptr(virJSONValue) wrapperProps = NULL;
     const virDomainIOMMUDef *iommu = def->iommu;
 
     if (!iommu)
@@ -6176,6 +6287,34 @@ qemuBuildIOMMUCommandLine(virCommand *cmd,
 
     case VIR_DOMAIN_IOMMU_MODEL_SMMUV3:
         /* There is no -device for SMMUv3, so nothing to be done here */
+        return 0;
+
+    case VIR_DOMAIN_IOMMU_MODEL_AMD:
+        if (virJSONValueObjectAdd(&wrapperProps,
+                                  "s:driver", "AMDVI-PCI",
+                                  "s:id", iommu->info.alias,
+                                  NULL) < 0)
+            return -1;
+
+        if (qemuBuildDeviceAddressProps(wrapperProps, def, &iommu->info) < 0)
+            return -1;
+
+        if (qemuBuildDeviceCommandlineFromJSON(cmd, wrapperProps, def, qemuCaps) < 0)
+            return -1;
+
+        if (virJSONValueObjectAdd(&props,
+                                  "s:driver", "amd-iommu",
+                                  "s:pci-id", iommu->info.alias,
+                                  "S:intremap", qemuOnOffAuto(iommu->intremap),
+                                  "T:pt", iommu->pt,
+                                  "T:xtsup", iommu->xtsup,
+                                  "T:device-iotlb", iommu->iotlb,
+                                  NULL) < 0)
+            return -1;
+
+        if (qemuBuildDeviceCommandlineFromJSON(cmd, props, def, qemuCaps) < 0)
+            return -1;
+
         return 0;
 
     case VIR_DOMAIN_IOMMU_MODEL_LAST:
@@ -7010,6 +7149,7 @@ qemuBuildMachineCommandLine(virCommand *cmd,
 
         case VIR_DOMAIN_IOMMU_MODEL_INTEL:
         case VIR_DOMAIN_IOMMU_MODEL_VIRTIO:
+        case VIR_DOMAIN_IOMMU_MODEL_AMD:
             /* These IOMMUs are formatted in qemuBuildIOMMUCommandLine */
             break;
 
@@ -8108,7 +8248,7 @@ qemuBuildGraphicsSDLCommandLine(virQEMUDriverConfig *cfg G_GNUC_UNUSED,
         virCommandAddEnvPair(cmd, "XAUTHORITY", graphics->data.sdl.xauth);
     if (graphics->data.sdl.display)
         virCommandAddEnvPair(cmd, "DISPLAY", graphics->data.sdl.display);
-    if (graphics->data.sdl.fullscreen)
+    if (graphics->data.sdl.fullscreen == VIR_TRISTATE_BOOL_YES)
         virCommandAddArg(cmd, "-full-screen");
 
     virCommandAddArg(cmd, "-display");
@@ -8713,6 +8853,7 @@ qemuBuildInterfaceCommandLine(virQEMUDriver *driver,
     bool requireNicdev = false;
     g_autoptr(virJSONValue) hostnetprops = NULL;
     qemuDomainNetworkPrivate *netpriv = QEMU_DOMAIN_NETWORK_PRIVATE(net);
+    bool setBackendMTU = true;
     GSList *n;
 
     if (qemuDomainValidateActualNetDef(net, qemuCaps) < 0)
@@ -8802,6 +8943,7 @@ qemuBuildInterfaceCommandLine(virQEMUDriver *driver,
     case VIR_DOMAIN_NET_TYPE_NULL:
     case VIR_DOMAIN_NET_TYPE_VDS:
     case VIR_DOMAIN_NET_TYPE_LAST:
+        setBackendMTU = false;
        /* These types don't use a network device on the host, but
         * instead use some other type of connection to the emulated
         * device in the qemu process.
@@ -8842,7 +8984,7 @@ qemuBuildInterfaceCommandLine(virQEMUDriver *driver,
         }
     }
 
-    if (net->mtu && net->managed_tap != VIR_TRISTATE_BOOL_NO &&
+    if (net->mtu && setBackendMTU && net->managed_tap != VIR_TRISTATE_BOOL_NO &&
         virNetDevSetMTU(net->ifname, net->mtu) < 0)
         goto cleanup;
 

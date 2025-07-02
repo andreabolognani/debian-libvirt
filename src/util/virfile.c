@@ -3408,7 +3408,8 @@ virFileSanitizePath(const char *path)
 /**
  * virFileCanonicalizePath:
  *
- * Returns the canonical representation of @path.
+ * Returns the canonical representation of @path. This function is only
+ * guaranteed to work when @path exists. It may return NULL otherwise.
  *
  * The returned string must be freed after use.
  */
@@ -3442,6 +3443,34 @@ virFileRemoveLastComponent(char *path)
     else
         path[0] = '\0';
 }
+
+
+static char *
+virFileGetExistingParent(const char *path)
+{
+    g_autofree char *dirpath = g_strdup(path);
+    char *p = NULL;
+
+    /* Try less and less of the path until we get to a directory we can access.
+     * Even if we don't have 'x' permission on any directory in the path on the
+     * NFS server (assuming it's NFS), we will be able to stat the mount point.
+     */
+    while (!virFileExists(dirpath) && p != dirpath) {
+        if (!(p = strrchr(dirpath, '/'))) {
+            virReportSystemError(EINVAL,
+                                 _("Invalid relative path '%1$s'"), path);
+            return NULL;
+        }
+
+        if (p == dirpath)
+            *(p + 1) = '\0';
+        else
+            *p = '\0';
+    }
+
+    return g_steal_pointer(&dirpath);
+}
+
 
 #ifdef __linux__
 
@@ -3575,40 +3604,14 @@ virFileIsSharedFSType(const char *path,
                       unsigned int fstypes)
 {
     g_autofree char *dirpath = NULL;
-    char *p = NULL;
     struct statfs sb;
-    int statfs_ret;
     long long f_type = 0;
     size_t i;
 
-    dirpath = g_strdup(path);
+    if (!(dirpath = virFileGetExistingParent(path)))
+        return -1;
 
-    statfs_ret = statfs(dirpath, &sb);
-
-    while ((statfs_ret < 0) && (p != dirpath)) {
-        /* Try less and less of the path until we get to a
-         * directory we can stat. Even if we don't have 'x'
-         * permission on any directory in the path on the NFS
-         * server (assuming it's NFS), we will be able to stat the
-         * mount point, and that will properly tell us if the
-         * fstype is NFS.
-         */
-
-        if ((p = strrchr(dirpath, '/')) == NULL) {
-            virReportSystemError(EINVAL,
-                                 _("Invalid relative path '%1$s'"), path);
-            return -1;
-        }
-
-        if (p == dirpath)
-            *(p+1) = '\0';
-        else
-            *p = '\0';
-
-        statfs_ret = statfs(dirpath, &sb);
-    }
-
-    if (statfs_ret < 0) {
+    if (statfs(dirpath, &sb) < 0) {
         virReportSystemError(errno,
                              _("cannot determine filesystem for '%1$s'"),
                              path);
@@ -3818,15 +3821,26 @@ virFileIsSharedFSOverride(const char *path,
                           char *const *overrides)
 {
     g_autofree char *dirpath = NULL;
+    g_autofree char *existing = NULL;
     char *p = NULL;
 
     if (!path || path[0] != '/' || !overrides)
         return false;
 
+    /* We only care about the longest existing sub-path. Further components
+     * may will later be created by libvirt will not magically become a shared
+     * filesystem. */
+    if (!(existing = virFileGetExistingParent(path)))
+        return false;
+
     /* Overrides have been canonicalized ahead of time, so we need to
      * do the same for the provided path or we'll never be able to
      * find a match if symlinks are involved */
-    dirpath = virFileCanonicalizePath(path);
+    if (!(dirpath = virFileCanonicalizePath(existing))) {
+        VIR_DEBUG("Cannot canonicalize parent '%s' of path '%s'",
+                  existing, path);
+        return false;
+    }
 
     if (g_strv_contains((const char *const *) overrides, dirpath))
         return true;
