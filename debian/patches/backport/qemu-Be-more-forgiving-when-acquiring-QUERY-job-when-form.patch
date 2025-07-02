@@ -1,0 +1,70 @@
+From: Michal Privoznik <mprivozn@redhat.com>
+Date: Mon, 16 Jun 2025 10:28:37 +0200
+Subject: qemu: Be more forgiving when acquiring QUERY job when formatting
+ domain XML
+
+In my previous commit of v11.0.0-rc1~115 I've made QEMU driver
+implementation for virDomainGetXMLDesc() (qemuDomainGetXMLDesc())
+acquire QERY job. See its commit message for more info. But this
+unfortunately broke apps witch fetch domain XML for incoming
+migration (like virt-manager). The reason is that for incoming
+migration the VIR_ASYNC_JOB_MIGRATION_IN async job is set, but
+the mask of allowed synchronous jobs is empty (because QEMU can't
+talk on monitor really). This makes virDomainObjBeginJob() fail
+which in turn makes qemuDomainGetXMLDesc() fail too.
+
+It makes sense for qemuDomainGetXMLDesc() to acquire the job
+(e.g. so that it's coherent with another thread that might be in
+the middle of a MODIFY job). But failure to dump XML may be
+treated as broken daemon (e.g. virt-manager does so).
+
+Therefore, still try to acquire the QUERY job (if job mask
+permits it) but, do not treat failure as an error.
+
+Fixes: 6cc93bf28842526be2fd596a607ebca796b7fb2e
+Resolves: https://bugzilla.redhat.com/show_bug.cgi?id=2369243
+Signed-off-by: Michal Privoznik <mprivozn@redhat.com>
+Reviewed-by: Pavel Hrdina <phrdina@redhat.com>
+(cherry picked from commit 441c23a7e626c13e6df1946303a0bc0a84180d1c)
+
+Forwarded: not-needed
+Origin: https://gitlab.com/libvirt/libvirt/-/commits/441c23a7e626c13e6df1946303a0bc0a84180d1c
+---
+ src/qemu/qemu_driver.c | 10 +++++++---
+ 1 file changed, 7 insertions(+), 3 deletions(-)
+
+diff --git a/src/qemu/qemu_driver.c b/src/qemu/qemu_driver.c
+index a34d6f1..9f04374 100644
+--- a/src/qemu/qemu_driver.c
++++ b/src/qemu/qemu_driver.c
+@@ -6188,6 +6188,7 @@ static char
+ {
+     virQEMUDriver *driver = dom->conn->privateData;
+     virDomainObj *vm;
++    bool hasJob = false;
+     char *ret = NULL;
+ 
+     virCheckFlags(VIR_DOMAIN_XML_COMMON_FLAGS | VIR_DOMAIN_XML_UPDATE_CPU,
+@@ -6199,8 +6200,10 @@ static char
+     if (virDomainGetXMLDescEnsureACL(dom->conn, vm->def, flags) < 0)
+         goto cleanup;
+ 
+-    if (virDomainObjBeginJob(vm, VIR_JOB_QUERY) < 0)
+-        goto cleanup;
++    if (virDomainNestedJobAllowed(vm->job, VIR_JOB_QUERY) &&
++        virDomainObjBeginJob(vm, VIR_JOB_QUERY) >= 0) {
++        hasJob = true;
++    }
+ 
+     qemuDomainUpdateCurrentMemorySize(vm);
+ 
+@@ -6216,7 +6219,8 @@ static char
+ 
+     ret = qemuDomainFormatXML(driver, vm, flags);
+ 
+-    virDomainObjEndJob(vm);
++    if (hasJob)
++        virDomainObjEndJob(vm);
+ 
+  cleanup:
+     virDomainObjEndAPI(&vm);
