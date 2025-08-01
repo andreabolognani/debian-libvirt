@@ -1674,6 +1674,14 @@ In case no restrictions need to be put on CPU model and its features, a simpler
       </cpu>
       ...
 
+``deprecated_features``
+   :since:`Since 11.0.0`, S390 guests may utilize the ``deprecated_features``
+   attribute to specify toggling of CPU model features that are flagged as
+   deprecated by the hypervisor. When this attribute is set to ``off``, the
+   active guest XML will reflect the respective features with the disable
+   policy. When this attribute is set to ``on``, the respective features will
+   be enabled.
+
 ``cache``
    :since:`Since 3.3.0` the ``cache`` element describes the virtual CPU cache.
    If the element is missing, the hypervisor will use a sensible default.
@@ -2957,6 +2965,12 @@ paravirtualized driver is specified via the ``disk`` element.
       /etc/libvirt/qemu.conf. ('tls' :since:`Since 4.5.0` ) :since:`Since 8.2.0`
       the optional attribute ``tlsHostname`` can be used to override the
       expected host name of the NBD server used for TLS certificate verification.
+
+      For "rbd", the ``name`` attribute could be two formats: the format of
+      ``pool_name/image_name`` includes the rbd pool name and image name with
+      default rbd pool namespace; for the customized namespace, the format is
+      ``pool_name/namespace/image_name`` ( :since:`Since 11.6.0 and QEMU 5.0` ).
+      The pool name, namespace and image are separated by slash.
 
       For protocols ``http`` and ``https`` an optional attribute ``query``
       specifies the query string. ( :since:`Since 6.2.0` )
@@ -6590,7 +6604,7 @@ setting guest-side IP addresses with ``<ip>`` and port forwarding with
        <backend type='passt'/>
        <mac address='52:54:00:3b:83:1a'/>
        <source dev='enp1s0'/>
-       <ip address='10.30.0.5 prefix='24'/>
+       <ip address='10.30.0.5' prefix='24'/>
      </interface>
    </devices>
    ...
@@ -9527,6 +9541,69 @@ The ``<launchSecurity/>`` element then accepts the following child elements:
    blob to provide to the guest, as documented for the 'HOST_DATA' parameter of
    the SNP_LAUNCH_FINISH command in the SEV-SNP firmware ABI.
 
+
+The contents of the ``<launchSecurity type='tdx'>`` element is used to provide
+the guest owners input used for creating an encrypted VM using the Intel TDX
+(Trusted Domain eXtensions). Intel TDX refers to an Intel technology that
+extends Virtual Machine Extensions (VMX) and Multi-Key Total Memory Encryption
+(MKTME) with a new kind of virtual machine guest called a Trust Domain (TD).
+A TD runs in a CPU mode that is designed to protect the confidentiality of its
+memory contents and its CPU state from any other software, including the hosting
+Virtual Machine Monitor (VMM), unless explicitly shared by the TD itself.
+Example configuration:
+
+::
+
+   <domain>
+     ...
+     <launchSecurity type='tdx'>
+       <policy>0x10000001</policy>
+       <mrConfigId>xxx</mrConfigId>
+       <mrOwner>xxx</mrOwner>
+       <mrOwnerConfig>xxx</mrOwnerConfig>
+       <quoteGenerationService path="/var/run/tdx-qgs/qgs.socket"/>
+     </launchSecurity>
+     ...
+   </domain>
+
+``policy``
+   The optional ``policy`` element provides the guest TD attributes which is
+   passed by the host VMM as a guest TD initialization parameter as part of
+   TD_PARAMS, it exactly matches the definition of TD_PARAMS.ATTRIBUTES in
+   (Intel TDX Module Spec Table 22.2: ATTRIBUTES Definition). It is reported
+   to the guest TD by TDG.VP.INFO and as part of TDREPORT_STRUCT returned by
+   TDG.MR.REPORT. The guest policy is 64bit unsigned with the fields shown
+   in Table:
+
+   ====== ====================================================================================
+   Bit(s) Description
+   ====== ====================================================================================
+   0      Guest TD runs in off-TD debug mode when set
+   1:27   reserved
+   28     Disable EPT violation conversion to #VE on guest TD access of PENDING pages when set
+   29:63  reserved
+   ====== ====================================================================================
+
+``mrConfigId``
+   The optional ``mrConfigId`` element provides ID for non-owner-defined
+   configuration of the guest TD, e.g., run-time or OS configuration
+   (base64 encoded SHA384 digest).
+
+``@mrOwner``
+   The optional ``@mrOwner`` element provides ID for the guest TD’s owner
+   (base64 encoded SHA384 digest).
+
+``mrOwnerConfig``
+   The optional ``mrOwnerConfig`` element provides ID for owner-defined
+   configuration of the guest TD, e.g., specific to the workload rather than
+   the run-time or OS (base64 encoded SHA384 digest).
+
+``quoteGenerationService``
+   The optional ``quoteGenerationService`` subelement provides Quote Generation
+   Service(QGS) daemon socket address configuration. It includes an optional
+   ``path`` attribute to determine the UNIX socket address, when omitted,
+   ``/var/run/tdx-qgs/qgs.socket`` is used as default. User in TD guest cannot
+   get TD quoting for attestation if this subelement is not provided.
 
 Example configs
 ===============

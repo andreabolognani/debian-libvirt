@@ -30,13 +30,15 @@ module Libvirtd_qemu =
    let default_tls_entry = str_entry "default_tls_x509_cert_dir"
                  | bool_entry "default_tls_x509_verify"
                  | str_entry "default_tls_x509_secret_uuid"
+                 | str_entry "default_tls_priority"
 
    let vnc_entry = str_entry "vnc_listen"
                  | bool_entry "vnc_auto_unix_socket"
                  | bool_entry "vnc_tls"
                  | str_entry "vnc_tls_x509_cert_dir"
-                 | str_entry "vnc_tls_x509_secret_uuid"
                  | bool_entry "vnc_tls_x509_verify"
+                 | str_entry "vnc_tls_x509_secret_uuid"
+                 | str_entry "vnc_tls_priority"
                  | str_entry "vnc_password"
                  | bool_entry "vnc_sasl"
                  | str_entry "vnc_sasl_dir"
@@ -59,15 +61,18 @@ module Libvirtd_qemu =
                  | str_entry "chardev_tls_x509_cert_dir"
                  | bool_entry "chardev_tls_x509_verify"
                  | str_entry "chardev_tls_x509_secret_uuid"
+                 | str_entry "chardev_tls_priority"
 
    let migrate_entry = str_entry "migrate_tls_x509_cert_dir"
                  | bool_entry "migrate_tls_x509_verify"
                  | str_entry "migrate_tls_x509_secret_uuid"
+                 | str_entry "migrate_tls_priority"
                  | bool_entry "migrate_tls_force"
 
    let backup_entry = str_entry "backup_tls_x509_cert_dir"
                  | bool_entry "backup_tls_x509_verify"
                  | str_entry "backup_tls_x509_secret_uuid"
+                 | str_entry "backup_tls_priority"
 
    (* support for vxhs was removed from qemu and the examples were dopped from *)
    (* qemu.conf but these need to stay *)
@@ -78,6 +83,7 @@ module Libvirtd_qemu =
    let nbd_entry = bool_entry "nbd_tls"
                  | str_entry "nbd_tls_x509_cert_dir"
                  | str_entry "nbd_tls_x509_secret_uuid"
+                 | str_entry "nbd_tls_priority"
 
    let nogfx_entry = bool_entry "nographics_allow_host_audio"
 
@@ -160,6 +166,8 @@ module Libvirtd_qemu =
 
    let filesystem_entry = str_array_entry "shared_filesystems"
 
+   let default_cpu_deprecated_features = str_entry "default_cpu_deprecated_features"
+
    (* Entries that used to exist in the config which are now
     * deleted. We keep on parsing them so we don't break
     * ability to parse old configs after upgrade
@@ -192,6 +200,7 @@ module Libvirtd_qemu =
              | capability_filters_entry
              | storage_entry
              | filesystem_entry
+             | default_cpu_deprecated_features
              | obsolete_entry
 
    let comment = [ label "#comment" . del /#[ \t]*/ "# " .  store /([^ \t\n][^\n]*)?/ . del /\n/ "\n" ]

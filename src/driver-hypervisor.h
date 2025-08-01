@@ -584,7 +584,7 @@ typedef int
                               char **uri_out,
                               unsigned long flags,
                               const char *dname,
-                              unsigned long resource);
+                              unsigned long bandwidth);
 
 typedef int
 (*virDrvDomainMigratePerform)(virDomainPtr domain,
@@ -593,7 +593,7 @@ typedef int
                               const char *uri,
                               unsigned long flags,
                               const char *dname,
-                              unsigned long resource);
+                              unsigned long bandwidth);
 
 typedef virDomainPtr
 (*virDrvDomainMigrateFinish)(virConnectPtr dconn,
@@ -644,7 +644,7 @@ typedef int
                                char **uri_out,
                                unsigned long flags,
                                const char *dname,
-                               unsigned long resource,
+                               unsigned long bandwidth,
                                const char *dom_xml);
 
 typedef virDomainPtr
@@ -675,7 +675,7 @@ typedef int
                                     virStreamPtr st,
                                     unsigned long flags,
                                     const char *dname,
-                                    unsigned long resource,
+                                    unsigned long bandwidth,
                                     const char *dom_xml);
 
 typedef int
@@ -981,7 +981,7 @@ typedef char *
                              int *cookieoutlen,
                              unsigned long flags,
                              const char *dname,
-                             unsigned long resource);
+                             unsigned long bandwidth);
 
 typedef int
 (*virDrvDomainMigratePrepare3)(virConnectPtr dconn,
@@ -993,7 +993,7 @@ typedef int
                                char **uri_out,
                                unsigned long flags,
                                const char *dname,
-                               unsigned long resource,
+                               unsigned long bandwidth,
                                const char *dom_xml);
 
 typedef int
@@ -1005,7 +1005,7 @@ typedef int
                                      int *cookieoutlen,
                                      unsigned long flags,
                                      const char *dname,
-                                     unsigned long resource,
+                                     unsigned long bandwidth,
                                      const char *dom_xml);
 
 
@@ -1020,7 +1020,7 @@ typedef int
                                const char *uri,
                                unsigned long flags,
                                const char *dname,
-                               unsigned long resource);
+                               unsigned long bandwidth);
 
 typedef virDomainPtr
 (*virDrvDomainMigrateFinish3)(virConnectPtr dconn,

@@ -515,8 +515,8 @@ qemuDomainWriteMasterKeyFile(virQEMUDriver *driver,
         return -1;
 
     if ((fd = open(path, O_WRONLY|O_TRUNC|O_CREAT, 0600)) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("failed to open domain master key file for write"));
+        virReportSystemError(errno, "%s",
+                             _("failed to open domain master key file for write"));
         return -1;
     }
 
@@ -580,8 +580,8 @@ qemuDomainMasterKeyReadFile(qemuDomainObjPrivate *priv)
     }
 
     if ((fd = open(path, O_RDONLY)) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("failed to open domain master key file for read"));
+        virReportSystemError(errno, "%s",
+                             _("failed to open domain master key file for read"));
         goto error;
     }
 
@@ -955,6 +955,7 @@ qemuDomainChrSourcePrivateDispose(void *obj)
     qemuDomainChrSourcePrivateClearFDPass(priv);
 
     g_free(priv->tlsCertPath);
+    g_free(priv->tlsPriority);
 
     g_free(priv->tlsCredsAlias);
 
@@ -2811,28 +2812,18 @@ qemuDomainObjPrivateXMLParseVcpu(xmlNodePtr node,
                                  virDomainDef *def)
 {
     virDomainVcpuDef *vcpu;
-    g_autofree char *idstr = NULL;
-    g_autofree char *pidstr = NULL;
     unsigned int tmp;
 
-    idstr = virXMLPropString(node, "id");
-
-    if (idstr &&
-        (virStrToLong_uip(idstr, NULL, 10, &idx) < 0)) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("cannot parse vcpu index '%1$s'"), idstr);
+    if (virXMLPropUInt(node, "id", 10, VIR_XML_PROP_NONE, &idx) < 0)
         return -1;
-    }
+
     if (!(vcpu = virDomainDefGetVcpu(def, idx))) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("invalid vcpu index '%1$u'"), idx);
         return -1;
     }
 
-    if (!(pidstr = virXMLPropString(node, "pid")))
-        return -1;
-
-    if (virStrToLong_uip(pidstr, NULL, 10, &tmp) < 0)
+    if (virXMLPropUInt(node, "pid", 10, VIR_XML_PROP_REQUIRED, &tmp) < 0)
         return -1;
 
     QEMU_DOMAIN_VCPU_PRIVATE(vcpu)->tid = tmp;
@@ -4233,38 +4224,54 @@ qemuDomainDefAddDefaultAudioBackend(virQEMUDriver *driver,
 
 
 /**
- * @def: Domain definition
- * @cont: Domain controller def
- * @qemuCaps: qemu capabilities
+ * qemuDomainDefaultSCSIControllerModel:
+ * @def: domain definition
+ * @qemuCaps: QEMU capabilities, or NULL
  *
- * If the controller model is already defined, return it immediately;
- * otherwise, based on the @qemuCaps return a default model value.
+ * Choose a reasonable model to use for a SCSI controller where a
+ * specific one hasn't been provided by the user.
  *
- * Returns model on success, -1 on failure with error set.
+ * The choice is based on a number of factors, including the guest's
+ * architecture and machine type. @qemuCaps, if provided, might be
+ * taken into consideration too.
+ *
+ * If no sensible choice can be made for the controller model,
+ * VIR_DOMAIN_CONTROLLER_MODEL_SCSI_DEFAULT will be returned. It's
+ * likely that a failure will need to be reported in this scenario,
+ * but the handling is entirely up to the caller.
+ *
+ * Returns: a valid virDomainControllerModelSCSI value if one could
+ *          be determined, or VIR_DOMAIN_CONTROLLER_MODEL_SCSI_DEFAULT
  */
-int
-qemuDomainGetSCSIControllerModel(const virDomainDef *def,
-                                 const virDomainControllerDef *cont,
-                                 virQEMUCaps *qemuCaps)
+virDomainControllerModelSCSI
+qemuDomainDefaultSCSIControllerModel(const virDomainDef *def,
+                                     virQEMUCaps *qemuCaps)
 {
-    if (cont->model > 0)
-        return cont->model;
+    /* For machine types with built-in SCSI controllers, the choice
+     * of model is obvious */
+    if (qemuDomainHasBuiltinESP(def))
+        return VIR_DOMAIN_CONTROLLER_MODEL_SCSI_NCR53C90;
 
+    /* Most new architectures should ideally use virtio */
+    if (ARCH_IS_S390(def->os.arch) ||
+        qemuDomainIsARMVirt(def) ||
+        qemuDomainIsRISCVVirt(def) ||
+        qemuDomainIsLoongArchVirt(def))
+        return VIR_DOMAIN_CONTROLLER_MODEL_SCSI_VIRTIO_SCSI;
+
+    /* pSeries has its own special default */
     if (qemuDomainIsPSeries(def))
         return VIR_DOMAIN_CONTROLLER_MODEL_SCSI_IBMVSCSI;
-    if (ARCH_IS_S390(def->os.arch) || qemuDomainIsLoongArchVirt(def))
-        return VIR_DOMAIN_CONTROLLER_MODEL_SCSI_VIRTIO_SCSI;
+
+    /* If there is no preference, base the choice on device
+     * availability. In this case, lsilogic is favored over
+     * virtio-scsi for backwards compatibility reasons */
     if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_SCSI_LSI))
         return VIR_DOMAIN_CONTROLLER_MODEL_SCSI_LSILOGIC;
     if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_VIRTIO_SCSI))
         return VIR_DOMAIN_CONTROLLER_MODEL_SCSI_VIRTIO_SCSI;
-    if (qemuDomainHasBuiltinESP(def))
-        return VIR_DOMAIN_CONTROLLER_MODEL_SCSI_NCR53C90;
 
-    virReportError(VIR_ERR_INTERNAL_ERROR,
-                   _("Unable to determine model for SCSI controller idx=%1$d"),
-                   cont->idx);
-    return -1;
+    return VIR_DOMAIN_CONTROLLER_MODEL_SCSI_DEFAULT;
 }
 
 
@@ -8777,6 +8784,7 @@ qemuDomainPrepareChardevSourceOne(virDomainDeviceDef *dev,
 
             if (charsrc->data.tcp.haveTLS == VIR_TRISTATE_BOOL_YES) {
                 charpriv->tlsCertPath = g_strdup(data->cfg->chardevTLSx509certdir);
+                charpriv->tlsPriority = g_strdup(data->cfg->chardevTLSpriority);
                 charpriv->tlsVerify = data->cfg->chardevTLSx509verify;
             }
         }
@@ -8842,6 +8850,7 @@ qemuProcessPrepareStorageSourceTLSNBD(virStorageSource *src,
 
         src->tlsAlias = qemuAliasTLSObjFromSrcAlias(parentAlias);
         src->tlsCertdir = g_strdup(cfg->nbdTLSx509certdir);
+        src->tlsPriority = g_strdup(cfg->nbdTLSpriority);
 
         if (cfg->nbdTLSx509secretUUID) {
             qemuDomainStorageSourcePrivate *srcpriv = qemuDomainStorageSourcePrivateFetch(src);
@@ -8943,7 +8952,7 @@ qemuDomainPrepareStorageSourceTLS(virStorageSource *src,
     if (virStorageSourceGetActualType(src) != VIR_STORAGE_TYPE_NETWORK)
         return 0;
 
-    switch ((virStorageNetProtocol) src->protocol) {
+    switch (src->protocol) {
     case VIR_STORAGE_NET_PROTOCOL_VXHS:
         /* vxhs is no longer supported */
         break;

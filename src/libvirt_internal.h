@@ -146,14 +146,14 @@ int virDomainMigratePrepare (virConnectPtr dconn,
                              char **uri_out,
                              unsigned long flags,
                              const char *dname,
-                             unsigned long resource);
+                             unsigned long bandwidth);
 int virDomainMigratePerform (virDomainPtr domain,
                              const char *cookie,
                              int cookielen,
                              const char *uri,
                              unsigned long flags,
                              const char *dname,
-                             unsigned long resource);
+                             unsigned long bandwidth);
 virDomainPtr virDomainMigrateFinish (virConnectPtr dconn,
                                      const char *dname,
                                      const char *cookie,
@@ -167,7 +167,7 @@ int virDomainMigratePrepare2 (virConnectPtr dconn,
                               char **uri_out,
                               unsigned long flags,
                               const char *dname,
-                              unsigned long resource,
+                              unsigned long bandwidth,
                               const char *dom_xml);
 virDomainPtr virDomainMigrateFinish2 (virConnectPtr dconn,
                                       const char *dname,
@@ -180,7 +180,7 @@ int virDomainMigratePrepareTunnel(virConnectPtr dconn,
                                   virStreamPtr st,
                                   unsigned long flags,
                                   const char *dname,
-                                  unsigned long resource,
+                                  unsigned long bandwidth,
                                   const char *dom_xml);
 
 
@@ -190,7 +190,7 @@ char *virDomainMigrateBegin3(virDomainPtr domain,
                              int *cookieoutlen,
                              unsigned long flags,
                              const char *dname,
-                             unsigned long resource);
+                             unsigned long bandwidth);
 
 int virDomainMigratePrepare3(virConnectPtr dconn,
                              const char *cookiein,
@@ -201,7 +201,7 @@ int virDomainMigratePrepare3(virConnectPtr dconn,
                              char **uri_out,
                              unsigned long flags,
                              const char *dname,
-                             unsigned long resource,
+                             unsigned long bandwidth,
                              const char *dom_xml);
 
 int virDomainMigratePrepareTunnel3(virConnectPtr dconn,
@@ -212,7 +212,7 @@ int virDomainMigratePrepareTunnel3(virConnectPtr dconn,
                                    int *cookieoutlen,
                                    unsigned long flags,
                                    const char *dname,
-                                   unsigned long resource,
+                                   unsigned long bandwidth,
                                    const char *dom_xml);
 
 
@@ -226,7 +226,7 @@ int virDomainMigratePerform3(virDomainPtr dom,
                              const char *uri, /* VM Migration URI */
                              unsigned long flags,
                              const char *dname,
-                             unsigned long resource);
+                             unsigned long bandwidth);
 
 virDomainPtr virDomainMigrateFinish3(virConnectPtr dconn,
                                      const char *dname,

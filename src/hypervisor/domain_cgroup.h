@@ -52,16 +52,6 @@ virDomainCgroupSetupCpusetCgroup(virCgroup *cgroup);
 int
 virDomainCgroupSetupCpuCgroup(virDomainObj *vm,
                               virCgroup *cgroup);
-int
-virDomainCgroupInitCgroup(const char *prefix,
-                          virDomainObj *vm,
-                          size_t nnicindexes,
-                          int *nicindexes,
-                          virCgroup **cgroup,
-                          int cgroupControllers,
-                          unsigned int maxThreadsPerProc,
-                          bool privileged,
-                          char *machineName);
 void
 virDomainCgroupRestoreCgroupState(virDomainObj *vm,
                                   virCgroup *cgroup);
@@ -81,6 +71,7 @@ virDomainCgroupSetupCgroup(const char *prefix,
                            int cgroupControllers,
                            unsigned int maxThreadsPerProc,
                            bool privileged,
+                           bool daemonDomainShutdown,
                            char *machineName);
 void
 virDomainCgroupEmulatorAllNodesDataFree(virCgroupEmulatorAllNodesData *data);

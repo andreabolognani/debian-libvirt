@@ -1596,7 +1596,9 @@ mymain(void)
     driver.config->nbdTLSx509secretUUID = g_strdup("6fd3f62d-9fe7-4a4e-a869-7acd6376d8ea");
     DO_TEST_CAPS_LATEST("disk-network-tlsx509-nbd");
     DO_TEST_CAPS_VER_PARSE_ERROR("disk-network-tlsx509-nbd-hostname", "6.2.0");
+    driver.config->nbdTLSpriority = g_strdup("@SYSTEM:-VERS-TLS1.3");
     DO_TEST_CAPS_LATEST("disk-network-tlsx509-nbd-hostname");
+    VIR_FREE(driver.config->nbdTLSpriority);
     DO_TEST_CAPS_LATEST("disk-network-http");
     VIR_FREE(driver.config->nbdTLSx509secretUUID);
     DO_TEST_CAPS_LATEST("disk-network-ssh");
@@ -1633,6 +1635,12 @@ mymain(void)
     DO_TEST_CAPS_LATEST_PARSE_ERROR("disk-scsi-product-length");
     DO_TEST_CAPS_LATEST("controller-virtio-scsi");
     DO_TEST_CAPS_LATEST("controller-scsi-auto");
+    DO_TEST_FULL("controller-scsi-default-unavailable", ".x86_64-latest",
+                 ARG_CAPS_ARCH, "x86_64",
+                 ARG_CAPS_VER, "latest",
+                 ARG_FLAGS, FLAG_EXPECT_PARSE_ERROR,
+                 ARG_QEMU_CAPS_DEL, QEMU_CAPS_SCSI_LSI, QEMU_CAPS_VIRTIO_SCSI, QEMU_CAPS_LAST,
+                 ARG_END);
     DO_TEST_CAPS_LATEST("disk-sata-device");
     DO_TEST_CAPS_LATEST("disk-sata-product");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("disk-target-overflow");
@@ -1688,6 +1696,7 @@ mymain(void)
     DO_TEST_CAPS_LATEST("disk-ide-wwn");
     DO_TEST_CAPS_LATEST("disk-geometry");
     DO_TEST_CAPS_LATEST("disk-blockio");
+    DO_TEST_CAPS_LATEST("disk-blockio-no-discard");
 
     driver.config->storageUseNbdkit = 1;
     DO_TEST_CAPS_LATEST_NBDKIT("disk-cdrom-network-nbdkit", QEMU_NBDKIT_CAPS_PLUGIN_CURL);
@@ -1723,8 +1732,10 @@ mymain(void)
     driver.config->vncTLS = 1;
     driver.config->vncTLSx509verify = 1;
     DO_TEST_CAPS_LATEST("graphics-vnc-tls");
+    driver.config->vncTLSpriority = g_strdup("@SYSTEM:-VERS-TLS1.3");
     driver.config->vncTLSx509secretUUID = g_strdup("6fd3f62d-9fe7-4a4e-a869-7acd6376d8ea");
     DO_TEST_CAPS_LATEST("graphics-vnc-tls-secret");
+    VIR_FREE(driver.config->vncTLSpriority);
     VIR_FREE(driver.config->vncTLSx509secretUUID);
     driver.config->vncSASL = driver.config->vncTLSx509verify = driver.config->vncTLS = 0;
     DO_TEST_CAPS_LATEST("graphics-vnc-egl-headless");
@@ -1874,7 +1885,9 @@ mymain(void)
     driver.config->chardevTLSx509verify = 0;
     DO_TEST_CAPS_LATEST("serial-tcp-tlsx509-chardev-notls");
     driver.config->chardevTLSx509secretUUID = g_strdup("6fd3f62d-9fe7-4a4e-a869-7acd6376d8ea");
+    driver.config->chardevTLSpriority = g_strdup("@SYSTEM:-VERS-TLS1.3");
     DO_TEST_CAPS_LATEST("serial-tcp-tlsx509-secret-chardev");
+    VIR_FREE(driver.config->chardevTLSpriority);
     VIR_FREE(driver.config->chardevTLSx509secretUUID);
     driver.config->chardevTLS = 0;
     DO_TEST_CAPS_LATEST("serial-many-chardev");
@@ -2291,6 +2304,8 @@ mymain(void)
 
     DO_TEST_CAPS_ARCH_VER_FAILURE("cpu-model-deprecated-features-off", "s390x", "8.2.0");
     DO_TEST_CAPS_ARCH_LATEST("cpu-model-deprecated-features-off", "s390x");
+    DO_TEST_CAPS_ARCH_LATEST("cpu-model-deprecated-features-on", "s390x");
+    DO_TEST_CAPS_ARCH_LATEST("cpu-model-deprecated-features-none", "s390x");
 
     DO_TEST_CAPS_ARCH_LATEST_FULL("cpu-Haswell", "x86_64", ARG_CAPS_HOST_CPU_MODEL, QEMU_CPU_DEF_HASWELL);
     DO_TEST_CAPS_ARCH_LATEST_FULL("cpu-Haswell2", "x86_64", ARG_CAPS_HOST_CPU_MODEL, QEMU_CPU_DEF_HASWELL);
@@ -2878,6 +2893,9 @@ mymain(void)
                                   ARG_QEMU_CAPS, QEMU_CAPS_SEV_SNP_GUEST, QEMU_CAPS_LAST);
 
     DO_TEST_CAPS_ARCH_LATEST("launch-security-s390-pv", "s390x");
+
+    DO_TEST_CAPS_ARCH_LATEST_FULL("launch-security-tdx", "x86_64",
+                                  ARG_CAPS_VARIANT, "+inteltdx", ARG_END);
 
     DO_TEST_CAPS_LATEST("vhost-user-fs-fd-memory");
     DO_TEST_CAPS_LATEST("vhost-user-fs-fd-openfiles");

@@ -188,14 +188,14 @@ static int virNetTLSContextLoadCredentials(virNetTLSContext *ctxt,
 
 
 static virNetTLSContext *virNetTLSContextNew(const char *cacert,
-                                               const char *cacrl,
-                                               const char *cert,
-                                               const char *key,
-                                               const char *const *x509dnACL,
-                                               const char *priority,
-                                               bool sanityCheckCert,
-                                               bool requireValidCert,
-                                               bool isServer)
+                                             const char *cacrl,
+                                             const char *cert,
+                                             const char *key,
+                                             const char *const *x509dnACL,
+                                             const char *priority,
+                                             bool sanityCheckCert,
+                                             bool requireValidCert,
+                                             bool isServer)
 {
     virNetTLSContext *ctxt;
     int err;
@@ -301,48 +301,43 @@ static int virNetTLSContextLocateCredentials(const char *pkipath,
 
 
 static virNetTLSContext *virNetTLSContextNewPath(const char *pkipath,
-                                                   bool tryUserPkiPath,
-                                                   const char *const *x509dnACL,
-                                                   const char *priority,
-                                                   bool sanityCheckCert,
-                                                   bool requireValidCert,
-                                                   bool isServer)
+                                                 bool tryUserPkiPath,
+                                                 const char *const *x509dnACL,
+                                                 const char *priority,
+                                                 bool sanityCheckCert,
+                                                 bool requireValidCert,
+                                                 bool isServer)
 {
-    char *cacert = NULL, *cacrl = NULL, *key = NULL, *cert = NULL;
-    virNetTLSContext *ctxt = NULL;
+    g_autofree char *cacert = NULL;
+    g_autofree char *cacrl = NULL;
+    g_autofree char *key = NULL;
+    g_autofree char *cert = NULL;
 
     if (virNetTLSContextLocateCredentials(pkipath, tryUserPkiPath, isServer,
                                           &cacert, &cacrl, &cert, &key) < 0)
         return NULL;
 
-    ctxt = virNetTLSContextNew(cacert, cacrl, cert, key,
+    return virNetTLSContextNew(cacert, cacrl, cert, key,
                                x509dnACL, priority, sanityCheckCert,
                                requireValidCert, isServer);
-
-    VIR_FREE(cacert);
-    VIR_FREE(cacrl);
-    VIR_FREE(key);
-    VIR_FREE(cert);
-
-    return ctxt;
 }
 
 virNetTLSContext *virNetTLSContextNewServerPath(const char *pkipath,
-                                                  bool tryUserPkiPath,
-                                                  const char *const *x509dnACL,
-                                                  const char *priority,
-                                                  bool sanityCheckCert,
-                                                  bool requireValidCert)
+                                                bool tryUserPkiPath,
+                                                const char *const *x509dnACL,
+                                                const char *priority,
+                                                bool sanityCheckCert,
+                                                bool requireValidCert)
 {
     return virNetTLSContextNewPath(pkipath, tryUserPkiPath, x509dnACL, priority,
                                    sanityCheckCert, requireValidCert, true);
 }
 
 virNetTLSContext *virNetTLSContextNewClientPath(const char *pkipath,
-                                                  bool tryUserPkiPath,
-                                                  const char *priority,
-                                                  bool sanityCheckCert,
-                                                  bool requireValidCert)
+                                                bool tryUserPkiPath,
+                                                const char *priority,
+                                                bool sanityCheckCert,
+                                                bool requireValidCert)
 {
     return virNetTLSContextNewPath(pkipath, tryUserPkiPath, NULL, priority,
                                    sanityCheckCert, requireValidCert, false);
@@ -350,13 +345,13 @@ virNetTLSContext *virNetTLSContextNewClientPath(const char *pkipath,
 
 
 virNetTLSContext *virNetTLSContextNewServer(const char *cacert,
-                                              const char *cacrl,
-                                              const char *cert,
-                                              const char *key,
-                                              const char *const *x509dnACL,
-                                              const char *priority,
-                                              bool sanityCheckCert,
-                                              bool requireValidCert)
+                                            const char *cacrl,
+                                            const char *cert,
+                                            const char *key,
+                                            const char *const *x509dnACL,
+                                            const char *priority,
+                                            bool sanityCheckCert,
+                                            bool requireValidCert)
 {
     return virNetTLSContextNew(cacert, cacrl, cert, key, x509dnACL, priority,
                                sanityCheckCert, requireValidCert, true);
@@ -406,12 +401,12 @@ int virNetTLSContextReloadForServer(virNetTLSContext *ctxt,
 
 
 virNetTLSContext *virNetTLSContextNewClient(const char *cacert,
-                                              const char *cacrl,
-                                              const char *cert,
-                                              const char *key,
-                                              const char *priority,
-                                              bool sanityCheckCert,
-                                              bool requireValidCert)
+                                            const char *cacrl,
+                                            const char *cert,
+                                            const char *key,
+                                            const char *priority,
+                                            bool sanityCheckCert,
+                                            bool requireValidCert)
 {
     return virNetTLSContextNew(cacert, cacrl, cert, key, NULL, priority,
                                sanityCheckCert, requireValidCert, false);
@@ -594,7 +589,7 @@ virNetTLSSessionPull(void *opaque, void *buf, size_t len)
 
 
 virNetTLSSession *virNetTLSSessionNew(virNetTLSContext *ctxt,
-                                        const char *hostname)
+                                      const char *hostname)
 {
     virNetTLSSession *sess;
     int err;

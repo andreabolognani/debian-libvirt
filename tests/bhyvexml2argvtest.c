@@ -165,6 +165,8 @@ mymain(void)
 
     driver.config->firmwareDir = fakefirmwaredir;
     driver.config->nvramDir = fakenvramdir;
+    driver.config->bhyveloadTimeout = 0;
+    driver.config->bhyveloadTimeoutKill = 0;
 
 # define DO_TEST_FULL(name, flags) \
     do { \
@@ -254,6 +256,9 @@ mymain(void)
     DO_TEST_FAILURE("virtio-rnd-transitional");
     driver.bhyvecaps &= ~BHYVE_CAP_VIRTIO_RND;
     DO_TEST_FAILURE("virtio-rnd");
+    DO_TEST("serial-tcp");
+    DO_TEST("4-consoles");
+    DO_TEST_FAILURE("serial-invalid-port");
 
     /* Address allocation tests */
     DO_TEST("addr-single-sata-disk");
@@ -301,6 +306,10 @@ mymain(void)
 
     driver.bhyvecaps &= ~BHYVE_CAP_VNC_PASSWORD;
     DO_TEST_FAILURE("vnc-password");
+
+    driver.config->bhyveloadTimeout = 300;
+    driver.config->bhyveloadTimeoutKill = 20;
+    DO_TEST("bhyveload-timeout");
 
     virObjectUnref(driver.caps);
     virObjectUnref(driver.xmlopt);

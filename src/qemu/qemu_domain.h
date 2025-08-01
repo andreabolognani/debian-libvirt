@@ -130,6 +130,7 @@ struct _qemuDomainObjPrivate {
     char *lockState;
 
     bool fakeReboot;
+    bool fakeReset;
     bool pausedShutdown;
     /* allowReboot:
      *
@@ -384,6 +385,7 @@ struct _qemuDomainChrSourcePrivate {
 
     char *tlsCertPath; /* path to certificates if TLS is requested */
     bool tlsVerify; /* whether server should verify client certificates */
+    char *tlsPriority; /* optional GNUTLS priority string */
 
     char *tlsCredsAlias; /* alias of the x509 tls credentials object */
 };
@@ -838,9 +840,8 @@ bool qemuDomainHasBuiltinESP(const virDomainDef *def);
 bool qemuDomainNeedsFDC(const virDomainDef *def);
 bool qemuDomainSupportsPCI(const virDomainDef *def);
 bool qemuDomainSupportsPCIMultibus(const virDomainDef *def);
-int qemuDomainGetSCSIControllerModel(const virDomainDef *def,
-                                     const virDomainControllerDef *cont,
-                                     virQEMUCaps *qemuCaps);
+virDomainControllerModelSCSI qemuDomainDefaultSCSIControllerModel(const virDomainDef *def,
+                                                                  virQEMUCaps *qemuCaps);
 
 int qemuDomainDefAddDefaultAudioBackend(virQEMUDriver *driver,
                                         virDomainDef *def);

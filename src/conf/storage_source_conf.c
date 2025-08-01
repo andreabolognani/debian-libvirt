@@ -820,7 +820,6 @@ virStorageSourceCopy(const virStorageSource *src,
 
     def->path = g_strdup(src->path);
     def->fdgroup = g_strdup(src->fdgroup);
-    def->volume = g_strdup(src->volume);
     def->relPath = g_strdup(src->relPath);
     def->backingStoreRaw = g_strdup(src->backingStoreRaw);
     def->backingStoreRawFormat = src->backingStoreRawFormat;
@@ -832,6 +831,7 @@ virStorageSourceCopy(const virStorageSource *src,
     def->compat = g_strdup(src->compat);
     def->tlsAlias = g_strdup(src->tlsAlias);
     def->tlsCertdir = g_strdup(src->tlsCertdir);
+    def->tlsPriority = g_strdup(src->tlsPriority);
     def->tlsHostname = g_strdup(src->tlsHostname);
     def->query = g_strdup(src->query);
     def->vdpadev = g_strdup(src->vdpadev);
@@ -945,7 +945,6 @@ virStorageSourceIsSameLocation(virStorageSource *a,
         return false;
 
     if (STRNEQ_NULLABLE(a->path, b->path) ||
-        STRNEQ_NULLABLE(a->volume, b->volume) ||
         STRNEQ_NULLABLE(a->snapshot, b->snapshot))
         return false;
 
@@ -1152,7 +1151,6 @@ virStorageSourceClear(virStorageSource *def)
 
     VIR_FREE(def->path);
     VIR_FREE(def->fdgroup);
-    VIR_FREE(def->volume);
     VIR_FREE(def->vdpadev);
     VIR_FREE(def->snapshot);
     VIR_FREE(def->configFile);
@@ -1185,6 +1183,7 @@ virStorageSourceClear(virStorageSource *def)
 
     VIR_FREE(def->tlsAlias);
     VIR_FREE(def->tlsCertdir);
+    VIR_FREE(def->tlsPriority);
     VIR_FREE(def->tlsHostname);
 
     VIR_FREE(def->ssh_user);
@@ -1444,4 +1443,80 @@ virStorageSourceFDTuple *
 virStorageSourceFDTupleNew(void)
 {
     return g_object_new(vir_storage_source_fd_tuple_get_type(), NULL);
+}
+
+
+/**
+ * virStorageSourceNetworkProtocolPathSplit:
+ * @path: path to split
+ * @protocol: protocol
+ * @pool: filled with pool name (may be NULL)
+ * @namespace: filed with namespace (may be NULL)
+ * @image: filled with image name (may be NULL)
+ *
+ * Historically libvirt accepted the specification of Gluster's volume and
+ * RBD's pool as part of the 'path' field, but internally many places require
+ * individual components.
+ *
+ * This helper validates and splits the path as appropriate for given protocol.
+ * It's useful for 'gluster' and 'rbd' protocol but for validation can be called
+ * with any protocol.
+ */
+int
+virStorageSourceNetworkProtocolPathSplit(const char *path,
+                                         virStorageNetProtocol protocol,
+                                         char **pool,
+                                         char **namespace,
+                                         char **image)
+{
+    g_auto(GStrv) tokens = NULL;
+    int components_max = 2;
+    size_t ncomponents = 0;
+    size_t i;
+
+    if (protocol != VIR_STORAGE_NET_PROTOCOL_GLUSTER &&
+        protocol != VIR_STORAGE_NET_PROTOCOL_RBD) {
+
+        if (image)
+            *image = g_strdup(path);
+
+        return 0;
+    }
+
+    if (protocol == VIR_STORAGE_NET_PROTOCOL_RBD) {
+        /* the name of rbd can be <pool>/<image> or <pool>/<namespace>/<image> */
+        components_max = 3;
+    }
+
+    if ((tokens = g_strsplit(path, "/", components_max)))
+        ncomponents = g_strv_length(tokens);
+
+    if (ncomponents < 2)
+        goto error;
+
+    for (i = 0; i < ncomponents; i++) {
+        if (*tokens[i] == '\0')
+            goto error;
+    }
+
+    if (pool)
+        *pool = g_strdup(tokens[0]);
+
+    if (namespace) {
+        if (ncomponents == 3)
+            *namespace = g_strdup(tokens[1]);
+        else
+            *namespace = NULL;
+    }
+
+    if (image)
+        *image = g_strdup(tokens[ncomponents - 1]);
+
+    return 0;
+
+ error:
+    virReportError(VIR_ERR_XML_ERROR,
+                   _("failed to split path '%1$s' into 'pool/image' or 'pool/namespace/image' components"),
+                   path);
+    return -1;
 }

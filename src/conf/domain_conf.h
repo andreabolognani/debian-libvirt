@@ -560,6 +560,7 @@ struct _virDomainDiskDef {
         unsigned int logical_block_size;
         unsigned int physical_block_size;
         unsigned int discard_granularity;
+        bool discard_granularity_specified;
     } blockio;
 
     virDomainBlockIoTuneInfo blkdeviotune;
@@ -2964,6 +2965,7 @@ typedef enum {
     VIR_DOMAIN_LAUNCH_SECURITY_SEV,
     VIR_DOMAIN_LAUNCH_SECURITY_SEV_SNP,
     VIR_DOMAIN_LAUNCH_SECURITY_PV,
+    VIR_DOMAIN_LAUNCH_SECURITY_TDX,
 
     VIR_DOMAIN_LAUNCH_SECURITY_LAST,
 } virDomainLaunchSecurity;
@@ -2998,11 +3000,31 @@ struct _virDomainSEVSNPDef {
 };
 
 
+/* Copied from QGS source code */
+#define QGS_UNIX_SOCKET_FILE	"/var/run/tdx-qgs/qgs.socket"
+
+struct _virDomainTDXDef {
+    bool havePolicy;
+    unsigned long long policy;
+    char *mrconfigid;
+    char *mrowner;
+    char *mrownerconfig;
+    bool haveQGS;
+    char *qgs_unix_path;
+};
+
+
+#define VIR_DOMAIN_TDX_POLICY_DEBUG              0x1
+#define VIR_DOMAIN_TDX_POLICY_SEPT_VE_DISABLE    0x10000000
+#define VIR_DOMAIN_TDX_POLICY_ALLOWED_MASK       (VIR_DOMAIN_TDX_POLICY_DEBUG | \
+                                                  VIR_DOMAIN_TDX_POLICY_SEPT_VE_DISABLE)
+
 struct _virDomainSecDef {
     virDomainLaunchSecurity sectype;
     union {
         virDomainSEVDef sev;
         virDomainSEVSNPDef sev_snp;
+        virDomainTDXDef tdx;
     } data;
 };
 

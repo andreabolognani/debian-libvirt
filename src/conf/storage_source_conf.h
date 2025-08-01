@@ -301,8 +301,7 @@ struct _virStorageSource {
     virStorageType type;
     char *path;
     char *fdgroup; /* name of group of file descriptors the user wishes to use instead of 'path' */
-    int protocol; /* virStorageNetProtocol */
-    char *volume; /* volume name for remote storage */
+    virStorageNetProtocol protocol;
     char *snapshot; /* for storage systems supporting internal snapshots */
     char *configFile; /* some storage systems use config file as part of
                          the source definition */
@@ -396,6 +395,7 @@ struct _virStorageSource {
      * certificate directory with listen and verify bools. */
     char *tlsAlias;
     char *tlsCertdir;
+    char *tlsPriority;
 
     /* TLS hostname override */
     char *tlsHostname;
@@ -597,3 +597,10 @@ void
 virStorageSourceInitiatorClear(virStorageSourceInitiatorDef *initiator);
 
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(virStorageAuthDef, virStorageAuthDefFree);
+
+int
+virStorageSourceNetworkProtocolPathSplit(const char *path,
+                                         virStorageNetProtocol protocol,
+                                         char **pool,
+                                         char **namespace,
+                                         char **image);
