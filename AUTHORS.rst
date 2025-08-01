@@ -95,6 +95,7 @@ Patches have also been contributed by:
 * Takahashi Tomohiro <takatom@jp.fujitsu.com>
 * Tatsuro Enokura <fj7716hz@aa.jp.fujitsu.com>
 
+* Aaron M. Brown <aaronmbr@linux.ibm.com>
 * Abhiram Tilak <atp.exp@gmail.com>
 * Adam Julis <ajulis@redhat.com>
 * Adam Litke <agl@us.ibm.com>
@@ -176,6 +177,7 @@ Patches have also been contributed by:
 * Benjamin Cama <benoar@dolka.fr>
 * Benjamin Taubmann <benjamin.taubmann@nutanix.com>
 * Bharata B Rao <bharata@linux.vnet.ibm.com>
+* Bhavin Gandhi <bhavin192@geeksocket.in>
 * BiaoXiang Ye <yebiaoxiang@huawei.com>
 * Bihong Yu <yubihong@huawei.com>
 * Binfeng Wu <wubinfeng@huawei.com>
@@ -332,6 +334,7 @@ Patches have also been contributed by:
 * Eiichi Tsukata <eiichi.tsukata.xh@hitachi.com>
 * Eli Qiao <liyong.qiao@intel.com>
 * Eli Qiao <taget@linux.vnet.ibm.com>
+* Elizaveta Tereshkina <etereshkina@astralinux.ru>
 * Emilio Herrera <ehespinosa57@gmail.com>
 * Eric Blake <eblake@redhat.com>
 * Eric Farman <farman@linux.ibm.com>
@@ -353,6 +356,7 @@ Patches have also been contributed by:
 * Fangge Jin <fjin@redhat.com>
 * Farhan Ali <alifm@linux.ibm.com>
 * Farhan Ali <alifm@linux.vnet.ibm.com>
+* Fco. Javier F. Serrador <fserrador@gmail.com>
 * Federico Simoncelli <fsimonce@redhat.com>
 * Félix Bouliane <felixbouliane@gmail.com>
 * Felix Geyer <debfx@fobos.de>
@@ -453,6 +457,7 @@ Patches have also been contributed by:
 * Jakub Palacky <jpalacky@redhat.com>
 * James Chapman <james.p.chapman@intel.com>
 * James Cowgill <james410@cowgill.org.uk>
+* James Le Cuirot <jlecuirot@microsoft.com>
 * james robson <jrobson@websense.com>
 * James Shubin <james@shubin.ca>
 * Jamie Strandboge <jamie@canonical.com>
@@ -598,6 +603,7 @@ Patches have also been contributed by:
 * Ludek Janda <ljanda@redhat.com>
 * Ludovic Beliveau <ludovic.beliveau@windriver.com>
 * Luiz Capitulino <lcapitulino@redhat.com>
+* Lukas Greve <please@refre.ch>
 * Lu Ke <nicelukas@hotmail.com>
 * Luke Yue <lukedyue@gmail.com>
 * Luyao Huang <lhuang@redhat.com>
@@ -702,6 +708,7 @@ Patches have also been contributed by:
 * Neal Gompa <ngompa13@gmail.com>
 * Nehal J Wani <nehaljw.kkd1@gmail.com>
 * Neil Wilson <neil@aldur.co.uk>
+* Ngai-Mint Kwan <28817515-nmkwan@users.noreply.gitlab.com>
 * Nguyen Anh Quynh <aquynh@gmail.com>
 * Nick Chevsky <nchevsky@gmail.com>
 * Nick Shyrokovskiy <nshyrokovskiy@gmail.com>

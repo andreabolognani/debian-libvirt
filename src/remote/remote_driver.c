@@ -2333,7 +2333,7 @@ remoteDomainMigratePrepare(virConnectPtr dconn,
                            char **cookie, int *cookielen,
                            const char *uri_in, char **uri_out,
                            unsigned long flags, const char *dname,
-                           unsigned long resource)
+                           unsigned long bandwidth)
 {
     remote_domain_migrate_prepare_args args = {0};
     g_auto(remote_domain_migrate_prepare_ret) ret = {0};
@@ -2343,7 +2343,7 @@ remoteDomainMigratePrepare(virConnectPtr dconn,
     args.uri_in = uri_in == NULL ? NULL : (char **) &uri_in;
     args.flags = flags;
     args.dname = dname == NULL ? NULL : (char **) &dname;
-    args.resource = resource;
+    args.bandwidth = bandwidth;
 
     if (call(dconn, priv, 0, REMOTE_PROC_DOMAIN_MIGRATE_PREPARE,
              (xdrproc_t) xdr_remote_domain_migrate_prepare_args, (char *) &args,
@@ -2367,7 +2367,7 @@ remoteDomainMigratePrepare2(virConnectPtr dconn,
                             char **cookie, int *cookielen,
                             const char *uri_in, char **uri_out,
                             unsigned long flags, const char *dname,
-                            unsigned long resource,
+                            unsigned long bandwidth,
                             const char *dom_xml)
 {
     remote_domain_migrate_prepare2_args args = {0};
@@ -2378,7 +2378,7 @@ remoteDomainMigratePrepare2(virConnectPtr dconn,
     args.uri_in = uri_in == NULL ? NULL : (char **) &uri_in;
     args.flags = flags;
     args.dname = dname == NULL ? NULL : (char **) &dname;
-    args.resource = resource;
+    args.bandwidth = bandwidth;
     args.dom_xml = (char *) dom_xml;
 
     if (call(dconn, priv, 0, REMOTE_PROC_DOMAIN_MIGRATE_PREPARE2,
@@ -5648,7 +5648,7 @@ remoteDomainMigrateBegin3(virDomainPtr domain,
                           int *cookieoutlen,
                           unsigned long flags,
                           const char *dname,
-                          unsigned long resource)
+                          unsigned long bandwidth)
 {
     remote_domain_migrate_begin3_args args = {0};
     g_auto(remote_domain_migrate_begin3_ret) ret = {0};
@@ -5659,7 +5659,7 @@ remoteDomainMigrateBegin3(virDomainPtr domain,
     args.xmlin = xmlin == NULL ? NULL : (char **) &xmlin;
     args.flags = flags;
     args.dname = dname == NULL ? NULL : (char **) &dname;
-    args.resource = resource;
+    args.bandwidth = bandwidth;
 
     if (call(domain->conn, priv, 0, REMOTE_PROC_DOMAIN_MIGRATE_BEGIN3,
              (xdrproc_t) xdr_remote_domain_migrate_begin3_args, (char *) &args,
@@ -5691,7 +5691,7 @@ remoteDomainMigratePrepare3(virConnectPtr dconn,
                             char **uri_out,
                             unsigned long flags,
                             const char *dname,
-                            unsigned long resource,
+                            unsigned long bandwidth,
                             const char *dom_xml)
 {
     remote_domain_migrate_prepare3_args args = {0};
@@ -5704,7 +5704,7 @@ remoteDomainMigratePrepare3(virConnectPtr dconn,
     args.uri_in = uri_in == NULL ? NULL : (char **) &uri_in;
     args.flags = flags;
     args.dname = dname == NULL ? NULL : (char **) &dname;
-    args.resource = resource;
+    args.bandwidth = bandwidth;
     args.dom_xml = (char *) dom_xml;
 
     if (call(dconn, priv, 0, REMOTE_PROC_DOMAIN_MIGRATE_PREPARE3,
@@ -5744,7 +5744,7 @@ remoteDomainMigratePrepareTunnel3(virConnectPtr dconn,
                                   int *cookieoutlen,
                                   unsigned long flags,
                                   const char *dname,
-                                  unsigned long resource,
+                                  unsigned long bandwidth,
                                   const char *dom_xml)
 {
     struct private_data *priv = dconn->privateData;
@@ -5769,7 +5769,7 @@ remoteDomainMigratePrepareTunnel3(virConnectPtr dconn,
     args.cookie_in.cookie_in_len = cookieinlen;
     args.flags = flags;
     args.dname = dname == NULL ? NULL : (char **) &dname;
-    args.resource = resource;
+    args.bandwidth = bandwidth;
     args.dom_xml = (char *) dom_xml;
 
     if (call(dconn, priv, 0, REMOTE_PROC_DOMAIN_MIGRATE_PREPARE_TUNNEL3,
@@ -5806,7 +5806,7 @@ remoteDomainMigratePerform3(virDomainPtr dom,
                             const char *uri,
                             unsigned long flags,
                             const char *dname,
-                            unsigned long resource)
+                            unsigned long bandwidth)
 {
     remote_domain_migrate_perform3_args args = {0};
     g_auto(remote_domain_migrate_perform3_ret) ret = {0};
@@ -5822,7 +5822,7 @@ remoteDomainMigratePerform3(virDomainPtr dom,
     args.dname = dname == NULL ? NULL : (char **) &dname;
     args.uri = uri == NULL ? NULL : (char **) &uri;
     args.dconnuri = dconnuri == NULL ? NULL : (char **) &dconnuri;
-    args.resource = resource;
+    args.bandwidth = bandwidth;
 
     if (call(dom->conn, priv, 0, REMOTE_PROC_DOMAIN_MIGRATE_PERFORM3,
              (xdrproc_t) xdr_remote_domain_migrate_perform3_args, (char *) &args,

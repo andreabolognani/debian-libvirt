@@ -128,8 +128,10 @@ static int virNetTLSCertCheckKeyUsage(gnutls_x509_crt_t cert,
     VIR_DEBUG("Cert %s key usage status %d usage %d critical %u", certFile, status, usage, critical);
     if (status < 0) {
         if (status == GNUTLS_E_REQUESTED_DATA_NOT_AVAILABLE) {
-            usage = isCA ? GNUTLS_KEY_KEY_CERT_SIGN :
-                GNUTLS_KEY_DIGITAL_SIGNATURE|GNUTLS_KEY_KEY_ENCIPHERMENT;
+            if (isCA)
+                usage = GNUTLS_KEY_KEY_CERT_SIGN;
+            else
+                usage = GNUTLS_KEY_DIGITAL_SIGNATURE;
         } else {
             virReportError(VIR_ERR_SYSTEM_ERROR,
                            _("Unable to query certificate %1$s key usage %2$s"),
@@ -160,34 +162,6 @@ static int virNetTLSCertCheckKeyUsage(gnutls_x509_crt_t cert,
             } else {
                 VIR_WARN("Certificate %s usage does not permit digital signature",
                          certFile);
-            }
-        }
-        if (!(usage & GNUTLS_KEY_KEY_ENCIPHERMENT)) {
-            int alg = gnutls_x509_crt_get_pk_algorithm(cert, NULL);
-
-            /* Per RFC8813 [1] which amends RFC5580 [2] ECDSA, ECDH, and ECMQV
-             * algorithms must not have 'keyEncipherment' present.
-             *
-             * [1] https://datatracker.ietf.org/doc/rfc8813/
-             * [2] https://datatracker.ietf.org/doc/rfc5480
-             */
-
-            switch (alg) {
-            case GNUTLS_PK_ECDSA:
-            case GNUTLS_PK_ECDH_X25519:
-            case GNUTLS_PK_ECDH_X448:
-                break;
-
-            default:
-                if (critical) {
-                    virReportError(VIR_ERR_SYSTEM_ERROR,
-                                   _("Certificate %1$s usage does not permit key encipherment"),
-                                   certFile);
-                    return -1;
-                } else {
-                    VIR_WARN("Certificate %s usage does not permit key encipherment",
-                             certFile);
-                }
             }
         }
     }
@@ -349,11 +323,11 @@ static int virNetTLSCertCheck(gnutls_x509_crt_t cert,
 
 
 static int virNetTLSCertCheckPair(gnutls_x509_crt_t cert,
-                                         const char *certFile,
-                                         gnutls_x509_crt_t *cacerts,
-                                         size_t ncacerts,
-                                         const char *cacertFile,
-                                         bool isServer)
+                                  const char *certFile,
+                                  gnutls_x509_crt_t *cacerts,
+                                  size_t ncacerts,
+                                  const char *cacertFile,
+                                  bool isServer)
 {
     unsigned int status;
 
@@ -434,10 +408,10 @@ gnutls_x509_crt_t virNetTLSCertLoadFromFile(const char *certFile,
 }
 
 
-static int virNetTLSCertLoadCAListFromFile(const char *certFile,
-                                           gnutls_x509_crt_t *certs,
-                                           unsigned int certMax,
-                                           size_t *ncerts)
+int virNetTLSCertLoadListFromFile(const char *certFile,
+                                  gnutls_x509_crt_t *certs,
+                                  unsigned int certMax,
+                                  size_t *ncerts)
 {
     gnutls_datum_t data;
     g_autofree char *buf = NULL;
@@ -453,7 +427,7 @@ static int virNetTLSCertLoadCAListFromFile(const char *certFile,
 
     if (gnutls_x509_crt_list_import(certs, &certMax, &data, GNUTLS_X509_FMT_PEM, 0) < 0) {
         virReportError(VIR_ERR_SYSTEM_ERROR,
-                       _("Unable to import CA certificate list %1$s"),
+                       _("Unable to import certificate list %1$s"),
                        certFile);
         return -1;
     }
@@ -478,8 +452,8 @@ int virNetTLSCertSanityCheck(bool isServer,
         !(cert = virNetTLSCertLoadFromFile(certFile, isServer)))
         goto cleanup;
     if ((access(cacertFile, R_OK) == 0) &&
-        virNetTLSCertLoadCAListFromFile(cacertFile, cacerts,
-                                        MAX_CERTS, &ncacerts) < 0)
+        virNetTLSCertLoadListFromFile(cacertFile, cacerts,
+                                      MAX_CERTS, &ncacerts) < 0)
         goto cleanup;
 
     if (cert &&

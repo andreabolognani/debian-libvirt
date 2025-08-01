@@ -17,8 +17,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: libvirt 6.0.0\n"
 "Report-Msgid-Bugs-To: https://libvirt.org/bugs.html\n"
-"POT-Creation-Date: 2025-06-24 14:31+0000\n"
-"PO-Revision-Date: 2025-06-27 10:18+0000\n"
+"POT-Creation-Date: 2025-07-28 08:26+0000\n"
+"PO-Revision-Date: 2025-08-01 03:20+0000\n"
 "Last-Translator: 김인수 <simmon@nplob.com>\n"
 "Language-Team: Korean <https://translate.fedoraproject.org/projects/libvirt/"
 "libvirt/ko/>\n"
@@ -3438,9 +3438,6 @@ msgstr "stat '%1$s'을 구문 분석 할 수 없습니다"
 msgid "Cannot parse user stat '%1$s'"
 msgstr "사용자 통계 '%1$s'를 구문 분석 할 수 없음"
 
-msgid "Cannot parse uuid attribute of element <address>"
-msgstr "요소 <address>의 uuid 속성을 구문 분석 할 수 없습니다"
-
 #, c-format
 msgid ""
 "Cannot plug '%1$s' interface into '%2$s' because new combined inbound "
@@ -3724,10 +3721,6 @@ msgstr "인증서 %1$s 사용은 인증서 서명을 허용하지 않습니다"
 #, c-format
 msgid "Certificate %1$s usage does not permit digital signature"
 msgstr "인증서 %1$s 사용은 디지털 서명을 허용하지 않습니다"
-
-#, c-format
-msgid "Certificate %1$s usage does not permit key encipherment"
-msgstr "인증서 %1$s 사용은 비밀번호 암호화를 허용하지 않습니다"
 
 #, c-format
 msgid "Certificate failed validation: %1$s"
@@ -4177,7 +4170,8 @@ msgstr "'%1$s' 타이머 구성은 이 QEMU 바이너리에서는 지원되지 �
 msgid ""
 "Conflicting NVME disk serial number, all disks on a controller must have the "
 "same serial number as the controller itself"
-msgstr "충돌하는 NVME 디스크 일련 번호, 제어기에서 모든 디스크는 제어기 자체와 같은 "
+msgstr ""
+"충돌하는 NVME 디스크 일련 번호, 제어기에서 모든 디스크는 제어기 자체와 같은 "
 "동일한 일련 번호를 가져야 합니다"
 
 msgid "Connect the virtual serial console for the guest"
@@ -9990,6 +9984,21 @@ msgstr "연결장치 '%1$s'에서 실패한 규칙의 인스턴스화"
 msgid "Integrity error in watchdog models"
 msgstr "와치독 모델에서 무결성 오류"
 
+msgid "Intel TDX launch security is not supported with PMU enabled"
+msgstr "인텔 TDX 실행 보안은 활성화된 PMU를 지원하지 않습니다"
+
+msgid "Intel TDX launch security is not supported with SMM enabled"
+msgstr "인텔 TDX 실행 보안은 활성화된 SMM을 지원하지 않습니다"
+
+msgid "Intel TDX launch security is not supported with pflash loader"
+msgstr "인텔 TDX 실행 보안은 pflash loader를 지원하지 않습니다"
+
+msgid "Intel TDX launch security is not supported with this QEMU binary"
+msgstr "인텔 TDX 실행 보안은 이와 같은 QEMU 바이너리를 지원하지 않습니다"
+
+msgid "Intel TDX launch security needs split kernel irqchip"
+msgstr "인텔 TDX 실행 보안은 분기 커널 irqchip이 필요합니다"
+
 msgid "Interface"
 msgstr "연결장치"
 
@@ -10724,10 +10733,6 @@ msgstr "'예' 또는 '아니요' 중 잘못된 persistent_state 값"
 #, c-format
 msgid "Invalid pool type '%1$s'"
 msgstr "잘못된 풀 유형 '%1$s'"
-
-#, c-format
-msgid "Invalid port number: %1$s"
-msgstr "잘못된 포트 번호: %1$s"
 
 #, c-format
 msgid "Invalid port range '%1$u-%2$u'."
@@ -11743,9 +11748,6 @@ msgstr "네트워크 '%1$s'의 dhcp 범위에 'start' 속성이 누락되어 있
 
 msgid "Missing 'target' element for lease"
 msgstr "임대의 'target' 요소가 누락되어 있음"
-
-msgid "Missing 'uuid' attribute for element <address>"
-msgstr "<address> 요소에 대한 'uuid' 속성 누락"
 
 msgid "Missing <address> element"
 msgstr "<address> 요소 누락"
@@ -13285,8 +13287,14 @@ msgstr "오직 '%1$s' 파일 시스템만 지원됨"
 msgid "Only 'credit' and 'credit2' schedulers are supported"
 msgstr "'credit' 및 'credit2' 스케줄러만 지원됩니다"
 
+msgid "Only 'nmdm' and 'tcp' console types are supported"
+msgstr "'nmdm' 및 'tcp' 콘솔 유형만 지원됩니다"
+
 msgid "Only 'random' backend model is supported"
 msgstr "'random' 백엔드 모델만 지원됩니다"
+
+msgid "Only 'raw' protocol is supported for TCP sockets"
+msgstr "'raw' 통신규약만 TCP 소켓을 지원합니다"
 
 msgid "Only 'virio' RNG device model is supported"
 msgstr "'virio' RNG 장치 모델만 지원됩니다"
@@ -13348,6 +13356,11 @@ msgstr "단일 콘솔 또는 시리얼만이 해당 도메인을 위해 구성 �
 msgid "Only a single serial can be configured for this domain"
 msgstr "단일 시리얼만이 해당 도메인을 위해 구성 될 수 있습니다"
 
+msgid ""
+"Only bit0(debug) and bit28(sept-ve-disable) are supported intel TDX launch "
+"security policy"
+msgstr ""
+
 msgid "Only bridged veth devices can be detached"
 msgstr "오직 브리지된 veth 장치만 분리할 수 있습니다"
 
@@ -13370,6 +13383,9 @@ msgstr ""
 msgid "Only file based or volume based filesystems are supported by vz driver."
 msgstr "vz 드라이버는 파일 기반 또는 볼륨 기반 파일 시스템만 지원합니다."
 
+msgid "Only four serial ports are supported"
+msgstr ""
+
 msgid "Only hard disks and cdroms are supported by vz driver."
 msgstr "vz 드라이버는 하드 디스크와 cdrom만 지원합니다."
 
@@ -13378,6 +13394,9 @@ msgstr "오직 ide 및 scsi 디스크만 wwn를 지원합니다"
 
 msgid "Only ide, sata and scsi disk supports 'product'"
 msgstr "ide, sata 및 scsi 디스크만 'product'를 지원합니다"
+
+msgid "Only listening TCP sockets are supported"
+msgstr ""
 
 msgid "Only luks encryption is supported for raw files"
 msgstr "luks 암호화만 단순 파일을 지원합니다"
@@ -14419,6 +14438,9 @@ msgstr "관리 서버에 다시 연결됨"
 
 msgid "Reconnected to the hypervisor"
 msgstr "하이퍼바이저로 재연결 됨"
+
+msgid "Recreation"
+msgstr ""
 
 #, c-format
 msgid "Redirection bus %1$s is not supported by QEMU"
@@ -18339,6 +18361,10 @@ msgstr "현재 파일 옵셋: %1$s를 확인 할 수 없습니다"
 msgid "Unable to determine model for SCSI controller idx=%1$d"
 msgstr "SCSI 컨트롤러 idx=%1$d의 모델을 확인할 수 없습니다"
 
+#, c-format
+msgid "Unable to determine model for USB controller idx=%1$d"
+msgstr ""
+
 msgid "Unable to determine mount table on this platform"
 msgstr "이 기술환경에서 적재 테이블을 결정 할 수 없습니다"
 
@@ -18808,8 +18834,8 @@ msgid "Unable to get virtual functions on this platform"
 msgstr "이 기술환경에서 가상 기능을 가져올 수 없습니다"
 
 #, c-format
-msgid "Unable to import CA certificate list %1$s"
-msgstr "CA 인증서 목록 %1$s를 가져 올 수 없습니다"
+msgid "Unable to import certificate list %1$s"
+msgstr ""
 
 #, c-format
 msgid "Unable to import client certificate %1$s"
@@ -20233,6 +20259,10 @@ msgstr "알지 못하는 암호화 해쉬 %1$d"
 #, c-format
 msgid "Unknown data source '%1$s'"
 msgstr "알 수 없는 데이터 소스 '%1$s'"
+
+#, c-format
+msgid "Unknown default_cpu_deprecated_features value %1$s"
+msgstr ""
 
 #, c-format
 msgid "Unknown dirty page rate calculation mode: %1$s"
@@ -22528,10 +22558,6 @@ msgstr "비어 있거나 읽기 전용인 디스크 '%1$s'의 크기를 조정�
 msgid "can't shrink capacity below existing allocation"
 msgstr "기존 할당 아래로 용량을 축소할 수 없습니다"
 
-#, c-format
-msgid "can't split path '%1$s' into pool name and image name"
-msgstr "경로 '%1$s'를 풀 이름과 이미지 이름으로 분할할 수 없습니다"
-
 msgid "can't undefine transient network"
 msgstr "임시 네트워크를 정의 해제할 수 없습니다"
 
@@ -23466,12 +23492,6 @@ msgstr "장치 끝 위치를 구문분석할 수 없음"
 msgid "cannot parse device start location"
 msgstr "장치 시작 위치를 구문분석할 수 없음"
 
-msgid "cannot parse instanceid parameter as a uuid"
-msgstr "uuid로 인스턴스 ID 매개 변수를 구문 분석할 수 없음"
-
-msgid "cannot parse interfaceid parameter as a uuid"
-msgstr "uuid로 인터페이스 ID 매개 변수를 구문 분석할 수 없음"
-
 #, c-format
 msgid "cannot parse openfiles '%1$s' for virtiofs"
 msgstr "virtiofs를 위한 openfiles '%1$s' 를 구문 분석 할 수 없습니다"
@@ -23512,19 +23532,6 @@ msgstr "RAM 파일 시스템의 사용법 '%1$s'을 구문 분석할 수 없음"
 #, c-format
 msgid "cannot parse value '%1$s' for coalesce parameter"
 msgstr "coalesce 매개 변수를 위한 값 '%1$s'를 구문 분석 할 수 없습니다"
-
-msgid "cannot parse value of managerid parameter"
-msgstr "managerid 매개 변수 값을 구문 분석할 수 없음"
-
-msgid "cannot parse value of typeid parameter"
-msgstr "typeid 매개 변수 값을 구문 분석할 수 없음"
-
-msgid "cannot parse value of typeidversion parameter"
-msgstr "typeidversion 매개 변수 값을 구문 분석할 수 없음"
-
-#, c-format
-msgid "cannot parse vcpu index '%1$s'"
-msgstr "vcpu 인덱스 '%1$s'을(를) 구문 분석할 수 없습니다"
 
 #, c-format
 msgid "cannot parse vlan tag '%1$s' from file '%2$s'"
@@ -27455,6 +27462,9 @@ msgstr "인터페이스 '%1$s'를 가져오는 데 실패"
 msgid "failed to get launch security policy"
 msgstr "시작 보안 정책을 가져오지 못했습니다"
 
+msgid "failed to get launch security policy for launch security type TDX"
+msgstr ""
+
 #, c-format
 msgid "failed to get list of %1$s interfaces on host"
 msgstr "호스트에서 %1$s 인터페이스 목록을 가져오는데 실패"
@@ -28059,6 +28069,12 @@ msgstr "표준 출력 핸들을 설정하는 데 실패했습니다"
 
 msgid "failed to shutdown guest VM"
 msgstr "게스트 가상장비(VM)을 종료하지 못했습니다"
+
+#, c-format
+msgid ""
+"failed to split path '%1$s' into 'pool/image' or 'pool/namespace/image' "
+"components"
+msgstr ""
 
 #, c-format
 msgid "failed to stat remote file '%1$s'"
@@ -29184,6 +29200,10 @@ msgstr "무시"
 msgid "ignoring debug level %1$d out of range [%2$d-%3$d]"
 msgstr "[%1$d-%2$d] 범위를 벗어난 디버그 수준 %3$d를 무시합니다"
 
+msgid ""
+"ignoring host is only allowed when computing baseline from multiple CPUs"
+msgstr ""
+
 msgid "image magic is incorrect"
 msgstr "이미지 매직이 잘못되었습니다"
 
@@ -30095,10 +30115,6 @@ msgstr "잘못된 보안 유형 %1$s"
 #, c-format
 msgid "invalid secret type '%1$s'"
 msgstr "잘못된 보안 유형 '%1$s'"
-
-#, c-format
-msgid "invalid secret uuid '%1$s'"
-msgstr "잘못된 비밀 uuid '%1$s'"
 
 msgid "invalid server address"
 msgstr "잘못된 서버 주소"
@@ -31037,6 +31053,9 @@ msgstr "'%1$s'의 '%2$s'를 쿼리할 때 형식이 잘못된 QAPI 스키마"
 
 msgid "malformed QMP schema"
 msgstr "잘못된 QMP 스키마"
+
+msgid "malformed TDX panic data"
+msgstr ""
 
 #, c-format
 msgid "malformed TLS secret uuid '%1$s' provided"
@@ -32041,10 +32060,6 @@ msgstr "필터 매개 변수 표가 누락됨"
 msgid "missing flag name in QEMU capabilities cache"
 msgstr "QEMU 기능 캐시에 누락된 플래그 이름"
 
-#, c-format
-msgid "missing gluster volume name for path '%1$s'"
-msgstr "경로 '%1$s'에 대한 Gluster 볼륨 이름이 없습니다"
-
 msgid "missing group name"
 msgstr "누락된 그룹 이름"
 
@@ -32522,15 +32537,8 @@ msgstr "vlan 태그 데이터 누락되어 있음"
 msgid "missing vmstate section when reverting active internal snapshot '%1$s'"
 msgstr "활성된 내부 순간찍기 '%1$s' 를 되돌릴 때 vmstate 부분이 누락됨"
 
-msgid "missing volume name and path for gluster volume"
-msgstr "gluster 볼륨에 대한 볼륨 이름 및 경로 누락"
-
 msgid "missing volume name element"
 msgstr "볼륨 이름 요소가 빠짐"
-
-#, c-format
-msgid "missing volume name or file name in gluster source path '%1$s'"
-msgstr "Gluster 원천 경로 '%1$s'에 볼륨 이름 또는 파일 이름 누락"
 
 msgid "missing vporttype attribute in migration data"
 msgstr "이전 자료에서 vporttype 속성이 누락됨"
@@ -33440,9 +33448,6 @@ msgstr "첨부 수단 없음"
 msgid "no memory device found"
 msgstr "메모리 장치를 찾을 수 없습니다"
 
-msgid "no model provided for USB controller"
-msgstr "USB 컨트롤러에 제공되는 모델 없음"
-
 msgid "no monitor path"
 msgstr "모니터 경로가 없음"
 
@@ -34001,6 +34006,9 @@ msgstr "USB 입력 장치만 지원됩니다"
 msgid "only a single IOMMU device is supported"
 msgstr "단일 IOMMU 장치만 지원됨"
 
+msgid "only a single QGS element is supported"
+msgstr ""
+
 msgid "only a single TPM Proxy device is supported"
 msgstr "단일 TPM 프락시 장치만이 지원됨"
 
@@ -34142,9 +34150,6 @@ msgstr "태블릿 입력 장치만 지원됩니다"
 
 msgid "only the 'qemu' driver can be used with network disks"
 msgstr "'qemu' 드라이버만 네트워크 디스크와 함께 사용할 수 있습니다"
-
-msgid "only two serial ports are supported"
-msgstr "시리얼 포트 두개 까지만 지원합니다"
 
 msgid "only two source elements are allowed for character device"
 msgstr "저장소 원천 %s는 문자 장치여야 합니다"
@@ -40663,6 +40668,11 @@ msgstr "웹소켓"
 msgid "weight for XEN_CREDIT"
 msgstr "XEN_CREDIT의 weight"
 
+msgid ""
+"when computing baseline from several CPUs, do not take hypervisor "
+"capabilities into account and work with input data only"
+msgstr ""
+
 #, c-format
 msgid "when providing parent wwnn='%1$s', the wwpn must also be provided"
 msgstr "상위 wwnn='%1$s'를 제공할 때 wwpn도 제공해야 합니다"
@@ -40805,6 +40815,68 @@ msgid "zone %1$s requested for network %2$s but firewalld is not active"
 msgstr ""
 "%1$s 영역이 네트워크 %2$s에 대해 요청되었지만 firewalld가 활성 상태가 아닙니"
 "다"
+
+#~ msgid "Cannot parse uuid attribute of element <address>"
+#~ msgstr "요소 <address>의 uuid 속성을 구문 분석 할 수 없습니다"
+
+#, c-format
+#~ msgid "Certificate %1$s usage does not permit key encipherment"
+#~ msgstr "인증서 %1$s 사용은 비밀번호 암호화를 허용하지 않습니다"
+
+#, c-format
+#~ msgid "Invalid port number: %1$s"
+#~ msgstr "잘못된 포트 번호: %1$s"
+
+#~ msgid "Missing 'uuid' attribute for element <address>"
+#~ msgstr "<address> 요소에 대한 'uuid' 속성 누락"
+
+#, c-format
+#~ msgid "Unable to import CA certificate list %1$s"
+#~ msgstr "CA 인증서 목록 %1$s를 가져 올 수 없습니다"
+
+#, c-format
+#~ msgid "can't split path '%1$s' into pool name and image name"
+#~ msgstr "경로 '%1$s'를 풀 이름과 이미지 이름으로 분할할 수 없습니다"
+
+#~ msgid "cannot parse instanceid parameter as a uuid"
+#~ msgstr "uuid로 인스턴스 ID 매개 변수를 구문 분석할 수 없음"
+
+#~ msgid "cannot parse interfaceid parameter as a uuid"
+#~ msgstr "uuid로 인터페이스 ID 매개 변수를 구문 분석할 수 없음"
+
+#~ msgid "cannot parse value of managerid parameter"
+#~ msgstr "managerid 매개 변수 값을 구문 분석할 수 없음"
+
+#~ msgid "cannot parse value of typeid parameter"
+#~ msgstr "typeid 매개 변수 값을 구문 분석할 수 없음"
+
+#~ msgid "cannot parse value of typeidversion parameter"
+#~ msgstr "typeidversion 매개 변수 값을 구문 분석할 수 없음"
+
+#, c-format
+#~ msgid "cannot parse vcpu index '%1$s'"
+#~ msgstr "vcpu 인덱스 '%1$s'을(를) 구문 분석할 수 없습니다"
+
+#, c-format
+#~ msgid "invalid secret uuid '%1$s'"
+#~ msgstr "잘못된 비밀 uuid '%1$s'"
+
+#, c-format
+#~ msgid "missing gluster volume name for path '%1$s'"
+#~ msgstr "경로 '%1$s'에 대한 Gluster 볼륨 이름이 없습니다"
+
+#~ msgid "missing volume name and path for gluster volume"
+#~ msgstr "gluster 볼륨에 대한 볼륨 이름 및 경로 누락"
+
+#, c-format
+#~ msgid "missing volume name or file name in gluster source path '%1$s'"
+#~ msgstr "Gluster 원천 경로 '%1$s'에 볼륨 이름 또는 파일 이름 누락"
+
+#~ msgid "no model provided for USB controller"
+#~ msgstr "USB 컨트롤러에 제공되는 모델 없음"
+
+#~ msgid "only two serial ports are supported"
+#~ msgstr "시리얼 포트 두개 까지만 지원합니다"
 
 #~ msgid "'ioeventfd' is only supported by virtio-scsi controller"
 #~ msgstr "'ioeventfd'는 virtio-scsi 제어기에서만 지원됩니다"

@@ -741,6 +741,7 @@ VIR_ENUM_IMPL(virQEMUCaps,
               "amd-iommu", /* QEMU_CAPS_AMD_IOMMU */
               "amd-iommu.pci-id", /* QEMU_CAPS_AMD_IOMMU_PCI_ID */
               "usb-bot", /* QEMU_CAPS_DEVICE_USB_BOT */
+              "tdx-guest", /* QEMU_CAPS_TDX_GUEST */
     );
 
 
@@ -1429,6 +1430,7 @@ struct virQEMUCapsStringFlags virQEMUCapsObjectTypes[] = {
     { "nvme-ns", QEMU_CAPS_DEVICE_NVME_NS },
     { "amd-iommu", QEMU_CAPS_AMD_IOMMU },
     { "usb-bot", QEMU_CAPS_DEVICE_USB_BOT },
+    { "tdx-guest", QEMU_CAPS_TDX_GUEST},
 };
 
 
@@ -3366,7 +3368,8 @@ virQEMUCapsGetCPUFeatures(virQEMUCaps *qemuCaps,
 void
 virQEMUCapsUpdateCPUDeprecatedFeatures(virQEMUCaps *qemuCaps,
                                        virDomainVirtType virtType,
-                                       virCPUDef *cpu)
+                                       virCPUDef *cpu,
+                                       virCPUFeaturePolicy policy)
 {
     qemuMonitorCPUModelInfo *modelInfo;
     size_t i;
@@ -3377,8 +3380,7 @@ virQEMUCapsUpdateCPUDeprecatedFeatures(virQEMUCaps *qemuCaps,
         return;
 
     for (i = 0; i < g_strv_length(modelInfo->deprecated_props); i++) {
-        virCPUDefUpdateFeature(cpu, modelInfo->deprecated_props[i],
-                               VIR_CPU_FEATURE_DISABLE);
+        virCPUDefUpdateFeature(cpu, modelInfo->deprecated_props[i], policy);
     }
 }
 
@@ -5323,6 +5325,24 @@ virQEMUCapsKVMSupportsSecureGuestAMD(void)
 
 
 /*
+ * Check whether INTEL Trust Domain Extention (x86) is enabled
+ */
+static bool
+virQEMUCapsKVMSupportsSecureGuestTDX(void)
+{
+    g_autofree char *modValue = NULL;
+
+    if (virFileReadValueString(&modValue, "/sys/module/kvm_intel/parameters/tdx") < 0)
+        return false;
+
+    if (modValue[0] != 'Y')
+        return false;
+
+    return true;
+}
+
+
+/*
  * Check whether the secure guest functionality is enabled.
  * See the specific architecture function for details on the verifications made.
  */
@@ -5335,7 +5355,8 @@ virQEMUCapsKVMSupportsSecureGuest(void)
         return virQEMUCapsKVMSupportsSecureGuestS390();
 
     if (ARCH_IS_X86(arch))
-        return virQEMUCapsKVMSupportsSecureGuestAMD();
+        return virQEMUCapsKVMSupportsSecureGuestAMD() ||
+               virQEMUCapsKVMSupportsSecureGuestTDX();
 
     return false;
 }
@@ -6755,6 +6776,8 @@ virQEMUCapsFillDomainLaunchSecurity(virQEMUCaps *qemuCaps,
     if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_S390_PV_GUEST) &&
         virQEMUCapsGet(qemuCaps, QEMU_CAPS_MACHINE_CONFIDENTAL_GUEST_SUPPORT))
         VIR_DOMAIN_CAPS_ENUM_SET(launchSecurity->sectype, VIR_DOMAIN_LAUNCH_SECURITY_PV);
+    if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_TDX_GUEST))
+        VIR_DOMAIN_CAPS_ENUM_SET(launchSecurity->sectype, VIR_DOMAIN_LAUNCH_SECURITY_TDX);
 
     if (launchSecurity->sectype.values == 0) {
         launchSecurity->supported = VIR_TRISTATE_BOOL_NO;
@@ -6991,6 +7014,18 @@ virQEMUCapsFillDomainFeatureHypervCaps(virQEMUCaps *qemuCaps,
 }
 
 
+static void
+virQEMUCapsFillDomainFeatureTDXCaps(virQEMUCaps *qemuCaps,
+                                    virDomainCaps *domCaps)
+{
+    if (domCaps->arch == VIR_ARCH_X86_64 &&
+        domCaps->virttype == VIR_DOMAIN_VIRT_KVM &&
+        virQEMUCapsGet(qemuCaps, QEMU_CAPS_TDX_GUEST) &&
+        virQEMUCapsGetKVMSupportsSecureGuest(qemuCaps))
+            domCaps->features[VIR_DOMAIN_CAPS_FEATURE_TDX] = VIR_TRISTATE_BOOL_YES;
+}
+
+
 int
 virQEMUCapsFillDomainCaps(virQEMUDriverConfig *cfg,
                           virQEMUCaps *qemuCaps,
@@ -7055,6 +7090,7 @@ virQEMUCapsFillDomainCaps(virQEMUDriverConfig *cfg,
     virQEMUCapsFillDomainFeaturePS2Caps(qemuCaps, domCaps);
     virQEMUCapsFillDomainFeatureSGXCaps(qemuCaps, domCaps);
     virQEMUCapsFillDomainFeatureHypervCaps(qemuCaps, domCaps);
+    virQEMUCapsFillDomainFeatureTDXCaps(qemuCaps, domCaps);
     virQEMUCapsFillDomainDeviceCryptoCaps(qemuCaps, crypto);
     virQEMUCapsFillDomainLaunchSecurity(qemuCaps, launchSecurity);
     virQEMUCapsFillDomainDeviceNetCaps(qemuCaps, net);

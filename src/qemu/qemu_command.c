@@ -1263,6 +1263,7 @@ qemuBuildObjectSecretCommandLine(virCommand *cmd,
  * @tlspath: path to the TLS credentials
  * @listen: boolean listen for client or server setting
  * @verifypeer: boolean to enable peer verification (form of authorization)
+ * @priority: GNUTLS priority string override (optional)
  * @alias: alias for the TLS credentials object
  * @secalias: if one exists, the alias of the security object for passwordid
  * @propsret: json properties to return
@@ -1275,6 +1276,7 @@ int
 qemuBuildTLSx509BackendProps(const char *tlspath,
                              bool isListen,
                              bool verifypeer,
+                             const char *priority,
                              const char *alias,
                              const char *secalias,
                              virJSONValue **propsret)
@@ -1283,6 +1285,7 @@ qemuBuildTLSx509BackendProps(const char *tlspath,
                                      "s:dir", tlspath,
                                      "s:endpoint", (isListen ? "server": "client"),
                                      "b:verify-peer", (isListen ? verifypeer : true),
+                                     "S:priority", priority,
                                      "S:passwordid", secalias,
                                      NULL) < 0)
         return -1;
@@ -1296,6 +1299,7 @@ qemuBuildTLSx509BackendProps(const char *tlspath,
  * @tlspath: path to the TLS credentials
  * @listen: boolean listen for client or server setting
  * @verifypeer: boolean to enable peer verification (form of authorization)
+ * @priority: GNUTLS priority string override (optional)
  * @certEncSecretAlias: alias of a 'secret' object for decrypting TLS private key
  *                      (optional)
  * @alias: TLS object alias
@@ -1309,13 +1313,14 @@ qemuBuildTLSx509CommandLine(virCommand *cmd,
                             const char *tlspath,
                             bool isListen,
                             bool verifypeer,
+                            const char *priority,
                             const char *certEncSecretAlias,
                             const char *alias)
 {
     g_autoptr(virJSONValue) props = NULL;
 
-    if (qemuBuildTLSx509BackendProps(tlspath, isListen, verifypeer, alias,
-                                     certEncSecretAlias, &props) < 0)
+    if (qemuBuildTLSx509BackendProps(tlspath, isListen, verifypeer, priority,
+                                     alias, certEncSecretAlias, &props) < 0)
         return -1;
 
     if (qemuBuildObjectCommandlineFromJSON(cmd, props) < 0)
@@ -1357,6 +1362,7 @@ qemuBuildChardevCommand(virCommand *cmd,
             if (qemuBuildTLSx509CommandLine(cmd, chrSourcePriv->tlsCertPath,
                                             dev->data.tcp.listen,
                                             chrSourcePriv->tlsVerify,
+                                            chrSourcePriv->tlsPriority,
                                             tlsCertEncSecAlias,
                                             objalias) < 0) {
                 return -1;
@@ -1899,7 +1905,6 @@ qemuBuildDiskDeviceProps(const virDomainDef *def,
                               "S:loadparm", bootLoadparm,
                               "p:logical_block_size", logical_block_size,
                               "p:physical_block_size", physical_block_size,
-                              "p:discard_granularity", discard_granularity,
                               "A:wwn", &wwn,
                               "p:rotation_rate", disk->rotation_rate,
                               "S:vendor", disk->vendor,
@@ -1914,6 +1919,12 @@ qemuBuildDiskDeviceProps(const virDomainDef *def,
                               "S:serial", serial,
                               "S:werror", wpolicy,
                               "S:rerror", rpolicy,
+                              NULL) < 0)
+        return NULL;
+
+    if (disk->blockio.discard_granularity_specified &&
+        virJSONValueObjectAdd(&props,
+                              "u:discard_granularity", discard_granularity,
                               NULL) < 0)
         return NULL;
 
@@ -2581,8 +2592,9 @@ qemuValidateDomainDeviceDefControllerUSB(const virDomainControllerDef *def,
                                          virQEMUCaps *qemuCaps)
 {
     if (def->model == VIR_DOMAIN_CONTROLLER_MODEL_USB_DEFAULT) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("no model provided for USB controller"));
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("Unable to determine model for USB controller idx=%1$d"),
+                       def->idx);
         return -1;
     }
 
@@ -7183,6 +7195,7 @@ qemuBuildMachineCommandLine(virCommand *cmd,
             }
             break;
         case VIR_DOMAIN_LAUNCH_SECURITY_PV:
+        case VIR_DOMAIN_LAUNCH_SECURITY_TDX:
             virBufferAddLit(&buf, ",confidential-guest-support=lsec0");
             break;
         case VIR_DOMAIN_LAUNCH_SECURITY_NONE:
@@ -8347,6 +8360,7 @@ qemuBuildGraphicsVNCCommandLine(virQEMUDriverConfig *cfg,
                                         cfg->vncTLSx509certdir,
                                         true,
                                         cfg->vncTLSx509verify,
+                                        cfg->vncTLSpriority,
                                         secretAlias,
                                         gfxPriv->tlsAlias) < 0)
             return -1;
@@ -9945,6 +9959,46 @@ qemuBuildPVCommandLine(virCommand *cmd)
 
 
 static int
+qemuBuildTDXCommandLine(virCommand *cmd, virDomainTDXDef *tdx)
+{
+    g_autoptr(virJSONValue) addr = NULL;
+    g_autoptr(virJSONValue) props = NULL;
+    const char *path = QGS_UNIX_SOCKET_FILE;
+
+    if (tdx->havePolicy)
+        VIR_DEBUG("policy=0x%llx", tdx->policy);
+
+    if (tdx->haveQGS) {
+        if (tdx->qgs_unix_path)
+            path = tdx->qgs_unix_path;
+
+        if (virJSONValueObjectAdd(&addr,
+                                  "s:type", "unix",
+                                  "s:path", path,
+                                  NULL) < 0)
+            return -1;
+    }
+
+    if (qemuMonitorCreateObjectProps(&props, "tdx-guest", "lsec0",
+                                     "S:mrconfigid", tdx->mrconfigid,
+                                     "S:mrowner", tdx->mrowner,
+                                     "S:mrownerconfig", tdx->mrownerconfig,
+                                     "A:quote-generation-socket", &addr,
+                                     NULL) < 0)
+        return -1;
+
+    if (tdx->havePolicy &&
+        virJSONValueObjectAdd(&props, "U:attributes", tdx->policy, NULL) < 0)
+        return -1;
+
+    if (qemuBuildObjectCommandlineFromJSON(cmd, props) < 0)
+        return -1;
+
+    return 0;
+}
+
+
+static int
 qemuBuildSecCommandLine(virDomainObj *vm, virCommand *cmd,
                         virDomainSecDef *sec)
 {
@@ -9961,6 +10015,8 @@ qemuBuildSecCommandLine(virDomainObj *vm, virCommand *cmd,
     case VIR_DOMAIN_LAUNCH_SECURITY_PV:
         return qemuBuildPVCommandLine(cmd);
 
+    case VIR_DOMAIN_LAUNCH_SECURITY_TDX:
+        return qemuBuildTDXCommandLine(cmd, &sec->data.tdx);
     case VIR_DOMAIN_LAUNCH_SECURITY_NONE:
     case VIR_DOMAIN_LAUNCH_SECURITY_LAST:
         virReportEnumRangeError(virDomainLaunchSecurity, sec->sectype);
@@ -11188,8 +11244,8 @@ qemuBuildStorageSourceAttachPrepareCommon(virStorageSource *src,
     }
 
     if (src->haveTLS == VIR_TRISTATE_BOOL_YES &&
-        qemuBuildTLSx509BackendProps(src->tlsCertdir, false, true, src->tlsAlias,
-                                     tlsKeySecretAlias, &data->tlsProps) < 0)
+        qemuBuildTLSx509BackendProps(src->tlsCertdir, false, true, src->tlsPriority,
+                                     src->tlsAlias, tlsKeySecretAlias, &data->tlsProps) < 0)
         return -1;
 
     return 0;

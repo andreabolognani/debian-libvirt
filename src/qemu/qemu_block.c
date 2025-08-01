@@ -213,13 +213,9 @@ qemuBlockStorageSourceGetURI(virStorageSource *src)
     }
 
     if (src->path) {
-        if (src->volume) {
-            uri->path = g_strdup_printf("/%s/%s", src->volume, src->path);
-        } else {
-            uri->path = g_strdup_printf("%s%s",
-                                        g_path_is_absolute(src->path) ? "" : "/",
-                                        src->path);
-        }
+        uri->path = g_strdup_printf("%s%s",
+                                    g_path_is_absolute(src->path) ? "" : "/",
+                                    src->path);
     }
 
     uri->query = g_strdup(src->query);
@@ -401,8 +397,15 @@ qemuBlockStorageSourceGetGlusterProps(virStorageSource *src,
 {
     g_autoptr(virJSONValue) servers = NULL;
     g_autoptr(virJSONValue) props = NULL;
+    g_autofree char *volume = NULL;
+    g_autofree char *path = NULL;
 
     if (!(servers = qemuBlockStorageSourceBuildHostsJSONSocketAddress(src)))
+        return NULL;
+
+    if (virStorageSourceNetworkProtocolPathSplit(src->path,
+                                                 VIR_STORAGE_NET_PROTOCOL_GLUSTER,
+                                                 &volume, NULL, &path) < 0)
         return NULL;
 
      /* { driver:"gluster",
@@ -412,8 +415,8 @@ qemuBlockStorageSourceGetGlusterProps(virStorageSource *src,
       *            {type:"unix", socket:"/tmp/glusterd.socket"}, ...]}
       */
     if (virJSONValueObjectAdd(&props,
-                              "s:volume", src->volume,
-                              "s:path", src->path,
+                              "s:volume", volume,
+                              "s:path", path,
                               "a:server", &servers, NULL) < 0)
         return NULL;
 
@@ -662,6 +665,14 @@ qemuBlockStorageSourceGetRBDProps(virStorageSource *src,
     const char *username = NULL;
     g_autoptr(virJSONValue) authmodes = NULL;
     const char *keysecret = NULL;
+    g_autofree char *pool = NULL;
+    g_autofree char *namespace = NULL;
+    g_autofree char *image = NULL;
+
+    if (virStorageSourceNetworkProtocolPathSplit(src->path,
+                                                 VIR_STORAGE_NET_PROTOCOL_RBD,
+                                                 &pool, &namespace, &image) < 0)
+        return NULL;
 
     if (src->nhosts > 0 &&
         !(servers = qemuBlockStorageSourceBuildHostsJSONInetSocketAddress(src)))
@@ -715,8 +726,9 @@ qemuBlockStorageSourceGetRBDProps(virStorageSource *src,
     }
 
     if (virJSONValueObjectAdd(&ret,
-                              "s:pool", src->volume,
-                              "s:image", src->path,
+                              "s:pool", pool,
+                              "S:namespace", namespace,
+                              "s:image", image,
                               "S:snapshot", src->snapshot,
                               "S:conf", src->configFile,
                               "A:server", &servers,
@@ -1046,13 +1058,12 @@ qemuBlockStorageSourceGetBackendProps(virStorageSource *src,
             break;
         }
 
-        switch ((virStorageNetProtocol) src->protocol) {
+        switch (src->protocol) {
         case VIR_STORAGE_NET_PROTOCOL_GLUSTER:
             driver = "gluster";
             if (!(fileprops = qemuBlockStorageSourceGetGlusterProps(src, onlytarget)))
                 return NULL;
             break;
-
 
         case VIR_STORAGE_NET_PROTOCOL_HTTP:
         case VIR_STORAGE_NET_PROTOCOL_HTTPS:
@@ -1969,7 +1980,7 @@ qemuBlockGetBackingStoreString(virStorageSource *src,
             src->readahead == 0 &&
             src->reconnectDelay == 0) {
 
-            switch ((virStorageNetProtocol) src->protocol) {
+            switch (src->protocol) {
             case VIR_STORAGE_NET_PROTOCOL_NBD:
             case VIR_STORAGE_NET_PROTOCOL_HTTP:
             case VIR_STORAGE_NET_PROTOCOL_HTTPS:
@@ -2352,7 +2363,7 @@ qemuBlockStorageSourceCreateGetStorageProps(virStorageSource *src,
         break;
 
     case VIR_STORAGE_TYPE_NETWORK:
-        switch ((virStorageNetProtocol) src->protocol) {
+        switch (src->protocol) {
         case VIR_STORAGE_NET_PROTOCOL_GLUSTER:
             driver = "gluster";
             if (!(location = qemuBlockStorageSourceGetGlusterProps(src, false)))

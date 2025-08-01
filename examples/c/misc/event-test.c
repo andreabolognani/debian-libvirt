@@ -143,6 +143,9 @@ eventDetailToString(int event,
             case VIR_DOMAIN_EVENT_STARTED_WAKEUP:
                 return "Event wakeup";
 
+            case VIR_DOMAIN_EVENT_STARTED_RECREATED:
+                return "Recreated";
+
             case VIR_DOMAIN_EVENT_STARTED_LAST:
                 break;
             }
@@ -226,6 +229,9 @@ eventDetailToString(int event,
 
             case VIR_DOMAIN_EVENT_STOPPED_FROM_SNAPSHOT:
                 return "Snapshot";
+
+            case VIR_DOMAIN_EVENT_STOPPED_RECREATED:
+                return "Recreated";
 
             case VIR_DOMAIN_EVENT_STOPPED_LAST:
                 break;

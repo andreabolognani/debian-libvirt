@@ -3075,7 +3075,7 @@ remoteDispatchDomainMigratePrepare(virNetServer *server G_GNUC_UNUSED,
 
     if (virDomainMigratePrepare(conn, &cookie, &cookielen,
                                 uri_in, uri_out,
-                                args->flags, dname, args->resource) < 0)
+                                args->flags, dname, args->bandwidth) < 0)
         goto cleanup;
 
     /* remoteDispatchClientRequest will free cookie, uri_out and
@@ -3125,7 +3125,7 @@ remoteDispatchDomainMigratePrepare2(virNetServer *server G_GNUC_UNUSED,
 
     if (virDomainMigratePrepare2(conn, &cookie, &cookielen,
                                  uri_in, uri_out,
-                                 args->flags, dname, args->resource,
+                                 args->flags, dname, args->bandwidth,
                                  args->dom_xml) < 0)
         goto cleanup;
 
@@ -4805,7 +4805,7 @@ remoteDispatchDomainMigrateBegin3(virNetServer *server G_GNUC_UNUSED,
 
     if (!(xml = virDomainMigrateBegin3(dom, xmlin,
                                        &cookieout, &cookieoutlen,
-                                       args->flags, dname, args->resource)))
+                                       args->flags, dname, args->bandwidth)))
         goto cleanup;
 
     /* remoteDispatchClientRequest will free cookie and
@@ -4855,7 +4855,7 @@ remoteDispatchDomainMigratePrepare3(virNetServer *server G_GNUC_UNUSED,
                                  args->cookie_in.cookie_in_len,
                                  &cookieout, &cookieoutlen,
                                  uri_in, uri_out,
-                                 args->flags, dname, args->resource,
+                                 args->flags, dname, args->bandwidth,
                                  args->dom_xml) < 0)
         goto cleanup;
 
@@ -4910,7 +4910,7 @@ remoteDispatchDomainMigratePerform3(virNetServer *server G_GNUC_UNUSED,
                                  args->cookie_in.cookie_in_len,
                                  &cookieout, &cookieoutlen,
                                  dconnuri, uri,
-                                 args->flags, dname, args->resource) < 0)
+                                 args->flags, dname, args->bandwidth) < 0)
         goto cleanup;
 
     /* remoteDispatchClientRequest will free cookie

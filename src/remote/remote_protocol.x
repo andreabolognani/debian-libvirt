@@ -1055,7 +1055,7 @@ struct remote_domain_migrate_prepare_args {
     remote_string uri_in;
     unsigned hyper flags;
     remote_string dname;
-    unsigned hyper resource;
+    unsigned hyper bandwidth;
 };
 
 struct remote_domain_migrate_prepare_ret {
@@ -1069,7 +1069,7 @@ struct remote_domain_migrate_perform_args {
     remote_nonnull_string uri;
     unsigned hyper flags;
     remote_string dname;
-    unsigned hyper resource;
+    unsigned hyper bandwidth;
 };
 
 struct remote_domain_migrate_finish_args {
@@ -1087,7 +1087,7 @@ struct remote_domain_migrate_prepare2_args {
     remote_string uri_in;
     unsigned hyper flags;
     remote_string dname;
-    unsigned hyper resource;
+    unsigned hyper bandwidth;
     remote_nonnull_string dom_xml;
 };
 
@@ -2373,7 +2373,7 @@ struct remote_secret_lookup_by_usage_ret {
 struct remote_domain_migrate_prepare_tunnel_args {
     unsigned hyper flags;
     remote_string dname;
-    unsigned hyper resource;
+    unsigned hyper bandwidth;
     remote_nonnull_string dom_xml;
 };
 
@@ -2947,7 +2947,7 @@ struct remote_domain_migrate_begin3_args {
     remote_string xmlin;
     unsigned hyper flags;
     remote_string dname;
-    unsigned hyper resource;
+    unsigned hyper bandwidth;
 };
 
 struct remote_domain_migrate_begin3_ret {
@@ -2960,7 +2960,7 @@ struct remote_domain_migrate_prepare3_args {
     remote_string uri_in;
     unsigned hyper flags;
     remote_string dname;
-    unsigned hyper resource;
+    unsigned hyper bandwidth;
     remote_nonnull_string dom_xml;
 };
 
@@ -2973,7 +2973,7 @@ struct remote_domain_migrate_prepare_tunnel3_args {
     opaque cookie_in<REMOTE_MIGRATE_COOKIE_MAX>;
     unsigned hyper flags;
     remote_string dname;
-    unsigned hyper resource;
+    unsigned hyper bandwidth;
     remote_nonnull_string dom_xml;
 };
 
@@ -2989,7 +2989,7 @@ struct remote_domain_migrate_perform3_args {
     remote_string uri;
     unsigned hyper flags;
     remote_string dname;
-    unsigned hyper resource;
+    unsigned hyper bandwidth;
 };
 
 struct remote_domain_migrate_perform3_ret {

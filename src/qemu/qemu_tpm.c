@@ -205,6 +205,40 @@ qemuTPMEmulatorCreateStorage(virDomainTPMDef *tpm,
 }
 
 
+static bool
+qemuTPMHasSharedStorage(const virQEMUDriverConfig *cfg,
+                        const virDomainTPMDef *tpm)
+{
+    switch (tpm->type) {
+    case VIR_DOMAIN_TPM_TYPE_EMULATOR:
+        return virFileIsSharedFS(tpm->data.emulator.source_path,
+                                 cfg->sharedFilesystems) == 1;
+    case VIR_DOMAIN_TPM_TYPE_PASSTHROUGH:
+    case VIR_DOMAIN_TPM_TYPE_EXTERNAL:
+    case VIR_DOMAIN_TPM_TYPE_LAST:
+        break;
+    }
+
+    return false;
+}
+
+
+bool
+qemuTPMDomainHasSharedStorage(virQEMUDriver *driver,
+                              virDomainDef *def)
+{
+    g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
+    size_t i;
+
+    for (i = 0; i < def->ntpms; i++) {
+        if (qemuTPMHasSharedStorage(cfg, def->tpms[i]))
+            return true;
+    }
+
+    return false;
+}
+
+
 /**
  * qemuTPMEmulatorDeleteStorage:
  * @tpm: TPM definition
@@ -439,7 +473,7 @@ qemuTPMEmulatorRunSetup(const virDomainTPMEmulatorDef *emulator,
                         bool incomingMigration)
 {
     g_autoptr(virCommand) cmd = NULL;
-    int exitstatus;
+    int exitstatus = -1;
     char uuid[VIR_UUID_STRING_BUFLEN];
     g_autofree char *vmid = NULL;
     g_autofree char *swtpm_setup = virTPMGetSwtpmSetup();
@@ -547,7 +581,7 @@ qemuTPMEmulatorReconfigure(const virDomainTPMEmulatorDef *emulator,
                            const unsigned char *secretuuid)
 {
     g_autoptr(virCommand) cmd = NULL;
-    int exitstatus;
+    int exitstatus = -1;
     g_autofree char *activePcrBanksStr = NULL;
     g_autofree char *swtpm_setup = virTPMGetSwtpmSetup();
     g_autofree char *tpm_state = qemuTPMGetSwtpmSetupStateArg(emulator->source_type,
@@ -626,12 +660,16 @@ qemuTPMVirCommandSwtpmAddEncryption(virCommand *cmd,
 
 static void
 qemuTPMVirCommandSwtpmAddTPMState(virCommand *cmd,
-                                  const virDomainTPMEmulatorDef *emulator)
+                                  const virDomainTPMEmulatorDef *emulator,
+                                  const virDomainTPMDef *tpmDef,
+                                  const virQEMUDriverConfig *cfg)
 {
     const char *lock = ",lock";
 
     if (!virTPMSwtpmCapsGet(VIR_TPM_SWTPM_FEATURE_TPMSTATE_OPT_LOCK)) {
-        VIR_WARN("This swtpm version doesn't support explicit locking");
+        if (qemuTPMHasSharedStorage(cfg, tpmDef))
+            VIR_WARN("This swtpm version doesn't support explicit locking");
+
         lock = "";
     }
 
@@ -670,7 +708,7 @@ qemuTPMEmulatorUpdateProfileName(virDomainTPMEmulatorDef *emulator,
     g_autofree char *swtpm = NULL;
     virJSONValue *active_profile;
     const char *profile_name;
-    int exitstatus;
+    int exitstatus = -1;
 
     if (emulator->version != VIR_DOMAIN_TPM_VERSION_2_0 ||
         !virTPMSwtpmCapsGet(VIR_TPM_SWTPM_FEATURE_CMDARG_PRINT_INFO))
@@ -687,7 +725,7 @@ qemuTPMEmulatorUpdateProfileName(virDomainTPMEmulatorDef *emulator,
 
     virCommandAddArgList(cmd, "socket", "--print-info", "0x20", "--tpm2", NULL);
 
-    qemuTPMVirCommandSwtpmAddTPMState(cmd, emulator);
+    qemuTPMVirCommandSwtpmAddTPMState(cmd, emulator, persistentTPMDef, cfg);
 
     if (qemuTPMVirCommandSwtpmAddEncryption(cmd, emulator, swtpm) < 0)
         return -1;
@@ -814,7 +852,7 @@ qemuTPMEmulatorBuildCommand(virDomainTPMDef *tpm,
     virCommandAddArgFormat(cmd, "type=unixio,path=%s,mode=0600",
                            tpm->data.emulator.source->data.nix.path);
 
-    qemuTPMVirCommandSwtpmAddTPMState(cmd, &tpm->data.emulator);
+    qemuTPMVirCommandSwtpmAddTPMState(cmd, &tpm->data.emulator, tpm, cfg);
 
     virCommandAddArg(cmd, "--log");
     if (tpm->data.emulator.debug != 0)
@@ -1150,7 +1188,7 @@ qemuTPMEmulatorStart(virQEMUDriver *driver,
     virCommandSetPidFile(cmd, pidfile);
     virCommandSetErrorFD(cmd, &errfd);
 
-    if (incomingMigration && qemuTPMHasSharedStorage(driver, vm->def)) {
+    if (incomingMigration && qemuTPMDomainHasSharedStorage(driver, vm->def)) {
         /* If the TPM is being migrated over shared storage, we can't
          * lock all files before labeling them: the source swtpm
          * process is still holding on to the lock file, and it will
@@ -1215,31 +1253,6 @@ qemuTPMEmulatorStart(virQEMUDriver *driver,
         unlink(pidfile);
     qemuSecurityRestoreTPMLabels(driver, vm, true, lockMetadataException);
     return -1;
-}
-
-
-bool
-qemuTPMHasSharedStorage(virQEMUDriver *driver,
-                        virDomainDef *def)
-{
-    g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
-    size_t i;
-
-    for (i = 0; i < def->ntpms; i++) {
-        virDomainTPMDef *tpm = def->tpms[i];
-
-        switch (tpm->type) {
-        case VIR_DOMAIN_TPM_TYPE_EMULATOR:
-            return virFileIsSharedFS(tpm->data.emulator.source_path,
-                                     cfg->sharedFilesystems) == 1;
-        case VIR_DOMAIN_TPM_TYPE_PASSTHROUGH:
-        case VIR_DOMAIN_TPM_TYPE_EXTERNAL:
-        case VIR_DOMAIN_TPM_TYPE_LAST:
-            break;
-        }
-    }
-
-    return false;
 }
 
 
@@ -1346,7 +1359,7 @@ qemuExtTPMStop(virQEMUDriver *driver,
         return;
 
     qemuTPMEmulatorStop(cfg->swtpmStateDir, shortName);
-    if (migration && qemuTPMHasSharedStorage(driver, vm->def))
+    if (migration && qemuTPMDomainHasSharedStorage(driver, vm->def))
         restoreTPMStateLabel = false;
 
     if (qemuSecurityRestoreTPMLabels(driver, vm, restoreTPMStateLabel, false) < 0)

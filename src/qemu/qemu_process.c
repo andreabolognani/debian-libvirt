@@ -447,6 +447,81 @@ qemuProcessHandleReset(qemuMonitor *mon G_GNUC_UNUSED,
 
 
 /*
+ * Secure guest doesn't support fake reboot via machine CPU reset.
+ * We thus fake reboot via QEMU re-creation.
+ */
+int
+qemuProcessFakeRebootViaRecreate(virDomainObj *vm, bool locked)
+{
+    qemuDomainObjPrivate *priv = vm->privateData;
+    virQEMUDriver *driver = priv->driver;
+    virObjectEvent *event = NULL;
+    int ret = -1;
+
+    VIR_DEBUG("Handle secure guest reboot: destroy phase");
+
+    if (!locked)
+        virObjectLock(vm);
+
+    if (qemuProcessBeginStopJob(vm, VIR_JOB_DESTROY, 0) < 0)
+        goto cleanup;
+
+    if (virDomainObjCheckActive(vm) < 0) {
+        qemuProcessEndStopJob(vm);
+        goto cleanup;
+    }
+
+    qemuProcessStop(vm, VIR_DOMAIN_SHUTOFF_DESTROYED, VIR_ASYNC_JOB_NONE, 0);
+    virDomainAuditStop(vm, "destroyed");
+
+    event = virDomainEventLifecycleNewFromObj(vm,
+                                              VIR_DOMAIN_EVENT_STOPPED,
+                                              VIR_DOMAIN_EVENT_STOPPED_RECREATED);
+    virObjectEventStateQueue(driver->domainEventState, event);
+
+    /* skip remove inactive domain from active list */
+    qemuProcessEndStopJob(vm);
+
+    VIR_DEBUG("Handle secure guest reboot: boot phase");
+
+    if (qemuProcessBeginJob(vm, VIR_DOMAIN_JOB_OPERATION_START, 0) < 0) {
+        qemuDomainRemoveInactive(vm, 0, false);
+        goto cleanup;
+    }
+
+    if (qemuProcessStart(NULL, driver, vm, NULL, VIR_ASYNC_JOB_START,
+                         NULL, -1, NULL, NULL, NULL,
+                         VIR_NETDEV_VPORT_PROFILE_OP_CREATE,
+                         0) < 0) {
+        virDomainAuditStart(vm, "booted", false);
+        qemuDomainRemoveInactive(vm, 0, false);
+        goto endjob;
+    }
+
+    virDomainAuditStart(vm, "booted", true);
+    event = virDomainEventLifecycleNewFromObj(vm,
+                                              VIR_DOMAIN_EVENT_STARTED,
+                                              VIR_DOMAIN_EVENT_STARTED_RECREATED);
+    virObjectEventStateQueue(driver->domainEventState, event);
+
+    qemuDomainSaveStatus(vm);
+    ret = 0;
+
+ endjob:
+    qemuProcessEndJob(vm);
+
+ cleanup:
+    priv->pausedShutdown = false;
+    qemuDomainSetFakeReboot(vm, false);
+    if (ret == -1)
+        ignore_value(qemuProcessKill(vm, VIR_QEMU_PROCESS_KILL_FORCE));
+    if (!locked)
+        virDomainObjEndAPI(&vm);
+    return ret;
+}
+
+
+/*
  * Since we have the '-no-shutdown' flag set, the
  * QEMU process will currently have guest OS shutdown
  * and the CPUS stopped. To fake the reboot, we thus
@@ -455,15 +530,13 @@ qemuProcessHandleReset(qemuMonitor *mon G_GNUC_UNUSED,
  * guest OS booting up again
  */
 static void
-qemuProcessFakeReboot(void *opaque)
+qemuProcessFakeRebootViaReset(virDomainObj *vm)
 {
-    virDomainObj *vm = opaque;
     qemuDomainObjPrivate *priv = vm->privateData;
     virQEMUDriver *driver = priv->driver;
     virDomainRunningReason reason = VIR_DOMAIN_RUNNING_BOOTED;
     int ret = -1, rc;
 
-    VIR_DEBUG("vm=%p", vm);
     virObjectLock(vm);
     if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
         goto cleanup;
@@ -506,6 +579,21 @@ qemuProcessFakeReboot(void *opaque)
     if (ret == -1)
         ignore_value(qemuProcessKill(vm, VIR_QEMU_PROCESS_KILL_FORCE));
     virDomainObjEndAPI(&vm);
+}
+
+
+static void
+qemuProcessFakeReboot(void *opaque)
+{
+    virDomainObj *vm = opaque;
+
+    VIR_DEBUG("vm=%p", vm);
+
+    if (vm->def->sec &&
+        vm->def->sec->sectype == VIR_DOMAIN_LAUNCH_SECURITY_TDX)
+        ignore_value(qemuProcessFakeRebootViaRecreate(vm, false));
+    else
+        qemuProcessFakeRebootViaReset(vm);
 }
 
 
@@ -728,9 +816,11 @@ qemuProcessHandleResume(qemuMonitor *mon G_GNUC_UNUSED,
                 reason = VIR_DOMAIN_RUNNING_POSTCOPY;
         }
         virDomainObjSetState(vm, VIR_DOMAIN_RUNNING, reason);
-        event = virDomainEventLifecycleNewFromObj(vm,
-                                                  VIR_DOMAIN_EVENT_RESUMED,
-                                                  eventDetail);
+
+        if (!priv->pausedShutdown)
+            event = virDomainEventLifecycleNewFromObj(vm,
+                                                      VIR_DOMAIN_EVENT_RESUMED,
+                                                      eventDetail);
         qemuDomainSaveStatus(vm);
     }
 
@@ -6362,6 +6452,7 @@ static int
 qemuProcessUpdateGuestCPU(virDomainDef *def,
                           virQEMUCaps *qemuCaps,
                           virArch hostarch,
+                          virQEMUDriverConfig *cfg,
                           unsigned int flags)
 {
     if (!def->cpu)
@@ -6407,6 +6498,29 @@ qemuProcessUpdateGuestCPU(virDomainDef *def,
             return -1;
     }
 
+    /* s390 CPU models should disable deprecated features for host-models by
+     * default if supported by QEMU. Set the flag now so the appropriate
+     * features are updated later.
+     */
+    if (ARCH_IS_S390(def->os.arch) &&
+        virQEMUCapsGet(qemuCaps, QEMU_CAPS_QUERY_CPU_MODEL_EXPANSION_DEPRECATED_PROPS) &&
+        def->cpu->mode == VIR_CPU_MODE_HOST_MODEL &&
+        !def->cpu->deprecated_feats) {
+        switch (cfg->defaultDeprecatedFeatures) {
+        case QEMU_DEPRECATED_FEATURES_OFF:
+            def->cpu->deprecated_feats = VIR_TRISTATE_SWITCH_OFF;
+            break;
+        case QEMU_DEPRECATED_FEATURES_ON:
+            def->cpu->deprecated_feats = VIR_TRISTATE_SWITCH_ON;
+            break;
+        case QEMU_DEPRECATED_FEATURES_NONE:
+            def->cpu->deprecated_feats = VIR_TRISTATE_SWITCH_ABSENT;
+            break;
+        case QEMU_DEPRECATED_FEATURES_LAST:
+            break;
+        }
+    }
+
     /* nothing to update for host-passthrough / maximum */
     if (def->cpu->mode != VIR_CPU_MODE_HOST_PASSTHROUGH &&
         def->cpu->mode != VIR_CPU_MODE_MAXIMUM) {
@@ -6448,15 +6562,19 @@ qemuProcessUpdateGuestCPU(virDomainDef *def,
                                 &def->os.arch) < 0)
         return -1;
 
-    if (def->cpu->deprecated_feats &&
-        !virQEMUCapsGet(qemuCaps, QEMU_CAPS_QUERY_CPU_MODEL_EXPANSION_DEPRECATED_PROPS)) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("toggling deprecated features for CPU model is unsupported"));
-        return -1;
-    }
+    if (def->cpu->deprecated_feats) {
+        virCPUFeaturePolicy policy = VIR_CPU_FEATURE_REQUIRE;
+        if (def->cpu->deprecated_feats == VIR_TRISTATE_SWITCH_OFF)
+            policy = VIR_CPU_FEATURE_DISABLE;
 
-    if (def->cpu->deprecated_feats == VIR_TRISTATE_SWITCH_OFF) {
-        virQEMUCapsUpdateCPUDeprecatedFeatures(qemuCaps, def->virtType, def->cpu);
+        if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_QUERY_CPU_MODEL_EXPANSION_DEPRECATED_PROPS)) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("toggling deprecated features for CPU model is unsupported"));
+            return -1;
+        }
+
+        virQEMUCapsUpdateCPUDeprecatedFeatures(qemuCaps, def->virtType,
+                                               def->cpu, policy);
     }
 
     return 0;
@@ -6857,7 +6975,7 @@ qemuProcessPrepareDomain(virQEMUDriver *driver,
     priv->pausedReason = VIR_DOMAIN_PAUSED_UNKNOWN;
 
     VIR_DEBUG("Updating guest CPU definition");
-    if (qemuProcessUpdateGuestCPU(vm->def, priv->qemuCaps, driver->hostarch, flags) < 0)
+    if (qemuProcessUpdateGuestCPU(vm->def, priv->qemuCaps, driver->hostarch, cfg, flags) < 0)
         return -1;
 
     for (i = 0; i < vm->def->nshmems; i++)
@@ -6872,6 +6990,7 @@ qemuProcessPrepareDomain(virQEMUDriver *driver,
                 return -1;
             break;
         case VIR_DOMAIN_LAUNCH_SECURITY_PV:
+        case VIR_DOMAIN_LAUNCH_SECURITY_TDX:
             break;
         case VIR_DOMAIN_LAUNCH_SECURITY_NONE:
         case VIR_DOMAIN_LAUNCH_SECURITY_LAST:
@@ -6944,6 +7063,7 @@ qemuProcessPrepareLaunchSecurityGuestInput(virDomainObj *vm)
     case VIR_DOMAIN_LAUNCH_SECURITY_SEV_SNP:
         break;
     case VIR_DOMAIN_LAUNCH_SECURITY_PV:
+    case VIR_DOMAIN_LAUNCH_SECURITY_TDX:
         return 0;
     case VIR_DOMAIN_LAUNCH_SECURITY_NONE:
     case VIR_DOMAIN_LAUNCH_SECURITY_LAST:
@@ -7137,8 +7257,8 @@ qemuProcessOpenVhostVsock(virDomainVsockDef *vsock)
     int fd;
 
     if ((fd = open(vsock_path, O_RDWR)) < 0) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       "%s", _("unable to open vhost-vsock device"));
+        virReportSystemError(errno, "%s",
+                             _("unable to open vhost-vsock device"));
         return -1;
     }
 

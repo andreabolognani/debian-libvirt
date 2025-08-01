@@ -7,30 +7,45 @@
 
 set -e
 
-test_hostdev="no"
-if [ "$1" = "test_hostdev" ]; then
-    test_hostdev="yes"
-    shift
-fi
-
 output="/dev/null"
 use_valgrind=""
-ld_library_path="$abs_top_builddir/src/"
-if [ ! -z "$1" ] && [ "$1" = "-d" ]; then
-    output="/dev/stdout"
-    shift
-fi
-
+ld_library_path="$abs_top_builddir/tests/:$abs_top_builddir/src/"
 exe="$abs_top_builddir/src/virt-aa-helper"
-if [ ! -z "$1" ]; then
-    if [ "$1" = "-v" ]; then
-        use_valgrind="yes"
-        shift
-    fi
-    if [ -n "$1" ]; then
-        exe="$1"
-        shift
-    fi
+
+usage() {
+    script=`basename $1`
+    echo "$script: [OPTIONS] [EXE]"
+    echo "  OPTIONS:"
+    echo "      -d  print debug onto stdout"
+    echo "      -h  print this help"
+    echo "      -v  to wrap virt-aa-helper invocation into valgrind"
+    echo "     EXE  use specified virt-aa-helper"
+}
+
+while getopts "dhv" opt; do
+    case ${opt} in
+        d)
+            output="/dev/stdout"
+            ;;
+        v)
+            use_valgrind="yes"
+            ;;
+        h)
+            usage $0
+            exit 0
+            ;;
+        ?)
+            usage $0
+            exit 1
+            ;;
+    esac
+done
+
+
+shift $((OPTIND - 1))
+if [ -n "$1" ]; then
+    exe="$1"
+    shift
 fi
 
 if [ ! -x "$exe" ]; then
@@ -116,7 +131,7 @@ testme() {
         input="$4"
         if [ ! -e "$input" ]; then
             echo "FAIL: could not find $input" >$output
-            echo "FAIL: could not find $input"
+            echo "FAIL: could not find $input" >&2
             echo " '$extra_args $args': "
             errors=$(($errors + 1))
         fi
@@ -128,11 +143,12 @@ testme() {
         printf %s " < $input" >$output
     fi
     echo "': " >$output
+    ld_preload="libvirusbmock.so:libvirpcimock.so"
     set +e
     if [ -n "$input" ]; then
-        LD_LIBRARY_PATH="$ld_library_path" "${exe}" $extra_args $args < $input >"$tmpout" 2>&1
+        LD_PRELOAD="$ld_preload" LD_LIBRARY_PATH="$ld_library_path" ${exe} $extra_args $args < $input >"$tmpout" 2>&1
     else
-        LD_LIBRARY_PATH="$ld_library_path" "${exe}" $extra_args $args >"$tmpout" 2>&1
+        LD_PRELOAD="$ld_preload" LD_LIBRARY_PATH="$ld_library_path" ${exe} $extra_args $args >"$tmpout" 2>&1
     fi
     rc="$?"
     cat "$tmpout" >"$output"
@@ -141,6 +157,7 @@ testme() {
     if [ -n "$checkrule" ]; then
         if ! grep "$checkrule" "$tmpout" >/dev/null; then
             echo "FAIL: missing rule '$checkrule'" >"$output"
+            echo "FAIL: missing rule '$checkrule'" >&2
             rule_missing=1
         fi
     fi
@@ -200,7 +217,7 @@ testme "1" "bad disk2" "-c -u $valid_uuid" "$test_xml"
 sed -e "s,###UUID###,$uuid,g" -e "s,###DISK###,$disk1,g" -e "s,</devices>,<devices>,g" "$template_xml" > "$test_xml"
 testme "1" "malformed xml" "-c -u $valid_uuid" "$test_xml"
 
-initrd=`ls -1 /boot/initrd* | head -1`
+initrd=`ls -1 /boot/initrd* 2>/dev/null | head -1`
 if [ -z "$initrd" ]; then
     echo "Skipping /boot/initrd* tests. Could not find /boot/initrd*"
 else
@@ -261,13 +278,11 @@ testme "0" "create multiple disks" "-c -u $valid_uuid" "$test_xml" "$disk1.*rwk,
 sed -e "s,###UUID###,$uuid,g" -e "s,###DISK###',${disk1}'/><readonly,g" "$template_xml" > "$test_xml"
 testme "0" "create (readonly)" "-c -u $valid_uuid" "$test_xml" "$disk1.*rk,$"
 
-if [ "$test_hostdev" = "yes" ]; then
-    sed -e "s,###UUID###,$uuid,g" -e "s,###DISK###,$disk1,g" -e "s,</disk>,</disk><hostdev mode='subsystem' type='usb'><source><address bus='002' device='004'/></source></hostdev>,g" "$template_xml" > "$test_xml"
-    testme "0" "create hostdev (USB)" "-c -u $valid_uuid" "$test_xml"
+sed -e "s,###UUID###,$uuid,g" -e "s,###DISK###,$disk1,g" -e "s,</disk>,</disk><hostdev mode='subsystem' type='usb'><source><address bus='001' device='024'/></source></hostdev>,g" "$template_xml" > "$test_xml"
+testme "0" "create hostdev (USB)" "-c -u $valid_uuid" "$test_xml" "/dev/bus/usb/001/020"
 
-    sed -e "s,###UUID###,$uuid,g" -e "s,###DISK###,$disk1,g" -e "s,</disk>,</disk><hostdev mode='subsystem' type='pci'><source><address bus='0x00' slot='0x19' function='0x0'/></source></hostdev>,g" "$template_xml" > "$test_xml"
-    testme "0" "create hostdev (PCI)" "-c -u $valid_uuid" "$test_xml"
-fi
+sed -e "s,###UUID###,$uuid,g" -e "s,###DISK###,$disk1,g" -e "s,</disk>,</disk><hostdev mode='subsystem' type='pci'><source><address bus='0x00' slot='0x3' function='0x0'/></source></hostdev>,g" "$template_xml" > "$test_xml"
+testme "0" "create hostdev (PCI)" "-c -u $valid_uuid" "$test_xml" "/sys/devices/pci0000:00/0000:00:03.0/config"
 
 sed -e "s,###UUID###,$uuid,g" -e "s,###DISK###,$nonexistent,g" "$template_xml" > "$test_xml"
 testme "0" "create (non-existent disk)" "-c -u $valid_uuid" "$test_xml" "$nonexistent.*rwk,$"

@@ -8,6 +8,110 @@ the changes introduced by each of them.
 For a more fine-grained view, use the `git log`_.
 
 
+v11.6.0 (2025-08-01)
+====================
+
+* **New features**
+
+  * Introduce VIR_CONNECT_BASELINE_CPU_IGNORE_HOST flag
+
+    This new flag for virConnectBaselineHypervisorCPU can be used for computing
+    a baseline CPU on any host. Without the VIR_CONNECT_BASELINE_CPU_IGNORE_HOST
+    flag the baseline API would return reasonable output only when run on one of
+    the hosts that the input CPU definitions were collected from.
+
+  * Allow control over QEMU TLS priority strings
+
+    The qemu.conf file now has multiple settings allowing control over the
+    QEMU TLS priority strings, for the different subsystems in QEMU that
+    can support TLS. This can be used to workaround a current bug in GNUTLS
+    that is liable to cause crashes of the source QEMU when performing long
+    running live migration operations with TLS enabled.
+
+  * Add support for disabling deprecated CPU model features by default for s390 domains
+
+    Starting an s390 domain with host-model will now default to setting the
+    ``deprecated_features`` attribute to ``off``, ensuring the domain starts
+    with a migration-compatible CPU model to newer systems. This behavior can
+    be modified by setting the ``default_cpu_deprecated_features`` option in
+    the qemu.conf file.
+
+  * bhyve: Add TCP console support
+
+    TCP serial devices can now be configured with ``<serial type='tcp'>``::
+
+      <serial type='tcp'>
+        <source mode='bind' host='127.0.0.1' service='12345'/>
+        <target type='serial' port='0'/>
+      </serial>
+
+    Additionally, number of supported consoles increased to 4.
+
+  * qemu: Add support for RBD namespaces
+
+    Allow specifying the 'namespace' within a RBD image pool.
+
+* **Improvements**
+
+  * qemu: Change default SCSI controller model to ``virtio-scsi`` for ARM and RISC-V
+
+    The previous default of ``lsilogic`` is unsupported by modern operating
+    systems. ``virtio-scsi`` is a more suitable default for ARM and RISC-V
+    ``virt`` machine types.
+
+  * Clarify documentation of virConnectBaselineHypervisorCPU
+
+    The documentation makes it clear virConnectBaselineHypervisorCPU is
+    supposed to be called on one of the hosts represented in the input CPU
+    definitions. Otherwise the API will give unexpected results.
+
+  * Allow specifying zero discard granularity for block devices
+
+    This can be used to tell some guest operating systems (notably Windows) to
+    not trim the disk.
+
+  * bhyve: Add timeout handling for bhyveload
+
+    It is now possible to run ``bhyveload`` with the ``timeout`` tool, which
+    can send ``SIGTERM`` and ``SIGKILL`` signals when timeout is reached.
+    Timeout values are set using the ``bhyveload_timeout`` and
+    ``bhyveload_timeout_kill`` configuration options in ``bhyve.conf``.
+
+  * nss: Improve debugging
+
+    Debugging messages from NSS modules can be now enabled by setting the
+    ``LIBVIRT_NSS_DEBUG`` environment variable. So far, there is no special
+    meaning to its value.
+
+  * rpc: Removed requirement for TLS certificates to support 'key encipherment'
+
+    With TLS 1.3, key encipherment is not required even for RSA keys. Other key
+    types didn't even support it so they were wrongly refused even in cases when
+    they would work with libvirt. The TLS certificate validation now no longer
+    requires 'key encipherment' to be enabled.
+
+* **Bug fixes**
+
+  * bhyve: Fix resetting of the autostart flag of the domain on destroy.
+
+  * The nwfilter driver no longer recreates the base iptable/ip6tables chains
+
+    The nwfilter driver had a impl mistake causing it to recreate the
+    base chains for iptables/ip6tables every time a VM was started.
+    This allowed a small window where traffic might not be fully
+    filtered. It now handles iptables/ip6tables the same way as
+    ebtables, creating the base chains only if they did not already
+    exist.
+
+  * Fix systemd unit ordering for auto-shutdown of domains via the daemon
+
+    The ordering of systemd units created by libvirt for individual machines
+    needed to be adapted when the shutdown of VMs on host shutdown is done
+    via the virt daemon itself (rather than ``libvirt-guests.service``) to
+    ensure that the VMs are not terminated before the virt daemon can deal with
+    them.
+
+
 v11.5.0 (2025-07-01)
 ====================
 

@@ -44,6 +44,7 @@ static DIR * (*real_opendir)(const char *name);
 static char *(*real_virFileCanonicalizePath)(const char *path);
 
 static char *fakerootdir;
+static bool fakerootClean;
 
 /* To add a new mocked prefix in virpcimock:
  * - add the prefix here as a define to make it easier to track what we
@@ -944,7 +945,11 @@ init_syms(void)
         return;
 
     VIR_MOCK_REAL_INIT(access);
+# if defined(__GLIBC__) && defined(_FILE_OFFSET_BITS) && _FILE_OFFSET_BITS == 64
+    VIR_MOCK_REAL_INIT_ALIASED(open, "open64");
+# else
     VIR_MOCK_REAL_INIT(open);
+# endif
 # if WITH___OPEN_2
     VIR_MOCK_REAL_INIT(__open_2);
 # endif /* WITH___OPEN_2 */
@@ -976,8 +981,16 @@ init_env(void)
         .vpd_len = G_N_ELEMENTS(fullVPDExampleData),
     };
 
-    if (!(fakerootdir = getenv("LIBVIRT_FAKE_ROOT_DIR")))
-        ABORT("Missing LIBVIRT_FAKE_ROOT_DIR env variable\n");
+    if (!(fakerootdir = getenv("LIBVIRT_FAKE_ROOT_DIR"))) {
+        GError *err = NULL;
+
+        fakerootdir = g_dir_make_tmp(NULL, &err);
+        if (err != NULL) {
+            ABORT("Unable to create a temporary dir: %s\n", err->message);
+        }
+
+        fakerootClean = true;
+    }
 
     tmp = g_strdup_printf("%s%s", fakerootdir, SYSFS_PCI_PREFIX);
 
@@ -1043,6 +1056,18 @@ init_env(void)
     MAKE_PCI_DEVICE("0000:02:00.0", 0x1cc1, 0x8201, 15, .klass = 0x010802);
 
     MAKE_PCI_DEVICE("0000:03:00.0", 0x15b3, 0xa2d6, 16, .vpd = exampleVPD);
+}
+
+
+static void __attribute__((destructor))
+deinit_env(void)
+{
+    if (!fakerootClean)
+        return;
+
+    virFileDeleteTree(fakerootdir);
+    g_clear_pointer(&fakerootdir, g_free);
+    fakerootClean = false;
 }
 
 
@@ -1163,13 +1188,23 @@ char *
 virFileCanonicalizePath(const char *path)
 {
     g_autofree char *newpath = NULL;
+    char *ret = NULL;
 
     init_syms();
 
     if (getrealpath(&newpath, path) < 0)
         return NULL;
 
-    return real_virFileCanonicalizePath(newpath);
+    ret = real_virFileCanonicalizePath(newpath);
+
+    if (ret && fakerootdir && STRPREFIX(ret, fakerootdir)) {
+        size_t len = strlen(ret);
+        size_t preflen = strlen(fakerootdir);
+
+        memmove(ret, ret + preflen, len - preflen + 1);
+    }
+
+    return ret;
 }
 
 # include "virmockstathelpers.c"

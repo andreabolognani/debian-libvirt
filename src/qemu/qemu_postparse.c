@@ -343,11 +343,18 @@ qemuDomainControllerDefPostParse(virDomainControllerDef *cont,
 {
     switch (cont->type) {
     case VIR_DOMAIN_CONTROLLER_TYPE_SCSI:
-        /* Set the default SCSI controller model if not already set */
-        cont->model = qemuDomainGetSCSIControllerModel(def, cont, qemuCaps);
-
-        if (cont->model < 0)
+        /* If no model is set, try to come up with a reasonable
+         * default. If one cannot be determined, error out */
+        if (cont->model == VIR_DOMAIN_CONTROLLER_MODEL_SCSI_DEFAULT ||
+            cont->model == VIR_DOMAIN_CONTROLLER_MODEL_SCSI_AUTO) {
+            cont->model = qemuDomainDefaultSCSIControllerModel(def, qemuCaps);
+        }
+        if (cont->model == VIR_DOMAIN_CONTROLLER_MODEL_SCSI_DEFAULT) {
+            virReportError(VIR_ERR_INTERNAL_ERROR,
+                           _("Unable to determine model for SCSI controller idx=%1$d"),
+                           cont->idx);
             return -1;
+        }
         break;
 
     case VIR_DOMAIN_CONTROLLER_TYPE_USB:

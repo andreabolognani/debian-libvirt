@@ -462,7 +462,7 @@ virDomainDiskVhostUserValidate(const virDomainDiskDef *disk)
 
     if (disk->blockio.logical_block_size > 0 ||
         disk->blockio.physical_block_size > 0 ||
-        disk->blockio.discard_granularity > 0) {
+        disk->blockio.discard_granularity_specified) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                        _("blockio is not supported with vhostuser disk"));
         return -1;
@@ -494,7 +494,7 @@ virDomainDiskDefValidateSourceChainOne(const virStorageSource *src)
             return -1;
         }
 
-        switch ((virStorageNetProtocol) src->protocol) {
+        switch (src->protocol) {
         case VIR_STORAGE_NET_PROTOCOL_ISCSI:
         case VIR_STORAGE_NET_PROTOCOL_HTTP:
         case VIR_STORAGE_NET_PROTOCOL_HTTPS:
@@ -1915,10 +1915,13 @@ virDomainDefValidateIOThreads(const virDomainDef *def)
     } \
 }
 
+#define SHA384_DIGEST_SIZE  48
+
 static int
 virDomainDefLaunchSecurityValidate(const virDomainDef *def)
 {
     virDomainSEVSNPDef *sev_snp;
+    virDomainTDXDef *tdx;
 
     if (!def->sec)
         return 0;
@@ -1931,6 +1934,14 @@ virDomainDefLaunchSecurityValidate(const virDomainDef *def)
         CHECK_BASE64_LEN(sev_snp->id_block, "idBlock", 96);
         CHECK_BASE64_LEN(sev_snp->id_auth, "idAuth", 4096);
         CHECK_BASE64_LEN(sev_snp->host_data, "hostData", 32);
+        break;
+
+    case VIR_DOMAIN_LAUNCH_SECURITY_TDX:
+        tdx = &def->sec->data.tdx;
+
+        CHECK_BASE64_LEN(tdx->mrconfigid, "mrConfigId", SHA384_DIGEST_SIZE);
+        CHECK_BASE64_LEN(tdx->mrowner, "mrOwner", SHA384_DIGEST_SIZE);
+        CHECK_BASE64_LEN(tdx->mrownerconfig, "mrOwnerConfig", SHA384_DIGEST_SIZE);
         break;
 
     case VIR_DOMAIN_LAUNCH_SECURITY_NONE:

@@ -964,15 +964,9 @@ static int
 qemuStateStop(void)
 {
     g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(qemu_driver);
-    virDomainDriverAutoShutdownConfig ascfg = {
-        .uri = cfg->uri,
-        .trySave = cfg->autoShutdownTrySave,
-        .tryShutdown = cfg->autoShutdownTryShutdown,
-        .poweroff = cfg->autoShutdownPoweroff,
-        .waitShutdownSecs = cfg->autoShutdownWait,
-        .saveBypassCache = cfg->autoSaveBypassCache,
-        .autoRestore = cfg->autoShutdownRestore,
-    };
+    virDomainDriverAutoShutdownConfig ascfg = cfg->autoShutdown;
+
+    ascfg.uri = cfg->uri;
 
     virDomainDriverAutoShutdown(&ascfg);
 
@@ -1976,13 +1970,21 @@ qemuDomainReset(virDomainPtr dom, unsigned int flags)
     if (virDomainResetEnsureACL(dom->conn, vm->def) < 0)
         goto cleanup;
 
+    priv = vm->privateData;
+
+    if (vm->def->sec &&
+        vm->def->sec->sectype == VIR_DOMAIN_LAUNCH_SECURITY_TDX) {
+        priv->fakeReset = true;
+        ret = qemuProcessFakeRebootViaRecreate(vm, true);
+        goto cleanup;
+    }
+
     if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
         goto cleanup;
 
     if (virDomainObjCheckActive(vm) < 0)
         goto endjob;
 
-    priv = vm->privateData;
     qemuDomainObjEnterMonitor(vm);
     ret = qemuMonitorSystemReset(priv->mon);
     qemuDomainObjExitMonitor(vm);
@@ -10761,7 +10763,7 @@ qemuDomainMigratePrepareTunnel(virConnectPtr dconn,
                                virStreamPtr st,
                                unsigned long flags,
                                const char *dname,
-                               unsigned long resource G_GNUC_UNUSED,
+                               unsigned long bandwidth G_GNUC_UNUSED,
                                const char *dom_xml)
 {
     virQEMUDriver *driver = dconn->privateData;
@@ -10811,7 +10813,7 @@ qemuDomainMigratePrepare2(virConnectPtr dconn,
                           char **uri_out,
                           unsigned long flags,
                           const char *dname,
-                          unsigned long resource G_GNUC_UNUSED,
+                          unsigned long bandwidth G_GNUC_UNUSED,
                           const char *dom_xml)
 {
     virQEMUDriver *driver = dconn->privateData;
@@ -10867,7 +10869,7 @@ qemuDomainMigratePerform(virDomainPtr dom,
                          const char *uri,
                          unsigned long flags,
                          const char *dname,
-                         unsigned long resource)
+                         unsigned long bandwidth)
 {
     virQEMUDriver *driver = dom->conn->privateData;
     virDomainObj *vm = NULL;
@@ -10908,7 +10910,7 @@ qemuDomainMigratePerform(virDomainPtr dom,
                                   NULL,
                                   migParams, cookie, cookielen,
                                   NULL, NULL, /* No output cookies in v2 */
-                                  flags, dname, resource, false);
+                                  flags, dname, bandwidth, false);
 
  cleanup:
     virDomainObjEndAPI(&vm);
@@ -10965,7 +10967,7 @@ qemuDomainMigrateBegin3(virDomainPtr domain,
                         int *cookieoutlen,
                         unsigned long flags,
                         const char *dname,
-                        unsigned long resource G_GNUC_UNUSED)
+                        unsigned long bandwidth G_GNUC_UNUSED)
 {
     virDomainObj *vm;
 
@@ -11041,7 +11043,7 @@ qemuDomainMigratePrepare3(virConnectPtr dconn,
                           char **uri_out,
                           unsigned long flags,
                           const char *dname,
-                          unsigned long resource G_GNUC_UNUSED,
+                          unsigned long bandwidth G_GNUC_UNUSED,
                           const char *dom_xml)
 {
     virQEMUDriver *driver = dconn->privateData;
@@ -11192,7 +11194,7 @@ qemuDomainMigratePrepareTunnel3(virConnectPtr dconn,
                                 int *cookieoutlen,
                                 unsigned long flags,
                                 const char *dname,
-                                unsigned long resource G_GNUC_UNUSED,
+                                unsigned long bandwidth G_GNUC_UNUSED,
                                 const char *dom_xml)
 {
     virQEMUDriver *driver = dconn->privateData;
@@ -11288,7 +11290,7 @@ qemuDomainMigratePerform3(virDomainPtr dom,
                           const char *uri,
                           unsigned long flags,
                           const char *dname,
-                          unsigned long resource)
+                          unsigned long bandwidth)
 {
     virQEMUDriver *driver = dom->conn->privateData;
     virDomainObj *vm = NULL;
@@ -11312,7 +11314,7 @@ qemuDomainMigratePerform3(virDomainPtr dom,
                                   NULL, migParams,
                                   cookiein, cookieinlen,
                                   cookieout, cookieoutlen,
-                                  flags, dname, resource, true);
+                                  flags, dname, bandwidth, true);
 
  cleanup:
     virDomainObjEndAPI(&vm);
@@ -11970,12 +11972,19 @@ qemuConnectBaselineHypervisorCPU(virConnectPtr conn,
     size_t i;
 
     virCheckFlags(VIR_CONNECT_BASELINE_CPU_EXPAND_FEATURES |
-                  VIR_CONNECT_BASELINE_CPU_MIGRATABLE, NULL);
+                  VIR_CONNECT_BASELINE_CPU_MIGRATABLE |
+                  VIR_CONNECT_BASELINE_CPU_IGNORE_HOST, NULL);
 
     if (virConnectBaselineHypervisorCPUEnsureACL(conn) < 0)
         goto cleanup;
 
     migratable = !!(flags & VIR_CONNECT_BASELINE_CPU_MIGRATABLE);
+
+    if ((flags & VIR_CONNECT_BASELINE_CPU_IGNORE_HOST) && ncpus < 2) {
+        virReportError(VIR_ERR_OPERATION_INVALID, "%s",
+                       _("ignoring host is only allowed when computing baseline from multiple CPUs"));
+        goto cleanup;
+    }
 
     if (!(cpus = virCPUDefListParse(xmlCPUs, ncpus, VIR_CPU_TYPE_AUTO)))
         goto cleanup;
@@ -11999,14 +12008,19 @@ qemuConnectBaselineHypervisorCPU(virConnectPtr conn,
     }
 
     if (ARCH_IS_X86(arch)) {
-        int rc = virQEMUCapsGetCPUFeatures(qemuCaps, virttype,
-                                           migratable, &features);
-        if (rc < 0)
-            goto cleanup;
-        if (features && rc == 0) {
-            /* We got only migratable features from QEMU if we asked for them,
-             * no further filtering in virCPUBaseline is desired. */
-            migratable = false;
+        if (flags & VIR_CONNECT_BASELINE_CPU_IGNORE_HOST) {
+            VIR_DEBUG("Not adding host's features as VIR_CONNECT_BASELINE_CPU_IGNORE_HOST was set");
+            g_clear_pointer(&cpuModels, virObjectUnref);
+        } else {
+            int rc = virQEMUCapsGetCPUFeatures(qemuCaps, virttype,
+                                               migratable, &features);
+            if (rc < 0)
+                goto cleanup;
+            if (features && rc == 0) {
+                /* We got only migratable features from QEMU if we asked for them,
+                 * no further filtering in virCPUBaseline is desired. */
+                migratable = false;
+            }
         }
 
         if (!(cpu = virCPUBaseline(arch, cpus, ncpus, cpuModels,
@@ -14546,8 +14560,11 @@ qemuDomainBlockCopyCommon(virDomainObj *vm,
 }
 
 static int
-qemuDomainBlockRebase(virDomainPtr dom, const char *path, const char *base,
-                      unsigned long bandwidth, unsigned int flags)
+qemuDomainBlockRebase(virDomainPtr dom,
+                      const char *path,
+                      const char *base,
+                      unsigned long bandwidth,
+                      unsigned int flags)
 {
     virDomainObj *vm;
     int ret = -1;
@@ -14619,8 +14636,11 @@ qemuDomainBlockRebase(virDomainPtr dom, const char *path, const char *base,
 
 
 static int
-qemuDomainBlockCopy(virDomainPtr dom, const char *disk, const char *destxml,
-                    virTypedParameterPtr params, int nparams,
+qemuDomainBlockCopy(virDomainPtr dom,
+                    const char *disk,
+                    const char *destxml,
+                    virTypedParameterPtr params,
+                    int nparams,
                     unsigned int flags)
 {
     virQEMUDriver *driver = dom->conn->privateData;
@@ -14697,7 +14717,9 @@ qemuDomainBlockCopy(virDomainPtr dom, const char *disk, const char *destxml,
 
 
 static int
-qemuDomainBlockPull(virDomainPtr dom, const char *path, unsigned long bandwidth,
+qemuDomainBlockPull(virDomainPtr dom,
+                    const char *path,
+                    unsigned long bandwidth,
                     unsigned int flags)
 {
     virDomainObj *vm;
@@ -16720,7 +16742,8 @@ qemuConnectGetDomainCapabilities(virConnectPtr conn,
 
     if (flags & VIR_CONNECT_GET_DOMAIN_CAPABILITIES_DISABLE_DEPRECATED_FEATURES) {
         virQEMUCapsUpdateCPUDeprecatedFeatures(qemuCaps, virttype,
-                                               domCaps->cpu.hostModel);
+                                               domCaps->cpu.hostModel,
+                                               VIR_CPU_FEATURE_DISABLE);
     }
 
     return virDomainCapsFormat(domCaps);
@@ -19279,6 +19302,7 @@ qemuDomainGetLaunchSecurityInfo(virDomainPtr domain,
             goto cleanup;
         break;
     case VIR_DOMAIN_LAUNCH_SECURITY_PV:
+    case VIR_DOMAIN_LAUNCH_SECURITY_TDX:
         break;
     case VIR_DOMAIN_LAUNCH_SECURITY_NONE:
     case VIR_DOMAIN_LAUNCH_SECURITY_LAST:

@@ -1543,6 +1543,7 @@ VIR_ENUM_IMPL(virDomainLaunchSecurity,
               "sev",
               "sev-snp",
               "s390-pv",
+              "tdx",
 );
 
 VIR_ENUM_IMPL(virDomainPstoreBackend,
@@ -3958,6 +3959,12 @@ virDomainSecDefFree(virDomainSecDef *def)
         g_free(def->data.sev_snp.id_auth);
         g_free(def->data.sev_snp.host_data);
         break;
+    case VIR_DOMAIN_LAUNCH_SECURITY_TDX:
+        g_free(def->data.tdx.mrconfigid);
+        g_free(def->data.tdx.mrowner);
+        g_free(def->data.tdx.mrownerconfig);
+        g_free(def->data.tdx.qgs_unix_path);
+        break;
     case VIR_DOMAIN_LAUNCH_SECURITY_PV:
     case VIR_DOMAIN_LAUNCH_SECURITY_NONE:
     case VIR_DOMAIN_LAUNCH_SECURITY_LAST:
@@ -6348,7 +6355,6 @@ virDomainHostdevSubsysMediatedDevDefParseXML(virDomainHostdevDef *def,
     unsigned char uuid[VIR_UUID_BUFLEN] = {0};
     xmlNodePtr node = NULL;
     virDomainHostdevSubsysMediatedDev *mdevsrc = &def->source.subsys.u.mdev;
-    g_autofree char *uuidxml = NULL;
 
     if (!(node = virXPathNode("./source/address", ctxt))) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
@@ -6356,18 +6362,8 @@ virDomainHostdevSubsysMediatedDevDefParseXML(virDomainHostdevDef *def,
         return -1;
     }
 
-    if (!(uuidxml = virXMLPropString(node, "uuid"))) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("Missing 'uuid' attribute for element <address>"));
+    if (virXMLPropUUID(node, "uuid", VIR_XML_PROP_REQUIRED, uuid) < 0)
         return -1;
-    }
-
-    if (virUUIDParse(uuidxml, uuid) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       "%s",
-                       _("Cannot parse uuid attribute of element <address>"));
-        return -1;
-    }
 
     virUUIDFormat(uuid, mdevsrc->uuidstr);
     return 0;
@@ -7368,14 +7364,11 @@ virDomainDiskSourceNetworkParse(xmlNodePtr node,
                                 virStorageSource *src,
                                 unsigned int flags)
 {
-    virStorageNetProtocol protocol;
     xmlNodePtr tmpnode;
 
     if (virXMLPropEnum(node, "protocol", virStorageNetProtocolTypeFromString,
-                       VIR_XML_PROP_REQUIRED, &protocol) < 0)
+                       VIR_XML_PROP_REQUIRED, &src->protocol) < 0)
         return -1;
-
-    src->protocol = protocol;
 
     if (!(src->path = virXMLPropString(node, "name")) &&
         src->protocol != VIR_STORAGE_NET_PROTOCOL_NBD) {
@@ -7383,6 +7376,10 @@ virDomainDiskSourceNetworkParse(xmlNodePtr node,
                        _("missing name for disk source"));
         return -1;
     }
+
+    if (virStorageSourceNetworkProtocolPathSplit(src->path, src->protocol,
+                                                 NULL, NULL, NULL) < 0)
+        return -1;
 
     if (virXMLPropTristateBool(node, "tls", VIR_XML_PROP_NONE,
                                &src->haveTLS) < 0)
@@ -7405,27 +7402,6 @@ virDomainDiskSourceNetworkParse(xmlNodePtr node,
                                &src->reconnectDelay) < 0)
                 return -1;
         }
-    }
-
-    /* for historical reasons we store the volume and image name in one XML
-     * element although it complicates thing when attempting to access them. */
-    if (src->path &&
-        (src->protocol == VIR_STORAGE_NET_PROTOCOL_GLUSTER ||
-         src->protocol == VIR_STORAGE_NET_PROTOCOL_RBD)) {
-        char *tmp;
-        if (!(tmp = strchr(src->path, '/')) ||
-            tmp == src->path) {
-            virReportError(VIR_ERR_XML_ERROR,
-                           _("can't split path '%1$s' into pool name and image name"),
-                           src->path);
-            return -1;
-        }
-
-        src->volume = src->path;
-
-        src->path = g_strdup(tmp + 1);
-
-        tmp[0] = '\0';
     }
 
     /* snapshot currently works only for remote disks */
@@ -8565,6 +8541,8 @@ virDomainDiskDefParseXML(virDomainXMLOption *xmlopt,
     }
 
     if ((blockioNode = virXPathNode("./blockio", ctxt))) {
+        int tmp = 0;
+
         if (virXMLPropUInt(blockioNode, "logical_block_size", 10, VIR_XML_PROP_NONE,
                            &def->blockio.logical_block_size) < 0)
             return NULL;
@@ -8573,9 +8551,11 @@ virDomainDiskDefParseXML(virDomainXMLOption *xmlopt,
                            &def->blockio.physical_block_size) < 0)
             return NULL;
 
-        if (virXMLPropUInt(blockioNode, "discard_granularity", 10, VIR_XML_PROP_NONE,
-                           &def->blockio.discard_granularity) < 0)
+        if ((tmp = virXMLPropUInt(blockioNode, "discard_granularity", 10, VIR_XML_PROP_NONE,
+                                  &def->blockio.discard_granularity)) < 0)
             return NULL;
+        if (tmp > 0)
+            def->blockio.discard_granularity_specified = true;
     }
 
     if ((driverNode = virXPathNode("./driver", ctxt))) {
@@ -10480,7 +10460,6 @@ virDomainChrDefParseTargetXML(virDomainChrDef *def,
     g_autofree char *targetType = virXMLPropString(cur, "type");
     g_autofree char *targetModel = NULL;
     g_autofree char *addrStr = NULL;
-    g_autofree char *portStr = NULL;
     VIR_XPATH_NODE_AUTORESTORE(ctxt)
 
     ctxt->node = cur;
@@ -10551,20 +10530,11 @@ virDomainChrDefParseTargetXML(virDomainChrDef *def,
         break;
 
     default:
-        portStr = virXMLPropString(cur, "port");
-        if (portStr == NULL) {
-            /* Set to negative value to indicate we should set it later */
-            def->target.port = -1;
-            break;
-        }
-
-        if (virStrToLong_ui(portStr, NULL, 10, &port) < 0) {
-            virReportError(VIR_ERR_XML_ERROR,
-                           _("Invalid port number: %1$s"),
-                           portStr);
+        /* Set default to negative value to indicate we should set it later */
+        if (virXMLPropInt(cur, "port", 10,
+                          VIR_XML_PROP_NONNEGATIVE, &def->target.port, -1) < 0) {
             return -1;
         }
-        def->target.port = port;
         break;
     }
 
@@ -14204,6 +14174,56 @@ virDomainSEVSNPDefParseXML(virDomainSEVSNPDef *def,
 }
 
 
+static int
+virDomainTDXQGSDefParseXML(virDomainTDXDef *def, xmlXPathContextPtr ctxt)
+{
+    g_autofree xmlNodePtr *nodes = NULL;
+    xmlNodePtr node;
+    int n;
+
+    if ((n = virXPathNodeSet("./quoteGenerationService", ctxt, &nodes)) < 0)
+        return -1;
+
+    if (!n)
+        return 0;
+
+    if (n > 1) {
+        virReportError(VIR_ERR_XML_ERROR, "%s",
+                       _("only a single QGS element is supported"));
+        return -1;
+    }
+    node = nodes[0];
+
+    def->haveQGS = true;
+    def->qgs_unix_path = virXMLPropString(node, "path");
+
+    return 0;
+}
+
+
+static int
+virDomainTDXDefParseXML(virDomainTDXDef *def,
+                        xmlXPathContextPtr ctxt)
+{
+    int rc;
+
+    rc = virXPathULongLongBase("string(./policy)", ctxt, 16, &def->policy);
+    if (rc == 0) {
+        def->havePolicy = true;
+    } else if (rc == -2) {
+        virReportError(VIR_ERR_XML_ERROR, "%s",
+                       _("failed to get launch security policy for launch security type TDX"));
+        return -1;
+    }
+
+    def->mrconfigid = virXPathString("string(./mrConfigId)", ctxt);
+    def->mrowner = virXPathString("string(./mrOwner)", ctxt);
+    def->mrownerconfig = virXPathString("string(./mrOwnerConfig)", ctxt);
+
+    return virDomainTDXQGSDefParseXML(def, ctxt);
+}
+
+
 static virDomainSecDef *
 virDomainSecDefParseXML(xmlNodePtr lsecNode,
                         xmlXPathContextPtr ctxt)
@@ -14225,6 +14245,10 @@ virDomainSecDefParseXML(xmlNodePtr lsecNode,
         break;
     case VIR_DOMAIN_LAUNCH_SECURITY_SEV_SNP:
         if (virDomainSEVSNPDefParseXML(&sec->data.sev_snp, ctxt) < 0)
+            return NULL;
+        break;
+    case VIR_DOMAIN_LAUNCH_SECURITY_TDX:
+        if (virDomainTDXDefParseXML(&sec->data.tdx, ctxt) < 0)
             return NULL;
         break;
     case VIR_DOMAIN_LAUNCH_SECURITY_PV:
@@ -23113,7 +23137,7 @@ virDomainDiskBlockIoDefFormat(virBuffer *buf,
 {
     if (def->blockio.logical_block_size > 0 ||
         def->blockio.physical_block_size > 0 ||
-        def->blockio.discard_granularity > 0) {
+        def->blockio.discard_granularity_specified) {
         virBufferAddLit(buf, "<blockio");
         if (def->blockio.logical_block_size > 0) {
             virBufferAsprintf(buf,
@@ -23125,7 +23149,7 @@ virDomainDiskBlockIoDefFormat(virBuffer *buf,
                               " physical_block_size='%u'",
                               def->blockio.physical_block_size);
         }
-        if (def->blockio.discard_granularity > 0) {
+        if (def->blockio.discard_granularity_specified) {
             virBufferAsprintf(buf,
                               " discard_granularity='%u'",
                               def->blockio.discard_granularity);
@@ -23175,15 +23199,11 @@ virDomainDiskSourceFormatNetwork(virBuffer *attrBuf,
                                  unsigned int flags)
 {
     size_t n;
-    g_autofree char *path = NULL;
 
     virBufferAsprintf(attrBuf, " protocol='%s'",
                       virStorageNetProtocolTypeToString(src->protocol));
 
-    if (src->volume)
-        path = g_strdup_printf("%s/%s", src->volume, src->path);
-
-    virBufferEscapeString(attrBuf, " name='%s'", path ? path : src->path);
+    virBufferEscapeString(attrBuf, " name='%s'", src->path);
     virBufferEscapeString(attrBuf, " query='%s'", src->query);
 
     if (src->haveTLS != VIR_TRISTATE_BOOL_ABSENT &&
@@ -27705,6 +27725,23 @@ virDomainSEVSNPDefFormat(virBuffer *attrBuf,
 
 
 static void
+virDomainTDXDefFormat(virBuffer *childBuf, virDomainTDXDef *def)
+{
+    if (def->havePolicy)
+        virBufferAsprintf(childBuf, "<policy>0x%llx</policy>\n", def->policy);
+
+    virBufferEscapeString(childBuf, "<mrConfigId>%s</mrConfigId>\n", def->mrconfigid);
+    virBufferEscapeString(childBuf, "<mrOwner>%s</mrOwner>\n", def->mrowner);
+    virBufferEscapeString(childBuf, "<mrOwnerConfig>%s</mrOwnerConfig>\n", def->mrownerconfig);
+    if (def->haveQGS) {
+        virBufferAddLit(childBuf, "<quoteGenerationService");
+        virBufferEscapeString(childBuf, " path='%s'", def->qgs_unix_path);
+        virBufferAddLit(childBuf, "/>\n");
+    }
+}
+
+
+static void
 virDomainSecDefFormat(virBuffer *buf, virDomainSecDef *sec)
 {
     g_auto(virBuffer) attrBuf = VIR_BUFFER_INITIALIZER;
@@ -27723,6 +27760,10 @@ virDomainSecDefFormat(virBuffer *buf, virDomainSecDef *sec)
 
     case VIR_DOMAIN_LAUNCH_SECURITY_SEV_SNP:
         virDomainSEVSNPDefFormat(&attrBuf, &childBuf, &sec->data.sev_snp);
+        break;
+
+    case VIR_DOMAIN_LAUNCH_SECURITY_TDX:
+        virDomainTDXDefFormat(&childBuf, &sec->data.tdx);
         break;
 
     case VIR_DOMAIN_LAUNCH_SECURITY_PV:

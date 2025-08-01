@@ -930,7 +930,7 @@ qemuDomainFindOrCreateSCSIDiskController(virDomainObj *vm,
     size_t i;
     virDomainControllerDef *cont;
     qemuDomainObjPrivate *priv = vm->privateData;
-    int model = -1;
+    virDomainControllerModelSCSI model = VIR_DOMAIN_CONTROLLER_MODEL_SCSI_DEFAULT;
 
     for (i = 0; i < vm->def->ncontrollers; i++) {
         cont = vm->def->controllers[i];
@@ -956,13 +956,18 @@ qemuDomainFindOrCreateSCSIDiskController(virDomainObj *vm,
      * now hotplug a controller */
     cont = virDomainControllerDefNew(VIR_DOMAIN_CONTROLLER_TYPE_SCSI);
     cont->idx = controller;
+    cont->model = model;
 
-    if (model == VIR_DOMAIN_CONTROLLER_MODEL_SCSI_DEFAULT)
-        cont->model = qemuDomainGetSCSIControllerModel(vm->def, cont, priv->qemuCaps);
-    else
-        cont->model = model;
-
-    if (cont->model < 0) {
+    /* If no model has been discovered by looking at existing SCSI
+     * controllers, try to come up with a reasonable default. If one
+     * cannot be determined, error out */
+    if (cont->model == VIR_DOMAIN_CONTROLLER_MODEL_SCSI_DEFAULT) {
+        cont->model = qemuDomainDefaultSCSIControllerModel(vm->def, priv->qemuCaps);
+    }
+    if (cont->model == VIR_DOMAIN_CONTROLLER_MODEL_SCSI_DEFAULT) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("Unable to determine model for SCSI controller idx=%1$d"),
+                       cont->idx);
         VIR_FREE(cont);
         return NULL;
     }
@@ -1744,6 +1749,7 @@ qemuDomainGetTLSObjects(qemuDomainSecretInfo *secinfo,
                         const char *tlsCertdir,
                         bool tlsListen,
                         bool tlsVerify,
+                        const char *tlsPriority,
                         const char *alias,
                         virJSONValue **tlsProps,
                         virJSONValue **secProps)
@@ -1757,7 +1763,7 @@ qemuDomainGetTLSObjects(qemuDomainSecretInfo *secinfo,
         secAlias = secinfo->alias;
     }
 
-    if (qemuBuildTLSx509BackendProps(tlsCertdir, tlsListen, tlsVerify,
+    if (qemuBuildTLSx509BackendProps(tlsCertdir, tlsListen, tlsVerify, tlsPriority,
                                      alias, secAlias, tlsProps) < 0)
         return -1;
 
@@ -1801,6 +1807,7 @@ qemuDomainAddChardevTLSObjects(virQEMUDriver *driver,
                                 cfg->chardevTLSx509certdir,
                                 dev->data.tcp.listen,
                                 cfg->chardevTLSx509verify,
+                                cfg->chardevTLSpriority,
                                 *tlsAlias, &tlsProps, &secProps) < 0)
         return -1;
 

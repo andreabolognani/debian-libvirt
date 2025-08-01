@@ -159,29 +159,41 @@ bhyveBuildNetArgStr(const virDomainDef *def,
 static int
 bhyveBuildConsoleArgStr(const virDomainDef *def, virCommand *cmd)
 {
+    size_t i = 0;
     virDomainChrDef *chr = NULL;
 
     if (!def->nserials)
         return 0;
 
-    chr = def->serials[0];
+    for (i = 0; i < def->nserials; i++) {
+        chr = def->serials[i];
 
-    if (chr->source->type != VIR_DOMAIN_CHR_TYPE_NMDM) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("only nmdm console types are supported"));
-        return -1;
+        /* bhyve supports 4 ports: com1, com2, com3, com4 */
+        if (chr->target.port > 3) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("Only four serial ports are supported"));
+            return -1;
+        }
+
+        virCommandAddArg(cmd, "-l");
+
+        switch (chr->source->type) {
+        case VIR_DOMAIN_CHR_TYPE_NMDM:
+            virCommandAddArgFormat(cmd, "com%d,%s",
+                                   chr->target.port + 1, chr->source->data.file.path);
+            break;
+        case VIR_DOMAIN_CHR_TYPE_TCP:
+            virCommandAddArgFormat(cmd, "com%d,tcp=%s:%s",
+                                   chr->target.port + 1,
+                                   chr->source->data.tcp.host,
+                                   chr->source->data.tcp.service);
+            break;
+        default:
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("Only 'nmdm' and 'tcp' console types are supported"));
+            return -1;
+        }
     }
-
-    /* bhyve supports only two ports: com1 and com2 */
-    if (chr->target.port > 2) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("only two serial ports are supported"));
-        return -1;
-    }
-
-    virCommandAddArg(cmd, "-l");
-    virCommandAddArgFormat(cmd, "com%d,%s",
-                           chr->target.port + 1, chr->source->data.file.path);
 
     return 0;
 }
@@ -909,11 +921,28 @@ virAppendBootloaderArgs(virCommand *cmd, virDomainDef *def)
 }
 
 static virCommand *
-virBhyveProcessBuildBhyveloadCmd(virDomainDef *def, virDomainDiskDef *disk)
+virBhyveProcessBuildBhyveloadCmd(virDomainDef *def,
+                                 struct _bhyveConn *driver,
+                                 virDomainDiskDef *disk)
 {
     virCommand *cmd;
+    g_autoptr(virBhyveDriverConfig) cfg = virBhyveDriverGetConfig(driver);
 
-    cmd = virCommandNew("bhyveload");
+    if (cfg->bhyveloadTimeout > 0) {
+        /* TODO: update bhyve_process.c to interpret timeout(1) exit
+         * codes 124-127 to produce more meaningful error messages */
+        cmd = virCommandNew("timeout");
+        virCommandAddArg(cmd, "--foreground");
+        virCommandAddArg(cmd, "--verbose");
+        if (cfg->bhyveloadTimeoutKill > 0) {
+            virCommandAddArg(cmd, "-k");
+            virCommandAddArgFormat(cmd, "%ds", cfg->bhyveloadTimeoutKill);
+        }
+        virCommandAddArgFormat(cmd, "%ds", cfg->bhyveloadTimeout);
+        virCommandAddArg(cmd, "bhyveload");
+    } else {
+        cmd = virCommandNew("bhyveload");
+    }
 
     if (def->os.bootloaderArgs == NULL) {
         VIR_DEBUG("bhyveload with default arguments");
@@ -1200,7 +1229,7 @@ virBhyveProcessBuildLoadCmd(struct _bhyveConn *driver, virDomainDef *def,
         if (disk == NULL)
             return NULL;
 
-        return virBhyveProcessBuildBhyveloadCmd(def, disk);
+        return virBhyveProcessBuildBhyveloadCmd(def, driver, disk);
     } else if (strstr(def->os.bootloader, "grub-bhyve") != NULL) {
         return virBhyveProcessBuildGrubbhyveCmd(def, driver, devmap_file,
                                                 devicesmap_out);

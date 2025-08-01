@@ -81,6 +81,11 @@ VIR_ENUM_IMPL(virQEMUSchedCore,
               "emulator",
               "full");
 
+VIR_ENUM_IMPL(virQEMUDeprecatedFeatures,
+              QEMU_DEPRECATED_FEATURES_LAST,
+              "off",
+              "on",
+              "none");
 
 static virClass *virQEMUDriverConfigClass;
 static void virQEMUDriverConfigDispose(void *obj);
@@ -320,15 +325,15 @@ virQEMUDriverConfig *virQEMUDriverConfigNew(bool privileged,
          *
          * XXX, or query if libvirt-guests.service is enabled perhaps ?
          */
-        cfg->autoShutdownTrySave = VIR_DOMAIN_DRIVER_AUTO_SHUTDOWN_SCOPE_NONE;
-        cfg->autoShutdownTryShutdown = VIR_DOMAIN_DRIVER_AUTO_SHUTDOWN_SCOPE_NONE;
-        cfg->autoShutdownPoweroff = VIR_DOMAIN_DRIVER_AUTO_SHUTDOWN_SCOPE_NONE;
+        cfg->autoShutdown.trySave = VIR_DOMAIN_DRIVER_AUTO_SHUTDOWN_SCOPE_NONE;
+        cfg->autoShutdown.tryShutdown = VIR_DOMAIN_DRIVER_AUTO_SHUTDOWN_SCOPE_NONE;
+        cfg->autoShutdown.poweroff = VIR_DOMAIN_DRIVER_AUTO_SHUTDOWN_SCOPE_NONE;
     } else {
-        cfg->autoShutdownTrySave = VIR_DOMAIN_DRIVER_AUTO_SHUTDOWN_SCOPE_PERSISTENT;
-        cfg->autoShutdownTryShutdown = VIR_DOMAIN_DRIVER_AUTO_SHUTDOWN_SCOPE_ALL;
-        cfg->autoShutdownPoweroff = VIR_DOMAIN_DRIVER_AUTO_SHUTDOWN_SCOPE_ALL;
+        cfg->autoShutdown.trySave = VIR_DOMAIN_DRIVER_AUTO_SHUTDOWN_SCOPE_PERSISTENT;
+        cfg->autoShutdown.tryShutdown = VIR_DOMAIN_DRIVER_AUTO_SHUTDOWN_SCOPE_ALL;
+        cfg->autoShutdown.poweroff = VIR_DOMAIN_DRIVER_AUTO_SHUTDOWN_SCOPE_ALL;
     }
-    cfg->autoShutdownRestore = true;
+    cfg->autoShutdown.autoRestore = true;
 
     return g_steal_pointer(&cfg);
 }
@@ -454,6 +459,9 @@ virQEMUDriverConfigLoadDefaultTLSEntry(virQEMUDriverConfig *cfg,
     if (virConfGetValueString(conf, "default_tls_x509_secret_uuid",
                               &cfg->defaultTLSx509secretUUID) < 0)
         return -1;
+    if (virConfGetValueString(conf, "default_tls_priority",
+                              &cfg->defaultTLSpriority) < 0)
+        return -1;
 
     return 0;
 }
@@ -565,6 +573,9 @@ virQEMUDriverConfigLoadSpecificTLSEntry(virQEMUDriverConfig *cfg,
         if (virConfGetValueString(conf, \
                                   #val "_tls_x509_secret_uuid", \
                                   &cfg->val## TLSx509secretUUID) < 0) \
+            return -1; \
+        if ((rv = virConfGetValueString(conf, #val "_tls_priority", \
+                                        &cfg->val## TLSpriority)) < 0) \
             return -1; \
     } while (0)
 
@@ -719,11 +730,11 @@ virQEMUDriverConfigLoadSaveEntry(virQEMUDriverConfig *cfg,
                            autoShutdownTrySave);
             return -1;
         }
-        cfg->autoShutdownTrySave = autoShutdownVal;
+        cfg->autoShutdown.trySave = autoShutdownVal;
     }
 
-    if (cfg->autoShutdownTrySave == VIR_DOMAIN_DRIVER_AUTO_SHUTDOWN_SCOPE_ALL ||
-        cfg->autoShutdownTrySave == VIR_DOMAIN_DRIVER_AUTO_SHUTDOWN_SCOPE_TRANSIENT) {
+    if (cfg->autoShutdown.trySave == VIR_DOMAIN_DRIVER_AUTO_SHUTDOWN_SCOPE_ALL ||
+        cfg->autoShutdown.trySave == VIR_DOMAIN_DRIVER_AUTO_SHUTDOWN_SCOPE_TRANSIENT) {
         virReportError(VIR_ERR_INVALID_ARG, "%s",
                        _("managed save cannot be requested for transient domains"));
         return -1;
@@ -740,7 +751,7 @@ virQEMUDriverConfigLoadSaveEntry(virQEMUDriverConfig *cfg,
                            autoShutdownTryShutdown);
             return -1;
         }
-        cfg->autoShutdownTryShutdown = autoShutdownVal;
+        cfg->autoShutdown.tryShutdown = autoShutdownVal;
     }
 
     if (virConfGetValueString(conf, "auto_shutdown_poweroff", &autoShutdownPoweroff) < 0)
@@ -754,16 +765,16 @@ virQEMUDriverConfigLoadSaveEntry(virQEMUDriverConfig *cfg,
                            autoShutdownPoweroff);
             return -1;
         }
-        cfg->autoShutdownPoweroff = autoShutdownVal;
+        cfg->autoShutdown.poweroff = autoShutdownVal;
     }
 
     if (virConfGetValueUInt(conf, "auto_shutdown_wait",
-                            &cfg->autoShutdownWait) < 0)
+                            &cfg->autoShutdown.waitShutdownSecs) < 0)
         return -1;
-    if (virConfGetValueBool(conf, "auto_shutdown_restore", &cfg->autoShutdownRestore) < 0)
+    if (virConfGetValueBool(conf, "auto_shutdown_restore", &cfg->autoShutdown.autoRestore) < 0)
         return -1;
     if (virConfGetValueBool(conf, "auto_save_bypass_cache",
-                            &cfg->autoSaveBypassCache) < 0)
+                            &cfg->autoShutdown.saveBypassCache) < 0)
         return -1;
 
     return 0;
@@ -1258,6 +1269,31 @@ virQEMUDriverConfigLoadFilesystemEntry(virQEMUDriverConfig *cfg,
 }
 
 
+static int
+virQEMUDriverConfigLoadDeprecatedFeaturesEntry(virQEMUDriverConfig *cfg,
+                                               virConf *conf)
+{
+    g_autofree char *depFeats = NULL;
+
+    if (virConfGetValueString(conf, "default_cpu_deprecated_features", &depFeats) < 0)
+        return -1;
+    if (depFeats) {
+        int val = virQEMUDeprecatedFeaturesTypeFromString(depFeats);
+
+        if (val < 0) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                           _("Unknown default_cpu_deprecated_features value %1$s"),
+                           depFeats);
+            return -1;
+        }
+
+        cfg->defaultDeprecatedFeatures = val;
+    }
+
+    return 0;
+}
+
+
 int virQEMUDriverConfigLoadFile(virQEMUDriverConfig *cfg,
                                 const char *filename,
                                 bool privileged)
@@ -1336,6 +1372,9 @@ int virQEMUDriverConfigLoadFile(virQEMUDriverConfig *cfg,
         return -1;
 
     if (virQEMUDriverConfigLoadFilesystemEntry(cfg, conf) < 0)
+        return -1;
+
+    if (virQEMUDriverConfigLoadDeprecatedFeaturesEntry(cfg, conf) < 0)
         return -1;
 
     return 0;
@@ -1440,6 +1479,22 @@ virQEMUDriverConfigSetDefaults(virQEMUDriverConfig *cfg)
     SET_TLS_SECRET_UUID_DEFAULT(nbd);
 
 #undef SET_TLS_SECRET_UUID_DEFAULT
+
+#define SET_TLS_PRIORITY_DEFAULT(val) \
+    do { \
+        if (!cfg->val## TLSpriority && \
+            cfg->defaultTLSpriority) { \
+            cfg->val## TLSpriority = g_strdup(cfg->defaultTLSpriority); \
+        } \
+    } while (0)
+
+    SET_TLS_PRIORITY_DEFAULT(vnc);
+    SET_TLS_PRIORITY_DEFAULT(chardev);
+    SET_TLS_PRIORITY_DEFAULT(migrate);
+    SET_TLS_PRIORITY_DEFAULT(backup);
+    SET_TLS_PRIORITY_DEFAULT(nbd);
+
+#undef SET_TLS_PRIORITY_DEFAULT
 
     /*
      * If a "SYSCONFDIR" + "pki/libvirt-<val>" exists, then assume someone

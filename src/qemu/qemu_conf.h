@@ -58,6 +58,16 @@ typedef enum {
 
 VIR_ENUM_DECL(virQEMUSchedCore);
 
+typedef enum {
+    QEMU_DEPRECATED_FEATURES_OFF = 0,
+    QEMU_DEPRECATED_FEATURES_ON,
+    QEMU_DEPRECATED_FEATURES_NONE,
+
+    QEMU_DEPRECATED_FEATURES_LAST
+} virQEMUDeprecatedFeatures;
+
+VIR_ENUM_DECL(virQEMUDeprecatedFeatures);
+
 typedef struct _virQEMUDriver virQEMUDriver;
 
 typedef struct _virQEMUDriverConfig virQEMUDriverConfig;
@@ -117,6 +127,7 @@ struct _virQEMUDriverConfig {
     bool defaultTLSx509verify;
     bool defaultTLSx509verifyPresent;
     char *defaultTLSx509secretUUID;
+    char *defaultTLSpriority;
 
     bool vncAutoUnixSocket;
     bool vncTLS;
@@ -125,6 +136,7 @@ struct _virQEMUDriverConfig {
     bool vncSASL;
     char *vncTLSx509certdir;
     char *vncTLSx509secretUUID;
+    char *vncTLSpriority;
     char *vncListen;
     char *vncPassword;
     char *vncSASLdir;
@@ -147,21 +159,25 @@ struct _virQEMUDriverConfig {
     bool chardevTLSx509verify;
     bool chardevTLSx509verifyPresent;
     char *chardevTLSx509secretUUID;
+    char *chardevTLSpriority;
 
     char *migrateTLSx509certdir;
     bool migrateTLSx509verify;
     bool migrateTLSx509verifyPresent;
     char *migrateTLSx509secretUUID;
+    char *migrateTLSpriority;
     bool migrateTLSForce;
 
     char *backupTLSx509certdir;
     bool backupTLSx509verify;
     bool backupTLSx509verifyPresent;
     char *backupTLSx509secretUUID;
+    char *backupTLSpriority;
 
     bool nbdTLS;
     char *nbdTLSx509certdir;
     char *nbdTLSx509secretUUID;
+    char *nbdTLSpriority;
 
     unsigned int remotePortMin;
     unsigned int remotePortMax;
@@ -208,12 +224,7 @@ struct _virQEMUDriverConfig {
     bool autoDumpBypassCache;
     bool autoStartBypassCache;
     unsigned int autoStartDelayMS;
-    virDomainDriverAutoShutdownScope autoShutdownTrySave;
-    virDomainDriverAutoShutdownScope autoShutdownTryShutdown;
-    virDomainDriverAutoShutdownScope autoShutdownPoweroff;
-    unsigned int autoShutdownWait;
-    bool autoShutdownRestore;
-    bool autoSaveBypassCache;
+    virDomainDriverAutoShutdownConfig autoShutdown;
 
     char *lockManagerName;
 
@@ -250,6 +261,8 @@ struct _virQEMUDriverConfig {
     virQEMUSchedCore schedCore;
 
     char **sharedFilesystems;
+
+    virQEMUDeprecatedFeatures defaultDeprecatedFeatures;
 };
 
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(virQEMUDriverConfig, virObjectUnref);

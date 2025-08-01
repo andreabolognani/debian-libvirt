@@ -121,6 +121,12 @@ findLease(const char *name,
     *naddress = 0;
     *found = false;
 
+#if defined(LIBVIRT_NSS_GUEST)
+    DEBUG("NSS module: libvirt_guest");
+#else
+    DEBUG("NSS module: libvirt");
+#endif
+
     if (af != AF_UNSPEC && af != AF_INET && af != AF_INET6) {
         errno = EAFNOSUPPORT;
         goto cleanup;
@@ -174,7 +180,7 @@ findLease(const char *name,
 #endif
 
     if ((now = time(NULL)) == (time_t)-1) {
-        DEBUG("Failed to get time");
+        ERROR("Failed to get time");
         goto cleanup;
     }
 
