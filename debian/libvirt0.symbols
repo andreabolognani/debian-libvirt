@@ -102,7 +102,6 @@ libvirt.so.0 libvirt0 #MINVER#
  *@LIBVIRT_10.1.0 10.1.0
  *@LIBVIRT_10.2.0 10.2.0
  *@LIBVIRT_11.2.0 11.2.0
- *@LIBVIRT_11.6.0 11.6.0
  *@LIBVIRT_PRIVATE_11.6.0 11.6.0
 
 libvirt-qemu.so.0 libvirt0 #MINVER#
