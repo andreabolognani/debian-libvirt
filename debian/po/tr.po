@@ -1,0 +1,73 @@
+# Turkish debconf translation of libvirt.
+# Copyright (C) 2025 Debian Turkish L10n Team
+# This file is distributed under the same license as the libvirt package.
+# Translator:
+# Nuri KÜÇÜKLER <nurikucukler@yahoo.com>, 2025.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: libvirt\n"
+"Report-Msgid-Bugs-To: libvirt@packages.debian.org\n"
+"POT-Creation-Date: 2016-12-22 14:20+0100\n"
+"PO-Revision-Date: 2025-07-12 15:57+0300\n"
+"Last-Translator: Nuri KÜÇÜKLER <nurikucukler@yahoo.com>\n"
+"Language-Team: Debian L10n Turkish <debian-l10n-turkish@lists.debian.org>\n"
+"Language: tr\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+"X-Generator: Poedit 3.2.2\n"
+
+#. Type: boolean
+#. Description
+#: ../libvirt-daemon-driver-qemu.templates:1001
+msgid "Continue with incorrect libvirt-qemu user/group ID(s)?"
+msgstr "libvirt-qemu kullanıcı/grup kimlikleri hatalıyken devam edilsin mi?"
+
+#. Type: boolean
+#. Description
+#: ../libvirt-daemon-driver-qemu.templates:1001
+msgid ""
+" The user/group ID (uid/gid) allocated for libvirt-qemu (64055)\n"
+" seems to be taken by another user/group, thus it is not possible\n"
+" to create the user/group with this numeric ID."
+msgstr ""
+" libvirt-qemu için ayrılan kullanıcı/grup kimliği (uid/gid: 64055)\n"
+" başka bir kullanıcı/grup tarafından kullanılıyor gibi görünüyor. Bu\n"
+" nedenle bu sayısal kimlikle kullanıcı/grup oluşturulamıyor."
+
+#. Type: boolean
+#. Description
+#: ../libvirt-daemon-driver-qemu.templates:1001
+msgid ""
+" The migration of guests with disk image files shared over NFS\n"
+" requires a static libvirt-qemu user and group ID (uid and gid)\n"
+" between the source and destination host systems."
+msgstr ""
+" Disk görüntü dosyaları NFS üzerinden paylaşılan sanal makinelerin\n"
+" taşınabilmesi için, kaynak ve hedef sunucularda libvirt-qemu\n"
+" kullanıcısının kullanıcı ve grup kimliklerinin (uid ve gid) sabit olması\n"
+" gerekir."
+
+#. Type: boolean
+#. Description
+#: ../libvirt-daemon-driver-qemu.templates:1001
+msgid ""
+" If guest migration over NFS is not required, you can continue\n"
+" the installation."
+msgstr ""
+" NFS üzerinden sanal makine taşıma gerekmiyorsa, kuruluma\n"
+" devam edebilirsiniz."
+
+#. Type: boolean
+#. Description
+#: ../libvirt-daemon-driver-qemu.templates:1001
+msgid ""
+" In order to resolve this problem, do not continue the installation,\n"
+" release the 64055 uid/gid (which might involve permission changes),\n"
+" then install this package again."
+msgstr ""
+" Bu sorunu çözmek için kuruluma devam etmeyin, 64055 uid/gid'yi\n"
+" serbest bırakın (bu işlem erişim izni değişiklikleri gerektirebilir) ve\n"
+" ardından bu paketi tekrar kurun."
