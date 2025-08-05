@@ -4,8 +4,12 @@ include:
 
 # libvirt itself is supposedly reproducible, but the reprotest job seems to
 # be flaky. Don't waste precious CI minutes until it passes consistently
+#
+# Don't allow "origtargz" to be used as a fallback for orig.tar.xz
+# generation, it just doesn't work. Error out instead
 variables:
   SALSA_CI_DISABLE_REPROTEST: 1
+  SALSA_CI_DISABLE_EXPORTORIG_FALLBACK: 1
 
 verify-wrap-and-sort:
   image: debian:unstable
