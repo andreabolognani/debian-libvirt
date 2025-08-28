@@ -1,0 +1,73 @@
+From: Peter Krempa <pkrempa@redhat.com>
+Date: Tue, 17 Jun 2025 15:01:26 +0200
+Subject: tlscert: Don't force 'keyEncipherment' for ECDSA and ECDH
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+Per RFC8813 [1] which amends RFC5580 [2] ECDSA, ECDH, and ECMQV
+algorithms must not have 'keyEncipherment' present, but our code did
+check it. Add exemption for known algorithms which don't use it.
+
+[1] https://datatracker.ietf.org/doc/rfc8813/
+[2] https://datatracker.ietf.org/doc/rfc5480
+
+Closes: https://gitlab.com/libvirt/libvirt/-/issues/691
+Signed-off-by: Peter Krempa <pkrempa@redhat.com>
+Reviewed-by: Daniel P. Berrangé <berrange@redhat.com>
+Reviewed-by: Michal Privoznik <mprivozn@redhat.com>
+Reviewed-by: Ján Tomko <jtomko@redhat.com>
+(cherry picked from commit 11867b0224a2b8dc34755ff0ace446b6842df1c1)
+
+Bug-Debian: https://bugs.debian.org/1110816
+
+Forwarded: not-needed
+Origin: https://gitlab.com/libvirt/libvirt/-/commits/11867b0224a2b8dc34755ff0ace446b6842df1c1
+---
+ src/rpc/virnettlscert.c | 33 +++++++++++++++++++++++++--------
+ 1 file changed, 25 insertions(+), 8 deletions(-)
+
+diff --git a/src/rpc/virnettlscert.c b/src/rpc/virnettlscert.c
+index 1befbe0..f197995 100644
+--- a/src/rpc/virnettlscert.c
++++ b/src/rpc/virnettlscert.c
+@@ -163,14 +163,31 @@ static int virNetTLSCertCheckKeyUsage(gnutls_x509_crt_t cert,
+             }
+         }
+         if (!(usage & GNUTLS_KEY_KEY_ENCIPHERMENT)) {
+-            if (critical) {
+-                virReportError(VIR_ERR_SYSTEM_ERROR,
+-                               _("Certificate %1$s usage does not permit key encipherment"),
+-                               certFile);
+-                return -1;
+-            } else {
+-                VIR_WARN("Certificate %s usage does not permit key encipherment",
+-                         certFile);
++            int alg = gnutls_x509_crt_get_pk_algorithm(cert, NULL);
++
++            /* Per RFC8813 [1] which amends RFC5580 [2] ECDSA, ECDH, and ECMQV
++             * algorithms must not have 'keyEncipherment' present.
++             *
++             * [1] https://datatracker.ietf.org/doc/rfc8813/
++             * [2] https://datatracker.ietf.org/doc/rfc5480
++             */
++
++            switch (alg) {
++            case GNUTLS_PK_ECDSA:
++            case GNUTLS_PK_ECDH_X25519:
++            case GNUTLS_PK_ECDH_X448:
++                break;
++
++            default:
++                if (critical) {
++                    virReportError(VIR_ERR_SYSTEM_ERROR,
++                                   _("Certificate %1$s usage does not permit key encipherment"),
++                                   certFile);
++                    return -1;
++                } else {
++                    VIR_WARN("Certificate %s usage does not permit key encipherment",
++                             certFile);
++                }
+             }
+         }
+     }
