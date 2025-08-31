@@ -1,0 +1,76 @@
+From: anonymix007 <48598263+anonymix007@users.noreply.github.com>
+Date: Wed, 4 Jun 2025 12:05:23 +0300
+Subject: qemu: capabilities: Check if cpuModels is not NULL before trying to
+ dereference it
+
+accel->cpuModels field might be NULL if QEMU does not return CPU models.
+The following backtrace is observed in such cases:
+0  virQEMUCapsProbeQMPCPUDefinitions (qemuCaps=qemuCaps@entry=0x7f1890003ae0, accel=accel@entry=0x7f1890003c10, mon=mon@entry=0x7f1890005270)
+   at ../src/qemu/qemu_capabilities.c:3091
+1  0x00007f18b42fa7b1 in virQEMUCapsInitQMPMonitor (qemuCaps=qemuCaps@entry=0x7f1890003ae0, mon=0x7f1890005270) at ../src/qemu/qemu_capabilities.c:5746
+2  0x00007f18b42fafaf in virQEMUCapsInitQMPSingle (qemuCaps=qemuCaps@entry=0x7f1890003ae0, libDir=libDir@entry=0x7f186c1e70f0 "/var/lib/libvirt/qemu",
+   runUid=runUid@entry=955, runGid=runGid@entry=955, onlyTCG=onlyTCG@entry=false) at ../src/qemu/qemu_capabilities.c:5832
+3  0x00007f18b42fb1a5 in virQEMUCapsInitQMP (qemuCaps=0x7f1890003ae0, libDir=0x7f186c1e70f0 "/var/lib/libvirt/qemu", runUid=955, runGid=955)
+   at ../src/qemu/qemu_capabilities.c:5848
+4  virQEMUCapsNewForBinaryInternal (hostArch=VIR_ARCH_X86_64, binary=binary@entry=0x7f1868002fc0 "/usr/bin/qemu-system-alpha",
+   libDir=0x7f186c1e70f0 "/var/lib/libvirt/qemu", runUid=955, runGid=955,
+   hostCPUSignature=0x7f186c1e9f20 "AuthenticAMD, AMD Ryzen 9 7950X 16-Core Processor, family: 25, model: 97, stepping: 2", microcodeVersion=174068233,
+   kernelVersion=0x7f186c194200 "6.14.9-arch1-1 #1 SMP PREEMPT_DYNAMIC Thu, 29 May 2025 21:42:15 +0000", cpuData=0x7f186c1ea490)
+   at ../src/qemu/qemu_capabilities.c:5907
+5  0x00007f18b42fb4c9 in virQEMUCapsNewData (binary=0x7f1868002fc0 "/usr/bin/qemu-system-alpha", privData=0x7f186c194280)
+   at ../src/qemu/qemu_capabilities.c:5942
+6  0x00007f18bd42d302 in virFileCacheNewData (cache=0x7f186c193730, name=0x7f1868002fc0 "/usr/bin/qemu-system-alpha") at ../src/util/virfilecache.c:206
+7  virFileCacheValidate (cache=cache@entry=0x7f186c193730, name=name@entry=0x7f1868002fc0 "/usr/bin/qemu-system-alpha", data=data@entry=0x7f18b67c37c0)
+   at ../src/util/virfilecache.c:269
+8  0x00007f18bd42d5b8 in virFileCacheLookup (cache=cache@entry=0x7f186c193730, name=name@entry=0x7f1868002fc0 "/usr/bin/qemu-system-alpha")
+   at ../src/util/virfilecache.c:301
+9  0x00007f18b42fb679 in virQEMUCapsCacheLookup (cache=cache@entry=0x7f186c193730, binary=binary@entry=0x7f1868002fc0 "/usr/bin/qemu-system-alpha")
+   at ../src/qemu/qemu_capabilities.c:6036
+10 0x00007f18b42fb785 in virQEMUCapsInitGuest (caps=<optimized out>, cache=<optimized out>, hostarch=VIR_ARCH_X86_64, guestarch=VIR_ARCH_ALPHA)
+   at ../src/qemu/qemu_capabilities.c:1037
+11 virQEMUCapsInit (cache=0x7f186c193730) at ../src/qemu/qemu_capabilities.c:1229
+12 0x00007f18b431d311 in virQEMUDriverCreateCapabilities (driver=driver@entry=0x7f186c01f410) at ../src/qemu/qemu_conf.c:1553
+13 0x00007f18b431d663 in virQEMUDriverGetCapabilities (driver=0x7f186c01f410, refresh=<optimized out>) at ../src/qemu/qemu_conf.c:1623
+14 0x00007f18b435e3e4 in qemuConnectGetVersion (conn=<optimized out>, version=0x7f18b67c39b0) at ../src/qemu/qemu_driver.c:1492
+15 0x00007f18bd69c5e8 in virConnectGetVersion (conn=0x55bc5f4cda20, hvVer=hvVer@entry=0x7f18b67c39b0) at ../src/libvirt-host.c:201
+16 0x000055bc34ef3627 in remoteDispatchConnectGetVersion (server=0x55bc5f4b93f0, msg=0x55bc5f4cdf60, client=0x55bc5f4c66d0, rerr=0x7f18b67c3a80,
+   ret=0x55bc5f4b8670) at src/remote/remote_daemon_dispatch_stubs.h:1265
+17 remoteDispatchConnectGetVersionHelper (server=0x55bc5f4b93f0, client=0x55bc5f4c66d0, msg=0x55bc5f4cdf60, rerr=0x7f18b67c3a80, args=0x0, ret=0x55bc5f4b8670)
+   at src/remote/remote_daemon_dispatch_stubs.h:1247
+18 0x00007f18bd5506da in virNetServerProgramDispatchCall (prog=0x55bc5f4cae90, server=0x55bc5f4b93f0, client=0x55bc5f4c66d0, msg=0x55bc5f4cdf60)
+   at ../src/rpc/virnetserverprogram.c:423
+19 virNetServerProgramDispatch (prog=0x55bc5f4cae90, server=server@entry=0x55bc5f4b93f0, client=0x55bc5f4c66d0, msg=0x55bc5f4cdf60)
+   at ../src/rpc/virnetserverprogram.c:299
+20 0x00007f18bd556c32 in virNetServerProcessMsg (srv=srv@entry=0x55bc5f4b93f0, client=<optimized out>, prog=<optimized out>, msg=<optimized out>)
+   at ../src/rpc/virnetserver.c:135
+21 0x00007f18bd556f77 in virNetServerHandleJob (jobOpaque=0x55bc5f4d2bb0, opaque=0x55bc5f4b93f0) at ../src/rpc/virnetserver.c:155
+22 0x00007f18bd47dd19 in virThreadPoolWorker (opaque=<optimized out>) at ../src/util/virthreadpool.c:164
+23 0x00007f18bd47d253 in virThreadHelper (data=0x55bc5f4b7810) at ../src/util/virthread.c:256
+24 0x00007f18bce117eb in start_thread (arg=<optimized out>) at pthread_create.c:448
+25 0x00007f18bce9518c in __GI___clone3 () at ../sysdeps/unix/sysv/linux/x86_64/clone3.S:78
+
+Signed-off-by: anonymix007 <anonymix007@users.noreply.github.com>
+(cherry picked from commit e7239c619fcaf35b8b605ce07c5d5b15351b3a62)
+
+Bug-Debian: https://bugs.debian.org/1112481
+
+Forwarded: not-needed
+Origin: https://gitlab.com/libvirt/libvirt/-/commits/e7239c619fcaf35b8b605ce07c5d5b15351b3a62
+---
+ src/qemu/qemu_capabilities.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/src/qemu/qemu_capabilities.c b/src/qemu/qemu_capabilities.c
+index a804335..e937fe3 100644
+--- a/src/qemu/qemu_capabilities.c
++++ b/src/qemu/qemu_capabilities.c
+@@ -3078,6 +3078,9 @@ virQEMUCapsProbeQMPCPUDefinitions(virQEMUCaps *qemuCaps,
+     if (virQEMUCapsFetchCPUDefinitions(mon, qemuCaps->arch, &accel->cpuModels) < 0)
+         return -1;
+ 
++    if (!accel->cpuModels)
++        return 0;
++
+     defs = accel->cpuModels;
+     for (i = 0; i < defs->ncpus; i++) {
+         if (STREQ_NULLABLE(defs->cpus[i].name, "max")) {

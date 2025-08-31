@@ -4,6 +4,7 @@ backport/tlscert-Don-t-force-keyEncipherment-for-ECDSA-and-ECDH.patch
 backport/tls-Don-t-require-keyEncipherment-to-be-enabled-altoghthe.patch
 backport/tests-virnettls-test-Drop-use-of-GNUTLS_KEY_KEY_ENCIPHERM.patch
 backport/daemon-Drop-log-level-of-VIR_ERR_NO_SUPPORT-to-debug.patch
+backport/qemu-capabilities-Check-if-cpuModels-is-not-NULL-before-t.patch
 debian/Debianize-libvirt-guests.patch
 debian/apparmor_profiles_local_include.patch
 debian/Use-sensible-editor-by-default.patch
