@@ -4739,6 +4739,9 @@ qemuBuildDeviceVideoCmd(virCommand *cmd,
             return -1;
     }
 
+    if (virJSONValueObjectAdd(&props, "T:edid", video->edid, NULL) < 0)
+        return -1;
+
     if (video->res) {
         if (virJSONValueObjectAdd(&props,
                                   "p:xres", video->res->x,
@@ -10768,7 +10771,11 @@ qemuBuildCommandLine(virDomainObj *vm,
         qemuBuildNumaCommandLine(cfg, def, cmd, priv) < 0)
         return NULL;
 
-    virUUIDFormat(def->uuid, uuid);
+    if (virUUIDIsValid(def->hw_uuid)) {
+        virUUIDFormat(def->hw_uuid, uuid);
+    } else {
+        virUUIDFormat(def->uuid, uuid);
+    }
     virCommandAddArgList(cmd, "-uuid", uuid, NULL);
 
     if (qemuBuildSmbiosCommandLine(cmd, driver, def) < 0)

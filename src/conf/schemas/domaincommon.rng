@@ -48,6 +48,11 @@
         </element>
       </optional>
       <optional>
+        <element name="hwuuid">
+          <ref name="UUID"/>
+        </element>
+      </optional>
+      <optional>
         <element name="genid">
           <choice>
             <ref name="UUID"/>
@@ -4804,6 +4809,11 @@
             </optional>
             <optional>
               <attribute name="blob">
+                <ref name="virOnOff"/>
+              </attribute>
+            </optional>
+            <optional>
+              <attribute name="edid">
                 <ref name="virOnOff"/>
               </attribute>
             </optional>

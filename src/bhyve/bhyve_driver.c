@@ -3,6 +3,7 @@
  *
  * Copyright (C) 2014 Roman Bogorodskiy
  * Copyright (C) 2014-2015 Red Hat, Inc.
+ * Copyright (C) 2025 The FreeBSD Foundation
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -23,6 +24,9 @@
 
 #include <fcntl.h>
 #include <sys/utsname.h>
+#include <sys/param.h>
+#include <sys/sysctl.h>
+#include <sys/user.h>
 
 #include "virerror.h"
 #include "datatypes.h"
@@ -55,6 +59,7 @@
 #include "conf/domain_capabilities.h"
 #include "virutil.h"
 #include "domain_driver.h"
+#include "virnetdevtap.h"
 
 #include "bhyve_conf.h"
 #include "bhyve_device.h"
@@ -1625,6 +1630,139 @@ bhyveConnectGetDomainCapabilities(virConnectPtr conn,
     return ret;
 }
 
+static int
+bhyveDomainInterfaceStats(virDomainPtr domain,
+                          const char *device,
+                          virDomainInterfaceStatsPtr stats)
+{
+    virDomainObj *vm;
+    int ret = -1;
+    virDomainNetDef *net = NULL;
+
+    if (!(vm = bhyveDomObjFromDomain(domain)))
+        goto cleanup;
+
+    if (virDomainInterfaceStatsEnsureACL(domain->conn, vm->def) < 0)
+        goto cleanup;
+
+    if (virDomainObjCheckActive(vm) < 0)
+        goto cleanup;
+
+    if (!(net = virDomainNetFind(vm->def, device)))
+        goto cleanup;
+
+    if (virNetDevTapInterfaceStats(net->ifname, stats,
+                                   !virDomainNetTypeSharesHostView(net)) < 0)
+        goto cleanup;
+
+    ret = 0;
+
+ cleanup:
+    virDomainObjEndAPI(&vm);
+    return ret;
+}
+
+#define BHYVE_SET_MEMSTAT(TAG, VAL) \
+        if (i < nr_stats) { \
+            stats[i].tag = TAG; \
+            stats[i].val = VAL; \
+            i++; \
+        }
+
+static int
+bhyveDomainMemoryStats(virDomainPtr domain,
+                       virDomainMemoryStatPtr stats,
+                       unsigned int nr_stats,
+                       unsigned int flags)
+{
+    virDomainObj *vm;
+    unsigned maxmem;
+    unsigned long long rss;
+    size_t i = 0;
+    int ret = -1;
+
+    virCheckFlags(0, -1);
+
+    if (!(vm = bhyveDomObjFromDomain(domain)))
+        goto cleanup;
+
+    if (virDomainObjCheckActive(vm) < 0)
+        goto cleanup;
+
+    if (virDomainMemoryStatsEnsureACL(domain->conn, vm->def) < 0)
+        goto cleanup;
+
+    if (virProcessGetStatInfo(NULL, NULL, NULL, NULL, &rss, vm->pid, 0) < 0) {
+        virReportError(VIR_ERR_OPERATION_FAILED, "%s",
+                       _("cannot get RSS for domain"));
+    } else {
+        BHYVE_SET_MEMSTAT(VIR_DOMAIN_MEMORY_STAT_RSS, rss);
+    }
+
+    maxmem = virDomainDefGetMemoryTotal(vm->def);
+    BHYVE_SET_MEMSTAT(VIR_DOMAIN_MEMORY_STAT_AVAILABLE, maxmem);
+
+    ret = i;
+
+ cleanup:
+    virDomainObjEndAPI(&vm);
+    return ret;
+}
+
+#undef BHYVE_SET_MEMSTAT
+
+static struct kinfo_proc *bhyveDomainProcGetInfo(pid_t pid)
+{
+    int mib[4];
+    size_t len = 4;
+    struct kinfo_proc *p = g_malloc0(sizeof(struct kinfo_proc));
+
+    sysctlnametomib("kern.proc.pid", mib, &len);
+    len = sizeof(struct kinfo_proc);
+    mib[3] = pid;
+
+    if (sysctl(mib, 4, p, &len, NULL, 0) < 0) {
+        virReportSystemError(errno, "%s",
+                             _("Unable to query process stats"));
+        return NULL;
+    }
+
+    return p;
+}
+
+static int
+bhyveDomainBlockStats(virDomainPtr domain,
+                      const char *path G_GNUC_UNUSED,
+                      virDomainBlockStatsPtr stats)
+{
+    virDomainObj *vm;
+    int ret = -1;
+    g_autofree struct kinfo_proc *p = NULL;
+
+    if (!(vm = bhyveDomObjFromDomain(domain)))
+        goto cleanup;
+
+    if (virDomainObjCheckActive(vm) < 0)
+        goto cleanup;
+
+    if (virDomainBlockStatsEnsureACL(domain->conn, vm->def) < 0)
+        goto cleanup;
+
+    if ((p = bhyveDomainProcGetInfo(vm->pid)) == NULL)
+        goto cleanup;
+
+    stats->rd_req = p->ki_rusage.ru_inblock;
+    stats->wr_req = p->ki_rusage.ru_oublock;
+    stats->rd_bytes = -1;
+    stats->wr_bytes = -1;
+    stats->errs = -1;
+
+    ret = 0;
+ cleanup:
+    virDomainObjEndAPI(&vm);
+    return ret;
+}
+
 static virHypervisorDriver bhyveHypervisorDriver = {
     .name = "bhyve",
     .connectURIProbe = bhyveConnectURIProbe,
@@ -1685,6 +1823,9 @@ static virHypervisorDriver bhyveHypervisorDriver = {
     .connectIsEncrypted = bhyveConnectIsEncrypted, /* 1.3.5 */
     .connectDomainXMLFromNative = bhyveConnectDomainXMLFromNative, /* 2.1.0 */
     .connectGetDomainCapabilities = bhyveConnectGetDomainCapabilities, /* 2.1.0 */
+    .domainInterfaceStats = bhyveDomainInterfaceStats, /* 11.7.0 */
+    .domainMemoryStats = bhyveDomainMemoryStats, /* 11.7.0 */
+    .domainBlockStats = bhyveDomainBlockStats, /* 11.7.0 */
 };
 
 

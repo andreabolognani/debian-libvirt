@@ -17,8 +17,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: libvirt 6.0.0\n"
 "Report-Msgid-Bugs-To: https://libvirt.org/bugs.html\n"
-"POT-Creation-Date: 2025-07-28 08:26+0000\n"
-"PO-Revision-Date: 2025-08-01 03:20+0000\n"
+"POT-Creation-Date: 2025-08-25 08:36+0000\n"
+"PO-Revision-Date: 2025-08-29 14:37+0000\n"
 "Last-Translator: 김인수 <simmon@nplob.com>\n"
 "Language-Team: Korean <https://translate.fedoraproject.org/projects/libvirt/"
 "libvirt/ko/>\n"
@@ -27,7 +27,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
-"X-Generator: Weblate 5.12.2\n"
+"X-Generator: Weblate 5.13\n"
 
 msgid ""
 "\n"
@@ -3080,6 +3080,9 @@ msgstr "풍선(balloon) 장치 경로를 결정 할 수 없습니다"
 
 msgid "Cannot determine system clock HZ"
 msgstr "시스템 클럭 HZ를 확인 할 수 없습니다"
+
+msgid "Cannot determine the default interface"
+msgstr "기본 연결장치를 결정 할 수 없습니다"
 
 msgid "Cannot disable close-on-exec flag"
 msgstr "close-on-exec 플래그를 비활성화 할 수 없습니다"
@@ -10591,6 +10594,10 @@ msgid "Invalid log priority '%1$s' for log output '%2$s'"
 msgstr "로그 출력 '%1$s'를 위해 잘못된 로그 우선순위 '%2$s'"
 
 #, c-format
+msgid "Invalid log_level %1$u"
+msgstr "잘못된 log_level %1$u"
+
+#, c-format
 msgid "Invalid lookup from '%1$s'"
 msgstr "'%1$s'에서 잘못된 검색"
 
@@ -13323,6 +13330,9 @@ msgstr "코어당 1개의 스레드만 지원됩니다"
 msgid "Only EFI firmware permits NVRAM"
 msgstr "EFI 펌웨어만 NVRAM을 허용합니다"
 
+msgid "Only IPv4 is supported"
+msgstr "IPv4만 지원됩니다"
+
 msgid "Only IPv4 or IPv6 addresses can be used with a prefix"
 msgstr "IPv4 또는 IPv6 주소만 접두사로 사용 될 수 있습니다"
 
@@ -13360,6 +13370,7 @@ msgid ""
 "Only bit0(debug) and bit28(sept-ve-disable) are supported intel TDX launch "
 "security policy"
 msgstr ""
+"bit0(debug) 및 bit28(sept-ve-disable)만 인텔 TDX 실행 보한 정책을 지원합니다"
 
 msgid "Only bridged veth devices can be detached"
 msgstr "오직 브리지된 veth 장치만 분리할 수 있습니다"
@@ -13384,7 +13395,7 @@ msgid "Only file based or volume based filesystems are supported by vz driver."
 msgstr "vz 드라이버는 파일 기반 또는 볼륨 기반 파일 시스템만 지원합니다."
 
 msgid "Only four serial ports are supported"
-msgstr ""
+msgstr "4개의 직렬 포트만 지원됩니다"
 
 msgid "Only hard disks and cdroms are supported by vz driver."
 msgstr "vz 드라이버는 하드 디스크와 cdrom만 지원합니다."
@@ -13396,7 +13407,7 @@ msgid "Only ide, sata and scsi disk supports 'product'"
 msgstr "ide, sata 및 scsi 디스크만 'product'를 지원합니다"
 
 msgid "Only listening TCP sockets are supported"
-msgstr ""
+msgstr "수신 TCP 소켓만 지원됩니다"
 
 msgid "Only luks encryption is supported for raw files"
 msgstr "luks 암호화만 단순 파일을 지원합니다"
@@ -14439,8 +14450,8 @@ msgstr "관리 서버에 다시 연결됨"
 msgid "Reconnected to the hypervisor"
 msgstr "하이퍼바이저로 재연결 됨"
 
-msgid "Recreation"
-msgstr ""
+msgid "Recreated"
+msgstr "재생성됨"
 
 #, c-format
 msgid "Redirection bus %1$s is not supported by QEMU"
@@ -16825,6 +16836,10 @@ msgid "Target video card acceleration does not match source"
 msgstr "대상 비디오 카드 가속이 소스와 일치하지 않음"
 
 #, c-format
+msgid "Target video card edid %1$s does not match source %2$s"
+msgstr "대상 비디오 카드 edid %1$s 는 원천 %2$s 와 일치하지 않습니다"
+
+#, c-format
 msgid "Target video card heads %1$u does not match source %2$u"
 msgstr "대상 비디오 카드 헤드 %1$u가 소스 %2$u와 일치하지 않음"
 
@@ -17863,6 +17878,9 @@ msgstr "설정 파일내의 UUID가 잘못 됨"
 msgid "UUID is not supported for NVDIMM device"
 msgstr "NVDIMM 장치에는 UUID가 지원되지 않습니다"
 
+msgid "UUID mismatch between <hwuuid> and <sysinfo>"
+msgstr "<hwuuid> 및 <sysinfo> 사이에서 UUID 미일치"
+
 msgid "UUID mismatch between <uuid> and <sysinfo>"
 msgstr "<uuid> 및 <sysinfo> 간의 UUID가 일치하지 않음"
 
@@ -18363,7 +18381,7 @@ msgstr "SCSI 컨트롤러 idx=%1$d의 모델을 확인할 수 없습니다"
 
 #, c-format
 msgid "Unable to determine model for USB controller idx=%1$d"
-msgstr ""
+msgstr "USB 제어기 idx=%1$d 를 위한 모델을 결정 할 수 없음"
 
 msgid "Unable to determine mount table on this platform"
 msgstr "이 기술환경에서 적재 테이블을 결정 할 수 없습니다"
@@ -18653,6 +18671,9 @@ msgstr "데몬 로깅 필터 정보를 가져올 수 없습니다"
 msgid "Unable to get daemon logging outputs information"
 msgstr "데몬 로깅 출력 정보를 가져올 수 없습니다"
 
+msgid "Unable to get default interface name"
+msgstr "기본 연결장치 이름을 가져 올 수 없음"
+
 msgid "Unable to get device master from netlink on this platform"
 msgstr "이 기술환경의 넷링크에서 장치 마스터를 가져올 수 없습니다"
 
@@ -18835,7 +18856,7 @@ msgstr "이 기술환경에서 가상 기능을 가져올 수 없습니다"
 
 #, c-format
 msgid "Unable to import certificate list %1$s"
-msgstr ""
+msgstr "인증서 목록 %1$s 를 가져올 수 없음"
 
 #, c-format
 msgid "Unable to import client certificate %1$s"
@@ -19240,6 +19261,9 @@ msgstr "피어 보안 컨텍스트를 쿼리할 수 없습니다"
 
 msgid "Unable to query process ID start time"
 msgstr "처리 ID 시작 시간을 질의 할 수 없습니다"
+
+msgid "Unable to query process stats"
+msgstr "처리 상태를 질의 할 수 없음"
 
 #, c-format
 msgid "Unable to query sector size %1$s"
@@ -20262,7 +20286,7 @@ msgstr "알 수 없는 데이터 소스 '%1$s'"
 
 #, c-format
 msgid "Unknown default_cpu_deprecated_features value %1$s"
-msgstr ""
+msgstr "알 수 없는 default_cpu_deprecated_features 값 %1$s"
 
 #, c-format
 msgid "Unknown dirty page rate calculation mode: %1$s"
@@ -27463,7 +27487,7 @@ msgid "failed to get launch security policy"
 msgstr "시작 보안 정책을 가져오지 못했습니다"
 
 msgid "failed to get launch security policy for launch security type TDX"
-msgstr ""
+msgstr "실행 보안 유형 TDX를 위한 실행 보안 정책을 가져오는 데 실패함"
 
 #, c-format
 msgid "failed to get list of %1$s interfaces on host"
@@ -28075,6 +28099,8 @@ msgid ""
 "failed to split path '%1$s' into 'pool/image' or 'pool/namespace/image' "
 "components"
 msgstr ""
+"경로 '%1$s'를 'pool/image' 또는 'pool/namespace/image' 구성 요소로 분할하는 "
+"데 실패함"
 
 #, c-format
 msgid "failed to stat remote file '%1$s'"
@@ -29202,7 +29228,7 @@ msgstr "[%1$d-%2$d] 범위를 벗어난 디버그 수준 %3$d를 무시합니다
 
 msgid ""
 "ignoring host is only allowed when computing baseline from multiple CPUs"
-msgstr ""
+msgstr "호스트 무시하기는 다중 CPU에서 기준선을 연산 할 때만 허용됩니다"
 
 msgid "image magic is incorrect"
 msgstr "이미지 매직이 잘못되었습니다"
@@ -31055,7 +31081,7 @@ msgid "malformed QMP schema"
 msgstr "잘못된 QMP 스키마"
 
 msgid "malformed TDX panic data"
-msgstr ""
+msgstr "잘못된 TDX 치명적 오류 자료"
 
 #, c-format
 msgid "malformed TLS secret uuid '%1$s' provided"
@@ -31090,6 +31116,9 @@ msgstr "이전 자료에서 잘못된 형식의 hostuid 요소"
 #, c-format
 msgid "malformed http cookie '%1$s' in backing store definition '%2$s'"
 msgstr "백업 저장소 정의 '%1$s'의 잘못된 http 쿠키 '%2$s'"
+
+msgid "malformed hwuuid element"
+msgstr "잘못된 hwuuid 요소"
 
 msgid "malformed hyperv panic data"
 msgstr "잘못된 Hyperv 패닉 데이터"
@@ -34007,7 +34036,7 @@ msgid "only a single IOMMU device is supported"
 msgstr "단일 IOMMU 장치만 지원됨"
 
 msgid "only a single QGS element is supported"
-msgstr ""
+msgstr "단일 QGS 요소만 지원됩니다"
 
 msgid "only a single TPM Proxy device is supported"
 msgstr "단일 TPM 프락시 장치만이 지원됨"
@@ -39249,10 +39278,6 @@ msgstr "알 수 없는 가상 유형: %1$s"
 msgid "unknown virtualization type"
 msgstr "알 수 없는 가상화 유형"
 
-#, c-format
-msgid "unknown virtualport type %1$s"
-msgstr "알 수 없는 virtualport 유형 %1$s"
-
 msgid "unknown volume encryption format"
 msgstr "알려져 있지 않은 볼륨 암호화 형식"
 
@@ -40172,6 +40197,10 @@ msgid "video type '%1$s' does not support blob resources"
 msgstr "비디오 유형 '%1$s'는 blob 자원을 지원하지 않습니다"
 
 #, c-format
+msgid "video type '%1$s' does not support edid"
+msgstr "비디오 유형 '%1$s' 가 edid를 지원하지 않습니다"
+
+#, c-format
 msgid "video type '%1$s' doesn't support multiple 'heads'"
 msgstr "비디오 유형 '%1$s'는 다중 'heads'를 지원하지 않습니다"
 
@@ -40672,6 +40701,8 @@ msgid ""
 "when computing baseline from several CPUs, do not take hypervisor "
 "capabilities into account and work with input data only"
 msgstr ""
+"여러 CPU에서 기준선을 연산 할 때에, 하이퍼바이저 기능을 고려하지 않고 입력 자"
+"료만 작업합니다"
 
 #, c-format
 msgid "when providing parent wwnn='%1$s', the wwpn must also be provided"
@@ -40815,6 +40846,19 @@ msgid "zone %1$s requested for network %2$s but firewalld is not active"
 msgstr ""
 "%1$s 영역이 네트워크 %2$s에 대해 요청되었지만 firewalld가 활성 상태가 아닙니"
 "다"
+
+#, c-format
+msgid ""
+"zone %1$s requested for network %2$s but firewalld is not supported on BSD"
+msgstr "영역 %1$s 는 네트워크 %2$s 를 위해 요청되었으나 firewqlld는 BSD에서 지원되지 "
+"않습니다"
+
+#~ msgid "Recreation"
+#~ msgstr "재정의"
+
+#, c-format
+#~ msgid "unknown virtualport type %1$s"
+#~ msgstr "알 수 없는 virtualport 유형 %1$s"
 
 #~ msgid "Cannot parse uuid attribute of element <address>"
 #~ msgstr "요소 <address>의 uuid 속성을 구문 분석 할 수 없습니다"

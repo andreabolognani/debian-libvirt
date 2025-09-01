@@ -129,6 +129,14 @@ virNetworkLoadDriverConfig(virNetworkDriverConfig *cfg G_GNUC_UNUSED,
             break;
         }
 
+        case VIR_FIREWALL_BACKEND_PF: {
+            g_autofree char *pfctlInPath = virFindFileInPath(PFCTL);
+
+            if (pfctlInPath)
+                fwBackendSelected = true;
+            break;
+        }
+
         case VIR_FIREWALL_BACKEND_LAST:
             virReportEnumRangeError(virFirewallBackend, fwBackends[i]);
             return -1;

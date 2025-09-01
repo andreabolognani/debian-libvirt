@@ -145,12 +145,14 @@ src/lxc/lxc_hostdev.c
 src/lxc/lxc_native.c
 src/lxc/lxc_process.c
 src/network/bridge_driver.c
+src/network/bridge_driver_bsd.c
 src/network/bridge_driver_conf.c
 src/network/bridge_driver_linux.c
 src/network/bridge_driver_nop.c
 src/network/leaseshelper.c
 src/network/network_iptables.c
 src/network/network_nftables.c
+src/network/network_pf.c
 src/node_device/node_device_driver.c
 src/node_device/node_device_udev.c
 src/nwfilter/nwfilter_dhcpsnoop.c

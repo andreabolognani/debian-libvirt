@@ -104,6 +104,18 @@ connect provided they have a valid certificate issued by the CA for their own IP
 address. You may want to change this to make it less (or more) permissive,
 depending on your needs.
 
+The following sections will describe how to created the data needed for the TLS
+setup. They use templates to create Certificate Authority, server and client
+certificates.
+
+Important: versions of libvirt before 11.6.0 also required the ``encryption_key``
+flag in the server and client template. This is no longer mandated since it is
+not applicable for use with many modern cryptographic algorithms, but it is
+harmless if present as it will be ignored. If compatibility with both old and
+new libvirt versions is required, then this extra flag must be added when
+creating the certificate.
+
+
 Setting up a Certificate Authority (CA)
 ---------------------------------------
 
@@ -317,10 +329,32 @@ briefly cover the steps.
 Troubleshooting TLS certificate problems
 ----------------------------------------
 
-failed to verify client's certificate
-   On the server side, run the libvirtd server with the '--listen' and
-   '--verbose' options while the client is connecting. The verbose log messages
-   should tell you enough to diagnose the problem.
+* TLS socket
+
+  After setting up your sever certificates you'll have to start libvirt's
+  tls socket and restart the corresponding daemon if it was already running,
+  i.e.
+
+ * for modular daemon setup run
+
+   ::
+
+       systemctl start virtproxyd-tls.socket
+       systemctl try-start virtproxyd.service
+
+ * for monolithic daemon setup run
+
+   ::
+
+       systemctl start libvirtd-tls.socket
+       systemctl try-start libvirtd.service
+
+
+* failed to verify client's certificate
+
+  On the server side, run the libvirtd server with the '--listen' and
+  '--verbose' options while the client is connecting. The verbose log messages
+  should tell you enough to diagnose the problem.
 
 You can use the virt-pki-validate shell script to analyze the setup on the
 client or server machines, preferably as root. It will try to point out the
