@@ -1,4 +1,4 @@
-libvirt (11.7.0-1) UNRELEASED; urgency=medium
+libvirt (11.7.0-1) unstable; urgency=medium
 
   [ Nuri KÜÇÜKLER ]
   * [192b7f1] debconf: Add Turkish translation
@@ -7,7 +7,7 @@ libvirt (11.7.0-1) UNRELEASED; urgency=medium
   [ Andrea Bolognani ]
   * [cc15910] New upstream version 11.7.0
 
- -- Andrea Bolognani <eof@kiyuko.org>  Mon, 01 Sep 2025 20:16:11 +0200
+ -- Andrea Bolognani <eof@kiyuko.org>  Mon, 01 Sep 2025 21:28:23 +0200
 
 libvirt (11.6.0-1) experimental; urgency=medium
 
