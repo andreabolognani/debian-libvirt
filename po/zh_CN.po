@@ -25,13 +25,14 @@
 # "Daniel P. Berrange" <berrange@redhat.com>, 2025.
 # QiangWei Zhang <zhang.qiangwei@zte.com.cn>, 2025.
 # Poesty Li <poesty7450@gmail.com>, 2025.
+# Charles Lee <lchopn@gmail.com>, 2025.
 msgid ""
 msgstr ""
 "Project-Id-Version: libvirt 6.0.0\n"
 "Report-Msgid-Bugs-To: https://libvirt.org/bugs.html\n"
-"POT-Creation-Date: 2025-07-28 08:26+0000\n"
-"PO-Revision-Date: 2025-05-08 15:49+0000\n"
-"Last-Translator: Poesty Li <poesty7450@gmail.com>\n"
+"POT-Creation-Date: 2025-08-25 08:36+0000\n"
+"PO-Revision-Date: 2025-08-12 18:08+0000\n"
+"Last-Translator: Charles Lee <lchopn@gmail.com>\n"
 "Language-Team: Chinese (Simplified) <https://translate.fedoraproject.org/"
 "projects/libvirt/libvirt/zh_CN/>\n"
 "Language: zh_CN\n"
@@ -39,7 +40,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
-"X-Generator: Weblate 5.11.3\n"
+"X-Generator: Weblate 5.12.2\n"
 
 msgid ""
 "\n"
@@ -482,7 +483,7 @@ msgstr " %1$s (指定关键字'%2$s'时可以显示此部分帮助信息)\n"
 msgid " %1$s (help keyword '%2$s'):\n"
 msgstr " %1$s (使用关键字 '%2$s' 来显示帮助信息):\n"
 
-#, fuzzy, c-format
+#, c-format
 msgid " --%1$s <string>..."
 msgstr " --%1$s <string>..."
 
@@ -570,9 +571,9 @@ msgstr "%1$s 无法解析 GID '%2$s'"
 msgid "%1$s cannot parse UID '%2$s'"
 msgstr "%1$s 无法解析 UID '%2$s'"
 
-#, fuzzy, c-format
+#, c-format
 msgid "%1$s disk is not supported with this QEMU binary"
-msgstr "此 QEMU 二进制文件不支持%1$s 磁盘"
+msgstr "此 QEMU 二进制文件不支持 %1$s 磁盘"
 
 #, c-format
 msgid "%1$s does not support file storage"
@@ -2956,6 +2957,9 @@ msgstr "无法确定布尔值设备路径"
 
 msgid "Cannot determine system clock HZ"
 msgstr "无法确定系统时钟 HZ"
+
+msgid "Cannot determine the default interface"
+msgstr ""
 
 msgid "Cannot disable close-on-exec flag"
 msgstr "无法禁用 close-on-exec 标签"
@@ -10334,6 +10338,10 @@ msgid "Invalid log priority '%1$s' for log output '%2$s'"
 msgstr "日志输出 '%1$s' 的无效的日志优先级 '%2$s'"
 
 #, c-format
+msgid "Invalid log_level %1$u"
+msgstr ""
+
+#, c-format
 msgid "Invalid lookup from '%1$s'"
 msgstr "'%1$s' 中的无效查找"
 
@@ -13019,6 +13027,9 @@ msgstr "每个核仅支持 1 个线程"
 msgid "Only EFI firmware permits NVRAM"
 msgstr "只有 EFI 固件允许 NVRAM"
 
+msgid "Only IPv4 is supported"
+msgstr ""
+
 msgid "Only IPv4 or IPv6 addresses can be used with a prefix"
 msgstr "只有 IPv4 或 IPv6 地址可以使用前缀"
 
@@ -14095,7 +14106,7 @@ msgstr "重连admin server成功"
 msgid "Reconnected to the hypervisor"
 msgstr "重新连接管理程序（即虚拟化层）"
 
-msgid "Recreation"
+msgid "Recreated"
 msgstr ""
 
 #, c-format
@@ -16410,6 +16421,10 @@ msgid "Target video card acceleration does not match source"
 msgstr "目标显卡加速与源不匹配"
 
 #, c-format
+msgid "Target video card edid %1$s does not match source %2$s"
+msgstr ""
+
+#, c-format
 msgid "Target video card heads %1$u does not match source %2$u"
 msgstr "目标显卡标头 %1$u 与源 %2$u 不匹配"
 
@@ -17410,6 +17425,9 @@ msgstr "配置文件中的 UUID 很奇怪"
 msgid "UUID is not supported for NVDIMM device"
 msgstr "NVDIMM 设备不支持 UUID"
 
+msgid "UUID mismatch between <hwuuid> and <sysinfo>"
+msgstr ""
+
 msgid "UUID mismatch between <uuid> and <sysinfo>"
 msgstr "<uuid> 和 <sysinfo> 的 UUID 不匹配"
 
@@ -18195,6 +18213,9 @@ msgstr "无法查询守护进程对日志进行过滤的规则"
 msgid "Unable to get daemon logging outputs information"
 msgstr "无法查询守护进程输出日志的规则"
 
+msgid "Unable to get default interface name"
+msgstr ""
+
 msgid "Unable to get device master from netlink on this platform"
 msgstr "无法在此平台上获取 netlink 的主设备"
 
@@ -18781,6 +18802,9 @@ msgstr "无法查询同级安全上下文"
 
 msgid "Unable to query process ID start time"
 msgstr "无法查询进程 ID 启示时间"
+
+msgid "Unable to query process stats"
+msgstr ""
 
 #, c-format
 msgid "Unable to query sector size %1$s"
@@ -30393,6 +30417,9 @@ msgstr "迁移数据中格式错误的 hostuuid 元素"
 msgid "malformed http cookie '%1$s' in backing store definition '%2$s'"
 msgstr "在后备存储定义 '%1$s' 中格式错误的 http cookie '%2$s'"
 
+msgid "malformed hwuuid element"
+msgstr ""
+
 msgid "malformed hyperv panic data"
 msgstr "格式错误的 hyperv panic 数据"
 
@@ -38392,10 +38419,6 @@ msgstr "未知的 virttype: %1$s"
 msgid "unknown virtualization type"
 msgstr "未知的虚拟化类型"
 
-#, c-format
-msgid "unknown virtualport type %1$s"
-msgstr "未知的虚拟端口类型 %1$s"
-
 msgid "unknown volume encryption format"
 msgstr "未知的卷加密格式"
 
@@ -39297,6 +39320,10 @@ msgid "video type '%1$s' does not support blob resources"
 msgstr "视频类型 '%1$s' 不支持 blob 资源"
 
 #, c-format
+msgid "video type '%1$s' does not support edid"
+msgstr ""
+
+#, c-format
 msgid "video type '%1$s' doesn't support multiple 'heads'"
 msgstr "视频类型 '%1$s' 不支持多个 'heads'"
 
@@ -39920,6 +39947,15 @@ msgstr "zero-copy 仅适用于并行迁移"
 #, c-format
 msgid "zone %1$s requested for network %2$s but firewalld is not active"
 msgstr "请求网络 %1$s 的区 %2$s，但 firewalld 未处于活动状态"
+
+#, c-format
+msgid ""
+"zone %1$s requested for network %2$s but firewalld is not supported on BSD"
+msgstr ""
+
+#, c-format
+#~ msgid "unknown virtualport type %1$s"
+#~ msgstr "未知的虚拟端口类型 %1$s"
 
 #~ msgid "Cannot parse uuid attribute of element <address>"
 #~ msgstr "无法解析元素 <address> 的 uuid 属性"

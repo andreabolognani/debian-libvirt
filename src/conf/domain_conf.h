@@ -1895,6 +1895,7 @@ struct _virDomainVideoDef {
     virDomainDeviceInfo info;
     virDomainVirtioOptions *virtio;
     virDomainVideoBackendType backend;
+    virTristateSwitch edid;
 };
 
 /* graphics console modes */
@@ -3137,6 +3138,7 @@ struct _virDomainDef {
     int virtType; /* enum virDomainVirtType */
     int id;
     unsigned char uuid[VIR_UUID_BUFLEN];
+    unsigned char hw_uuid[VIR_UUID_BUFLEN];
 
     unsigned char genid[VIR_UUID_BUFLEN];
     bool genidRequested;

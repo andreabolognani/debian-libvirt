@@ -25,7 +25,7 @@
 
 #define LIBVIRT_IFLA_VF_PORT_PROFILE_MAX 40
 
-typedef enum virNetDevVPortProfile {
+typedef enum {
     VIR_NETDEV_VPORT_PROFILE_NONE,
     VIR_NETDEV_VPORT_PROFILE_8021QBG,
     VIR_NETDEV_VPORT_PROFILE_8021QBH,
@@ -53,7 +53,7 @@ VIR_ENUM_DECL(virNetDevVPortProfileOp);
 /* profile data for macvtap (VEPA) and openvswitch */
 typedef struct _virNetDevVPortProfile virNetDevVPortProfile;
 struct _virNetDevVPortProfile {
-    int           virtPortType; /* enum virNetDevVPortProfile */
+    virNetDevVPortProfileType virtPortType;
     /* these members are used when virtPortType == 802.1Qbg */
     uint8_t       managerID;
     bool          managerID_specified;

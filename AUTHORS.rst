@@ -210,6 +210,7 @@ Patches have also been contributed by:
 * Chang Liu <lingjiao.lc@taobao.com>
 * Chao Fan <fanc.fnst@cn.fujitsu.com>
 * Charles Duffy <charles_duffy@messageone.com>
+* Charles Lee <lchopn@gmail.com>
 * Chegu Vinod <chegu_vinod@hp.com>
 * Chen Fan <chen.fan.fnst@cn.fujitsu.com>
 * Cheng Lin <cheng.lin130@zte.com.cn>
@@ -384,6 +385,7 @@ Patches have also been contributed by:
 * Gene Czarcinski <gene@czarc.net>
 * Geoff Hickey <ghickey@datagravity.com>
 * George Dunlap <george.dunlap@citrix.com>
+* George Melikov <mail@gmelikov.ru>
 * Georgia Garcia <georgia.garcia@canonical.com>
 * Gerd Hoffmann <kraxel@redhat.com>
 * Gerd v. Egidy <gerd@egidy.de>
@@ -415,6 +417,7 @@ Patches have also been contributed by:
 * Harsh Prateek Bora <harsh@linux.vnet.ibm.com>
 * Haruka Ohata <ohata.haruka@fujitsu.com>
 * Heath Petersen <HeathPetersen@Kandre.com>
+* Hector Cao <hector.cao@canonical.com>
 * Heinrich Schuchardt <heinrich.schuchardt@canonical.com>
 * hejia hejia <jiakernel@gmail.com>
 * Hela Basa <r45xveza@pm.me>
@@ -626,6 +629,7 @@ Patches have also been contributed by:
 * Mariam Low-Ghelaghutashvili <mariamlow@zusmail.xyz>
 * Marian Neagul <marian@info.uvt.ro>
 * Mark Asselstine <mark.asselstine@windriver.com>
+* Mark Cave-Ayland <mark.caveayland@nutanix.com>
 * Mark McLoughlin <markmc@redhat.com>
 * Mark Mielke <mark.mielke@gmail.com>
 * Marko Myllynen <myllynen@redhat.com>
