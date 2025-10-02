@@ -28557,28 +28557,8 @@
 }
 
 {
-  "execute": "query-tpm-models",
-  "id": "libvirt-37"
-}
-
-{
-  "return": [],
-  "id": "libvirt-37"
-}
-
-{
-  "execute": "query-tpm-types",
-  "id": "libvirt-38"
-}
-
-{
-  "return": [],
-  "id": "libvirt-38"
-}
-
-{
   "execute": "query-command-line-options",
-  "id": "libvirt-39"
+  "id": "libvirt-37"
 }
 
 {
@@ -29893,110 +29873,7 @@
       "option": "drive"
     }
   ],
-  "id": "libvirt-39"
-}
-
-{
-  "execute": "query-migrate-capabilities",
-  "id": "libvirt-40"
-}
-
-{
-  "return": [
-    {
-      "state": false,
-      "capability": "xbzrle"
-    },
-    {
-      "state": false,
-      "capability": "rdma-pin-all"
-    },
-    {
-      "state": false,
-      "capability": "auto-converge"
-    },
-    {
-      "state": false,
-      "capability": "zero-blocks"
-    },
-    {
-      "state": false,
-      "capability": "compress"
-    },
-    {
-      "state": false,
-      "capability": "events"
-    },
-    {
-      "state": false,
-      "capability": "postcopy-ram"
-    },
-    {
-      "state": false,
-      "capability": "x-colo"
-    },
-    {
-      "state": false,
-      "capability": "release-ram"
-    },
-    {
-      "state": false,
-      "capability": "block"
-    },
-    {
-      "state": false,
-      "capability": "return-path"
-    },
-    {
-      "state": false,
-      "capability": "pause-before-switchover"
-    },
-    {
-      "state": false,
-      "capability": "multifd"
-    },
-    {
-      "state": false,
-      "capability": "dirty-bitmaps"
-    },
-    {
-      "state": false,
-      "capability": "postcopy-blocktime"
-    },
-    {
-      "state": false,
-      "capability": "late-block-activate"
-    },
-    {
-      "state": false,
-      "capability": "x-ignore-shared"
-    },
-    {
-      "state": false,
-      "capability": "validate-uuid"
-    },
-    {
-      "state": false,
-      "capability": "background-snapshot"
-    },
-    {
-      "state": false,
-      "capability": "zero-copy-send"
-    },
-    {
-      "state": false,
-      "capability": "postcopy-preempt"
-    },
-    {
-      "state": false,
-      "capability": "switchover-ack"
-    },
-    {
-      "state": false,
-      "capability": "dirty-limit"
-    }
-  ],
-  "id": "libvirt-40"
+  "id": "libvirt-37"
 }
 
 {
@@ -30007,11 +29884,11 @@
       "name": "host"
     }
   },
-  "id": "libvirt-41"
+  "id": "libvirt-38"
 }
 
 {
-  "id": "libvirt-41",
+  "id": "libvirt-38",
   "error": {
     "class": "GenericError",
     "desc": "The CPU type 'host' is not a recognized LoongArch CPU type"

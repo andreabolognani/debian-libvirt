@@ -3586,30 +3586,6 @@ qemuMonitorBlockExportAdd(qemuMonitor *mon,
 
 
 int
-qemuMonitorGetTPMModels(qemuMonitor *mon,
-                        char ***tpmmodels)
-{
-    VIR_DEBUG("tpmmodels=%p", tpmmodels);
-
-    QEMU_CHECK_MONITOR(mon);
-
-    return qemuMonitorJSONGetTPMModels(mon, tpmmodels);
-}
-
-
-int
-qemuMonitorGetTPMTypes(qemuMonitor *mon,
-                       char ***tpmtypes)
-{
-    VIR_DEBUG("tpmtypes=%p", tpmtypes);
-
-    QEMU_CHECK_MONITOR(mon);
-
-    return qemuMonitorJSONGetTPMTypes(mon, tpmtypes);
-}
-
-
-int
 qemuMonitorAttachCharDev(qemuMonitor *mon,
                          virJSONValue **props,
                          char **ptypath)
@@ -3694,39 +3670,11 @@ qemuMonitorSetDomainLog(qemuMonitor *mon,
 
 
 /**
- * qemuMonitorJSONGetGuestCPUx86:
- * @mon: Pointer to the monitor
- * @cpuQOMPath: QOM path of a CPU to probe
- * @data: returns the cpu data
- * @disabled: returns the CPU data for features which were disabled by QEMU
- *
- * Retrieve the definition of the guest CPU from a running qemu instance.
- *
- * Returns 0 on success, -2 if the operation is not supported by the guest,
- * -1 on other errors.
- */
-int
-qemuMonitorGetGuestCPUx86(qemuMonitor *mon,
-                          const char *cpuQOMPath,
-                          virCPUData **data,
-                          virCPUData **disabled)
-{
-    VIR_DEBUG("cpuQOMPath=%s data=%p disabled=%p", cpuQOMPath, data, disabled);
-
-    QEMU_CHECK_MONITOR(mon);
-
-    *data = NULL;
-    if (disabled)
-        *disabled = NULL;
-
-    return qemuMonitorJSONGetGuestCPUx86(mon, cpuQOMPath, data, disabled);
-}
-
-
-/**
  * qemuMonitorGetGuestCPU:
  * @mon: Pointer to the monitor
  * @arch: CPU architecture
+ * @qomListGet: QEMU supports getting list of features and their values using
+ *      a single qom-list-get QMP command
  * @cpuQOMPath: QOM path of a CPU to probe
  * @translate: callback for translating CPU feature names from QEMU to libvirt
  * @opaque: data for @translate callback
@@ -3741,22 +3689,24 @@ qemuMonitorGetGuestCPUx86(qemuMonitor *mon,
 int
 qemuMonitorGetGuestCPU(qemuMonitor *mon,
                        virArch arch,
+                       bool qomListGet,
                        const char *cpuQOMPath,
                        qemuMonitorCPUFeatureTranslationCallback translate,
                        virCPUData **enabled,
                        virCPUData **disabled)
 {
-    VIR_DEBUG("arch=%s cpuQOMPath=%s translate=%p enabled=%p disabled=%p",
-              virArchToString(arch), cpuQOMPath, translate, enabled, disabled);
+    VIR_DEBUG("arch=%s qomListGet=%d cpuQOMPath=%s translate=%p "
+              "enabled=%p disabled=%p",
+              virArchToString(arch), qomListGet, cpuQOMPath, translate,
+              enabled, disabled);
 
     QEMU_CHECK_MONITOR(mon);
 
     *enabled = NULL;
-    if (disabled)
-        *disabled = NULL;
+    *disabled = NULL;
 
-    return qemuMonitorJSONGetGuestCPU(mon, arch, cpuQOMPath, translate,
-                                      enabled, disabled);
+    return qemuMonitorJSONGetGuestCPU(mon, arch, qomListGet, cpuQOMPath,
+                                      translate, enabled, disabled);
 }
 
 
@@ -4272,24 +4222,6 @@ qemuMonitorBitmapRemove(qemuMonitor *mon,
     QEMU_CHECK_MONITOR(mon);
 
     return qemuMonitorJSONBitmapRemove(mon, node, name);
-}
-
-
-int
-qemuMonitorTransactionBitmapEnable(virJSONValue *actions,
-                                   const char *node,
-                                   const char *name)
-{
-    return qemuMonitorJSONTransactionBitmapEnable(actions, node, name);
-}
-
-
-int
-qemuMonitorTransactionBitmapDisable(virJSONValue *actions,
-                                    const char *node,
-                                    const char *name)
-{
-    return qemuMonitorJSONTransactionBitmapDisable(actions, node, name);
 }
 
 

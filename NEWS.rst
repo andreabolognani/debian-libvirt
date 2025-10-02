@@ -8,6 +8,49 @@ the changes introduced by each of them.
 For a more fine-grained view, use the `git log`_.
 
 
+v11.8.0 (2025-10-01)
+====================
+
+* **New features**
+
+  * ch: Disk hotplug Support
+
+    Users can now attach and detach disks of Cloud Hypervisor domains at
+    runtime.
+
+  * qemu: Add support for NUMA affinity of PCI devices
+
+    To support NVIDIA Multi-Instance GPU (MIG) configurations, libvirt now
+    handles QEMU's acpi-generic-initiator device internally. MIG enables
+    partitioning a physical GPU into multiple isolated instances, each
+    associated with one or more virtual NUMA nodes.
+
+    On the XML side, the existing ``<acpi>`` element has been extended with a
+    ``nodeset`` attribute to specify the NUMA node affinity of a PCI device.
+
+* **Improvements**
+
+  * ch: Events emitting
+
+    The CH driver not only emits more domain lifecycle events but also
+    implements ``virConnectDomainEventRegister()`` and
+    ``virConnectDomainEventDeregister()`` APIs for management applications to
+    listen on those events.
+
+* **Bug fixes**
+
+  * qemu: Fix selection of stateless/combined firmware
+
+    A stateless firmware will now be correctly chosen when appropriate,
+    e.g. for domains configured to use SEV-SNP.
+
+  * ch: Make sure the cloud-hypervisor process is killed in ``virCHProcessStop()``
+
+    Due to wrong assumptions in the CH driver, calling ``virDomainDestroy()``
+    did not kill the corresponding cloud-hypervisor process. Domains can be now
+    destroyed reliably.
+
+
 v11.7.0 (2025-09-01)
 ====================
 

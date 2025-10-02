@@ -547,16 +547,6 @@ qemuMonitorJSONBlockExportAdd(qemuMonitor *mon,
                               virJSONValue **props);
 
 int
-qemuMonitorJSONGetTPMModels(qemuMonitor *mon,
-                            char ***tpmmodels)
-    ATTRIBUTE_NONNULL(2);
-
-int
-qemuMonitorJSONGetTPMTypes(qemuMonitor *mon,
-                           char ***tpmtypes)
-    ATTRIBUTE_NONNULL(2);
-
-int
 qemuMonitorJSONAttachCharDev(qemuMonitor *mon,
                              virJSONValue **props,
                              char **ptypath);
@@ -569,14 +559,9 @@ qemuMonitorJSONGetDeviceAliases(qemuMonitor *mon,
                                 char ***aliases);
 
 int
-qemuMonitorJSONGetGuestCPUx86(qemuMonitor *mon,
-                              const char *cpuQOMPath,
-                              virCPUData **data,
-                              virCPUData **disabled);
-
-int
 qemuMonitorJSONGetGuestCPU(qemuMonitor *mon,
                            virArch arch,
+                           bool qomListGet,
                            const char *cpuQOMPath,
                            qemuMonitorCPUFeatureTranslationCallback translate,
                            virCPUData **enabled,

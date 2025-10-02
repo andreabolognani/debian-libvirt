@@ -291,7 +291,7 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     X_QEMU_CAPS_OBJECT_IOTHREAD, /* -object iothread */
 
     /* 175 */
-    QEMU_CAPS_MIGRATE_RDMA, /* have rdma migration */
+    X_QEMU_CAPS_MIGRATE_RDMA, /* have rdma migration */
     X_QEMU_CAPS_DEVICE_IVSHMEM, /* -device ivshmem */
     X_QEMU_CAPS_DRIVE_IOTUNE_MAX, /* -drive bps_max= and friends */
     QEMU_CAPS_VGA_VGAMEM, /* -device VGA.vgamem_mb */
@@ -723,6 +723,10 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     QEMU_CAPS_AMD_IOMMU_PCI_ID, /* amd-iommu.pci-id */
     QEMU_CAPS_DEVICE_USB_BOT, /* -device usb-bot */
     QEMU_CAPS_TDX_GUEST, /* -object tdx-guest,... */
+    QEMU_CAPS_QOM_LIST_GET, /* qom-list-get QMP command */
+
+    /* 485 */
+    QEMU_CAPS_ACPI_GENERIC_INITIATOR, /* -object acpi-generic-initiator */
 
     QEMU_CAPS_LAST /* this must always be the last item */
 } virQEMUCapsFlags;

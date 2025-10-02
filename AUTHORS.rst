@@ -134,6 +134,7 @@ Patches have also been contributed by:
 * Andika Triwidada <andika@gmail.com>
 * Andrea Bolognani <abologna@redhat.com>
 * Andrea Morelli <morelliandrea973@gmail.com>
+* Andrea Righi <arighi@nvidia.com>
 * Andres Lagar-Cavilla <andres@lagarcavilla.org>
 * Andrew Melnychenko <andrew@daynix.com>
 * Andrew Miloradovsky <andrew@interpretmath.pw>
@@ -337,6 +338,7 @@ Patches have also been contributed by:
 * Eli Qiao <taget@linux.vnet.ibm.com>
 * Elizaveta Tereshkina <etereshkina@astralinux.ru>
 * Emilio Herrera <ehespinosa57@gmail.com>
+* Enrique Llorente via Devel <devel@lists.libvirt.org>
 * Eric Blake <eblake@redhat.com>
 * Eric Farman <farman@linux.ibm.com>
 * Eric Farman <farman@linux.vnet.ibm.com>
@@ -529,6 +531,7 @@ Patches have also been contributed by:
 * Jonathan Wright <jonathan@almalinux.org>
 * Jonathon Jongsma <jjongsma@redhat.com>
 * Jon Kohler <jon@nutanix.com>
+* joo es <jonnyse@users.noreply.translate.fedoraproject.org>
 * Josh Durgin <josh.durgin@inktank.com>
 * Josh Stone <jistone@redhat.com>
 * Jovanka Gulicoska <jovanka.gulicoska@gmail.com>
@@ -861,6 +864,7 @@ Patches have also been contributed by:
 * Scott Moser <smoser@ubuntu.com>
 * Scott Shambarger <scott-libvirt@shambarger.net>
 * Scott Sullivan <ssullivan@liquidweb.com>
+* Sebastian Jensen <gonx@gonx.dk>
 * Sebastian Mitterle <smitterl@redhat.com>
 * Sebastian Wiedenroth <wiedi@frubar.net>
 * Seeteena Thoufeek <s1seetee@linux.vnet.ibm.com>

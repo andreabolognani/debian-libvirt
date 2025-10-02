@@ -2919,6 +2919,8 @@ virDomainNetDefFree(virDomainNetDef *def)
     g_free(def->backend.tap);
     g_free(def->backend.vhost);
     g_free(def->backend.logFile);
+    g_free(def->backend.hostname);
+    g_free(def->backend.fqdn);
     virDomainNetTeamingInfoFree(def->teaming);
     g_free(def->virtPortProfile);
     g_free(def->script);
@@ -5558,8 +5560,20 @@ virDomainDeviceInfoFormat(virBuffer *buf,
         virBufferAddLit(buf, "/>\n");
     }
 
-    if (info->acpiIndex != 0)
-        virBufferAsprintf(buf, "<acpi index='%u'/>\n", info->acpiIndex);
+    if (info->acpiIndex != 0 || info->acpiNodeset) {
+        virBufferAddLit(buf, "<acpi");
+
+        if (info->acpiIndex != 0)
+            virBufferAsprintf(buf, " index='%u'", info->acpiIndex);
+
+        if (info->acpiNodeset) {
+            g_autofree char *nodeset = virBitmapFormat(info->acpiNodeset);
+            if (nodeset)
+                virBufferAsprintf(buf, " nodeset='%s'", nodeset);
+        }
+
+        virBufferAddLit(buf, "/>\n");
+    }
 
     if (info->type == VIR_DOMAIN_DEVICE_ADDRESS_TYPE_NONE ||
         info->type == VIR_DOMAIN_DEVICE_ADDRESS_TYPE_VIRTIO_S390)
@@ -5884,9 +5898,23 @@ virDomainDeviceInfoParseXML(virDomainXMLOption *xmlopt,
     }
 
     if ((acpi = virXPathNode("./acpi", ctxt))) {
+        g_autofree char *nodeset = NULL;
+
         if (virXMLPropUInt(acpi, "index", 10, VIR_XML_PROP_NONZERO,
                            &info->acpiIndex) < 0)
             goto cleanup;
+
+        if ((nodeset = virXMLPropString(acpi, "nodeset"))) {
+            if (virBitmapParse(nodeset, &info->acpiNodeset,
+                               VIR_DOMAIN_CPUMASK_LEN) < 0)
+                goto cleanup;
+
+            if (virBitmapIsAllClear(info->acpiNodeset)) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                               _("Invalid value of 'nodeset': %1$s"), nodeset);
+                goto cleanup;
+            }
+        }
     }
 
     if ((address = virXPathNode("./address", ctxt)) &&
@@ -9778,6 +9806,8 @@ virDomainNetBackendParseXML(xmlNodePtr node,
     }
 
     def->backend.logFile = virXMLPropString(node, "logFile");
+    def->backend.hostname = virXMLPropString(node, "hostname");
+    def->backend.fqdn = virXMLPropString(node, "fqdn");
 
     if (tap)
         def->backend.tap = virFileSanitizePath(tap);
@@ -20854,7 +20884,9 @@ virDomainNetBackendIsEqual(virDomainNetBackend *src,
     if (src->type != dst->type ||
         STRNEQ_NULLABLE(src->tap, dst->tap) ||
         STRNEQ_NULLABLE(src->vhost, dst->vhost) ||
-        STRNEQ_NULLABLE(src->logFile, dst->logFile)) {
+        STRNEQ_NULLABLE(src->logFile, dst->logFile) ||
+        STRNEQ_NULLABLE(src->hostname, dst->hostname) ||
+        STRNEQ_NULLABLE(src->fqdn, dst->fqdn)) {
         return false;
     }
     return true;
@@ -24993,6 +25025,8 @@ virDomainNetBackendFormat(virBuffer *buf,
     virBufferEscapeString(&attrBuf, " tap='%s'", backend->tap);
     virBufferEscapeString(&attrBuf, " vhost='%s'", backend->vhost);
     virBufferEscapeString(&attrBuf, " logFile='%s'", backend->logFile);
+    virBufferEscapeString(&attrBuf, " hostname='%s'", backend->hostname);
+    virBufferEscapeString(&attrBuf, " fqdn='%s'", backend->fqdn);
     virXMLFormatElement(buf, "backend", &attrBuf, NULL);
 }
 

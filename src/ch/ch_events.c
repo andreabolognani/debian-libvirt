@@ -25,6 +25,7 @@
 #include "ch_domain.h"
 #include "ch_events.h"
 #include "ch_process.h"
+#include "domain_event.h"
 #include "virfile.h"
 #include "virlog.h"
 
@@ -55,16 +56,67 @@ virCHEventStopProcess(virDomainObj *vm,
                       virDomainShutoffReason reason)
 {
     virCHDriver *driver = CH_DOMAIN_PRIVATE(vm)->driver;
+    VIR_LOCK_GUARD lock = virObjectLockGuard(vm);
 
-    virObjectLock(vm);
     if (virDomainObjBeginJob(vm, VIR_JOB_DESTROY))
         return -1;
-    virCHProcessStop(driver, vm, reason);
+    virCHProcessStop(driver, vm, reason, VIR_CH_PROCESS_STOP_FORCE);
     virDomainObjEndJob(vm);
-    virObjectUnlock(vm);
 
     return 0;
 }
+
+
+static void
+virCHProcessEmitEvent(virDomainObj *vm,
+                      virCHEvent ev)
+{
+    virCHDriver *driver = CH_DOMAIN_PRIVATE(vm)->driver;
+    virObjectEvent *event = NULL;
+
+    switch (ev) {
+    case VIR_CH_EVENT_VM_BOOTED:
+        event = virDomainEventLifecycleNewFromObj(vm,
+                                                  VIR_DOMAIN_EVENT_STARTED,
+                                                  VIR_DOMAIN_EVENT_STARTED_BOOTED);
+        break;
+    case VIR_CH_EVENT_VM_PAUSED:
+        event = virDomainEventLifecycleNewFromObj(vm,
+                                                  VIR_DOMAIN_EVENT_SUSPENDED,
+                                                  VIR_DOMAIN_EVENT_SUSPENDED_PAUSED);
+        break;
+    case VIR_CH_EVENT_VM_RESUMED:
+        event = virDomainEventLifecycleNewFromObj(vm,
+                                                  VIR_DOMAIN_EVENT_RESUMED,
+                                                  VIR_DOMAIN_EVENT_RESUMED_UNPAUSED);
+        break;
+    case VIR_CH_EVENT_VM_REBOOTED:
+        event = virDomainEventRebootNewFromObj(vm);
+        break;
+    case VIR_CH_EVENT_VMM_SHUTDOWN:
+    case VIR_CH_EVENT_VM_SHUTDOWN:
+        event = virDomainEventLifecycleNewFromObj(vm,
+                                                  VIR_DOMAIN_EVENT_SHUTDOWN,
+                                                  VIR_DOMAIN_EVENT_SHUTDOWN_FINISHED);
+        break;
+    case VIR_CH_EVENT_VMM_STARTING:
+    case VIR_CH_EVENT_VM_BOOTING:
+    case VIR_CH_EVENT_VM_REBOOTING:
+    case VIR_CH_EVENT_VM_DELETED:
+    case VIR_CH_EVENT_VM_PAUSING:
+    case VIR_CH_EVENT_VM_RESUMING:
+    case VIR_CH_EVENT_VM_SNAPSHOTTING:
+    case VIR_CH_EVENT_VM_SNAPSHOTTED:
+    case VIR_CH_EVENT_VM_RESTORING:
+    case VIR_CH_EVENT_VM_RESTORED:
+    case VIR_CH_EVENT_LAST:
+    default:
+        break;
+    }
+
+    virObjectEventStateQueue(driver->domainEventState, event);
+}
+
 
 static int
 virCHProcessEvent(virCHMonitor *mon,
@@ -91,6 +143,8 @@ virCHProcessEvent(virCHMonitor *mon,
     full_event = g_strdup_printf("%s:%s", source, event);
     ev = virCHEventTypeFromString(full_event);
     VIR_DEBUG("%s: Source: %s, Event: %s, ev: %d", vm->def->name, source, event, ev);
+
+    virCHProcessEmitEvent(vm, ev);
 
     switch (ev) {
     case VIR_CH_EVENT_VMM_STARTING:
@@ -152,7 +206,6 @@ virCHProcessEvents(virCHMonitor *mon)
     virDomainObj *vm = mon->vm;
     char *buf = mon->event_buffer.buffer;
     ssize_t sz = mon->event_buffer.buf_fill_sz;
-    virJSONValue *obj = NULL;
     int blocks = 0;
     size_t i = 0;
     char *json_start;
@@ -168,6 +221,8 @@ virCHProcessEvents(virCHMonitor *mon)
         } else if (buf[i] == '}' && blocks > 0) {
             blocks--;
             if (blocks == 0) {
+                g_autoptr(virJSONValue) obj = NULL;
+
                 /* valid json document */
                 end_index = i;
 
@@ -182,7 +237,6 @@ virCHProcessEvents(virCHMonitor *mon)
                                   vm->def->name, json_start);
                         return -1;
                     }
-                    virJSONValueFree(obj);
                 } else {
                     VIR_ERROR(_("%1$s: Invalid JSON event doc: %2$s"),
                               vm->def->name, json_start);

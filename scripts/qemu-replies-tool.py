@@ -10,6 +10,7 @@ import argparse
 import json
 import os
 import sys
+import re
 
 
 class qrtException(Exception):
@@ -36,13 +37,13 @@ def qemu_replies_load(filename):
                     if command is None:
                         command = json.loads(jsonstr)
                     else:
-                        conv.append((command, json.loads(jsonstr)))
+                        conv.append({'cmd': command, 'rep': json.loads(jsonstr)})
                         command = None
 
                     jsonstr = ''
 
             if command is not None and jsonstr != '':
-                conv.append((command, json.loads(jsonstr)))
+                conv.append({'cmd': command, 'rep': json.loads(jsonstr)})
                 command = None
                 jsonstr = ''
 
@@ -67,14 +68,14 @@ def qemu_replies_compare_or_replace(filename, conv, regenerate_on_error):
     seq = 9999  # poison the initial counter state
 
     # possibly fix mis-ordererd 'id' fields
-    for (cmd, rep) in conv:
+    for c in conv:
         # 'qmp_capabilities' command restarts the numbering sequence
-        if cmd['execute'] == 'qmp_capabilities':
+        if c['cmd']['execute'] == 'qmp_capabilities':
             seq = 1
 
         newid = 'libvirt-%d' % seq
-        cmd['id'] = newid
-        rep['id'] = newid
+        c['cmd']['id'] = newid
+        c['rep']['id'] = newid
 
         seq += 1
 
@@ -82,7 +83,7 @@ def qemu_replies_compare_or_replace(filename, conv, regenerate_on_error):
         if len(actual) != 0:
             actual += '\n\n'
 
-        actual += json.dumps(cmd, indent=2) + '\n\n' + json.dumps(rep, indent=2)
+        actual += json.dumps(c['cmd'], indent=2) + '\n\n' + json.dumps(c['rep'], indent=2)
 
     expect = ''
     actual += '\n'
@@ -114,9 +115,9 @@ def modify_replies(conv):
     version = None  # filled with a dictionary  with 'major', 'minor', 'micro' keys
 
     # find version of current qemu for later use
-    for (cmd, rep) in conv:
-        if cmd['execute'] == 'query-version':
-            version = rep['return']['qemu']
+    for c in conv:
+        if c['cmd']['execute'] == 'query-version':
+            version = c['rep']['return']['qemu']
             break
 
     if version is None:
@@ -126,9 +127,9 @@ def modify_replies(conv):
     # Find index of a command, in this case we're looking for the last
     # invocation of given command
     for i in range(len(conv)):
-        (cmd, rep) = conv[i]
+        c = conv[i]
 
-        if cmd['execute'] == 'device-list-properties':
+        if c['cmd']['execute'] == 'device-list-properties':
             idx = i
 
     if idx == -1:
@@ -161,9 +162,9 @@ def modify_replies(conv):
 
     # insert command into the QMP conversation based on version of qemu
     if version['major'] >= 8 and version['minor'] > 0:
-        conv.insert(idx, (cmd, reply))
+        conv.insert(idx, {'cmd': cmd, 'rep': reply})
     else:
-        conv.insert(idx, (cmd, reply_unsupp))
+        conv.insert(idx, {'cmd': cmd, 'rep': reply_unsupp})
 
 
 # Validates that 'entry' (an member of the QMP schema):
@@ -370,7 +371,7 @@ def dump_qmp_probe_strings_iter(name, cur, trace, schema):
             dump_qmp_probe_strings_iter(var['type'], cur, trace, schema)
 
 
-def dump_qmp_probe_strings(schemalist):
+def dump_qmp_probe_strings(schemalist, dumpprefix):
     schemadict = {}
     toplevel = []
 
@@ -383,15 +384,15 @@ def dump_qmp_probe_strings(schemalist):
     toplevel.sort()
 
     for c in toplevel:
-        dump_qmp_probe_strings_iter(c, '(qmp) ' + c, [], schemadict)
+        dump_qmp_probe_strings_iter(c, dumpprefix + '(qmp) ' + c, [], schemadict)
 
 
-def dump_qom_list_types(conv):
+def dump_qom_list_types(conv, dumpprefix):
     types = []
 
-    for (cmd, rep) in conv:
-        if cmd['execute'] == 'qom-list-types':
-            for qomtype in rep['return']:
+    for c in conv:
+        if c['cmd']['execute'] == 'qom-list-types':
+            for qomtype in c['rep']['return']:
                 # validate known fields:
                 # 'parent' is ignored below as it causes output churn
                 for k in qomtype:
@@ -400,61 +401,214 @@ def dump_qom_list_types(conv):
 
                 types.append(qomtype['name'])
 
+            c['processed'] = True
+
             break
 
     types.sort()
 
     for t in types:
-        print('(qom) ' + t)
+        print(dumpprefix + '(qom) ' + t)
 
 
-def dump_device_list_properties(conv):
-    devices = []
+def dump_device_and_object_properties(conv, dumpprefix):
+    ent = []
 
-    for (cmd, rep) in conv:
-        if cmd['execute'] == 'device-list-properties':
-            if 'return' in rep:
-                for arg in rep['return']:
-                    for k in arg:
-                        if k not in ['name', 'type', 'description', 'default-value']:
-                            raise Exception("Unhandled 'device-list-properties' typename '%s' field '%s'" % (cmd['arguments']['typename'], k))
+    for c in conv:
+        prefix = None
 
-                    if 'default-value' in arg:
-                        defval = ' (%s)' % str(arg['default-value'])
-                    else:
-                        defval = ''
+        if c['cmd']['execute'] == 'device-list-properties':
+            prefix = '(dev-prop)'
 
-                    devices.append('%s %s %s%s' % (cmd['arguments']['typename'],
-                                                   arg['name'],
-                                                   arg['type'],
-                                                   defval))
-    devices.sort()
+        if c['cmd']['execute'] == 'qom-list-properties':
+            prefix = '(qom-prop)'
 
-    for d in devices:
-        print('(dev) ' + d)
+        if prefix is None:
+            continue
+
+        c['processed'] = True
+
+        if 'return' not in c['rep']:
+            continue
+
+        for arg in c['rep']['return']:
+            for k in arg:
+                if k not in ['name', 'type', 'description', 'default-value']:
+                    raise Exception("Unhandled 'device-list-properties'/'qom-list-properties' typename '%s' field '%s'" % (c['cmd']['arguments']['typename'], k))
+
+                if 'default-value' in arg:
+                    defval = ' (%s)' % str(arg['default-value'])
+                else:
+                    defval = ''
+
+                    ent.append('%s %s %s %s%s' % (prefix,
+                                                  c['cmd']['arguments']['typename'],
+                                                  arg['name'],
+                                                  arg['type'],
+                                                  defval))
+    ent.sort()
+
+    for e in ent:
+        print(dumpprefix + e)
+
+
+# Sort helper for version string e.g. '11.0', '1.2' etc. Tolerates empty version.
+def machine_type_sorter(item):
+    key = item[0]
+
+    if key == '':
+        return [0]
+
+    return list(map(int, key.split('.')))
+
+
+def dump_machine_types(conv, dumpprefix):
+    machines = dict()
+    aliases = []
+    dumped_kvm = False
+
+    for c in conv:
+        if c['cmd']['execute'] == 'query-machines':
+
+            c['processed'] = True
+
+            if dumped_kvm:
+                continue
+
+            for machine in c['rep']['return']:
+                deprecated = False
+                name = machine['name']
+                version = ''
+                match = re.fullmatch(r'(.+)-(\d+\.\d+)', name)
+
+                if match is not None:
+                    name = match.group(1)
+                    version = match.group(2)
+
+                if 'deprecated' in machine:
+                    deprecated = machine['deprecated']
+
+                if 'alias' in machine:
+                    aliases.append('%s -> %s' % (machine['alias'], machine['name']))
+
+                if name not in machines:
+                    machines[name] = {}
+
+                machines[name][version] = deprecated
+
+                # Dump only the machines for the first occurence of 'query-machines'
+                dumped_kvm = True
+
+    for (machine, versions) in sorted(machines.items()):
+        for (version, deprecated) in sorted(versions.items(), key=machine_type_sorter):
+            d = ''
+            if deprecated:
+                d = ' (deprecated)'
+
+            if len(version) > 0:
+                version = '-' + version
+
+            print('(machine) %s%s%s' % (machine, version, d))
+
+    aliases.sort()
+
+    for a in aliases:
+        print(dumpprefix + '(machine alias) ' + a)
+
+
+def dump_command_line_options(c, dumpprefix):
+    optpar = []
+
+    for opt in c['rep']['return']:
+        for par in opt['parameters']:
+            optpar.append('%s %s' % (opt['option'], par['name']))
+
+    optpar.sort()
+
+    for o in optpar:
+        print(dumpprefix + '(cl-opt) ' + o)
+
+
+def dump_other(conv, dumpprefix):
+    for c in conv:
+        if c['cmd']['execute'] == 'query-version':
+            print('%s(version) %s.%s.%s %s' % (dumpprefix,
+                                               c['rep']['return']['qemu']['major'],
+                                               c['rep']['return']['qemu']['minor'],
+                                               c['rep']['return']['qemu']['micro'],
+                                               c['rep']['return']['package']))
+            c['processed'] = True
+
+        if c['cmd']['execute'] == 'query-target':
+            print('%s(target) %s' % (dumpprefix, c['rep']['return']['arch']))
+            c['processed'] = True
+
+        if c['cmd']['execute'] == 'query-kvm':
+            print('%s(kvm) present:%s enabled:%s' % (dumpprefix,
+                                                     c['rep']['return']['present'],
+                                                     c['rep']['return']['enabled']))
+            c['processed'] = True
+
+        if c['cmd']['execute'] == 'query-command-line-options':
+            dump_command_line_options(c, dumpprefix)
+            c['processed'] = True
+
+
+# dumps the parts of the .replies file which are not handled by the various dump_
+# helpers
+def dump_unprocessed(conv):
+    actual = ''
+
+    for c in conv:
+        if 'processed' in c and c['processed'] is True:
+            continue
+
+        # skip stuf not making sense to be processed:
+        # 'qmp_capabilities' - startup of QMP, no interesting data
+        # 'query-cpu-model-expansion' - too host dependant, nothing relevant
+        if c['cmd']['execute'] in ['qmp_capabilities', 'query-cpu-model-expansion']:
+            continue
+
+        # skip commands not having successful return
+        if 'return' not in c['rep']:
+            continue
+
+        actual += json.dumps(c['cmd'], indent=2) + '\n\n' + json.dumps(c['rep'], indent=2)
+
+    if actual != '':
+        for line in actual.split('\n'):
+            print('(unprocessed) ' + line)
 
 
 def process_one(filename, args):
     try:
         conv = qemu_replies_load(filename)
         dumped = False
+        dumpprefix = ''
+
+        if args.repliesdir:
+            dumpprefix = filename + ': '
 
         modify_replies(conv)
 
-        for (cmd, rep) in conv:
-            if cmd['execute'] == 'query-qmp-schema':
-                validate_qmp_schema(rep['return'])
+        for c in conv:
+            if c['cmd']['execute'] == 'query-qmp-schema':
+                validate_qmp_schema(c['rep']['return'])
 
                 if args.dump_all or args.dump_qmp_query_strings:
-                    dump_qmp_probe_strings(rep['return'])
+                    dump_qmp_probe_strings(c['rep']['return'], dumpprefix)
+                    c['processed'] = True
                     dumped = True
 
-        if args.dump_all or args.dump_qom_list_types:
-            dump_qom_list_types(conv)
+        if args.dump_all:
+            dump_other(conv, dumpprefix)
+            dump_qom_list_types(conv, dumpprefix)
+            dump_device_and_object_properties(conv, dumpprefix)
+            dump_machine_types(conv, dumpprefix)
             dumped = True
 
-        if args.dump_all or args.dump_device_list_properties:
-            dump_device_list_properties(conv)
+        if args.dump_unprocessed:
+            dump_unprocessed(conv)
             dumped = True
 
         if dumped:
@@ -492,7 +646,8 @@ In 'dump' mode if '-dump-all' or one of the specific '-dump-*' flags (below)
 is selected the script outputs information gathered from the given '.replies'
 file. The data is also usable for comparing two '.replies' files in a "diffable"
 fashion as many of the query commands may change ordering or naming without
-functional impact on libvirt.
+functional impact on libvirt. The following specific dump options are useful
+on it's own:
 
   --dump-qmp-query-strings
 
@@ -500,16 +655,6 @@ functional impact on libvirt.
     qemu version in format used by virQEMUQAPISchemaPathGet or
     virQEMUCapsQMPSchemaQueries. It's useful to find specific query string
     without having to piece the information together from 'query-qmp-schema'
-
-  --dump-qom-list-types
-
-    Dumps all types returned by 'qom-list-types' in a stable order with the
-    'parent' property dropped as it's not relevant for libvirt.
-
-  --dump-device-list-properties
-
-    Dumps all properties of all devices queried by libvirt in stable order
-    along with types and default values.
 
 The tool can be also used to programmaticaly modify the '.replies' file by
 editing the 'modify_replies' method directly in the source, or for
@@ -541,11 +686,9 @@ parser.add_argument('--dump-all', action='store_true',
 parser.add_argument('--dump-qmp-query-strings', action='store_true',
                     help='dump QMP schema in form of query strings used to probe capabilities')
 
-parser.add_argument('--dump-qom-list-types', action='store_true',
-                    help='dump data from qom-list-types in a stable order')
 
-parser.add_argument('--dump-device-list-properties', action='store_true',
-                    help='dump all devices and their properties')
+parser.add_argument('--dump-unprocessed', action='store_true',
+                    help='dump JSON of commands unprocessed by any of the --dump-* options')
 
 args = parser.parse_args()
 
