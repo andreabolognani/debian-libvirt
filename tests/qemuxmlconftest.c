@@ -16,8 +16,11 @@
 # include "qemu/qemu_capabilities.h"
 # include "qemu/qemu_domain.h"
 # include "qemu/qemu_migration.h"
+# include "qemu/qemu_passt.h"
 # include "qemu/qemu_process.h"
 # include "qemu/qemu_slirp.h"
+# include "qemu/qemu_virtiofs.h"
+# include "qemu/qemu_vhost_user.h"
 # include "datatypes.h"
 # include "conf/storage_conf.h"
 # include "virfilewrapper.h"
@@ -455,6 +458,24 @@ testCompareXMLToArgvCreateArgs(virQEMUDriver *drv,
         vsockPriv->vhostfd = 6789;
     }
 
+    for (i = 0; i < vm->def->nfss; i++) {
+        unsigned long long ver = 0;
+        virDomainFSDef *fs = vm->def->fss[i];
+
+        virStringParseVersion(&ver, info->args.capsver, false);
+
+        if (fs->fsdriver == VIR_DOMAIN_FS_DRIVER_TYPE_VIRTIOFS && !fs->sock) {
+            /* QEMU 8.0.0 was the first release without virtiofsd included.
+               Assume that from that version, the Rust version of virtiofsd
+               which supports separate options is used. */
+
+            if (ver != 0 && ver < 8 * 1000 * 1000)
+                continue;
+            virBitmapSetBitExpand(fs->caps, QEMU_VHOST_USER_FS_FEATURE_SEPARATE_OPTIONS);
+        }
+    }
+
+
     for (i = 0; i < vm->def->ntpms; i++) {
         if (vm->def->tpms[i]->type != VIR_DOMAIN_TPM_TYPE_EMULATOR)
             continue;
@@ -598,6 +619,15 @@ testInfoCheckDuplicate(testQemuInfo *info)
 }
 
 
+static void
+testQemuConfMarkUsed(testQemuInfo *info,
+                     const char *file)
+{
+    if (file)
+        ignore_value(g_hash_table_remove(info->conf->existingTestCases, file));
+}
+
+
 /**
  * testQemuConfXMLCommon: Prepare common test data (e.g. parse input XML)
  * for a test case.
@@ -630,14 +660,10 @@ testQemuConfXMLCommon(testQemuInfo *info,
     if (info->prepared)
         goto cleanup;
 
-    /* mark test case as used */
-    ignore_value(g_hash_table_remove(info->conf->existingTestCases, info->infile));
-    if (info->outfile)
-        ignore_value(g_hash_table_remove(info->conf->existingTestCases, info->outfile));
-    if (info->errfile)
-        ignore_value(g_hash_table_remove(info->conf->existingTestCases, info->errfile));
-    if (info->out_xml_inactive)
-        ignore_value(g_hash_table_remove(info->conf->existingTestCases, info->out_xml_inactive));
+    testQemuConfMarkUsed(info, info->infile);
+    testQemuConfMarkUsed(info, info->outfile);
+    testQemuConfMarkUsed(info, info->errfile);
+    testQemuConfMarkUsed(info, info->out_xml_inactive);
 
     if (testQemuInfoInitArgs((testQemuInfo *) info) < 0)
         goto cleanup;
@@ -799,6 +825,87 @@ testCompareOutXML2XML(const void *data)
 
 
 static int
+testExtDeviceArgv(testQemuInfo *info,
+                  virCommand *cmd,
+                  const char *helper,
+                  size_t idx)
+{
+    g_auto(virBuffer) actualBuf = VIR_BUFFER_INITIALIZER;
+    g_autofree char *actualargv = NULL;
+    g_autofree char *outfile = NULL;
+    virError *err = NULL;
+
+    outfile = g_strdup_printf("%s/qemuxmlconfdata/%s%s%s.%s%zu.args",
+                              abs_srcdir, info->name, info->suffix,
+                              info->args.capsvariant, helper, idx);
+    testQemuConfMarkUsed(info, outfile);
+
+    if (!cmd) {
+        err = virGetLastError();
+        if (!err) {
+            VIR_TEST_DEBUG("no error was reported for expected failure");
+            return -1;
+        }
+        return -1;
+    }
+
+    if (virCommandToStringBuf(cmd, &actualBuf, true, false) < 0)
+        return -1;
+
+    virBufferAddLit(&actualBuf, "\n");
+    actualargv = virBufferContentAndReset(&actualBuf);
+
+    if (virTestCompareToFileFull(actualargv, outfile, false) < 0)
+        return -1;
+
+    return 0;
+}
+
+
+static int
+testExtDevicesArgv(testQemuInfo *info,
+                   virDomainObj *vm)
+{
+    g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(QEMU_DOMAIN_PRIVATE(vm)->driver);
+    size_t i = 42;
+    int ret = 0;
+    int fd;
+
+    for (i = 0; i < vm->def->nnets; i++) {
+        virDomainNetDef *net = vm->def->nets[i];
+
+        if (net->type != VIR_DOMAIN_NET_TYPE_USER &&
+            net->type != VIR_DOMAIN_NET_TYPE_VHOSTUSER) {
+            continue;
+        }
+
+        if (net->backend.type == VIR_DOMAIN_NET_BACKEND_PASST) {
+            g_autoptr(virCommand) cmd = NULL;
+
+            cmd = qemuPasstBuildCommand(NULL, NULL, vm, net);
+            if (testExtDeviceArgv(info, cmd, "passt", i) < 0)
+                ret = -1;
+        }
+    }
+
+    for (i = 0; i < vm->def->nfss; i++) {
+        virDomainFSDef *fs = vm->def->fss[i];
+
+        if (fs->fsdriver == VIR_DOMAIN_FS_DRIVER_TYPE_VIRTIOFS && !fs->sock) {
+            g_autoptr(virCommand) cmd = NULL;
+            fd = 1730 + i;
+
+            cmd = qemuVirtioFSBuildCommandLine(cfg, fs, &fd);
+            if (testExtDeviceArgv(info, cmd, "virtiofsd", i) < 0)
+                ret = -1;
+        }
+    }
+
+    return ret;
+}
+
+
+static int
 testCompareXMLToArgv(const void *data)
 {
     testQemuInfo *info = (void *) data;
@@ -890,6 +997,9 @@ testCompareXMLToArgv(const void *data)
     actualargv = virBufferContentAndReset(&actualBuf);
 
     if (virTestCompareToFileFull(actualargv, info->outfile, false) < 0)
+        goto cleanup;
+
+    if (testExtDevicesArgv(info, vm) < 0)
         goto cleanup;
 
     ret = 0;
@@ -999,6 +1109,7 @@ testRun(const char *name,
     va_list ap;
 
     info->name = name;
+    info->suffix = suffix;
     info->conf = testConf;
 
     va_start(ap, testConf);
@@ -1443,8 +1554,8 @@ mymain(void)
     DO_TEST_CAPS_LATEST("firmware-auto-efi");
     DO_TEST_CAPS_LATEST_ABI_UPDATE("firmware-auto-efi");
     DO_TEST_CAPS_LATEST("firmware-auto-efi-stateless");
-    DO_TEST_CAPS_LATEST_FAILURE("firmware-auto-efi-rw");
-    DO_TEST_CAPS_LATEST_FAILURE("firmware-auto-efi-rw-pflash");
+    DO_TEST_CAPS_LATEST("firmware-auto-efi-rw");
+    DO_TEST_CAPS_LATEST("firmware-auto-efi-rw-pflash");
     DO_TEST_CAPS_LATEST("firmware-auto-efi-loader-secure");
     DO_TEST_CAPS_LATEST_ABI_UPDATE("firmware-auto-efi-loader-secure");
     DO_TEST_CAPS_LATEST("firmware-auto-efi-loader-insecure");
@@ -1476,6 +1587,23 @@ mymain(void)
     DO_TEST_CAPS_ARCH_LATEST("firmware-auto-efi-format-loader-raw", "aarch64");
     DO_TEST_CAPS_ARCH_LATEST_ABI_UPDATE("firmware-auto-efi-format-loader-raw", "aarch64");
     DO_TEST_CAPS_LATEST("firmware-auto-efi-format-mismatch");
+
+    /* This test passes, but the outcome is not the desired one: the
+     * generic edk2 build gets selected instead of the AMD SEV one */
+    DO_TEST_CAPS_ARCH_LATEST_FULL("firmware-auto-efi-sev", "x86_64",
+                                  ARG_CAPS_VARIANT, "+amdsev",
+                                  ARG_END);
+
+    DO_TEST_CAPS_ARCH_LATEST_FULL("firmware-auto-efi-sev-snp", "x86_64",
+                                  ARG_CAPS_VARIANT, "+amdsev",
+                                  ARG_END);
+
+    /* Use of stateful firmware for SEV is uncommon, since it
+     * conflicts with boot measurements, but it's still possible for
+     * the user to explicitly request it */
+    DO_TEST_CAPS_ARCH_LATEST_FULL("firmware-auto-efi-sev-stateful", "x86_64",
+                                  ARG_CAPS_VARIANT, "+amdsev",
+                                  ARG_END);
 
     DO_TEST_CAPS_LATEST("clock-utc");
     DO_TEST_CAPS_LATEST("clock-localtime");
@@ -2248,6 +2376,12 @@ mymain(void)
     DO_TEST_CAPS_VER("cpu-host-model-kvm", "7.2.0");
     DO_TEST_CAPS_VER("cpu-host-model-kvm", "8.0.0");
     DO_TEST_CAPS_VER("cpu-host-model-kvm", "8.1.0");
+    DO_TEST_CAPS_VER("cpu-host-model-kvm", "8.2.0");
+    DO_TEST_CAPS_VER("cpu-host-model-kvm", "9.0.0");
+    DO_TEST_CAPS_VER("cpu-host-model-kvm", "9.1.0");
+    DO_TEST_CAPS_VER("cpu-host-model-kvm", "9.2.0");
+    DO_TEST_CAPS_VER("cpu-host-model-kvm", "10.0.0");
+    DO_TEST_CAPS_VER("cpu-host-model-kvm", "10.1.0");
 
     DO_TEST_CAPS_VER("cpu-host-model-tcg", "6.2.0");
     DO_TEST_CAPS_VER("cpu-host-model-tcg", "7.0.0");
@@ -2255,6 +2389,12 @@ mymain(void)
     DO_TEST_CAPS_VER("cpu-host-model-tcg", "7.2.0");
     DO_TEST_CAPS_VER("cpu-host-model-tcg", "8.0.0");
     DO_TEST_CAPS_VER("cpu-host-model-tcg", "8.1.0");
+    DO_TEST_CAPS_VER("cpu-host-model-tcg", "8.2.0");
+    DO_TEST_CAPS_VER("cpu-host-model-tcg", "9.0.0");
+    DO_TEST_CAPS_VER("cpu-host-model-tcg", "9.1.0");
+    DO_TEST_CAPS_VER("cpu-host-model-tcg", "9.2.0");
+    DO_TEST_CAPS_VER("cpu-host-model-tcg", "10.0.0");
+    DO_TEST_CAPS_VER("cpu-host-model-tcg", "10.1.0");
 
     DO_TEST_CAPS_VER("cpu-host-model-fallback-kvm", "6.2.0");
     DO_TEST_CAPS_VER("cpu-host-model-fallback-kvm", "7.0.0");
@@ -2262,6 +2402,12 @@ mymain(void)
     DO_TEST_CAPS_VER("cpu-host-model-fallback-kvm", "7.2.0");
     DO_TEST_CAPS_VER("cpu-host-model-fallback-kvm", "8.0.0");
     DO_TEST_CAPS_VER("cpu-host-model-fallback-kvm", "8.1.0");
+    DO_TEST_CAPS_VER("cpu-host-model-fallback-kvm", "8.2.0");
+    DO_TEST_CAPS_VER("cpu-host-model-fallback-kvm", "9.0.0");
+    DO_TEST_CAPS_VER("cpu-host-model-fallback-kvm", "9.1.0");
+    DO_TEST_CAPS_VER("cpu-host-model-fallback-kvm", "9.2.0");
+    DO_TEST_CAPS_VER("cpu-host-model-fallback-kvm", "10.0.0");
+    DO_TEST_CAPS_VER("cpu-host-model-fallback-kvm", "10.1.0");
 
     DO_TEST_CAPS_VER("cpu-host-model-fallback-tcg", "6.2.0");
     DO_TEST_CAPS_VER("cpu-host-model-fallback-tcg", "7.0.0");
@@ -2269,6 +2415,12 @@ mymain(void)
     DO_TEST_CAPS_VER("cpu-host-model-fallback-tcg", "7.2.0");
     DO_TEST_CAPS_VER("cpu-host-model-fallback-tcg", "8.0.0");
     DO_TEST_CAPS_VER("cpu-host-model-fallback-tcg", "8.1.0");
+    DO_TEST_CAPS_VER("cpu-host-model-fallback-tcg", "8.2.0");
+    DO_TEST_CAPS_VER("cpu-host-model-fallback-tcg", "9.0.0");
+    DO_TEST_CAPS_VER("cpu-host-model-fallback-tcg", "9.1.0");
+    DO_TEST_CAPS_VER("cpu-host-model-fallback-tcg", "9.2.0");
+    DO_TEST_CAPS_VER("cpu-host-model-fallback-tcg", "10.0.0");
+    DO_TEST_CAPS_VER("cpu-host-model-fallback-tcg", "10.1.0");
 
     DO_TEST_CAPS_VER("cpu-host-model-nofallback-kvm", "6.2.0");
     DO_TEST_CAPS_VER("cpu-host-model-nofallback-kvm", "7.0.0");
@@ -2276,6 +2428,12 @@ mymain(void)
     DO_TEST_CAPS_VER("cpu-host-model-nofallback-kvm", "7.2.0");
     DO_TEST_CAPS_VER("cpu-host-model-nofallback-kvm", "8.0.0");
     DO_TEST_CAPS_VER("cpu-host-model-nofallback-kvm", "8.1.0");
+    DO_TEST_CAPS_VER("cpu-host-model-nofallback-kvm", "8.2.0");
+    DO_TEST_CAPS_VER("cpu-host-model-nofallback-kvm", "9.0.0");
+    DO_TEST_CAPS_VER("cpu-host-model-nofallback-kvm", "9.1.0");
+    DO_TEST_CAPS_VER("cpu-host-model-nofallback-kvm", "9.2.0");
+    DO_TEST_CAPS_VER("cpu-host-model-nofallback-kvm", "10.0.0");
+    DO_TEST_CAPS_VER("cpu-host-model-nofallback-kvm", "10.1.0");
 
     DO_TEST_CAPS_VER("cpu-host-model-nofallback-tcg", "6.2.0");
     DO_TEST_CAPS_VER("cpu-host-model-nofallback-tcg", "7.0.0");
@@ -2283,6 +2441,12 @@ mymain(void)
     DO_TEST_CAPS_VER("cpu-host-model-nofallback-tcg", "7.2.0");
     DO_TEST_CAPS_VER("cpu-host-model-nofallback-tcg", "8.0.0");
     DO_TEST_CAPS_VER("cpu-host-model-nofallback-tcg", "8.1.0");
+    DO_TEST_CAPS_VER("cpu-host-model-nofallback-tcg", "8.2.0");
+    DO_TEST_CAPS_VER("cpu-host-model-nofallback-tcg", "9.0.0");
+    DO_TEST_CAPS_VER("cpu-host-model-nofallback-tcg", "9.1.0");
+    DO_TEST_CAPS_VER("cpu-host-model-nofallback-tcg", "9.2.0");
+    DO_TEST_CAPS_VER("cpu-host-model-nofallback-tcg", "10.0.0");
+    DO_TEST_CAPS_VER("cpu-host-model-nofallback-tcg", "10.1.0");
 
     /* For this specific test we accept the increased likelihood of changes
      * if qemu updates the CPU model */
@@ -2807,6 +2971,7 @@ mymain(void)
     DO_TEST_CAPS_LATEST_PARSE_ERROR("virtio-iommu-invalid-address-type");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("virtio-iommu-invalid-address");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("virtio-iommu-dma-translation");
+    DO_TEST_CAPS_LATEST("acpi-generic-initiator");
 
     DO_TEST_CAPS_LATEST("cpu-hotplug-startup");
     DO_TEST_CAPS_ARCH_LATEST_PARSE_ERROR("cpu-hotplug-granularity", "ppc64");
@@ -2912,6 +3077,7 @@ mymain(void)
     DO_TEST_CAPS_LATEST("vhost-user-fs-fd-openfiles");
     DO_TEST_CAPS_LATEST("vhost-user-fs-hugepages");
     DO_TEST_CAPS_LATEST("vhost-user-fs-readonly");
+    DO_TEST_CAPS_VER("vhost-user-fs-locking", "7.2.0");
 
     DO_TEST_CAPS_ARCH_LATEST("vhost-user-fs-ccw", "s390x");
     DO_TEST_CAPS_ARCH_LATEST_PARSE_ERROR("vhost-user-fs-ccw-bootindex", "s390x");
@@ -2955,10 +3121,10 @@ mymain(void)
     DO_TEST_CAPS_ARCH_LATEST("ppc64-default-cpu-tcg-pseries-4.2", "ppc64");
     DO_TEST_CAPS_ARCH_LATEST("s390-default-cpu-kvm-ccw-virtio-4.2", "s390x");
     DO_TEST_CAPS_ARCH_LATEST("s390-default-cpu-tcg-ccw-virtio-4.2", "s390x");
-    DO_TEST_CAPS_ARCH_LATEST("x86_64-default-cpu-kvm-pc-4.2", "x86_64");
-    DO_TEST_CAPS_ARCH_LATEST("x86_64-default-cpu-tcg-pc-4.2", "x86_64");
-    DO_TEST_CAPS_ARCH_LATEST("x86_64-default-cpu-kvm-q35-4.2", "x86_64");
-    DO_TEST_CAPS_ARCH_LATEST("x86_64-default-cpu-tcg-q35-4.2", "x86_64");
+    DO_TEST_CAPS_ARCH_LATEST("x86_64-default-cpu-kvm-pc", "x86_64");
+    DO_TEST_CAPS_ARCH_LATEST("x86_64-default-cpu-tcg-pc", "x86_64");
+    DO_TEST_CAPS_ARCH_LATEST("x86_64-default-cpu-kvm-q35", "x86_64");
+    DO_TEST_CAPS_ARCH_LATEST("x86_64-default-cpu-tcg-q35", "x86_64");
     DO_TEST_CAPS_ARCH_LATEST("x86_64-default-cpu-tcg-features", "x86_64");
 
     DO_TEST_CAPS_ARCH_LATEST("riscv64-virt-features-aia", "riscv64");

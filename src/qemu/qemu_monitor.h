@@ -748,6 +748,9 @@ struct _qemuBlockNamedNodeData {
 
     /* qcow2 subcluster allocation -> extended_l2 */
     bool qcow2extendedL2;
+
+    /* qcow2 data file 'raw' feature is enabled */
+    bool qcow2dataFileRaw;
 };
 
 GHashTable *
@@ -1242,12 +1245,6 @@ int qemuMonitorNBDServerStop(qemuMonitor *mon);
 int qemuMonitorBlockExportAdd(qemuMonitor *mon,
                               virJSONValue **props);
 
-int qemuMonitorGetTPMModels(qemuMonitor *mon,
-                            char ***tpmmodels);
-
-int qemuMonitorGetTPMTypes(qemuMonitor *mon,
-                           char ***tpmtypes);
-
 int qemuMonitorAttachCharDev(qemuMonitor *mon,
                              virJSONValue **props,
                              char **ptypath);
@@ -1269,16 +1266,12 @@ void qemuMonitorSetDomainLog(qemuMonitor *mon,
                              void *opaque,
                              virFreeCallback destroy);
 
-int qemuMonitorGetGuestCPUx86(qemuMonitor *mon,
-                              const char *cpuQOMPath,
-                              virCPUData **data,
-                              virCPUData **disabled);
-
 typedef const char *(*qemuMonitorCPUFeatureTranslationCallback)(virArch arch,
                                                                 const char *name);
 
 int qemuMonitorGetGuestCPU(qemuMonitor *mon,
                            virArch arch,
+                           bool qomListGet,
                            const char *cpuQOMPath,
                            qemuMonitorCPUFeatureTranslationCallback translate,
                            virCPUData **enabled,
@@ -1463,14 +1456,6 @@ int
 qemuMonitorBitmapRemove(qemuMonitor *mon,
                         const char *node,
                         const char *name);
-int
-qemuMonitorTransactionBitmapEnable(virJSONValue *actions,
-                                   const char *node,
-                                   const char *name);
-int
-qemuMonitorTransactionBitmapDisable(virJSONValue *actions,
-                                    const char *node,
-                                    const char *name);
 int
 qemuMonitorTransactionBitmapMerge(virJSONValue *actions,
                                   const char *node,

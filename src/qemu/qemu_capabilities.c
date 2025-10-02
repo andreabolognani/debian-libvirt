@@ -311,7 +311,7 @@ VIR_ENUM_IMPL(virQEMUCaps,
               "iothread", /* X_QEMU_CAPS_OBJECT_IOTHREAD */
 
               /* 175 */
-              "migrate-rdma", /* QEMU_CAPS_MIGRATE_RDMA */
+              "migrate-rdma", /* X_QEMU_CAPS_MIGRATE_RDMA */
               "ivshmem", /* X_QEMU_CAPS_DEVICE_IVSHMEM */
               "drive-iotune-max", /* X_QEMU_CAPS_DRIVE_IOTUNE_MAX */
               "VGA.vgamem_mb", /* QEMU_CAPS_VGA_VGAMEM */
@@ -742,6 +742,10 @@ VIR_ENUM_IMPL(virQEMUCaps,
               "amd-iommu.pci-id", /* QEMU_CAPS_AMD_IOMMU_PCI_ID */
               "usb-bot", /* QEMU_CAPS_DEVICE_USB_BOT */
               "tdx-guest", /* QEMU_CAPS_TDX_GUEST */
+              "qom-list-get", /* QEMU_CAPS_QOM_LIST_GET */
+
+              /* 485 */
+              "acpi-generic-initiator", /* QEMU_CAPS_ACPI_GENERIC_INITIATOR */
     );
 
 
@@ -1256,10 +1260,7 @@ struct virQEMUCapsStringFlags virQEMUCapsCommands[] = {
     { "query-stats-schemas", QEMU_CAPS_QUERY_STATS_SCHEMAS },
     { "display-reload", QEMU_CAPS_DISPLAY_RELOAD },
     { "blockdev-set-active", QEMU_CAPS_BLOCKDEV_SET_ACTIVE },
-};
-
-struct virQEMUCapsStringFlags virQEMUCapsMigration[] = {
-    { "rdma-pin-all", QEMU_CAPS_MIGRATE_RDMA },
+    { "qom-list-get", QEMU_CAPS_QOM_LIST_GET },
 };
 
 struct virQEMUCapsStringFlags virQEMUCapsObjectTypes[] = {
@@ -1431,6 +1432,14 @@ struct virQEMUCapsStringFlags virQEMUCapsObjectTypes[] = {
     { "amd-iommu", QEMU_CAPS_AMD_IOMMU },
     { "usb-bot", QEMU_CAPS_DEVICE_USB_BOT },
     { "tdx-guest", QEMU_CAPS_TDX_GUEST},
+    { "tpm-crb", QEMU_CAPS_DEVICE_TPM_CRB },
+    { "tpm-tis", QEMU_CAPS_DEVICE_TPM_TIS },
+    { "tpm-tis-device", QEMU_CAPS_DEVICE_TPM_TIS },
+    { "tpm-tis-i2c", QEMU_CAPS_DEVICE_TPM_TIS },
+    { "tpm-spapr", QEMU_CAPS_DEVICE_TPM_SPAPR },
+    { "tpm-emulator", QEMU_CAPS_DEVICE_TPM_EMULATOR },
+    { "tpm-passthrough", QEMU_CAPS_DEVICE_TPM_PASSTHROUGH },
+    { "acpi-generic-initiator", QEMU_CAPS_ACPI_GENERIC_INITIATOR },
 };
 
 
@@ -2061,8 +2070,8 @@ virQEMUCaps *virQEMUCapsNewCopy(virQEMUCaps *qemuCaps)
     if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_SGX_EPC))
         virQEMUCapsSGXInfoCopy(&ret->sgxCapabilities, qemuCaps->sgxCapabilities);
 
-    ret->hypervCapabilities = g_memdup(qemuCaps->hypervCapabilities,
-                                       sizeof(virDomainCapsFeatureHyperv));
+    ret->hypervCapabilities = g_memdup2(qemuCaps->hypervCapabilities,
+                                        sizeof(virDomainCapsFeatureHyperv));
 
     return g_steal_pointer(&ret);
 }
@@ -3385,73 +3394,6 @@ virQEMUCapsUpdateCPUDeprecatedFeatures(virQEMUCaps *qemuCaps,
 }
 
 
-struct tpmTypeToCaps {
-    int type;
-    virQEMUCapsFlags caps;
-};
-
-static const struct tpmTypeToCaps virQEMUCapsTPMTypesToCaps[] = {
-    {
-        .type = VIR_DOMAIN_TPM_TYPE_PASSTHROUGH,
-        .caps = QEMU_CAPS_DEVICE_TPM_PASSTHROUGH,
-    },
-    {
-        .type = VIR_DOMAIN_TPM_TYPE_EMULATOR,
-        .caps = QEMU_CAPS_DEVICE_TPM_EMULATOR,
-    },
-};
-
-const struct tpmTypeToCaps virQEMUCapsTPMModelsToCaps[] = {
-    {
-        .type = VIR_DOMAIN_TPM_MODEL_TIS,
-        .caps = QEMU_CAPS_DEVICE_TPM_TIS,
-    },
-    {
-        .type = VIR_DOMAIN_TPM_MODEL_CRB,
-        .caps = QEMU_CAPS_DEVICE_TPM_CRB,
-    },
-    {
-        .type = VIR_DOMAIN_TPM_MODEL_SPAPR,
-        .caps = QEMU_CAPS_DEVICE_TPM_SPAPR,
-    },
-};
-
-static int
-virQEMUCapsProbeQMPTPM(virQEMUCaps *qemuCaps,
-                       qemuMonitor *mon)
-{
-    g_auto(GStrv) models = NULL;
-    g_auto(GStrv) types = NULL;
-    size_t i;
-
-    if (qemuMonitorGetTPMModels(mon, &models) < 0)
-        return -1;
-
-    if (!models)
-        return 0;
-
-    for (i = 0; i < G_N_ELEMENTS(virQEMUCapsTPMModelsToCaps); i++) {
-        const char *needle = virDomainTPMModelTypeToString(virQEMUCapsTPMModelsToCaps[i].type);
-        if (g_strv_contains((const char **)models, needle))
-            virQEMUCapsSet(qemuCaps, virQEMUCapsTPMModelsToCaps[i].caps);
-    }
-
-    if (qemuMonitorGetTPMTypes(mon, &types) < 0)
-        return -1;
-
-    if (!types)
-        return 0;
-
-    for (i = 0; i < G_N_ELEMENTS(virQEMUCapsTPMTypesToCaps); i++) {
-        const char *needle = virDomainTPMBackendTypeToString(virQEMUCapsTPMTypesToCaps[i].type);
-        if (g_strv_contains((const char **)types, needle))
-            virQEMUCapsSet(qemuCaps, virQEMUCapsTPMTypesToCaps[i].caps);
-    }
-
-    return 0;
-}
-
-
 static int
 virQEMUCapsProbeQMPKVMState(virQEMUCaps *qemuCaps,
                             qemuMonitor *mon)
@@ -3547,23 +3489,6 @@ virQEMUCapsProbeQMPCommandLine(virQEMUCaps *qemuCaps,
                 virQEMUCapsSet(qemuCaps, virQEMUCapsCommandLine[i].flag);
         }
     }
-
-    return 0;
-}
-
-static int
-virQEMUCapsProbeQMPMigrationCapabilities(virQEMUCaps *qemuCaps,
-                                         qemuMonitor *mon)
-{
-    g_auto(GStrv) caps = NULL;
-
-    if (qemuMonitorGetMigrationCapabilities(mon, &caps) < 0)
-        return -1;
-
-    virQEMUCapsProcessStringFlags(qemuCaps,
-                                  G_N_ELEMENTS(virQEMUCapsMigration),
-                                  virQEMUCapsMigration,
-                                  caps);
 
     return 0;
 }
@@ -5782,11 +5707,7 @@ virQEMUCapsInitQMPMonitor(virQEMUCaps *qemuCaps,
         return -1;
     if (virQEMUCapsProbeQMPCPUDefinitions(qemuCaps, accel, mon) < 0)
         return -1;
-    if (virQEMUCapsProbeQMPTPM(qemuCaps, mon) < 0)
-        return -1;
     if (virQEMUCapsProbeQMPCommandLine(qemuCaps, mon) < 0)
-        return -1;
-    if (virQEMUCapsProbeQMPMigrationCapabilities(qemuCaps, mon) < 0)
         return -1;
     if (virQEMUCapsProbeQMPGICCapabilities(qemuCaps, mon) < 0)
         return -1;
@@ -7009,8 +6930,8 @@ static void
 virQEMUCapsFillDomainFeatureHypervCaps(virQEMUCaps *qemuCaps,
                                        virDomainCaps *domCaps)
 {
-    domCaps->hyperv = g_memdup(qemuCaps->hypervCapabilities,
-                               sizeof(virDomainCapsFeatureHyperv));
+    domCaps->hyperv = g_memdup2(qemuCaps->hypervCapabilities,
+                                sizeof(virDomainCapsFeatureHyperv));
 }
 
 

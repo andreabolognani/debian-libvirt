@@ -268,6 +268,16 @@ typedef enum {
 # define VIR_NODE_CPU_STATS_INTR "intr"
 
 /**
+ * VIR_NODE_CPU_STATS_GUEST:
+ *
+ * The cumulative CPU time spent running guest virtual CPUs,
+ * since the node booting up (in nanoseconds).
+ *
+ * Since: 11.8.0
+ */
+# define VIR_NODE_CPU_STATS_GUEST "guest"
+
+/**
  * VIR_NODE_CPU_STATS_UTILIZATION:
  *
  * The CPU utilization of a node.

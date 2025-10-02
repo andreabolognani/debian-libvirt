@@ -62,6 +62,12 @@ VIR_ONCE_GLOBAL_INIT(virCHMonitor);
 int virCHMonitorShutdownVMM(virCHMonitor *mon);
 int virCHMonitorPutNoContent(virCHMonitor *mon, const char *endpoint,
                              domainLogContext *logCtxt);
+static int
+virCHMonitorPut(virCHMonitor *mon,
+                const char *endpoint,
+                virJSONValue *payload,
+                domainLogContext *logCtxt,
+                virJSONValue **answer);
 
 static int
 virCHMonitorBuildCPUJson(virJSONValue *content, virDomainDef *vmdef)
@@ -234,35 +240,41 @@ virCHMonitorBuildMemoryJson(virJSONValue *content, virDomainDef *vmdef)
     return 0;
 }
 
-static int
-virCHMonitorBuildDiskJson(virJSONValue *disks, virDomainDiskDef *diskdef)
+static virJSONValue*
+virCHMonitorBuildDiskJson(virDomainDiskDef *diskdef)
 {
     g_autoptr(virJSONValue) disk = virJSONValueNewObject();
 
     if (!diskdef->src)
-        return -1;
+        return NULL;
 
     switch (diskdef->src->type) {
     case VIR_STORAGE_TYPE_FILE:
         if (!diskdef->src->path) {
             virReportError(VIR_ERR_INVALID_ARG, "%s",
                            _("Missing disk file path in domain"));
-            return -1;
+            return NULL;
+        }
+        if (!diskdef->info.alias) {
+            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                           _("Missing disk alias"));
+            return NULL;
         }
         if (diskdef->bus != VIR_DOMAIN_DISK_BUS_VIRTIO) {
             virReportError(VIR_ERR_INVALID_ARG,
                            _("Only virtio bus types are supported for '%1$s'"),
                            diskdef->src->path);
-            return -1;
+            return NULL;
         }
         if (virJSONValueObjectAppendString(disk, "path", diskdef->src->path) < 0)
-            return -1;
+            return NULL;
         if (diskdef->src->readonly) {
             if (virJSONValueObjectAppendBoolean(disk, "readonly", true) < 0)
-                return -1;
+                return NULL;
         }
-        if (virJSONValueArrayAppend(disks, &disk) < 0)
-            return -1;
+        if (virJSONValueObjectAppendString(disk, "id", diskdef->info.alias) < 0) {
+            return NULL;
+        }
 
         break;
     case VIR_STORAGE_TYPE_NONE:
@@ -276,10 +288,10 @@ virCHMonitorBuildDiskJson(virJSONValue *disks, virDomainDiskDef *diskdef)
     case VIR_STORAGE_TYPE_LAST:
     default:
         virReportEnumRangeError(virStorageType, diskdef->src->type);
-        return -1;
+        return NULL;
     }
 
-    return 0;
+    return g_steal_pointer(&disk);
 }
 
 static int
@@ -292,7 +304,11 @@ virCHMonitorBuildDisksJson(virJSONValue *content, virDomainDef *vmdef)
         disks = virJSONValueNewArray();
 
         for (i = 0; i < vmdef->ndisks; i++) {
-            if (virCHMonitorBuildDiskJson(disks, vmdef->disks[i]) < 0)
+            g_autoptr(virJSONValue) disk = NULL;
+
+            if ((disk = virCHMonitorBuildDiskJson(vmdef->disks[i])) == NULL)
+                return -1;
+            if (virJSONValueArrayAppend(disks, &disk) < 0)
                 return -1;
         }
         if (virJSONValueObjectAppend(content, "disks", &disks) < 0)
@@ -300,6 +316,26 @@ virCHMonitorBuildDisksJson(virJSONValue *content, virDomainDef *vmdef)
     }
 
     return 0;
+}
+
+int
+virCHMonitorAddDisk(virCHMonitor *monitor,
+                    virDomainDiskDef *diskdef)
+{
+    g_autoptr(virJSONValue) disk = virCHMonitorBuildDiskJson(diskdef);
+    g_autoptr(virJSONValue) response = NULL;
+
+    if (!disk) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       _("Could not build disk json"));
+        return -1;
+    }
+
+    return virCHMonitorPut(monitor,
+                           URL_VM_ADD_DISK,
+                           disk,
+                           NULL,
+                           NULL);
 }
 
 static int
@@ -551,20 +587,39 @@ virCHMonitorBuildVMJson(virCHDriver *driver, virDomainDef *vmdef,
     return 0;
 }
 
+static virJSONValue*
+virCHMonitorBuildKeyValueJson(const char *key,
+                              const char *value)
+{
+    g_autoptr(virJSONValue) content = virJSONValueNewObject();
+
+    if (virJSONValueObjectAppendString(content, key, value) < 0)
+        return NULL;
+
+    return g_steal_pointer(&content);
+}
+
 static int
 virCHMonitorBuildKeyValueStringJson(char **jsonstr,
                                     const char *key,
                                     const char *value)
 {
-    g_autoptr(virJSONValue) content = virJSONValueNewObject();
-
-    if (virJSONValueObjectAppendString(content, key, value) < 0)
-        return -1;
+    g_autoptr(virJSONValue) content = virCHMonitorBuildKeyValueJson(key, value);
 
     if (!(*jsonstr = virJSONValueToString(content, false)))
         return -1;
 
     return 0;
+}
+
+int virCHMonitorRemoveDevice(virCHMonitor *mon,
+                             const char* device_id)
+{
+    g_autoptr(virJSONValue) payload = virCHMonitorBuildKeyValueJson("id", device_id);
+
+    VIR_DEBUG("Remove device %s", device_id);
+
+    return virCHMonitorPut(mon, URL_VM_REMOVE_DEVICE, payload, NULL, NULL);
 }
 
 static int
@@ -858,12 +913,16 @@ curl_callback(void *contents, size_t size, size_t nmemb, void *userp)
     return content_size;
 }
 
-int
-virCHMonitorPutNoContent(virCHMonitor *mon, const char *endpoint,
-                         domainLogContext *logCtxt)
+static int
+virCHMonitorPut(virCHMonitor *mon,
+                const char *endpoint,
+                virJSONValue *payload,
+                domainLogContext *logCtxt,
+                virJSONValue **answer)
 {
     VIR_LOCK_GUARD lock = virObjectLockGuard(mon);
     g_autofree char *url = NULL;
+    g_autofree char *payload_str = NULL;
     int responseCode = 0;
     int ret = -1;
     struct curl_data data = {0};
@@ -881,26 +940,54 @@ virCHMonitorPutNoContent(virCHMonitor *mon, const char *endpoint,
     curl_easy_setopt(mon->handle, CURLOPT_INFILESIZE, 0L);
 
     headers = curl_slist_append(headers, "Accept: application/json");
+
     curl_easy_setopt(mon->handle, CURLOPT_HTTPHEADER, headers);
     curl_easy_setopt(mon->handle, CURLOPT_WRITEFUNCTION, curl_callback);
     curl_easy_setopt(mon->handle, CURLOPT_WRITEDATA, (void *)&data);
 
+    if (payload) {
+        payload_str = virJSONValueToString(payload, false);
+        curl_easy_setopt(mon->handle, CURLOPT_POSTFIELDS, payload_str);
+        curl_easy_setopt(mon->handle, CURLOPT_CUSTOMREQUEST, "PUT");
+        headers = curl_slist_append(headers, "Content-Type: application/json");
+    }
+
     responseCode = virCHMonitorCurlPerform(mon->handle);
+
+    data.content = g_realloc(data.content, data.size + 1);
+    data.content[data.size] = '\0';
 
     if (logCtxt && data.size) {
         /* Do this to append a NULL char at the end of data */
-        data.content = g_realloc(data.content, data.size + 1);
-        data.content[data.size] = 0;
         domainLogContextWrite(logCtxt, "HTTP response code from CH: %d\n", responseCode);
         domainLogContextWrite(logCtxt, "Response = %s\n", data.content);
     }
 
-    if (responseCode == 200 || responseCode == 204)
-        ret = 0;
+    if (responseCode != 200 && responseCode != 204) {
+        ret = -1;
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("Invalid HTTP response code from CH: %1$d"),
+                       responseCode);
+        goto cleanup;
+    }
 
+    if (answer)
+        *answer = virJSONValueFromString(data.content);
+
+    ret = 0;
+
+ cleanup:
     curl_slist_free_all(headers);
-
+    g_free(data.content);
     return ret;
+}
+
+int
+virCHMonitorPutNoContent(virCHMonitor *mon,
+                         const char *endpoint,
+                         domainLogContext *logCtxt)
+{
+    return virCHMonitorPut(mon, endpoint, NULL, logCtxt, NULL);
 }
 
 static int

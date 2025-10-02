@@ -1732,6 +1732,125 @@ qemuMigrationSrcIsAllowed(virDomainObj *vm,
     return true;
 }
 
+
+static int
+qemuMigrationSrcCheckStorageSourceSafety(virStorageSource *src,
+                                         virQEMUDriverConfig *cfg,
+                                         bool *unsafe_storage,
+                                         bool *requires_safe_cache)
+{
+    switch (virStorageSourceGetActualType(src)) {
+    case VIR_STORAGE_TYPE_FILE: {
+        int rc_cluster = virFileIsClusterFS(src->path);
+        int rc_shared = virFileIsSharedFS(src->path, cfg->sharedFilesystems);
+
+        if (rc_cluster < 0 || rc_shared < 0)
+            return -1;
+
+        if (rc_cluster == 0) {
+            *requires_safe_cache = true;
+
+            if (rc_shared == 0)
+                *unsafe_storage = true;
+        }
+    }
+        break;
+
+    case VIR_STORAGE_TYPE_NETWORK:
+        break;
+
+    case VIR_STORAGE_TYPE_NVME:
+        *unsafe_storage = true;
+        break;
+
+    case VIR_STORAGE_TYPE_VHOST_USER:
+    case VIR_STORAGE_TYPE_VHOST_VDPA:
+    case VIR_STORAGE_TYPE_NONE:
+    case VIR_STORAGE_TYPE_BLOCK:
+    case VIR_STORAGE_TYPE_DIR:
+    case VIR_STORAGE_TYPE_VOLUME:
+    case VIR_STORAGE_TYPE_LAST:
+        *requires_safe_cache = true;
+        break;
+    }
+
+    return 0;
+}
+
+
+static bool
+qemuMigrationSrcIsSafeDisk(virDomainObj *vm,
+                           virDomainDiskDef *disk,
+                           virQEMUCaps *qemuCaps,
+                           virQEMUDriverConfig *cfg,
+                           GHashTable **blockNamedNodeData)
+{
+    bool unsafe_storage = false;
+    bool requires_safe_cache = false;
+    bool skip_overlay_check = false;
+
+    /* Disks without any source (i.e. floppies and CD-ROMs) OR readonly are safe. */
+    if (virStorageSourceIsEmpty(disk->src) ||
+        disk->src->readonly)
+        return true;
+
+    if (disk->src->dataFileStore &&
+        !virStorageSourceHasBacking(disk->src)) {
+        qemuBlockNamedNodeData *nodedata;
+
+        /* As a special case if the topmost disk image is a qcow2 with a
+         * data_file and the 'data_file_raw' option enabled, the overlay itself
+         * contains no useful data. Kubevirt uses this setup for migrations
+         * where the qcow2 overlay is used for block dirty bitmaps which are
+         * migrated using migration stream and kubevirt thus pre-creates the
+         * overlay rather than putting it on shared storage */
+
+        if (!*blockNamedNodeData &&
+            !(*blockNamedNodeData = qemuBlockGetNamedNodeData(vm,
+                                                              VIR_ASYNC_JOB_MIGRATION_OUT)))
+            return false;
+
+        if ((nodedata = virHashLookup(*blockNamedNodeData,
+                                      qemuBlockStorageSourceGetFormatNodename(disk->src)))) {
+
+            if (nodedata->qcow2dataFileRaw)
+                skip_overlay_check = true;
+        }
+    }
+
+    if (!skip_overlay_check &&
+        qemuMigrationSrcCheckStorageSourceSafety(disk->src, cfg, &unsafe_storage,
+                                                 &requires_safe_cache) < 0)
+        return false;
+
+    if (disk->src->dataFileStore &&
+        qemuMigrationSrcCheckStorageSourceSafety(disk->src->dataFileStore,
+                                                 cfg, &unsafe_storage,
+                                                 &requires_safe_cache) < 0)
+        return false;
+
+    if (unsafe_storage) {
+        virReportError(VIR_ERR_MIGRATE_UNSAFE, "%s",
+                       _("Migration without shared storage is unsafe"));
+        return false;
+    }
+
+    /* Our code elsewhere guarantees shared disks are either readonly (in
+     * which case cache mode doesn't matter) or used with cache=none or used with cache=directsync */
+    if (requires_safe_cache &&
+        !(disk->src->shared ||
+          disk->cachemode == VIR_DOMAIN_DISK_CACHE_DISABLE ||
+          disk->cachemode == VIR_DOMAIN_DISK_CACHE_DIRECTSYNC ||
+          virQEMUCapsGet(qemuCaps, QEMU_CAPS_MIGRATION_FILE_DROP_CACHE))) {
+        virReportError(VIR_ERR_MIGRATE_UNSAFE, "%s",
+                       _("Migration may lead to data corruption if disks use cache other than none or directsync"));
+        return false;
+    }
+
+    return true;
+}
+
+
 static bool
 qemuMigrationSrcIsSafe(virDomainObj *vm,
                        const char **migrate_disks,
@@ -1739,83 +1858,22 @@ qemuMigrationSrcIsSafe(virDomainObj *vm,
 
 {
     qemuDomainObjPrivate *priv = vm->privateData;
-    virQEMUCaps *qemuCaps = priv->qemuCaps;
-    virQEMUDriver *driver = priv->driver;
-    g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
+    g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(priv->driver);
+    g_autoptr(GHashTable) blockNamedNodeData = NULL;
     bool storagemigration = flags & (VIR_MIGRATE_NON_SHARED_DISK |
                                      VIR_MIGRATE_NON_SHARED_INC);
     size_t i;
-    int rc;
 
     for (i = 0; i < vm->def->ndisks; i++) {
         virDomainDiskDef *disk = vm->def->disks[i];
-        const char *src = virDomainDiskGetSource(disk);
-        virStorageType actualType = virStorageSourceGetActualType(disk->src);
-        bool unsafe = false;
 
-        /* Disks without any source (i.e. floppies and CD-ROMs)
-         * OR readonly are safe. */
-        if (virStorageSourceIsEmpty(disk->src) ||
-            disk->src->readonly)
-            continue;
-
-        /* Disks which are migrated by qemu are safe too. */
+        /* Disks which are migrated by qemu are safe */
         if (storagemigration &&
             qemuMigrationAnyCopyDisk(disk, migrate_disks))
             continue;
 
-        /* However, disks on local FS (e.g. ext4) are not safe. */
-        switch (actualType) {
-        case VIR_STORAGE_TYPE_FILE:
-            if ((rc = virFileIsSharedFS(src, cfg->sharedFilesystems)) < 0) {
-                return false;
-            } else if (rc == 0) {
-                unsafe = true;
-            }
-            if ((rc = virFileIsClusterFS(src)) < 0)
-                return false;
-            else if (rc == 1)
-                continue;
-            break;
-        case VIR_STORAGE_TYPE_NETWORK:
-            /* But network disks are safe again. */
-            continue;
-
-        case VIR_STORAGE_TYPE_NVME:
-            unsafe = true;
-            break;
-
-        case VIR_STORAGE_TYPE_VHOST_USER:
-        case VIR_STORAGE_TYPE_VHOST_VDPA:
-        case VIR_STORAGE_TYPE_NONE:
-        case VIR_STORAGE_TYPE_BLOCK:
-        case VIR_STORAGE_TYPE_DIR:
-        case VIR_STORAGE_TYPE_VOLUME:
-        case VIR_STORAGE_TYPE_LAST:
-            break;
-        }
-
-        if (unsafe) {
-            virReportError(VIR_ERR_MIGRATE_UNSAFE, "%s",
-                           _("Migration without shared storage is unsafe"));
+        if (!qemuMigrationSrcIsSafeDisk(vm, disk, priv->qemuCaps, cfg, &blockNamedNodeData))
             return false;
-        }
-
-        /* Our code elsewhere guarantees shared disks are either readonly (in
-         * which case cache mode doesn't matter) or used with cache=none or used with cache=directsync */
-        if (disk->src->shared ||
-            disk->cachemode == VIR_DOMAIN_DISK_CACHE_DISABLE ||
-            disk->cachemode == VIR_DOMAIN_DISK_CACHE_DIRECTSYNC)
-            continue;
-
-        if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_MIGRATION_FILE_DROP_CACHE)) {
-            VIR_DEBUG("QEMU supports flushing caches; migration is safe");
-            continue;
-        }
-
-        virReportError(VIR_ERR_MIGRATE_UNSAFE, "%s",
-                       _("Migration may lead to data corruption if disks use cache other than none or directsync"));
-        return false;
     }
 
     return true;
@@ -2387,20 +2445,14 @@ qemuMigrationDstOPDRelocate(virQEMUDriver *driver G_GNUC_UNUSED,
 
 
 int
-qemuMigrationDstCheckProtocol(virQEMUCaps *qemuCaps,
-                              const char *migrateFrom)
+qemuMigrationDstCheckProtocol(const char *migrateFrom)
 {
-    if (STRPREFIX(migrateFrom, "rdma")) {
-        if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_MIGRATE_RDMA)) {
-            virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
-                           _("incoming RDMA migration is not supported with this QEMU binary"));
-            return -1;
-        }
-    } else if (!STRPREFIX(migrateFrom, "tcp") &&
-               !STRPREFIX(migrateFrom, "exec") &&
-               !STRPREFIX(migrateFrom, "fd") &&
-               !STRPREFIX(migrateFrom, "unix") &&
-               STRNEQ(migrateFrom, "stdio")) {
+    if (!STRPREFIX(migrateFrom, "tcp") &&
+        !STRPREFIX(migrateFrom, "exec") &&
+        !STRPREFIX(migrateFrom, "fd") &&
+        !STRPREFIX(migrateFrom, "unix") &&
+        !STRPREFIX(migrateFrom, "rdma") &&
+        STRNEQ(migrateFrom, "stdio")) {
         virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
                        _("unknown migration protocol"));
         return -1;
@@ -5330,7 +5382,6 @@ qemuMigrationSrcPerformNative(virQEMUDriver *driver,
                               qemuMigrationParams *migParams,
                               const char *nbdURI)
 {
-    qemuDomainObjPrivate *priv = vm->privateData;
     g_autoptr(virURI) uribits = NULL;
     int ret = -1;
     qemuMigrationSpec spec;
@@ -5353,11 +5404,6 @@ qemuMigrationSrcPerformNative(virQEMUDriver *driver,
     }
 
     if (STREQ(uribits->scheme, "rdma")) {
-        if (!virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_MIGRATE_RDMA)) {
-            virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
-                           _("outgoing RDMA migration is not supported with this QEMU binary"));
-            return -1;
-        }
         if (!virMemoryLimitIsSet(vm->def->mem.hard_limit)) {
             virReportError(VIR_ERR_OPERATION_INVALID, "%s",
                            _("cannot start RDMA migration with no memory hard limit set"));

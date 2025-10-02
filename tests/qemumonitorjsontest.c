@@ -30,7 +30,6 @@
 #include "qemu/qemu_alias.h"
 #include "qemu/qemu_chardev.h"
 #include "virerror.h"
-#include "cpu/cpu.h"
 #include "qemu/qemu_monitor.h"
 #include "qemu/qemu_migration_params.h"
 #define LIBVIRT_QEMU_MIGRATION_PARAMSPRIV_H_ALLOW
@@ -487,52 +486,6 @@ testQemuMonitorJSONGetCPUDefinitions(const void *opaque)
 #undef CHECK
 #undef CHECK_USABLE
 #undef CHECK_FULL
-
-    return 0;
-}
-
-
-static int
-testQemuMonitorJSONGetTPMModels(const void *opaque)
-{
-    const testGenericData *data = opaque;
-    virDomainXMLOption *xmlopt = data->xmlopt;
-    g_auto(GStrv) tpmmodels = NULL;
-    g_autoptr(qemuMonitorTest) test = NULL;
-
-    if (!(test = qemuMonitorTestNewSchema(xmlopt, data->schema)))
-        return -1;
-
-    if (qemuMonitorTestAddItem(test, "query-tpm-models",
-                               "{ "
-                               "  \"return\": [ "
-                               "  \"passthrough\""
-                               "  ]"
-                               "}") < 0)
-        return -1;
-
-    if (qemuMonitorGetTPMModels(qemuMonitorTestGetMonitor(test), &tpmmodels) < 0)
-        return -1;
-
-    if (g_strv_length(tpmmodels) != 1) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       "expected 1 tpm model");
-        return -1;
-    }
-
-#define CHECK(i, wantname) \
-    do { \
-        if (STRNEQ(tpmmodels[i], (wantname))) { \
-            virReportError(VIR_ERR_INTERNAL_ERROR, \
-                           "name %s is not %s", \
-                           tpmmodels[i], (wantname)); \
-            return -1; \
-        } \
-    } while (0)
-
-    CHECK(0, "passthrough");
-
-#undef CHECK
 
     return 0;
 }
@@ -2155,108 +2108,6 @@ testQemuMonitorJSONqemuMonitorJSONGetDumpGuestMemoryCapability(const void *opaqu
     return 0;
 }
 
-struct testCPUData {
-    const char *name;
-    virDomainXMLOption *xmlopt;
-    GHashTable *schema;
-};
-
-
-static int
-testQemuMonitorJSONGetCPUData(const void *opaque)
-{
-    const struct testCPUData *data = opaque;
-    g_autoptr(virCPUData) cpuData = NULL;
-    g_autofree char *jsonFile = NULL;
-    g_autofree char *dataFile = NULL;
-    g_autofree char *jsonStr = NULL;
-    g_autofree char *actual = NULL;
-    g_autoptr(qemuMonitorTest) test = NULL;
-
-    if (!(test = qemuMonitorTestNewSchema(data->xmlopt, data->schema)))
-        return -1;
-
-    jsonFile = g_strdup_printf("%s/qemumonitorjsondata/qemumonitorjson-getcpu-%s.json",
-                               abs_srcdir, data->name);
-    dataFile = g_strdup_printf("%s/qemumonitorjsondata/qemumonitorjson-getcpu-%s.data",
-                               abs_srcdir, data->name);
-
-    if (virTestLoadFile(jsonFile, &jsonStr) < 0)
-        return -1;
-
-    if (qemuMonitorTestAddItem(test, "qom-list",
-                               "{"
-                               "    \"return\": ["
-                               "        {"
-                               "            \"name\": \"filtered-features\","
-                               "            \"type\": \"X86CPUFeatureWordInfo\""
-                               "        },"
-                               "        {"
-                               "            \"name\": \"feature-words\","
-                               "            \"type\": \"X86CPUFeatureWordInfo\""
-                               "        }"
-                               "    ],"
-                               "    \"id\": \"libvirt-19\""
-                               "}") < 0)
-        return -1;
-
-    if (qemuMonitorTestAddItem(test, "qom-get", jsonStr) < 0)
-        return -1;
-
-    if (qemuMonitorJSONGetGuestCPUx86(qemuMonitorTestGetMonitor(test),
-                                      "dummy",
-                                      &cpuData, NULL) < 0)
-        return -1;
-
-    if (!(actual = virCPUDataFormat(cpuData)))
-        return -1;
-
-    if (virTestCompareToFile(actual, dataFile) < 0)
-        return -1;
-
-    return 0;
-}
-
-static int
-testQemuMonitorJSONGetNonExistingCPUData(const void *opaque)
-{
-    const testGenericData *data = opaque;
-    virDomainXMLOption *xmlopt = data->xmlopt;
-    g_autoptr(virCPUData) cpuData = NULL;
-    int rv;
-    g_autoptr(qemuMonitorTest) test = NULL;
-
-    if (!(test = qemuMonitorTestNewSchema(xmlopt, data->schema)))
-        return -1;
-
-    if (qemuMonitorTestAddItem(test, "qom-list",
-                               "{"
-                               "    \"id\": \"libvirt-7\","
-                               "    \"error\": {"
-                               "        \"class\": \"CommandNotFound\","
-                               "        \"desc\": \"The command qom-list has not been found\""
-                               "    }"
-                               "}") < 0)
-        return -1;
-
-    rv = qemuMonitorJSONGetGuestCPUx86(qemuMonitorTestGetMonitor(test),
-                                       "dummy",
-                                       &cpuData, NULL);
-    if (rv != -2) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       "Unexpected return value %d, expecting -2", rv);
-        return -1;
-    }
-
-    if (cpuData) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       "Unexpected allocation of data = %p, expecting NULL",
-                       cpuData);
-        return -1;
-    }
-
-    return 0;
-}
 
 static int
 testQemuMonitorJSONGetIOThreads(const void *opaque)
@@ -2406,7 +2257,6 @@ static int
 testQemuMonitorCPUInfo(const void *opaque)
 {
     const struct testCPUInfoData *data = opaque;
-    virDomainObj *vm = NULL;
     g_autofree char *queryCpusFile = NULL;
     g_autofree char *queryHotpluggableFile = NULL;
     g_autofree char *dataFile = NULL;
@@ -2439,10 +2289,6 @@ testQemuMonitorCPUInfo(const void *opaque)
         goto cleanup;
 
     if (qemuMonitorTestAddItem(test, "query-cpus-fast", queryCpusStr) < 0)
-        goto cleanup;
-
-    vm = qemuMonitorTestGetDomainObj(test);
-    if (!vm)
         goto cleanup;
 
     rc = qemuMonitorGetCPUInfo(qemuMonitorTestGetMonitor(test),
@@ -2654,8 +2500,6 @@ testQemuMonitorJSONTransaction(const void *opaque)
 
     if (qemuMonitorTransactionBitmapAdd(actions, "node1", "bitmap1", true, true, 1234) < 0 ||
         qemuMonitorTransactionBitmapRemove(actions, "node2", "bitmap2") < 0 ||
-        qemuMonitorTransactionBitmapEnable(actions, "node3", "bitmap3") < 0 ||
-        qemuMonitorTransactionBitmapDisable(actions, "node4", "bitmap4") < 0 ||
         qemuMonitorTransactionBitmapMerge(actions, "node5", "bitmap5", &mergebitmaps) < 0 ||
         qemuMonitorTransactionSnapshotBlockdev(actions, "node7", "overlay7") < 0 ||
         qemuMonitorTransactionBackup(actions, "dev8", "job8", "target8", "bitmap8",
@@ -2926,6 +2770,63 @@ testQemuMonitorJSONGetSEVInfo(const void *opaque)
     return 0;
 }
 
+
+struct testQemuMonitorJSONGetGuestCPUData {
+    const char *name;
+    bool qomListGet;
+    virQEMUDriver driver;
+    GHashTable *schema;
+};
+
+static int
+testQemuMonitorJSONGetGuestCPU(const void *opaque)
+{
+    struct testQemuMonitorJSONGetGuestCPUData *data = (void *) opaque;
+    const char *base = abs_srcdir "/qemumonitorjsondata/get-guest-cpu";
+    g_autofree char *fileJSON = NULL;
+    g_autofree char *fileEnabled = NULL;
+    g_autofree char *fileDisabled = NULL;
+    g_autoptr(qemuMonitorTest) mon = NULL;
+    g_autoptr(virCPUData) dataEnabled = NULL;
+    g_autoptr(virCPUData) dataDisabled = NULL;
+    g_autofree char *enabled = NULL;
+    g_autofree char *disabled = NULL;
+    bool failed = false;
+    const char *legacy = data->qomListGet ? "" : "-legacy";
+
+    fileJSON = g_strdup_printf("%s-%s%s.json", base, data->name, legacy);
+    fileEnabled = g_strdup_printf("%s-%s-enabled.xml", base, data->name);
+    fileDisabled = g_strdup_printf("%s-%s-disabled.xml", base, data->name);
+
+    if (!(mon = qemuMonitorTestNewFromFileFull(fileJSON, &data->driver,
+                                               NULL, data->schema)))
+        return -1;
+
+    if (qemuMonitorJSONGetGuestCPU(qemuMonitorTestGetMonitor(mon),
+                                   VIR_ARCH_X86_64,
+                                   data->qomListGet,
+                                   "/machine/unattached/device[0]",
+                                   virQEMUCapsCPUFeatureFromQEMU,
+                                   &dataEnabled, &dataDisabled) < 0)
+        return -1;
+
+    if (!(enabled = virCPUDataFormat(dataEnabled)) ||
+        !(disabled = virCPUDataFormat(dataDisabled)))
+        return -1;
+
+    if (virTestCompareToFile(enabled, fileEnabled) < 0)
+        failed = true;
+
+    if (virTestCompareToFile(disabled, fileDisabled) < 0)
+        failed = true;
+
+    if (failed)
+        return -1;
+
+    return 0;
+}
+
+
 static int
 mymain(void)
 {
@@ -2977,14 +2878,6 @@ mymain(void)
 #define DO_TEST_GEN_DEPRECATED(name, removed, ...) \
     DO_TEST_GEN_FULL(name, true, removed, __VA_ARGS__)
 
-#define DO_TEST_CPU_DATA(name) \
-    do { \
-        struct testCPUData data = { name, driver.xmlopt, qapiData.schema }; \
-        const char *label = "GetCPUData(" name ")"; \
-        if (virTestRun(label, testQemuMonitorJSONGetCPUData, &data) < 0) \
-            ret = -1; \
-    } while (0)
-
 #define DO_TEST_CPU_INFO(name, maxvcpus) \
     do { \
         struct testCPUInfoData data = {name, maxvcpus, driver.xmlopt, \
@@ -2994,11 +2887,22 @@ mymain(void)
             ret = -1; \
     } while (0)
 
+#define DO_TEST_GET_GUEST_CPU(name, qomListGet) \
+    do { \
+        struct testQemuMonitorJSONGetGuestCPUData data = { \
+            name, qomListGet, driver, qapiData.schema }; \
+        g_autofree char *label = NULL; \
+        label = g_strdup_printf("GetGuestCPU(%s, legacy=%d)", name, qomListGet); \
+        if (virTestRun(label, \
+                       testQemuMonitorJSONGetGuestCPU, \
+                       &data) < 0) \
+            ret = -1; \
+    } while (0)
+
     DO_TEST(GetStatus);
     DO_TEST(GetVersion);
     DO_TEST(GetMachines);
     DO_TEST(GetCPUDefinitions);
-    DO_TEST(GetTPMModels);
     if (qemuMonitorJSONTestAttachChardev(driver.xmlopt, qapiData.schema) < 0)
         ret = -1;
     DO_TEST(DetachChardev);
@@ -3007,7 +2911,6 @@ mymain(void)
     DO_TEST(SetObjectProperty);
     DO_TEST(GetDeviceAliases);
     DO_TEST(CPU);
-    DO_TEST(GetNonExistingCPUData);
     DO_TEST(GetIOThreads);
     DO_TEST(GetSEVInfo);
     DO_TEST(Transaction);
@@ -3069,10 +2972,6 @@ mymain(void)
     DO_TEST(qemuMonitorJSONSnapshot);
     DO_TEST(qemuMonitorJSONBlockdevSetActive);
 
-    DO_TEST_CPU_DATA("host");
-    DO_TEST_CPU_DATA("full");
-    DO_TEST_CPU_DATA("ecx");
-
     DO_TEST_CPU_INFO("x86-basic-pluggable", 8);
     DO_TEST_CPU_INFO("x86-full", 11);
     DO_TEST_CPU_INFO("x86-node-full", 8);
@@ -3089,6 +2988,11 @@ mymain(void)
     DO_TEST_CPU_INFO("aarch64-clusters", 16);
 
     DO_TEST_CPU_INFO("s390", 2);
+
+    DO_TEST_GET_GUEST_CPU("SierraForest", false);
+    DO_TEST_GET_GUEST_CPU("SierraForest", true);
+    DO_TEST_GET_GUEST_CPU("SkylakeClient", false);
+    DO_TEST_GET_GUEST_CPU("SkylakeClient", true);
 
 
 #define DO_TEST_QAPI_QUERY(nme, qry, scc, rplobj) \

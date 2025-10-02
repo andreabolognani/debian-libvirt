@@ -25,6 +25,7 @@
 #include "ch_conf.h"
 #include "ch_domain.h"
 #include "ch_driver.h"
+#include "ch_hotplug.h"
 #include "ch_monitor.h"
 #include "ch_process.h"
 #include "domain_cgroup.h"
@@ -669,9 +670,13 @@ chDomainDestroyFlags(virDomainPtr dom, unsigned int flags)
     virCHDriver *driver = dom->conn->privateData;
     virDomainObj *vm;
     virObjectEvent *event = NULL;
+    unsigned int stopFlags = 0;
     int ret = -1;
 
-    virCheckFlags(0, -1);
+    virCheckFlags(VIR_DOMAIN_DESTROY_GRACEFUL, -1);
+
+    if (!(flags & VIR_DOMAIN_DESTROY_GRACEFUL))
+        stopFlags |= VIR_CH_PROCESS_STOP_FORCE;
 
     if (!(vm = virCHDomainObjFromDomain(dom)))
         goto cleanup;
@@ -685,8 +690,10 @@ chDomainDestroyFlags(virDomainPtr dom, unsigned int flags)
     if (virDomainObjCheckActive(vm) < 0)
         goto endjob;
 
-    if (virCHProcessStop(driver, vm, VIR_DOMAIN_SHUTOFF_DESTROYED) < 0)
+    if (virCHProcessStop(driver, vm,
+                         VIR_DOMAIN_SHUTOFF_DESTROYED, stopFlags) < 0) {
         goto endjob;
+    }
 
     event = virDomainEventLifecycleNewFromObj(vm,
                                               VIR_DOMAIN_EVENT_STOPPED,
@@ -817,7 +824,8 @@ chDoDomainSave(virCHDriver *driver,
         goto end;
     }
 
-    if (virCHProcessStop(driver, vm, VIR_DOMAIN_SHUTOFF_SAVED) < 0) {
+    if (virCHProcessStop(driver, vm,
+                         VIR_DOMAIN_SHUTOFF_SAVED, VIR_CH_PROCESS_STOP_FORCE) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        _("Failed to shutoff after domain save"));
         goto end;
@@ -2344,6 +2352,126 @@ chDomainInterfaceAddresses(virDomain *dom,
     return ret;
 }
 
+static int
+chDomainAttachDeviceFlags(virDomainPtr dom,
+                          const char *xml,
+                          unsigned int flags)
+{
+    virCHDriver *driver = dom->conn->privateData;
+    virDomainObj *vm = NULL;
+    int ret = -1;
+
+    if (!(vm = virCHDomainObjFromDomain(dom)))
+        goto cleanup;
+
+    if (virDomainAttachDeviceFlagsEnsureACL(dom->conn, vm->def, flags) < 0)
+        goto cleanup;
+
+    if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
+        goto cleanup;
+
+    if (virDomainObjUpdateModificationImpact(vm, &flags) < 0)
+        goto endjob;
+
+    if (chDomainAttachDeviceLiveAndUpdateConfig(vm, driver, xml, flags) < 0) {
+        goto endjob;
+    }
+
+    ret = 0;
+
+ endjob:
+    virDomainObjEndJob(vm);
+
+ cleanup:
+    virDomainObjEndAPI(&vm);
+    return ret;
+}
+
+static int
+chDomainAttachDevice(virDomainPtr dom,
+                     const char *xml)
+{
+    return chDomainAttachDeviceFlags(dom, xml, VIR_DOMAIN_AFFECT_LIVE);
+}
+
+static int
+chDomainDetachDeviceFlags(virDomainPtr dom,
+                          const char *xml,
+                          unsigned int flags)
+{
+    virCHDriver *driver = dom->conn->privateData;
+    virDomainObj *vm = NULL;
+    int ret = -1;
+
+    if (!(vm = virCHDomainObjFromDomain(dom)))
+        goto cleanup;
+
+    if (virDomainDetachDeviceFlagsEnsureACL(dom->conn, vm->def, flags) < 0)
+        goto cleanup;
+
+    if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
+        goto cleanup;
+
+    if (virDomainObjUpdateModificationImpact(vm, &flags) < 0)
+        goto endjob;
+
+    if (chDomainDetachDeviceLiveAndUpdateConfig(driver, vm, xml, flags) < 0)
+        goto endjob;
+
+    ret = 0;
+
+ endjob:
+    virDomainObjEndJob(vm);
+
+ cleanup:
+    virDomainObjEndAPI(&vm);
+    return ret;
+}
+
+static int chDomainDetachDevice(virDomainPtr dom, const char *xml)
+{
+    return chDomainDetachDeviceFlags(dom, xml,
+                                     VIR_DOMAIN_AFFECT_LIVE);
+}
+
+
+static int
+chConnectDomainEventRegister(virConnectPtr conn,
+                             virConnectDomainEventCallback callback,
+                             void *opaque,
+                             virFreeCallback freecb)
+{
+    virCHDriver *driver = conn->privateData;
+
+    if (virConnectDomainEventRegisterEnsureACL(conn) < 0)
+        return -1;
+
+    if (virDomainEventStateRegister(conn,
+                                    driver->domainEventState,
+                                    callback, opaque, freecb) < 0)
+        return -1;
+
+    return 0;
+}
+
+
+static int
+chConnectDomainEventDeregister(virConnectPtr conn,
+                               virConnectDomainEventCallback callback)
+{
+    virCHDriver *driver = conn->privateData;
+
+    if (virConnectDomainEventDeregisterEnsureACL(conn) < 0)
+        return -1;
+
+    if (virDomainEventStateDeregister(conn,
+                                      driver->domainEventState,
+                                      callback) < 0)
+        return -1;
+
+    return 0;
+}
+
 
 /* Function Tables */
 static virHypervisorDriver chHypervisorDriver = {
@@ -2406,6 +2534,12 @@ static virHypervisorDriver chHypervisorDriver = {
     .connectDomainEventRegisterAny = chConnectDomainEventRegisterAny,       /* 10.10.0 */
     .connectDomainEventDeregisterAny = chConnectDomainEventDeregisterAny,   /* 10.10.0 */
     .domainInterfaceAddresses = chDomainInterfaceAddresses, /* 11.0.0 */
+    .domainAttachDevice = chDomainAttachDevice, /* 11.8.0 */
+    .domainAttachDeviceFlags = chDomainAttachDeviceFlags, /* 11.8.0 */
+    .domainDetachDevice = chDomainDetachDevice, /* 11.8.0 */
+    .domainDetachDeviceFlags = chDomainDetachDeviceFlags, /* 11.8.0 */
+    .connectDomainEventRegister = chConnectDomainEventRegister, /* 11.8.0 */
+    .connectDomainEventDeregister = chConnectDomainEventDeregister, /* 11.8.0 */
 };
 
 static virConnectDriver chConnectDriver = {

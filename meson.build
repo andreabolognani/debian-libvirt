@@ -1,6 +1,6 @@
 project(
   'libvirt', 'c',
-  version: '11.7.0',
+  version: '11.8.0',
   license: 'LGPLv2+',
   meson_version: '>= 0.57.0',
   default_options: [
@@ -981,7 +981,7 @@ else
   endif
 endif
 
-glib_version = '2.66.0'
+glib_version = '2.68'
 glib_dep = dependency('glib-2.0', version: '>=' + glib_version)
 gobject_dep = dependency('gobject-2.0', version: '>=' + glib_version)
 if host_machine.system() == 'windows'

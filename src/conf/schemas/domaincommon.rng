@@ -3978,6 +3978,16 @@
               <ref name="absFilePath"/>
             </attribute>
           </optional>
+          <optional>
+            <attribute name="hostname">
+              <ref name="dnsName"/>
+            </attribute>
+          </optional>
+          <optional>
+            <attribute name="fqdn">
+              <ref name="dnsName"/>
+            </attribute>
+          </optional>
         </element>
       </optional>
       <optional>
@@ -7452,6 +7462,11 @@
       <optional>
         <attribute name="index">
           <ref name="unsignedInt"/>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="nodeset">
+          <ref name="cpuset"/>
         </attribute>
       </optional>
     </element>
