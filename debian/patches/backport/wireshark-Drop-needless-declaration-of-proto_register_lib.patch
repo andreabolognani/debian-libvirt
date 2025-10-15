@@ -1,0 +1,35 @@
+From: Michal Privoznik <mprivozn@redhat.com>
+Date: Mon, 13 Oct 2025 10:34:51 +0200
+Subject: wireshark: Drop needless declaration of proto_register_libvirt() and
+ proto_reg_handoff_libvirt()
+
+Both proto_register_libvirt() and proto_reg_handoff_libvirt() are
+declared in packet-libvirt.h which is included from plugin.c.
+There's no need to provide another declaration in plugin.c.
+
+Signed-off-by: Michal Privoznik <mprivozn@redhat.com>
+Reviewed-by: Peter Krempa <pkrempa@redhat.com>
+(cherry picked from commit b825bb556bd3967bf5422c243b77bd4038e317e2)
+
+Bug-Debian: https://bugs.debian.org/1118069
+
+Forwarded: not-needed
+Origin: https://gitlab.com/libvirt/libvirt/-/commit/b825bb556bd3967bf5422c243b77bd4038e317e2
+---
+ tools/wireshark/src/plugin.c | 3 ---
+ 1 file changed, 3 deletions(-)
+
+diff --git a/tools/wireshark/src/plugin.c b/tools/wireshark/src/plugin.c
+index 9a83f2c..19b25e7 100644
+--- a/tools/wireshark/src/plugin.c
++++ b/tools/wireshark/src/plugin.c
+@@ -72,9 +72,6 @@ void plugin_register(void)
+ 
+ #else /* WIRESHARK_VERSION >= 2009000 */
+ 
+-void proto_register_libvirt(void);
+-void proto_reg_handoff_libvirt(void);
+-
+ WS_DLL_PUBLIC_DEF const gchar plugin_version[] = PLUGIN_VERSION;
+ WS_DLL_PUBLIC_DEF const int plugin_want_major = WIRESHARK_VERSION_MAJOR;
+ WS_DLL_PUBLIC_DEF const int plugin_want_minor = WIRESHARK_VERSION_MINOR;

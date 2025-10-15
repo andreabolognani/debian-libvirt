@@ -1,3 +1,11 @@
+backport/wireshark-Drop-needless-declaration-of-proto_register_lib.patch
+backport/wireshark-Switch-header-files-to-pragma-once.patch
+backport/wireshark-Move-WIRESHARK_VERSION-macro-definition.patch
+backport/wireshark-Fix-int-type-of-some-virNetMessageHeader-member.patch
+backport/wireshark-Don-t-special-case-retval-of-get_program_data-i.patch
+backport/wireshark-Introduce-and-use-vir_val_to_str.patch
+backport/wireshark-Don-t-leak-column-strings.patch
+backport/wireshark-Adapt-to-wireshark-4.6.0.patch
 debian/Debianize-libvirt-guests.patch
 debian/apparmor_profiles_local_include.patch
 debian/Use-sensible-editor-by-default.patch
