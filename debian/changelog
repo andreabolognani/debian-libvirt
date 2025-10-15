@@ -1,3 +1,11 @@
+libvirt (11.8.0-2) unstable; urgency=medium
+
+  * [a17e07a] patches: Add backports
+    - Fix building against Wireshark 4.6.0
+    - Closes: #1118069
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Wed, 15 Oct 2025 14:29:57 +0200
+
 libvirt (11.8.0-1) unstable; urgency=medium
 
   * [b4ab89e] New upstream version 11.8.0
