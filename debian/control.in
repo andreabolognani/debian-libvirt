@@ -8,6 +8,7 @@ Uploaders:
 Build-Depends:
  debhelper-compat (= 13),
  dh-apparmor [linux-any],
+ dh-sequence-installsysusers,
  augeas-tools [linux-any],
  bash-completion,
  libacl1-dev [linux-any],
@@ -169,7 +170,6 @@ Package: libvirt-daemon-common
 Section: admin
 Architecture: linux-any
 Depends:
- adduser,
  dmidecode [${ARCHES_DMIDECODE}],
  gettext-base,
  iproute2,
@@ -248,7 +248,6 @@ Section: admin
 Architecture: ${ARCHES_QEMU}
 Multi-Arch: no
 Depends:
- adduser,
  libvirt-common (= ${binary:Version}),
  libvirt-daemon-log (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
