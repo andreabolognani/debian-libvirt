@@ -1,3 +1,25 @@
+libvirt (11.3.0-3+deb13u1) trixie; urgency=medium
+
+  * [6a549fc] patches: Add backports
+    - backport/tlscert-Don-t-force-keyEncipherment[...]
+    - backport/tls-Don-t-require-keyEncipherment-[...]
+    - backport/tests-[...]-Drop-use-of-GNUTLS_KEY_KEY_ENCIPHERM[...]
+      - Removes the requirement to have keyEncipherment enabled
+        for TLS certificates
+      - Closes: #1110816
+  * [8b355a8] patches: Add backports
+    - backport/daemon-Drop-log-level-of-VIR_ERR_NO_SUPPORT-[...]
+      - Prevents journal spam when using the LXC driver
+      - Closes: #1110963
+  * [f5079ab] patches: Add backports
+    - backport/qemu-capabilities-Check-if-cpuModels-is-not-NULL-[...]
+      - Fixes a daemon crash that occurs when probing capabilities
+        for a QEMU binary that doesn't report information about
+        CPU models
+      - Closes: #1112481
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Sun, 02 Nov 2025 16:54:31 +0100
+
 libvirt (11.3.0-3) unstable; urgency=medium
 
   * [d10b70f] patches: Add backports
