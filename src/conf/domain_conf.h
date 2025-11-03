@@ -164,6 +164,7 @@ typedef enum {
     VIR_DOMAIN_HYPERV_MODE_NONE = 0,
     VIR_DOMAIN_HYPERV_MODE_CUSTOM,
     VIR_DOMAIN_HYPERV_MODE_PASSTHROUGH,
+    VIR_DOMAIN_HYPERV_MODE_HOST_MODEL,
 
     VIR_DOMAIN_HYPERV_MODE_LAST
 } virDomainHyperVMode;
@@ -2800,11 +2801,13 @@ struct _virDomainMemoryDef {
     } target;
 
     virDomainDeviceInfo info;
+    virDomainVirtioOptions *virtio;
 };
 
 virDomainMemoryDef *virDomainMemoryDefNew(virDomainMemoryModel model);
 void virDomainMemoryDefFree(virDomainMemoryDef *def);
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(virDomainMemoryDef, virDomainMemoryDefFree);
+bool virDomainMemoryIsVirtioModel(const virDomainMemoryDef *def);
 
 
 typedef enum {
@@ -3124,6 +3127,14 @@ struct _virDomainPstoreDef {
     virDomainDeviceInfo info;
 };
 
+struct _virDomainHypervFeatures {
+    int features[VIR_DOMAIN_HYPERV_LAST];
+    unsigned int spinlocks;
+    virTristateSwitch stimer_direct;
+    virTristateSwitch tlbflush_direct;
+    virTristateSwitch tlbflush_extended;
+    char *vendor_id;
+};
 
 #define SCSI_SUPER_WIDE_BUS_MAX_CONT_UNIT 64
 #define SCSI_WIDE_BUS_MAX_CONT_UNIT 16
@@ -3195,19 +3206,14 @@ struct _virDomainDef {
      * See virDomainDefFeaturesCheckABIStability() for details. */
     int features[VIR_DOMAIN_FEATURE_LAST];
     int caps_features[VIR_DOMAIN_PROCES_CAPS_FEATURE_LAST];
-    int hyperv_features[VIR_DOMAIN_HYPERV_LAST];
+    virDomainHypervFeatures hyperv;
     virDomainFeatureKVM *kvm_features;
     int msrs_features[VIR_DOMAIN_MSRS_LAST];
     int xen_features[VIR_DOMAIN_XEN_LAST];
     virDomainXenPassthroughMode xen_passthrough_mode;
-    unsigned int hyperv_spinlocks;
-    virTristateSwitch hyperv_stimer_direct;
-    virTristateSwitch hyperv_tlbflush_direct;
-    virTristateSwitch hyperv_tlbflush_extended;
     virGICVersion gic_version;
     virDomainHPTResizing hpt_resizing;
     unsigned long long hpt_maxpagesize; /* Stored in KiB */
-    char *hyperv_vendor_id;
     virTristateSwitch apic_eoi;
     virDomainFeatureTCG *tcg_features;
 
@@ -4727,3 +4733,7 @@ G_DEFINE_AUTOPTR_CLEANUP_FUNC(virDomainThrottleFilterDef, virDomainThrottleFilte
 virDomainThrottleFilterDef *
 virDomainThrottleFilterFind(const virDomainDiskDef *def,
                             const char *name);
+
+bool
+virDomainDefHasTimer(const virDomainDef *def,
+                     virDomainTimerNameType name);

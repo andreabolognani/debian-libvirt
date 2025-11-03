@@ -88,6 +88,68 @@ qemuValidateDomainDefPSeriesFeature(const virDomainDef *def,
 }
 
 
+#define CHECK_HV_FEAT(feat, requires) \
+    if (def->hyperv.features[feat] == VIR_TRISTATE_SWITCH_ON && \
+        def->hyperv.features[requires] != VIR_TRISTATE_SWITCH_ON) { \
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, \
+                       _("'%1$s' hyperv feature requires '%2$s' feature"), \
+                       virDomainHypervTypeToString(feat), \
+                       virDomainHypervTypeToString(requires)); \
+        return -1; \
+    }
+
+static int
+qemuValidateDomainDefHypervFeatures(const virDomainDef *def)
+{
+    if (def->features[VIR_DOMAIN_FEATURE_HYPERV] == VIR_DOMAIN_HYPERV_MODE_NONE)
+        return 0;
+
+    if (!ARCH_IS_X86(def->os.arch) && !qemuDomainIsARMVirt(def)) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("Hyperv features are not supported for architecture '%1$s' or machine type '%2$s'"),
+                       virArchToString(def->os.arch),
+                       def->os.machine);
+        return -1;
+    }
+
+    CHECK_HV_FEAT(VIR_DOMAIN_HYPERV_SYNIC, VIR_DOMAIN_HYPERV_VPINDEX);
+
+    if (def->hyperv.features[VIR_DOMAIN_HYPERV_STIMER] == VIR_TRISTATE_SWITCH_ON) {
+        if (!virDomainDefHasTimer(def, VIR_DOMAIN_TIMER_NAME_HYPERVCLOCK)) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                           _("'%1$s' hyperv feature requires '%2$s' timer"),
+                           virDomainHypervTypeToString(VIR_DOMAIN_HYPERV_STIMER),
+                           virDomainTimerNameTypeToString(VIR_DOMAIN_TIMER_NAME_HYPERVCLOCK));
+            return -1;
+        }
+    }
+
+    CHECK_HV_FEAT(VIR_DOMAIN_HYPERV_STIMER, VIR_DOMAIN_HYPERV_VPINDEX);
+    CHECK_HV_FEAT(VIR_DOMAIN_HYPERV_STIMER, VIR_DOMAIN_HYPERV_SYNIC);
+
+    CHECK_HV_FEAT(VIR_DOMAIN_HYPERV_TLBFLUSH, VIR_DOMAIN_HYPERV_VPINDEX);
+
+    CHECK_HV_FEAT(VIR_DOMAIN_HYPERV_IPI, VIR_DOMAIN_HYPERV_VPINDEX);
+
+    CHECK_HV_FEAT(VIR_DOMAIN_HYPERV_EVMCS, VIR_DOMAIN_HYPERV_VAPIC);
+
+    if (def->hyperv.features[VIR_DOMAIN_HYPERV_TLBFLUSH] == VIR_TRISTATE_SWITCH_ON &&
+        def->hyperv.tlbflush_direct == VIR_TRISTATE_SWITCH_ON) {
+        if (def->hyperv.features[VIR_DOMAIN_HYPERV_VAPIC] != VIR_TRISTATE_SWITCH_ON) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                           _("'%1$s' hyperv feature requires '%2$s' feature"),
+                           VIR_CPU_x86_HV_TLBFLUSH_DIRECT,
+                           virDomainHypervTypeToString(VIR_DOMAIN_HYPERV_VAPIC));
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+#undef CHECK_HV_FEAT
+
+
 static int
 qemuValidateDomainDefFeatures(const virDomainDef *def,
                               virQEMUCaps *qemuCaps)
@@ -187,14 +249,8 @@ qemuValidateDomainDefFeatures(const virDomainDef *def,
             break;
 
         case VIR_DOMAIN_FEATURE_HYPERV:
-            if (def->features[i] != VIR_DOMAIN_HYPERV_MODE_NONE &&
-                !ARCH_IS_X86(def->os.arch) && !qemuDomainIsARMVirt(def)) {
-                virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                               _("Hyperv features are not supported for architecture '%1$s' or machine type '%2$s'"),
-                                 virArchToString(def->os.arch),
-                                 def->os.machine);
-                 return -1;
-            }
+            if (qemuValidateDomainDefHypervFeatures(def) < 0)
+                return -1;
             break;
 
         case VIR_DOMAIN_FEATURE_PMU:
@@ -477,7 +533,7 @@ qemuValidateDomainDefClockTimers(const virDomainDef *def,
     for (i = 0; i < def->clock.ntimers; i++) {
         virDomainTimerDef *timer = def->clock.timers[i];
 
-        switch ((virDomainTimerNameType)timer->name) {
+        switch (timer->name) {
         case VIR_DOMAIN_TIMER_NAME_PLATFORM:
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                            _("unsupported timer type (name) '%1$s'"),
@@ -3864,6 +3920,112 @@ qemuValidateDomainDeviceDefControllerSCSI(const virDomainControllerDef *controll
 }
 
 
+static bool
+qemuDomainControllerUSBIsPCI(const virDomainControllerDef *controller)
+{
+    switch ((virDomainControllerModelUSB)controller->model) {
+    case VIR_DOMAIN_CONTROLLER_MODEL_USB_PIIX3_UHCI:
+    case VIR_DOMAIN_CONTROLLER_MODEL_USB_PIIX4_UHCI:
+    case VIR_DOMAIN_CONTROLLER_MODEL_USB_EHCI:
+    case VIR_DOMAIN_CONTROLLER_MODEL_USB_ICH9_EHCI1:
+    case VIR_DOMAIN_CONTROLLER_MODEL_USB_ICH9_UHCI1:
+    case VIR_DOMAIN_CONTROLLER_MODEL_USB_ICH9_UHCI2:
+    case VIR_DOMAIN_CONTROLLER_MODEL_USB_ICH9_UHCI3:
+    case VIR_DOMAIN_CONTROLLER_MODEL_USB_VT82C686B_UHCI:
+    case VIR_DOMAIN_CONTROLLER_MODEL_USB_PCI_OHCI:
+    case VIR_DOMAIN_CONTROLLER_MODEL_USB_NEC_XHCI:
+    case VIR_DOMAIN_CONTROLLER_MODEL_USB_QEMU_XHCI:
+        /* The models above are PCI devices */
+        return true;
+
+    case VIR_DOMAIN_CONTROLLER_MODEL_USB_QUSB1:
+    case VIR_DOMAIN_CONTROLLER_MODEL_USB_QUSB2:
+        /* The models above are not relevant to the QEMU driver */
+        return false;
+
+    case VIR_DOMAIN_CONTROLLER_MODEL_USB_NONE:
+    case VIR_DOMAIN_CONTROLLER_MODEL_USB_DEFAULT:
+    case VIR_DOMAIN_CONTROLLER_MODEL_USB_LAST:
+    default:
+        return false;
+    }
+}
+
+
+static int
+qemuControllerModelUSBToCaps(int model)
+{
+    switch (model) {
+    case VIR_DOMAIN_CONTROLLER_MODEL_USB_PIIX3_UHCI:
+        return QEMU_CAPS_PIIX3_USB_UHCI;
+    case VIR_DOMAIN_CONTROLLER_MODEL_USB_PIIX4_UHCI:
+        return QEMU_CAPS_PIIX4_USB_UHCI;
+    case VIR_DOMAIN_CONTROLLER_MODEL_USB_EHCI:
+        return QEMU_CAPS_USB_EHCI;
+    case VIR_DOMAIN_CONTROLLER_MODEL_USB_ICH9_EHCI1:
+    case VIR_DOMAIN_CONTROLLER_MODEL_USB_ICH9_UHCI1:
+    case VIR_DOMAIN_CONTROLLER_MODEL_USB_ICH9_UHCI2:
+    case VIR_DOMAIN_CONTROLLER_MODEL_USB_ICH9_UHCI3:
+        return QEMU_CAPS_ICH9_USB_EHCI1;
+    case VIR_DOMAIN_CONTROLLER_MODEL_USB_VT82C686B_UHCI:
+        return QEMU_CAPS_VT82C686B_USB_UHCI;
+    case VIR_DOMAIN_CONTROLLER_MODEL_USB_PCI_OHCI:
+        return QEMU_CAPS_PCI_OHCI;
+    case VIR_DOMAIN_CONTROLLER_MODEL_USB_NEC_XHCI:
+        return QEMU_CAPS_NEC_USB_XHCI;
+    case VIR_DOMAIN_CONTROLLER_MODEL_USB_QEMU_XHCI:
+        return QEMU_CAPS_DEVICE_QEMU_XHCI;
+    default:
+        return -1;
+    }
+}
+
+
+static int
+qemuValidateDomainDeviceDefControllerUSB(const virDomainControllerDef *controller,
+                                         const virDomainDef *def,
+                                         virQEMUCaps *qemuCaps)
+{
+    if (controller->model == VIR_DOMAIN_CONTROLLER_MODEL_USB_NONE)
+        return 0;
+
+    if (controller->model == VIR_DOMAIN_CONTROLLER_MODEL_USB_DEFAULT) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("Unable to determine model for USB controller idx=%1$d"),
+                       controller->idx);
+        return -1;
+    }
+
+    if (qemuDomainControllerUSBIsPCI(controller) &&
+        !qemuDomainSupportsPCI(def)) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("USB controller model '%1$s' requires PCI but machine type '%2$s' does not support PCI"),
+                       virDomainControllerModelUSBTypeToString(controller->model),
+                       def->os.machine);
+        return -1;
+    }
+
+    if (!virQEMUCapsGet(qemuCaps, qemuControllerModelUSBToCaps(controller->model))) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("USB controller model '%1$s' not supported in this QEMU binary"),
+                       virDomainControllerModelUSBTypeToString(controller->model));
+        return -1;
+    }
+
+    if (controller->opts.usbopts.ports != -1) {
+        if (controller->model != VIR_DOMAIN_CONTROLLER_MODEL_USB_NEC_XHCI &&
+            controller->model != VIR_DOMAIN_CONTROLLER_MODEL_USB_QEMU_XHCI) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                           _("usb controller type '%1$s' doesn't support 'ports' with this QEMU binary"),
+                           virDomainControllerModelUSBTypeToString(controller->model));
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+
 /**
  * virValidateControllerPCIModelNameToQEMUCaps:
  * @modelName: model name
@@ -3980,6 +4142,13 @@ qemuValidateDomainDeviceDefControllerPCI(const virDomainControllerDef *cont,
     }
     if (!modelName) {
         virReportEnumRangeError(virDomainControllerPCIModelName, pciopts->modelName);
+        return -1;
+    }
+
+    if (!qemuDomainSupportsPCI(def)) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("Machine type '%1$s' does not support PCI"),
+                       def->os.machine);
         return -1;
     }
 
@@ -4526,10 +4695,14 @@ qemuValidateDomainDeviceDefController(const virDomainControllerDef *controller,
                                                         qemuCaps);
         break;
 
+    case VIR_DOMAIN_CONTROLLER_TYPE_USB:
+        ret = qemuValidateDomainDeviceDefControllerUSB(controller, def,
+                                                       qemuCaps);
+        break;
+
     case VIR_DOMAIN_CONTROLLER_TYPE_FDC:
     case VIR_DOMAIN_CONTROLLER_TYPE_VIRTIO_SERIAL:
     case VIR_DOMAIN_CONTROLLER_TYPE_CCID:
-    case VIR_DOMAIN_CONTROLLER_TYPE_USB:
     case VIR_DOMAIN_CONTROLLER_TYPE_XENBUS:
     case VIR_DOMAIN_CONTROLLER_TYPE_ISA:
     case VIR_DOMAIN_CONTROLLER_TYPE_LAST:
@@ -4847,6 +5020,12 @@ qemuValidateDomainDeviceDefFS(virDomainFSDef *fs,
             if (fs->wrpolicy != VIR_DOMAIN_FS_WRPOLICY_DEFAULT) {
                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                                _("virtiofs does not support wrpolicy"));
+                return -1;
+            }
+        } else {
+            if (fs->readonly) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                               _("readonly mode cannot be set for externally started virtiofsd"));
                 return -1;
             }
         }

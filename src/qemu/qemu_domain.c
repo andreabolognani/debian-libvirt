@@ -1907,7 +1907,6 @@ qemuDomainObjPrivateDataClear(qemuDomainObjPrivate *priv)
 
     priv->rememberOwner = false;
 
-    priv->reconnectBlockjobs = VIR_TRISTATE_BOOL_ABSENT;
     priv->allowReboot = VIR_TRISTATE_BOOL_ABSENT;
 
     g_clear_pointer(&priv->migrationCaps, virBitmapFree);
@@ -2073,7 +2072,7 @@ qemuStorageSourcePrivateDataParse(xmlXPathContextPtr ctxt,
     g_autofree char *authalias = NULL;
     g_autofree char *httpcookiealias = NULL;
     g_autofree char *tlskeyalias = NULL;
-    g_autofree char *thresholdEventWithIndex = NULL;
+    virTristateBool thresholdEventWithIndex;
     bool fdsetPresent = false;
     unsigned int fdSetID;
     int enccount;
@@ -2139,9 +2138,10 @@ qemuStorageSourcePrivateDataParse(xmlXPathContextPtr ctxt,
     if (virStorageSourcePrivateDataParseRelPath(ctxt, src) < 0)
         return -1;
 
-    if ((thresholdEventWithIndex = virXPathString("string(./thresholdEvent/@indexUsed)", ctxt)) &&
-        virTristateBoolTypeFromString(thresholdEventWithIndex) == VIR_TRISTATE_BOOL_YES)
-        src->thresholdEventWithIndex = true;
+    if (virXPathTristateBool("string(./thresholdEvent/@indexUsed)",
+                             ctxt, &thresholdEventWithIndex) >= 0) {
+        virTristateBoolToBool(thresholdEventWithIndex, &src->thresholdEventWithIndex);
+    }
 
     if ((nbdkitnode = virXPathNode("nbdkit", ctxt))) {
         if (qemuStorageSourcePrivateDataParseNbdkit(nbdkitnode, ctxt, src) < 0)
@@ -3210,13 +3210,7 @@ qemuDomainObjPrivateXMLParseBlockjobs(virDomainObj *vm,
 {
     g_autofree xmlNodePtr *nodes = NULL;
     ssize_t nnodes = 0;
-    g_autofree char *active = NULL;
-    int tmp;
     size_t i;
-
-    if ((active = virXPathString("string(./blockjobs/@active)", ctxt)) &&
-        (tmp = virTristateBoolTypeFromString(active)) > 0)
-        priv->reconnectBlockjobs = tmp;
 
     if ((nnodes = virXPathNodeSet("./blockjobs/blockjob", ctxt, &nodes)) < 0)
         return -1;
@@ -4291,6 +4285,156 @@ qemuDomainDefaultPanicModel(const virDomainDef *def)
         return VIR_DOMAIN_PANIC_MODEL_PVPANIC;
 
     return VIR_DOMAIN_PANIC_MODEL_DEFAULT;
+}
+
+
+/**
+ * qemuDomainDefaultUSBControllerModel:
+ * @def: domain definition
+ * @qemuCaps: QEMU capabilities, or NULL
+ * @parseFlags: parse flags
+ *
+ * Choose a reasonable model to use for a USB controller where a
+ * specific one hasn't been provided by the user.
+ *
+ * The choice is based on a number of factors, including the guest's
+ * architecture and machine type. @qemuCaps might be NULL, in which
+ * case the function must not make any decision based on device
+ * availability; it will be re-run later with a non-NULL qemuCaps.
+ *
+ * The return value can be a specific controller model, or
+ * VIR_DOMAIN_CONTROLLER_MODEL_USB_DEFAULT; the latter indicates that
+ * no suitable model could be identified. How to behave in that
+ * scenario is entirely up to the caller.
+ *
+ * Returns: the model
+ */
+virDomainControllerModelUSB
+qemuDomainDefaultUSBControllerModel(const virDomainDef *def,
+                                    virQEMUCaps *qemuCaps,
+                                    unsigned int parseFlags)
+{
+    bool abiUpdate = !!(parseFlags & VIR_DOMAIN_DEF_PARSE_ABI_UPDATE);
+
+    if (ARCH_IS_LOONGARCH(def->os.arch) ||
+        qemuDomainIsRISCVVirt(def)) {
+        /* Use qemu-xhci (USB3) with no fallback */
+        if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_QEMU_XHCI))
+            return VIR_DOMAIN_CONTROLLER_MODEL_USB_QEMU_XHCI;
+
+        return VIR_DOMAIN_CONTROLLER_MODEL_USB_DEFAULT;
+    }
+
+    if (qemuDomainIsARMVirt(def)) {
+        /* Use qemu-xhci or nec-xhci (USB3) with no fallback */
+        if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_QEMU_XHCI))
+            return VIR_DOMAIN_CONTROLLER_MODEL_USB_QEMU_XHCI;
+        if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_NEC_USB_XHCI))
+            return VIR_DOMAIN_CONTROLLER_MODEL_USB_NEC_XHCI;
+
+        return VIR_DOMAIN_CONTROLLER_MODEL_USB_DEFAULT;
+    }
+
+    if (ARCH_IS_ARM(def->os.arch)) {
+        /* Prefer qemu-xhci or nec-xhci (USB3) */
+        if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_QEMU_XHCI))
+            return VIR_DOMAIN_CONTROLLER_MODEL_USB_QEMU_XHCI;
+        if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_NEC_USB_XHCI))
+            return VIR_DOMAIN_CONTROLLER_MODEL_USB_NEC_XHCI;
+
+        /* Allow pci-ohci (USB1) as fallback */
+        if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_PCI_OHCI))
+            return VIR_DOMAIN_CONTROLLER_MODEL_USB_PCI_OHCI;
+
+        return VIR_DOMAIN_CONTROLLER_MODEL_USB_DEFAULT;
+    }
+
+    if (ARCH_IS_S390(def->os.arch)) {
+        /* No default model on s390x, one has to be provided
+         * explicitly by the user */
+        return VIR_DOMAIN_CONTROLLER_MODEL_USB_NONE;
+    }
+
+    if (ARCH_IS_PPC64(def->os.arch)) {
+        /* Use qemu-xhci or nec-xhci (USB3) for newly-defined guests */
+        if (abiUpdate && virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_QEMU_XHCI))
+            return VIR_DOMAIN_CONTROLLER_MODEL_USB_QEMU_XHCI;
+        if (abiUpdate && virQEMUCapsGet(qemuCaps, QEMU_CAPS_NEC_USB_XHCI))
+            return VIR_DOMAIN_CONTROLLER_MODEL_USB_NEC_XHCI;
+
+        /* To preserve backwards compatibility, existing guests need to
+         * use pci-ohci (USB1) instead */
+        if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_PCI_OHCI))
+            return VIR_DOMAIN_CONTROLLER_MODEL_USB_PCI_OHCI;
+
+        return VIR_DOMAIN_CONTROLLER_MODEL_USB_DEFAULT;
+    }
+
+    if (ARCH_IS_X86(def->os.arch)) {
+        /* Use piix3-uhci (USB1) for backwards compatibility */
+        if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_PIIX3_USB_UHCI))
+            return VIR_DOMAIN_CONTROLLER_MODEL_USB_PIIX3_UHCI;
+
+        return VIR_DOMAIN_CONTROLLER_MODEL_USB_DEFAULT;
+    }
+
+    /* Most common architectures and machine types have been already
+     * handled above; for the remaining cases, use pci-ohci (USB1)
+     * as the most reasonable fallback */
+    if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_PCI_OHCI))
+        return VIR_DOMAIN_CONTROLLER_MODEL_USB_PCI_OHCI;
+
+    return VIR_DOMAIN_CONTROLLER_MODEL_USB_DEFAULT;
+}
+
+
+/**
+ * qemuDomainDefaultUSBControllerModelAutoAdded:
+ * @def: domain definition
+ * @qemuCaps: QEMU capabilities, or NULL
+ *
+ * Choose a reasonable model to use for a USB controller that is
+ * being automatically added to a domain.
+ *
+ * The choice is based on a number of factors, including the guest's
+ * architecture and machine type. @qemuCaps might be NULL, in which
+ * case the function must not make any decision based on device
+ * availability; it will be re-run later with a non-NULL qemuCaps.
+ *
+ * The return value can be a specific controller model, or
+ * VIR_DOMAIN_CONTROLLER_MODEL_USB_DEFAULT; the latter indicates that
+ * no suitable model could be identified. How to behave in that
+ * scenario is entirely up to the caller.
+ *
+ * Additionally, VIR_DOMAIN_CONTROLLER_MODEL_USB_NONE can be returned
+ * to indicate that the caller should not auto-add the USB controller
+ * after all.
+ *
+ * Returns: the model
+ */
+virDomainControllerModelUSB
+qemuDomainDefaultUSBControllerModelAutoAdded(const virDomainDef *def,
+                                             virQEMUCaps *qemuCaps)
+{
+    if (ARCH_IS_X86(def->os.arch)) {
+        if (qemuDomainIsQ35(def)) {
+            /* Prefer qemu-xhci or nec-xhci (USB3) */
+            if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_QEMU_XHCI))
+                return VIR_DOMAIN_CONTROLLER_MODEL_USB_QEMU_XHCI;
+            if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_NEC_USB_XHCI))
+                return VIR_DOMAIN_CONTROLLER_MODEL_USB_NEC_XHCI;
+
+            /* Fall back to ich9-ehci1 (USB2) */
+            if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_ICH9_USB_EHCI1))
+                return VIR_DOMAIN_CONTROLLER_MODEL_USB_ICH9_EHCI1;
+
+            /* If neither USB3 nor USB2 are available, do not add
+             * the controller at all */
+            return VIR_DOMAIN_CONTROLLER_MODEL_USB_NONE;
+        }
+    }
+
+    return VIR_DOMAIN_CONTROLLER_MODEL_USB_DEFAULT;
 }
 
 
@@ -7688,7 +7832,8 @@ qemuDomainSupportsPCI(const virDomainDef *def)
      * machine types support PCI */
     if (ARCH_IS_ARM(def->os.arch)) {
         if (qemuDomainIsARMVirt(def) ||
-            STREQ(def->os.machine, "versatilepb")) {
+            STREQ(def->os.machine, "versatilepb") ||
+            STRPREFIX(def->os.machine, "realview-eb")) {
             return true;
         }
         return false;
@@ -7701,6 +7846,17 @@ qemuDomainSupportsPCI(const virDomainDef *def)
         }
         return false;
     }
+
+    if (ARCH_IS_X86(def->os.arch)) {
+        if (STREQ(def->os.machine, "isapc") ||
+            STREQ(def->os.machine, "microvm")) {
+            return false;
+        }
+        return true;
+    }
+
+    if (def->os.arch == VIR_ARCH_SPARC)
+        return false;
 
     /* On all other architectures, PCI support is assumed to
      * be present */

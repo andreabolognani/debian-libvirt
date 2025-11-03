@@ -15,8 +15,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: libvirt 6.0.0\n"
 "Report-Msgid-Bugs-To: https://libvirt.org/bugs.html\n"
-"POT-Creation-Date: 2025-09-25 09:31+0000\n"
-"PO-Revision-Date: 2025-06-25 11:32+0000\n"
+"POT-Creation-Date: 2025-10-29 11:46+0000\n"
+"PO-Revision-Date: 2025-10-30 20:54+0000\n"
 "Last-Translator: Yuri Chornoivan <yurchor@ukr.net>\n"
 "Language-Team: Ukrainian <https://translate.fedoraproject.org/projects/"
 "libvirt/libvirt/uk/>\n"
@@ -26,7 +26,7 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=3; plural=n%10==1 && n%100!=11 ? 0 : n%10>=2 && "
 "n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2;\n"
-"X-Generator: Weblate 5.12.2\n"
+"X-Generator: Weblate 5.13.3\n"
 
 msgid ""
 "\n"
@@ -1279,6 +1279,14 @@ msgid "'%1$s' file does not fit in memory"
 msgstr "недостатньо пам'яті для файла «%1$s»"
 
 #, c-format
+msgid "'%1$s' hyperv feature requires '%2$s' feature"
+msgstr "можливість «%1$s» hyperv потребує можливості «%2$s»"
+
+#, c-format
+msgid "'%1$s' hyperv feature requires '%2$s' timer"
+msgstr "можливість hyperv «%1$s» потребує таймера «%2$s»"
+
+#, c-format
 msgid "'%1$s' is currently not supported by the qemu encryption engine"
 msgstr ""
 "У поточній версії підтримки «%1$s» у рушії шифрування qemu не передбачено"
@@ -1547,7 +1555,7 @@ msgid "'pool' and 'volume' must be specified together for 'pool' type source"
 msgstr "для джерела типу «pool» разом з «pool» має бути вказано «volume»"
 
 msgid "'qom-list-get' returned unexpected number of paths"
-msgstr ""
+msgstr "qom-list-get повернуто неочікувану кількість шляхів"
 
 msgid "'queue' count must be configured for explicit iothread to queue mapping"
 msgstr ""
@@ -1997,7 +2005,7 @@ msgid "ACPI index is only supported for PCI devices"
 msgstr "Підтримку індексу ACPI передбачено лише для пристроїв PCI"
 
 msgid "ACPI nodeset is not supported with this QEMU"
-msgstr ""
+msgstr "Підтримки набору вузлів ACPI у цьому QEMU не передбачено"
 
 msgid "ACPI requires UEFI on this architecture"
 msgstr "На цій архітектурі ACPI потребує UEFI"
@@ -2139,7 +2147,7 @@ msgid "Added"
 msgstr "Додано"
 
 msgid "Adding disk to domain failed"
-msgstr ""
+msgstr "Не вдалося додати диск до домену"
 
 msgid "Address"
 msgstr "Адреса"
@@ -2235,7 +2243,7 @@ msgstr ""
 "системи"
 
 msgid "Assigning disk alias failed"
-msgstr ""
+msgstr "Не вдалося призначити альтернативну назву диска"
 
 msgid "At least one NUMA node has to have CPUs"
 msgstr "Принаймні один з вузлів NUMA повинен мати процесори"
@@ -2428,6 +2436,9 @@ msgid "Before dumping core, failed to suspend domain '%1$d' with libxenlight"
 msgstr ""
 "До спроби створення дампу ядра, не вдалося призупинити роботу домену «%1$d» "
 "за допомогою libxenlight"
+
+msgid "Bhyve version does not support NVMe"
+msgstr "У версії Bhyve не передбачено підтримки NVMe"
 
 msgid "Bhyve version does not support framebuffer"
 msgstr "У версії Bhyve не передбачено підтримки буфера кадрів"
@@ -3100,6 +3111,8 @@ msgid ""
 "Cannot automatically add a new PCI bus for a device with unrecognized "
 "connect flags %1$.2x"
 msgstr ""
+"Не можна автоматично додавати нову шину PCI для пристрою із нерозпізнаними "
+"прапорцями з'єднання %1$.2x"
 
 #, c-format
 msgid "Cannot boot from device %1$s"
@@ -3228,7 +3241,7 @@ msgid "Cannot determine system clock HZ"
 msgstr "Не вдалося визначити частоту системного годинника"
 
 msgid "Cannot determine the default interface"
-msgstr ""
+msgstr "Не вдалося визначити типовий інтерфейс"
 
 msgid "Cannot disable close-on-exec flag"
 msgstr "Не вдалося вимкнути прапорець close-on-exec"
@@ -3412,6 +3425,9 @@ msgstr "Не вдалося отримати контролер сховища �
 
 msgid "Cannot get storage controller name"
 msgstr "Не вдалося отримати назву контролера сховища даних"
+
+msgid "Cannot have more than one disk per NVMe controller"
+msgstr "Не можна використовувати більше за один диск на один контролер NVMe"
 
 msgid "Cannot hotplug platform device"
 msgstr "Не можна під'єднати пристрій платформи"
@@ -4481,7 +4497,7 @@ msgid "Core(s) per socket:"
 msgstr "Ядер на сокет:"
 
 msgid "Could detach device"
-msgstr ""
+msgstr "Не вдалося від'єднати пристрій"
 
 #, c-format
 msgid "Could find volume with name: %1$s"
@@ -4535,7 +4551,7 @@ msgid "Could not build CURL header list"
 msgstr "Не вдалося побудувати список заголовків CURL"
 
 msgid "Could not build disk json"
-msgstr ""
+msgstr "Не вдалося побудувати json диска"
 
 #, c-format
 msgid "Could not change memory parameters: %1$s"
@@ -4920,7 +4936,7 @@ msgstr "Не вдалося отримати дані щодо вільної п
 
 #, c-format
 msgid "Could not get index of disk '%1$s'"
-msgstr ""
+msgstr "Не вдалося отримати індекс диска «%1$s»"
 
 #, c-format
 msgid "Could not get instance ID for %1$s invocation"
@@ -5253,7 +5269,7 @@ msgid "Could not parse chain priority '%1$s'"
 msgstr "Не вдалося обробити пріоритет ланцюжків «%1$s»"
 
 msgid "Could not parse domain definition"
-msgstr ""
+msgstr "Не вдалося обробити визначення домену"
 
 #, c-format
 msgid "Could not parse positive integer from '%1$s'"
@@ -7231,7 +7247,7 @@ msgid "Failed to add capability %1$s: %2$d"
 msgstr "Не вдалося додати можливість %1$s: %2$d"
 
 msgid "Failed to add device"
-msgstr ""
+msgstr "Не вдалося додати пристрій"
 
 #, c-format
 msgid ""
@@ -7326,10 +7342,10 @@ msgid "Failed to bind socket to '%1$s'"
 msgstr "Не вдається прив'язати сокет до «%1$s»"
 
 msgid "Failed to build QEMU command line for acpi-generic-initiator"
-msgstr ""
+msgstr "Не вдалося побудувати рядок команди QEMU для acpi-generic-initiator"
 
 msgid "Failed to build acpi-generic-initiator properties"
-msgstr ""
+msgstr "Не вдалося побудувати властивості acpi-generic-initiator"
 
 msgid "Failed to build net json"
 msgstr "Не вдалося побудувати json net"
@@ -7433,6 +7449,9 @@ msgstr "Не вдалося завершити виконання дії %1$s н
 
 msgid "Failed to complete tree listing"
 msgstr "Не вдалося завершити побудову ієрархічного списку"
+
+msgid "Failed to connect network interfaces"
+msgstr "Не вдалося встановити з'єднання з мережевими інтерфейсами"
 
 #, c-format
 msgid "Failed to connect socket to '%1$s'"
@@ -10440,19 +10459,22 @@ msgid "Integrity error in watchdog models"
 msgstr "Помилка цілісності у моделях засобу спостереження"
 
 msgid "Intel TDX launch security is not supported with PMU enabled"
-msgstr ""
+msgstr "Підтримки захисту запуску Intel TDX з увімкненим PMU не передбачено"
 
 msgid "Intel TDX launch security is not supported with SMM enabled"
-msgstr ""
+msgstr "Підтримки захисту запуску Intel TDX з увімкненим SMM не передбачено"
 
 msgid "Intel TDX launch security is not supported with pflash loader"
 msgstr ""
+"Підтримки захисту запуску Intel TDX із завантажувачем pflash не передбачено"
 
 msgid "Intel TDX launch security is not supported with this QEMU binary"
 msgstr ""
+"Підтримки захисту запуску Intel TDX з цим виконуваним файлом QEMU не "
+"передбачено"
 
 msgid "Intel TDX launch security needs split kernel irqchip"
-msgstr ""
+msgstr "Для захисту запуску Intel TDX потрібно розділити irqchip ядра"
 
 msgid "Interface"
 msgstr "Інтерфейс"
@@ -10575,7 +10597,7 @@ msgstr ""
 
 #, c-format
 msgid "Invalid HTTP response code from CH: %1$d"
-msgstr ""
+msgstr "Некоректний код відповіді HTTP від CH: %1$d"
 
 #, c-format
 msgid "Invalid IOThread id value: '%1$d'"
@@ -11065,7 +11087,7 @@ msgstr ""
 
 #, c-format
 msgid "Invalid log_level %1$u"
-msgstr ""
+msgstr "Некоректний log_level %1$u"
 
 #, c-format
 msgid "Invalid lookup from '%1$s'"
@@ -11247,8 +11269,9 @@ msgstr "Некоректний відносний шлях «%1$s»"
 msgid "Invalid resctrl monitor"
 msgstr "Некоректний засіб спостереження resctrl"
 
-msgid "Invalid response from CH. Disk removal failed."
-msgstr ""
+#, c-format
+msgid "Invalid response from CH. Device removal failed for device %1$s."
+msgstr "Некоректна відповідь від CH. Не вдалося вилучити пристрій %1$s."
 
 #, c-format
 msgid "Invalid save_image_format '%1$s'"
@@ -11825,6 +11848,20 @@ msgstr "Значення Machine є порожнім"
 
 msgid "Machine is null"
 msgstr "Значення Machine є порожнім"
+
+#, c-format
+msgid "Machine type '%1$s' does not support PCI"
+msgstr "Для типу машин «%1$s» не передбачено підтримки PCI"
+
+#, c-format
+msgid "Machine type '%1$s' supports PCI but no PCI controller added"
+msgstr ""
+"Для типу машин «%1$s» підтримку PCI передбачено, але не було додано жодного "
+"контролера PCI"
+
+#, c-format
+msgid "Machine type '%1$s' wants PCI but PCI is not supported"
+msgstr "Для типу машин «%1$s» потрібна PCI, але підтримки PCI не передбачено"
 
 msgid "Malformatted array index"
 msgstr "Помилкове форматування індексу масиву"
@@ -12450,7 +12487,7 @@ msgid "Missing device name for container-side veth"
 msgstr "Пропущено назву пристрою для veth на боці контейнера"
 
 msgid "Missing disk alias"
-msgstr ""
+msgstr "Немає альтернативної назви пристрою"
 
 msgid "Missing disk file path in domain"
 msgstr "У домені не вказано шлях до файла диска"
@@ -13920,13 +13957,13 @@ msgid "Only 'credit' and 'credit2' schedulers are supported"
 msgstr "Передбачено підтримку лише планувальників «credit» і «credit2»"
 
 msgid "Only 'nmdm' and 'tcp' console types are supported"
-msgstr ""
+msgstr "Передбачено підтримку лише типів консолей «nmdm» і «tcp»"
 
 msgid "Only 'random' backend model is supported"
 msgstr "Передбачено підтримку лише обробника «random»"
 
 msgid "Only 'raw' protocol is supported for TCP sockets"
-msgstr ""
+msgstr "Для сокетів TCP передбачено підтримку лише протоколу «raw»"
 
 msgid "Only 'virio' RNG device model is supported"
 msgstr ""
@@ -13958,7 +13995,7 @@ msgid "Only EFI firmware permits NVRAM"
 msgstr "NVRAM дозволено лише для мікропрограм EFI"
 
 msgid "Only IPv4 is supported"
-msgstr ""
+msgstr "Передбачено підтримку лише IPv4"
 
 msgid "Only IPv4 or IPv6 addresses can be used with a prefix"
 msgstr "З префіксом можна використовувати лише адреси IPv4 або IPv6"
@@ -13998,6 +14035,8 @@ msgid ""
 "Only bit0(debug) and bit28(sept-ve-disable) are supported intel TDX launch "
 "security policy"
 msgstr ""
+"Для захисту запуску intel TDX передбачено підтримку лише bit0(debug) і bit28"
+"(sept-ve-disable)"
 
 msgid "Only bridged veth devices can be detached"
 msgstr "Можна долучати лише пристрої veth з містком"
@@ -14025,7 +14064,7 @@ msgstr ""
 "файлах або томах."
 
 msgid "Only four serial ports are supported"
-msgstr ""
+msgstr "Передбачено підтримку лише чотирьох послідовних портів"
 
 msgid "Only hard disks and cdroms are supported by vz driver."
 msgstr ""
@@ -14039,7 +14078,7 @@ msgid "Only ide, sata and scsi disk supports 'product'"
 msgstr "Підтримку «product» передбачено лише для дисків ide, sata і scsi"
 
 msgid "Only listening TCP sockets are supported"
-msgstr ""
+msgstr "Передбачено підтримку лише сокетів TCP з очікуванням на дані"
 
 msgid "Only luks encryption is supported for raw files"
 msgstr "Для простих файлів передбачено підтримку лише шифрування luks"
@@ -14583,7 +14622,7 @@ msgid "Persistent"
 msgstr "Постійний"
 
 msgid "Persistent domain state changes are not supported"
-msgstr ""
+msgstr "Підтримки змін сталого стану домену не передбачено"
 
 msgid "Persistent:"
 msgstr "Постійність:"
@@ -15146,7 +15185,7 @@ msgid "Reconnected to the hypervisor"
 msgstr "З'єднання з гіпервізором встановлено повторно"
 
 msgid "Recreated"
-msgstr ""
+msgstr "Повторно створено"
 
 #, c-format
 msgid "Redirection bus %1$s is not supported by QEMU"
@@ -17827,7 +17866,7 @@ msgstr ""
 
 #, c-format
 msgid "Target video card edid %1$s does not match source %2$s"
-msgstr ""
+msgstr "edid відеокартки призначення %1$s не збігається із джерелом %2$s"
 
 #, c-format
 msgid "Target video card heads %1$u does not match source %2$u"
@@ -17935,6 +17974,8 @@ msgid ""
 "The 'fqdn' attribute of the <backend> element can only be used with the "
 "<backend> type='passt'"
 msgstr ""
+"Атрибут «fqdn» елемента <backend> можна використовувати лише із <backend> "
+"type='passt'"
 
 msgid ""
 "The 'passt' backend can only be used with interface type='user' or "
@@ -18878,6 +18919,14 @@ msgstr ""
 "передбачено"
 
 #, c-format
+msgid ""
+"USB controller model '%1$s' requires PCI but machine type '%2$s' does not "
+"support PCI"
+msgstr ""
+"Модель контролера USB «%1$s» потребує PCI, але для типу машин «%2$s» не "
+"передбачено підтримки PCI"
+
+#, c-format
 msgid "USB controller model type 'qusb1' or 'qusb2' is not supported in %1$s"
 msgstr ""
 "підтримки моделей контролерів USB типу «qusb1» або «qusb2» у %1$s не "
@@ -18937,7 +18986,7 @@ msgid "UUID is not supported for NVDIMM device"
 msgstr "Для пристрою NVDIMM не передбачено підтримки UUID"
 
 msgid "UUID mismatch between <hwuuid> and <sysinfo>"
-msgstr ""
+msgstr "Невідповідність UUID між <hwuuid> і <sysinfo>"
 
 msgid "UUID mismatch between <uuid> and <sysinfo>"
 msgstr "невідповідність UUID між <uuid> та <sysinfo>"
@@ -19444,7 +19493,7 @@ msgstr "Не вдалося визначити модель контролера
 
 #, c-format
 msgid "Unable to determine model for USB controller idx=%1$d"
-msgstr ""
+msgstr "Не вдалося визначити модель для контролера USB idx=%1$d"
 
 msgid "Unable to determine mount table on this platform"
 msgstr "Не вдалося визначити таблицю монтування на цій платформі"
@@ -19747,7 +19796,7 @@ msgid "Unable to get daemon logging outputs information"
 msgstr "Не вдалося отримати дані щодо виведення до журналу фоновою службою"
 
 msgid "Unable to get default interface name"
-msgstr ""
+msgstr "Не вдалося отримати назву типового інтерфейсу"
 
 msgid "Unable to get device master from netlink on this platform"
 msgstr "Неможливо отримати батьківський пристрій із netlink на цій платформі"
@@ -19934,7 +19983,7 @@ msgstr "Не вдалося отримати віртуальні функції
 
 #, c-format
 msgid "Unable to import certificate list %1$s"
-msgstr ""
+msgstr "Не вдалося імпортувати список сертифікатів %1$s"
 
 #, c-format
 msgid "Unable to import client certificate %1$s"
@@ -20348,7 +20397,7 @@ msgstr ""
 "Не вдалося визначити час початку для процесу з вказаним ідентифікатором"
 
 msgid "Unable to query process stats"
-msgstr ""
+msgstr "Не вдалося отримати статистику процесу"
 
 #, c-format
 msgid "Unable to query sector size %1$s"
@@ -21395,7 +21444,7 @@ msgstr "Невідоме джерело даних «%1$s»"
 
 #, c-format
 msgid "Unknown default_cpu_deprecated_features value %1$s"
-msgstr ""
+msgstr "Невідоме значення default_cpu_deprecated_features %1$s"
 
 #, c-format
 msgid "Unknown dirty page rate calculation mode: %1$s"
@@ -22636,12 +22685,18 @@ msgid ""
 "a PCIe slot is needed to connect a PCI controller model='%1$s', but none is "
 "available, and it cannot be automatically added"
 msgstr ""
+"потрібен слот PCIe для встановлення з'єднання із контролером PCI model='%1$"
+"s', але немає жодного доступного слоту, і його не може бути додано "
+"автоматично"
 
 #, c-format
 msgid ""
 "a conventional PCI slot is needed to connect a PCI controller model='%1$s', "
 "but none is available, and it cannot be automatically added"
 msgstr ""
+"потрібен звичайний слот PCI для встановлення з'єднання з контролером PCI "
+"model='%1$s', але немає таких доступних слотів, і їх не можна додати "
+"автоматично"
 
 msgid "a device with the same address already exists "
 msgstr "пристрій із тією самою адресою вже існує "
@@ -28941,6 +28996,7 @@ msgstr "не вдалося отримати правила захисту ві�
 
 msgid "failed to get launch security policy for launch security type TDX"
 msgstr ""
+"не вдалося отримати правила захисту запуску для захисту запуску типу TDX"
 
 #, c-format
 msgid "failed to get list of %1$s interfaces on host"
@@ -29563,6 +29619,8 @@ msgid ""
 "failed to split path '%1$s' into 'pool/image' or 'pool/namespace/image' "
 "components"
 msgstr ""
+"не вдалося розділити шлях «%1$s» на компоненти «буфер/образ» або "
+"«буфер/простір_назв/образ»"
 
 #, c-format
 msgid "failed to stat remote file '%1$s'"
@@ -30450,7 +30508,7 @@ msgid "guest-get-vcpus reply was missing return data"
 msgstr "у повернутих даних немає відповіді guest-get-vcpus"
 
 msgid "guest:"
-msgstr ""
+msgstr "гостьова система:"
 
 msgid "guestReset is not supported with this version of QEMU"
 msgstr "підтримки guestReset із цією версією QEMU не передбачено"
@@ -30597,6 +30655,11 @@ msgstr ""
 
 msgid "host-certificates mode needs exactly three certificates"
 msgstr "режим сертифікації основної системи потребує точно трьох сертифікатів"
+
+msgid "host-model hyperv mode unsupported, no hyperv capabilities found"
+msgstr ""
+"підтримку режиму host-model hyperv не передбачено, не знайдено можливостей "
+"hyperv"
 
 msgid "hostName field not available (missing VMware Tools?)"
 msgstr "поле hostName є недоступним (не встановлено VMware Tools?)"
@@ -30789,6 +30852,8 @@ msgstr ""
 msgid ""
 "ignoring host is only allowed when computing baseline from multiple CPUs"
 msgstr ""
+"ігнорування основної системи дозволено лише при обчисленні основи з "
+"декількох процесорів"
 
 msgid "image magic is incorrect"
 msgstr "неприпустима дія над образом"
@@ -32731,7 +32796,7 @@ msgid "malformed QMP schema"
 msgstr "помилкове форматування схеми QMP"
 
 msgid "malformed TDX panic data"
-msgstr ""
+msgstr "помилкове форматування даних паніки TDX"
 
 #, c-format
 msgid "malformed TLS secret uuid '%1$s' provided"
@@ -32771,7 +32836,7 @@ msgstr ""
 "«%2$s»"
 
 msgid "malformed hwuuid element"
-msgstr ""
+msgstr "помилкове форматування елемента hwuuid"
 
 msgid "malformed hyperv panic data"
 msgstr "помилкове форматування даних паніки гіпервізора"
@@ -34647,6 +34712,10 @@ msgid "nested JSON array to commandline conversion is not supported"
 msgstr ""
 "підтримки перетворення вкладеного масиву JSON на рядок команди не передбачено"
 
+#, c-format
+msgid "net %1$s not found"
+msgstr "мережі %1$s не знайдено"
+
 msgid "net definition failed validation"
 msgstr "мережеве визначення не пройшло перевірки"
 
@@ -35230,6 +35299,9 @@ msgstr "не знайдено назви вузла: %1$s"
 #, c-format
 msgid "no iSCSI interface defined for IQN %1$s"
 msgstr "для IQN %1$s не визначено жодного інтерфейсу iSCSI"
+
+msgid "no interface name specified"
+msgstr "не вказано назви інтерфейсу"
 
 #, c-format
 msgid "no interface with matching mac '%1$s'"
@@ -35869,7 +35941,7 @@ msgid "only a single IOMMU device is supported"
 msgstr "передбачено підтримку лише одинарного пристрою IOMMU"
 
 msgid "only a single QGS element is supported"
-msgstr ""
+msgstr "передбачено підтримку лише одного елемента QGS"
 
 msgid "only a single TPM Proxy device is supported"
 msgstr "передбачено підтримку лише одного проксі пристрою TPM"
@@ -36861,7 +36933,7 @@ msgstr "заборонений символ у назві запису TXT DNS �
 
 #, c-format
 msgid "property '%1$s' in reply data was missing value"
-msgstr ""
+msgstr "для властивості «%1$s» у даних відповіді не вказано значення"
 
 msgid "property with name 'id' can't be overridden"
 msgstr "властивість із назвою «id» не можна перевизначати"
@@ -37330,6 +37402,10 @@ msgstr "підтримки придатних лише до читання ди�
 msgid "readonly is not supported with vhostuser disk"
 msgstr "підтримки readonly для дисків vhostuser не передбачено"
 
+msgid "readonly mode cannot be set for externally started virtiofsd"
+msgstr ""
+"режим лише читання не може бути встановлено для запущеного ззовні virtiofsd"
+
 msgid "readonly sata disks are not supported"
 msgstr "підтримки дисків SATA, призначених лише для читання, не передбачено"
 
@@ -37512,7 +37588,7 @@ msgid "reply data was missing 'option' name or parameters"
 msgstr "у даних відповіді не вистачає назви «option» або параметри"
 
 msgid "reply data was missing 'properties' array"
-msgstr ""
+msgstr "у даних відповіді немає масиву «properties»"
 
 msgid "reply was missing return data"
 msgstr "у відповіді не міститься даних"
@@ -37854,6 +37930,9 @@ msgstr "кореневий шлях має бути абсолютним"
 
 msgid "rotation rate is not supported with this QEMU"
 msgstr "у цьому QEMU не передбачено підтримки частоти обертання"
+
+msgid "rotation rate is only valid for SATA bus"
+msgstr "частота обертання є чинної лише для шини SATA"
 
 msgid "rotation rate is only valid for SCSI/IDE/SATA bus"
 msgstr "частота обертання має сенс лише для каналу SCSI/IDE/SATA"
@@ -42356,7 +42435,7 @@ msgstr ""
 
 #, c-format
 msgid "video type '%1$s' does not support edid"
-msgstr ""
+msgstr "для типу відео «%1$s» не передбачено підтримки edid"
 
 #, c-format
 msgid "video type '%1$s' doesn't support multiple 'heads'"
@@ -42893,6 +42972,8 @@ msgid ""
 "when computing baseline from several CPUs, do not take hypervisor "
 "capabilities into account and work with input data only"
 msgstr ""
+"при обчисленні основи на основі декількох процесорів не брати до уваги "
+"можливості гіпервізора і працювати лише з вхідними даними"
 
 #, c-format
 msgid "when providing parent wwnn='%1$s', the wwpn must also be provided"
@@ -43051,6 +43132,8 @@ msgstr ""
 msgid ""
 "zone %1$s requested for network %2$s but firewalld is not supported on BSD"
 msgstr ""
+"потрібна зона %1$s для мережі %2$s, але підтримки firewalld у BSD не "
+"передбачено"
 
 #, c-format
 #~ msgid ""

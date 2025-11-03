@@ -1446,7 +1446,7 @@ testQemuMonitorJSONqemuMonitorJSONGetAllBlockStatsInfo(const void *opaque)
 {
     const testGenericData *data = opaque;
     virDomainXMLOption *xmlopt = data->xmlopt;
-    g_autoptr(GHashTable) blockstats = virHashNew(g_free);
+    g_autoptr(GHashTable) blockstats = virHashNew(g_object_unref);
     qemuBlockStats *stats;
     g_autoptr(qemuMonitorTest) test = NULL;
 
@@ -1543,6 +1543,8 @@ testQemuMonitorJSONqemuMonitorJSONGetAllBlockStatsInfo(const void *opaque)
     if (qemuMonitorTestAddItem(test, "query-blockstats", reply) < 0)
         return -1;
     if (qemuMonitorTestAddItem(test, "query-blockstats", reply) < 0)
+        return -1;
+    if (qemuMonitorTestAddItem(test, "query-named-block-nodes", "{\"return\":[]}") < 0)
         return -1;
 
 #define CHECK0FULL(var, value, varformat, valformat) \

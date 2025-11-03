@@ -111,9 +111,10 @@ bhyveDomainDiskDefAssignAddress(struct _bhyveConn *driver,
                                 virDomainDiskDef *def,
                                 const virDomainDef *vmdef G_GNUC_UNUSED)
 {
-    int idx = virDiskNameToIndex(def->dst);
+    int idx = -1;
+    int nvme_ctrl = 0;
 
-    if (idx < 0) {
+    if (virDiskNameParse(def->dst, &nvme_ctrl, &idx, NULL) < 0) {
         virReportError(VIR_ERR_XML_ERROR,
                        _("Unknown disk name '%1$s' and no address specified"),
                        def->dst);
@@ -134,6 +135,15 @@ bhyveDomainDiskDefAssignAddress(struct _bhyveConn *driver,
 
         def->info.addr.drive.bus = 0;
         break;
+
+    case VIR_DOMAIN_DISK_BUS_NVME:
+        def->info.type = VIR_DOMAIN_DEVICE_ADDRESS_TYPE_DRIVE;
+
+        def->info.addr.drive.controller = nvme_ctrl;
+        def->info.addr.drive.unit = 0;
+        def->info.addr.drive.bus = idx;
+        break;
+
     case VIR_DOMAIN_DISK_BUS_SCSI:
     case VIR_DOMAIN_DISK_BUS_IDE:
     case VIR_DOMAIN_DISK_BUS_FDC:
@@ -143,7 +153,6 @@ bhyveDomainDiskDefAssignAddress(struct _bhyveConn *driver,
     case VIR_DOMAIN_DISK_BUS_USB:
     case VIR_DOMAIN_DISK_BUS_UML:
     case VIR_DOMAIN_DISK_BUS_SD:
-    case VIR_DOMAIN_DISK_BUS_NVME:
     case VIR_DOMAIN_DISK_BUS_LAST:
     default:
         break;
@@ -290,6 +299,12 @@ bhyveDomainDeviceDefValidate(const virDomainDeviceDef *dev,
                 return -1;
             }
         }
+    } else if (dev->type == VIR_DOMAIN_DEVICE_DISK &&
+               dev->data.disk->rotation_rate &&
+               dev->data.disk->bus != VIR_DOMAIN_DISK_BUS_SATA) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("rotation rate is only valid for SATA bus"));
+        return -1;
     }
 
     return 0;
@@ -301,7 +316,34 @@ bhyveDomainDefValidate(const virDomainDef *def,
                        void *opaque G_GNUC_UNUSED,
                        void *parseOpaque G_GNUC_UNUSED)
 {
+    size_t i;
     virStorageSource *src = NULL;
+    g_autoptr(GHashTable) nvme_controllers = g_hash_table_new(g_direct_hash,
+                                                              g_direct_equal);
+
+    for (i = 0; i < def->ndisks; i++) {
+        virDomainDiskDef *disk = def->disks[i];
+        int nvme_ctrl = 0;
+        int idx = -1;
+
+        if (disk->bus == VIR_DOMAIN_DISK_BUS_NVME) {
+            if (virDiskNameParse(disk->dst, &nvme_ctrl, &idx, NULL) < 0) {
+                virReportError(VIR_ERR_XML_ERROR,
+                               _("Unknown disk name '%1$s' and no address specified"),
+                               disk->dst);
+                return -1;
+            }
+
+            if (g_hash_table_contains(nvme_controllers, GINT_TO_POINTER(nvme_ctrl))) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                               "%s",
+                               _("Cannot have more than one disk per NVMe controller"));
+                return -1;
+            }
+
+            g_hash_table_add(nvme_controllers, GINT_TO_POINTER(nvme_ctrl));
+        }
+    }
 
     if (!def->os.loader)
         return 0;

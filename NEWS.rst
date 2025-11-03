@@ -8,6 +8,81 @@ the changes introduced by each of them.
 For a more fine-grained view, use the `git log`_.
 
 
+v11.9.0 (2025-11-03)
+====================
+
+* **New features**
+
+  * Introduce Hyper-V ``host-model`` mode
+
+    Similarly to CPUs, ``host-model`` mode expands available Hyper-V
+    enlightenments at domain startup into the live XML so that's obvious which
+    enlightenments are enabled.
+
+  * Add support for Hyper-V ``spinlocks`` "never notify" mechanism
+
+    The ``retries`` attribute - which defines after how many failed
+    acquisition attempts to notify the hypervisor - can now hold the
+    special value of 4294967295 which means to never notify the
+    hypervisor.
+
+    If the ``retries`` attribute is omitted this value is used.
+
+  * ch: Network hotplug Support
+
+    Users can now attach and detach network interfaces of Cloud Hypervisor
+    domains at runtime.
+
+  * bhyve: NVMe device support
+
+    Domain XMLs now can use NVMe devices::
+
+     <disk type='file'>
+       <driver name='file' type='raw'/>
+       <source file='/path/to/disk.img'/>
+       <target dev='nvme0n1' bus='nvme'/>
+     </disk>
+
+* **Improvements**
+
+  * qemu: Improvements to USB controller model selection
+
+    Virtualization-friendly USB3 controllers are now used in more situations,
+    Intel-specific USB controllers are relegated to x86 guests, and model
+    selection overall behaves more consistently across architectures.
+
+  * qemu: Validate Hyper-V enlightenment dependencies
+
+    Some Hyper-V enlightenments may require some other enlightenments to be
+    turned on. Libvirt now validates these for new domains.
+
+  * qemu: Introduce virtio options for virtio memory models
+
+    Both virtio-mem and virtio-pmem memory models are virtio devices and as
+    such now support setting various virtio knobs (iommu, ats, packed,
+    page_per_vq) common to other virtio devices.
+
+  * wireshark: Adapt to wireshark-4.6.0
+
+    Libvirt's wireshark dissector plugin adapted to changes made to wireshark
+    dissector API in its 4.6.0 release.
+
+  * qemu: 'manual' disk snapshot mode improvements
+
+    The 'manual' snapshot mode now ensures that also metadata of the images is
+    written out to disk so that user can take snapshots of e.g. qcow2 image
+    safely.
+
+* **Bug fixes**
+
+  * ch: Load ``ch.conf`` from ``SYSCONFDIR``
+
+    Previously, the ``ch.conf`` file for ``ch:///system`` URI was mistakenly
+    loaded from a path under ``LOCALSTATEDIR`` (``/var/...``). This is now
+    fixed and the configuration file is loaded from the ``SYSCONFDIR``
+    (``/etc/...``) location where it's also installed.
+
+
 v11.8.0 (2025-10-01)
 ====================
 

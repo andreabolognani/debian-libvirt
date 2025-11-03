@@ -376,6 +376,7 @@ Patches have also been contributed by:
 * Frediano Ziglio <frediano.ziglio@citrix.com>
 * Frediano Ziglio <fziglio@redhat.com>
 * Frido Roose <frido.roose@gmail.com>
+* Friedrich Oslage <friedrich@oslage.de>
 * Fritz Elfert <fritz@fritz-elfert.de>
 * Gao feng <gaofeng@cn.fujitsu.com>
 * gaohaifeng <gaohaifeng.gao@huawei.com>

@@ -89,6 +89,7 @@ struct _qemuDomainUnpluggingDevice {
 #define QEMU_DEV_SGX_PROVISION "/dev/sgx_provision"
 #define QEMU_DEVICE_MAPPER_CONTROL_PATH "/dev/mapper/control"
 #define QEMU_DEV_UDMABUF "/dev/udmabuf"
+#define QEMU_DEV_KVM "/dev/kvm"
 
 
 #define QEMU_DOMAIN_AES_IV_LEN 16   /* 16 bytes for 128 bit random */
@@ -194,9 +195,6 @@ struct _qemuDomainObjPrivate {
 
     /* If true virtlogd is used as stdio handler for character devices. */
     bool chardevStdioLogd;
-
-    /* Tracks blockjob state for vm. Valid only while reconnecting to qemu. */
-    virTristateBool reconnectBlockjobs;
 
     /* Migration capabilities. Rechecked on reconnect, not to be saved in
      * private XML. */
@@ -842,6 +840,11 @@ bool qemuDomainSupportsPCI(const virDomainDef *def);
 bool qemuDomainSupportsPCIMultibus(const virDomainDef *def);
 virDomainControllerModelSCSI qemuDomainDefaultSCSIControllerModel(const virDomainDef *def,
                                                                   virQEMUCaps *qemuCaps);
+virDomainControllerModelUSB qemuDomainDefaultUSBControllerModel(const virDomainDef *def,
+                                                                virQEMUCaps *qemuCaps,
+                                                                unsigned int parseFlags);
+virDomainControllerModelUSB qemuDomainDefaultUSBControllerModelAutoAdded(const virDomainDef *def,
+                                                                         virQEMUCaps *qemuCaps);
 
 int qemuDomainDefAddDefaultAudioBackend(virQEMUDriver *driver,
                                         virDomainDef *def);
