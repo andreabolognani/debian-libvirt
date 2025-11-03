@@ -359,59 +359,15 @@ qemuDomainControllerDefPostParse(virDomainControllerDef *cont,
 
     case VIR_DOMAIN_CONTROLLER_TYPE_USB:
         if (cont->model == VIR_DOMAIN_CONTROLLER_MODEL_USB_DEFAULT && qemuCaps) {
-            /* Pick a suitable default model for the USB controller if none
-             * has been selected by the user and we have the qemuCaps for
-             * figuring out which controllers are supported.
-             *
-             * We rely on device availability instead of setting the model
-             * unconditionally because, for some machine types, there's a
-             * chance we will get away with using the legacy USB controller
-             * when the relevant device is not available.
-             *
-             * See qemuBuildControllersCommandLine() */
-
-            /* Default USB controller is piix3-uhci if available. Fall back to
-             * 'pci-ohci' otherwise which is the default for non-x86 machines
-             * which honour -usb */
-            if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_PIIX3_USB_UHCI))
-                cont->model = VIR_DOMAIN_CONTROLLER_MODEL_USB_PIIX3_UHCI;
-            else if (!ARCH_IS_X86(def->os.arch) &&
-                     virQEMUCapsGet(qemuCaps, QEMU_CAPS_PCI_OHCI))
-                cont->model = VIR_DOMAIN_CONTROLLER_MODEL_USB_PCI_OHCI;
-
-            if (ARCH_IS_S390(def->os.arch)) {
-                if (cont->info.type == VIR_DOMAIN_DEVICE_ADDRESS_TYPE_NONE) {
-                    /* set the default USB model to none for s390 unless an
-                     * address is found */
-                    cont->model = VIR_DOMAIN_CONTROLLER_MODEL_USB_NONE;
-                }
-            } else if (ARCH_IS_PPC64(def->os.arch)) {
-                /* To not break migration we need to set default USB controller
-                 * for ppc64 to pci-ohci if we cannot change ABI of the VM.
-                 * The nec-usb-xhci or qemu-xhci controller is used as default
-                 * only for newly defined domains or devices. */
-                if ((parseFlags & VIR_DOMAIN_DEF_PARSE_ABI_UPDATE) &&
-                    virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_QEMU_XHCI)) {
-                    cont->model = VIR_DOMAIN_CONTROLLER_MODEL_USB_QEMU_XHCI;
-                } else if ((parseFlags & VIR_DOMAIN_DEF_PARSE_ABI_UPDATE) &&
-                    virQEMUCapsGet(qemuCaps, QEMU_CAPS_NEC_USB_XHCI)) {
-                    cont->model = VIR_DOMAIN_CONTROLLER_MODEL_USB_NEC_XHCI;
-                } else if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_PCI_OHCI)) {
-                    cont->model = VIR_DOMAIN_CONTROLLER_MODEL_USB_PCI_OHCI;
-                } else {
-                    /* Explicitly fallback to legacy USB controller for PPC64. */
-                    cont->model = VIR_DOMAIN_CONTROLLER_MODEL_USB_DEFAULT;
-                }
-            } else if (def->os.arch == VIR_ARCH_AARCH64) {
-                if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_QEMU_XHCI))
-                    cont->model = VIR_DOMAIN_CONTROLLER_MODEL_USB_QEMU_XHCI;
-                else if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_NEC_USB_XHCI))
-                    cont->model = VIR_DOMAIN_CONTROLLER_MODEL_USB_NEC_XHCI;
-            } else if (ARCH_IS_LOONGARCH(def->os.arch)) {
-                if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_QEMU_XHCI))
-                    cont->model = VIR_DOMAIN_CONTROLLER_MODEL_USB_QEMU_XHCI;
-            }
+            cont->model = qemuDomainDefaultUSBControllerModel(def, qemuCaps, parseFlags);
         }
+
+        /* Make sure the 'none' USB controller doesn't have an address
+         * associated with it, as that would trip up later checks and
+         * it doesn't make sense anyway */
+        if (cont->model == VIR_DOMAIN_CONTROLLER_MODEL_USB_NONE)
+            cont->info.type = VIR_DOMAIN_DEVICE_ADDRESS_TYPE_NONE;
+
         /* forbid usb model 'qusb1' and 'qusb2' in this kind of hyperviosr */
         if (cont->model == VIR_DOMAIN_CONTROLLER_MODEL_USB_QUSB1 ||
             cont->model == VIR_DOMAIN_CONTROLLER_MODEL_USB_QUSB2) {
@@ -1233,7 +1189,7 @@ qemuDomainDefAddDefaultDevices(virQEMUDriver *driver,
                                virQEMUCaps *qemuCaps)
 {
     bool addDefaultUSB = false;
-    int usbModel = -1; /* "default for machinetype" */
+    virDomainControllerModelUSB usbModel = VIR_DOMAIN_CONTROLLER_MODEL_USB_DEFAULT;
     int pciRoot;       /* index within def->controllers */
     bool addImplicitSATA = false;
     bool addPCIRoot = false;
@@ -1252,12 +1208,12 @@ qemuDomainDefAddDefaultDevices(virQEMUDriver *driver,
     switch (def->os.arch) {
     case VIR_ARCH_I686:
     case VIR_ARCH_X86_64:
-        addDefaultMemballoon = true;
-
-        if (STREQ(def->os.machine, "isapc")) {
+        if (STREQ(def->os.machine, "isapc") ||
+            STREQ(def->os.machine, "microvm")) {
             break;
         }
 
+        addDefaultMemballoon = true;
         addDefaultUSB = true;
 
         if (qemuDomainIsQ35(def)) {
@@ -1268,20 +1224,6 @@ qemuDomainDefAddDefaultDevices(virQEMUDriver *driver,
             if (virDomainDefGetVcpusMax(def) > QEMU_MAX_VCPUS_WITHOUT_EIM) {
                 addIOMMU = true;
             }
-
-            /* Prefer adding a USB3 controller if supported, fall back
-             * to USB2 if there is no USB3 available, and if that's
-             * unavailable don't add anything.
-             */
-            if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_QEMU_XHCI))
-                usbModel = VIR_DOMAIN_CONTROLLER_MODEL_USB_QEMU_XHCI;
-            else if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_NEC_USB_XHCI))
-                usbModel = VIR_DOMAIN_CONTROLLER_MODEL_USB_NEC_XHCI;
-            else if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_ICH9_USB_EHCI1))
-                usbModel = VIR_DOMAIN_CONTROLLER_MODEL_USB_ICH9_EHCI1;
-            else
-                addDefaultUSB = false;
-            break;
         }
         if (qemuDomainIsI440FX(def))
             addPCIRoot = true;
@@ -1291,15 +1233,12 @@ qemuDomainDefAddDefaultDevices(virQEMUDriver *driver,
     case VIR_ARCH_ARMV7L:
     case VIR_ARCH_ARMV7B:
     case VIR_ARCH_AARCH64:
-        if (STREQ(def->os.machine, "versatilepb"))
-            addPCIRoot = true;
-
-        /* Add default USB for the two machine types which historically
-         * supported -usb */
+        /* Add default PCI and USB for the two machine types which
+         * historically supported -usb */
         if (STREQ(def->os.machine, "versatilepb") ||
-            STRPREFIX(def->os.machine, "realview")) {
+            STRPREFIX(def->os.machine, "realview-eb")) {
+            addPCIRoot = true;
             addDefaultUSB = true;
-            usbModel = VIR_DOMAIN_CONTROLLER_MODEL_USB_PCI_OHCI;
         }
 
         if (qemuDomainIsARMVirt(def))
@@ -1333,7 +1272,6 @@ qemuDomainDefAddDefaultDevices(virQEMUDriver *driver,
 
     case VIR_ARCH_RISCV32:
     case VIR_ARCH_RISCV64:
-        addDefaultMemballoon = true;
         if (qemuDomainIsRISCVVirt(def))
             addPCIeRoot = true;
         break;
@@ -1385,6 +1323,38 @@ qemuDomainDefAddDefaultDevices(virQEMUDriver *driver,
         break;
     }
 
+    /* Sanity check. If the machine type does not support PCI, asking
+     * for PCI(e) root to be added is an obvious mistake */
+    if ((addPCIRoot ||
+         addPCIeRoot) &&
+        !qemuDomainSupportsPCI(def)) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("Machine type '%1$s' wants PCI but PCI is not supported"),
+                       def->os.machine);
+        return -1;
+    }
+
+    /* Sanity check. If the machine type supports PCI, we need to reflect
+     * that fact in the XML or other parts of the machine handling code
+     * might misbehave */
+    if (qemuDomainSupportsPCI(def) &&
+        !addPCIRoot &&
+        !addPCIeRoot) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("Machine type '%1$s' supports PCI but no PCI controller added"),
+                       def->os.machine);
+        return -1;
+    }
+
+    if (addDefaultUSB && usbModel == VIR_DOMAIN_CONTROLLER_MODEL_USB_DEFAULT) {
+        usbModel = qemuDomainDefaultUSBControllerModelAutoAdded(def, qemuCaps);
+
+        /* If no reasonable model can be figured out, we should
+         * simply not add the default USB controller */
+        if (usbModel == VIR_DOMAIN_CONTROLLER_MODEL_USB_NONE)
+            addDefaultUSB = false;
+    }
+
     if (addDefaultUSB && virDomainControllerFind(def, VIR_DOMAIN_CONTROLLER_TYPE_USB, 0) < 0)
         virDomainDefAddUSBController(def, 0, usbModel);
 
@@ -1393,9 +1363,6 @@ qemuDomainDefAddDefaultDevices(virQEMUDriver *driver,
 
     pciRoot = virDomainControllerFind(def, VIR_DOMAIN_CONTROLLER_TYPE_PCI, 0);
 
-    /* NB: any machine that sets addPCIRoot to true must also return
-     * true from the function qemuDomainSupportsPCI().
-     */
     if (addPCIRoot) {
         if (pciRoot >= 0) {
             if (def->controllers[pciRoot]->model != VIR_DOMAIN_CONTROLLER_MODEL_PCI_ROOT) {

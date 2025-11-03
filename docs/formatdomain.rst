@@ -2155,7 +2155,10 @@ are:
    =============== ====================================================================== ============================================ ========================================================================
    relaxed         Relax constraints on timers                                            on, off                                      :since:`1.0.0 (QEMU 2.0), 11.3.0 (Xen, always on)`
    vapic           Enable virtual APIC                                                    on, off                                      :since:`1.1.0 (QEMU 2.0), 11.3.0 (Xen)`
-   spinlocks       Enable spinlock support                                                on, off; retries - at least 4095             :since:`1.1.0 (QEMU 2.0)`
+   spinlocks       Enable spinlock support - retries attribute defines after how many     on, off;                                     :since:`1.1.0 (QEMU 2.0), never-notify mode 11.9.0 (QEMU 2.0)`
+                   failed acquisition attempts to notify the hypervisor                   retries - between 4095 and 4294967295, the
+                                                                                          special value 4294967295 means to never
+                                                                                          notify the hypervisor (default if omitted)
    vpindex         Virtual processor index                                                on, off                                      :since:`1.3.3 (QEMU 2.5), 11.3.0 (Xen, always on)`
    runtime         Processor time spent on running guest code and on behalf of guest code on, off                                      :since:`1.3.3 (QEMU 2.5)`
    synic           Enable Synthetic Interrupt Controller (SynIC)                          on, off                                      :since:`1.3.3 (QEMU 2.6), 11.3.0 (Xen)`
@@ -2188,6 +2191,12 @@ are:
       execution on the destination host. Depending on hypervisor version the
       virtual CPU may or may not contain features which may block migration
       even to an identical host.
+
+   ``host-model``
+      Similar to the ``passthrough`` mode, except libvirt detects which
+      enlightenments are supported by hypervisor and expands them on domain
+      startup into the live XML. In a sense, this is similar to ``host-model``
+      CPU mode (See `CPU model and topology`_). :since:`Since 11.9.0`
 
    The ``mode`` attribute can be omitted and will default to ``custom``.
 

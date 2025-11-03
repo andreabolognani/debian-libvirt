@@ -1,6 +1,6 @@
 project(
   'libvirt', 'c',
-  version: '11.8.0',
+  version: '11.9.0',
   license: 'LGPLv2+',
   meson_version: '>= 0.57.0',
   default_options: [
@@ -1364,6 +1364,26 @@ if wireshark_dep.found()
   # are not shipping it.
   if cc.check_header('wireshark/ws_version.h')
     conf.set('WITH_WS_VERSION', 1)
+  endif
+
+  # Find wmem.h
+  # But it's not as easy as you'd think. Ubuntu 20.04 has split parts of
+  # libwireshark.so into libwsutil.so but:
+  # a) wireshark.pc never mentions it,
+  # b) libwsutil-dev package doesn't install pkg-config file.
+  # Fortunately, it's fixed in 24.04.
+  if cc.check_header('wireshark/epan/wmem/wmem.h', dependencies: wireshark_dep)
+    conf.set('WITH_WS_EPAN_WMEM', 1)
+  elif cc.check_header('wireshark/wsutil/wmem/wmem.h', dependencies: wireshark_dep)
+    conf.set('WITH_WS_WSUTIL_WMEM', 1)
+  else
+    error('Unable to locate wmem.h file')
+  endif
+
+  # TODO: drop wsutil dep once support for Ubuntu 20.04 is dropped
+  wsutil_dep = dependency('', required: false)
+  if not cc.has_function('wmem_free', dependencies: wireshark_dep)
+    wsutil_dep = cc.find_library('wsutil', required: true)
   endif
 endif
 

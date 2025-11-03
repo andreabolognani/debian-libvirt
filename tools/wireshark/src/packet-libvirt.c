@@ -21,6 +21,11 @@
 #include <wireshark/epan/proto.h>
 #include <wireshark/epan/packet.h>
 #include <wireshark/epan/dissectors/packet-tcp.h>
+#ifdef WITH_WS_EPAN_WMEM
+# include <wireshark/epan/wmem/wmem.h>
+#elif WITH_WS_WSUTIL_WMEM
+# include <wireshark/wsutil/wmem/wmem.h>
+#endif
 #include <rpc/types.h>
 #include <rpc/xdr.h>
 #include "packet-libvirt.h"
@@ -58,7 +63,7 @@ static gint ett_libvirt_stream_hole = -1;
 
 #define XDR_PRIMITIVE_DISSECTOR(xtype, ctype, ftype) \
     static gboolean \
-    dissect_xdr_##xtype(tvbuff_t *tvb, proto_tree *tree, XDR *xdrs, int hf) \
+    dissect_xdr_##xtype(tvbuff_t *tvb, packet_info *pinfo G_GNUC_UNUSED, proto_tree *tree, XDR *xdrs, int hf) \
     { \
         goffset start; \
         ctype val; \
@@ -88,11 +93,11 @@ XDR_PRIMITIVE_DISSECTOR(bool,    bool_t,   boolean)
 
 VIR_WARNINGS_RESET
 
-typedef gboolean (*vir_xdr_dissector_t)(tvbuff_t *tvb, proto_tree *tree, XDR *xdrs, int hf);
+typedef gboolean (*vir_xdr_dissector_t)(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, XDR *xdrs, int hf);
 
 typedef struct vir_dissector_index vir_dissector_index_t;
 struct vir_dissector_index {
-    guint32             proc;
+    int32_t             proc;
     vir_xdr_dissector_t args;
     vir_xdr_dissector_t ret;
     vir_xdr_dissector_t msg;
@@ -140,8 +145,33 @@ static const value_string status_strings[] = {
     { -1, NULL }
 };
 
+static char *
+G_GNUC_PRINTF(4, 0)
+vir_val_to_str(packet_info *pinfo,
+               const uint32_t val,
+               const value_string *vs,
+               const char *fmt)
+{
+#if WIRESHARK_VERSION < 4006000
+    return val_to_str_wmem(pinfo->pool, val, vs, fmt);
+#else
+    return val_to_str(pinfo->pool, val, vs, fmt);
+#endif
+}
+
+static void
+vir_wmem_free(packet_info *pinfo,
+              void *ptr)
+{
+    wmem_free(pinfo->pool, ptr);
+}
+
 static gboolean
-dissect_xdr_string(tvbuff_t *tvb, proto_tree *tree, XDR *xdrs, int hf,
+dissect_xdr_string(tvbuff_t *tvb,
+                   packet_info *pinfo G_GNUC_UNUSED,
+                   proto_tree *tree,
+                   XDR *xdrs,
+                   int hf,
                    guint32 maxlen)
 {
     goffset start;
@@ -159,7 +189,11 @@ dissect_xdr_string(tvbuff_t *tvb, proto_tree *tree, XDR *xdrs, int hf,
 }
 
 static gboolean
-dissect_xdr_opaque(tvbuff_t *tvb, proto_tree *tree, XDR *xdrs, int hf,
+dissect_xdr_opaque(tvbuff_t *tvb,
+                   packet_info *pinfo,
+                   proto_tree *tree,
+                   XDR *xdrs,
+                   int hf,
                    guint32 size)
 {
     goffset start;
@@ -170,7 +204,7 @@ dissect_xdr_opaque(tvbuff_t *tvb, proto_tree *tree, XDR *xdrs, int hf,
     start = xdr_getpos(xdrs);
     if ((rc = xdr_opaque(xdrs, (caddr_t)val, size))) {
         gint len = xdr_getpos(xdrs) - start;
-        const char *s = tvb_bytes_to_str(wmem_packet_scope(), tvb, start, len);
+        const char *s = tvb_bytes_to_str(pinfo->pool, tvb, start, len);
 
         proto_tree_add_bytes_format_value(tree, hf, tvb, start, len, NULL, "%s", s);
     } else {
@@ -182,7 +216,11 @@ dissect_xdr_opaque(tvbuff_t *tvb, proto_tree *tree, XDR *xdrs, int hf,
 }
 
 static gboolean
-dissect_xdr_bytes(tvbuff_t *tvb, proto_tree *tree, XDR *xdrs, int hf,
+dissect_xdr_bytes(tvbuff_t *tvb,
+                  packet_info *pinfo,
+                  proto_tree *tree,
+                  XDR *xdrs,
+                  int hf,
                   guint32 maxlen)
 {
     goffset start;
@@ -192,7 +230,7 @@ dissect_xdr_bytes(tvbuff_t *tvb, proto_tree *tree, XDR *xdrs, int hf,
     start = xdr_getpos(xdrs);
     if (xdr_bytes(xdrs, (char **)&val, &length, maxlen)) {
         gint len = xdr_getpos(xdrs) - start;
-        const char *s = tvb_bytes_to_str(wmem_packet_scope(), tvb, start, len);
+        const char *s = tvb_bytes_to_str(pinfo->pool, tvb, start, len);
 
         proto_tree_add_bytes_format_value(tree, hf, tvb, start, len, NULL, "%s", s);
         free(val);
@@ -204,7 +242,11 @@ dissect_xdr_bytes(tvbuff_t *tvb, proto_tree *tree, XDR *xdrs, int hf,
 }
 
 static gboolean
-dissect_xdr_pointer(tvbuff_t *tvb, proto_tree *tree, XDR *xdrs, int hf,
+dissect_xdr_pointer(tvbuff_t *tvb,
+                    packet_info *pinfo,
+                    proto_tree *tree,
+                    XDR *xdrs,
+                    int hf,
                     vir_xdr_dissector_t dissect)
 {
     goffset start;
@@ -216,7 +258,7 @@ dissect_xdr_pointer(tvbuff_t *tvb, proto_tree *tree, XDR *xdrs, int hf,
         return FALSE;
     }
     if (not_null) {
-        return dissect(tvb, tree, xdrs, hf);
+        return dissect(tvb, pinfo, tree, xdrs, hf);
     } else {
         proto_item *ti;
         ti = proto_tree_add_item(tree, hf, tvb, start, xdr_getpos(xdrs) - start, ENC_NA);
@@ -226,15 +268,22 @@ dissect_xdr_pointer(tvbuff_t *tvb, proto_tree *tree, XDR *xdrs, int hf,
 }
 
 static gboolean
-dissect_xdr_iterable(tvbuff_t *tvb, proto_item *ti, XDR *xdrs, gint ett, int rhf,
-                     guint32 length, vir_xdr_dissector_t dissect, goffset start)
+dissect_xdr_iterable(tvbuff_t *tvb,
+                     packet_info *pinfo,
+                     proto_item *ti,
+                     XDR *xdrs,
+                     gint ett,
+                     int rhf,
+                     guint32 length,
+                     vir_xdr_dissector_t dissect,
+                     goffset start)
 {
     proto_tree *tree;
     guint32 i;
 
     tree = proto_item_add_subtree(ti, ett);
     for (i = 0; i < length; i++) {
-        if (!dissect(tvb, tree, xdrs, rhf))
+        if (!dissect(tvb, pinfo, tree, xdrs, rhf))
             return FALSE;
     }
     proto_item_set_len(ti, xdr_getpos(xdrs) - start);
@@ -242,8 +291,16 @@ dissect_xdr_iterable(tvbuff_t *tvb, proto_item *ti, XDR *xdrs, gint ett, int rhf
 }
 
 static gboolean
-dissect_xdr_vector(tvbuff_t *tvb, proto_tree *tree, XDR *xdrs, int hf, gint ett,
-                   int rhf, const gchar *rtype, guint32 size, vir_xdr_dissector_t dissect)
+dissect_xdr_vector(tvbuff_t *tvb,
+                   packet_info *pinfo,
+                   proto_tree *tree,
+                   XDR *xdrs,
+                   int hf,
+                   gint ett,
+                   int rhf,
+                   const gchar *rtype,
+                   guint32 size,
+                   vir_xdr_dissector_t dissect)
 {
     goffset start;
     proto_item *ti;
@@ -251,12 +308,20 @@ dissect_xdr_vector(tvbuff_t *tvb, proto_tree *tree, XDR *xdrs, int hf, gint ett,
     start = xdr_getpos(xdrs);
     ti = proto_tree_add_item(tree, hf, tvb, start, -1, ENC_NA);
     proto_item_append_text(ti, " :: %s[%u]", rtype, size);
-    return dissect_xdr_iterable(tvb, ti, xdrs, ett, rhf, size, dissect, start);
+    return dissect_xdr_iterable(tvb, pinfo, ti, xdrs, ett, rhf, size, dissect, start);
 }
 
 static gboolean
-dissect_xdr_array(tvbuff_t *tvb, proto_tree *tree, XDR *xdrs, int hf, gint ett,
-                  int rhf, const gchar *rtype, guint32 maxlen, vir_xdr_dissector_t dissect)
+dissect_xdr_array(tvbuff_t *tvb,
+                  packet_info *pinfo,
+                  proto_tree *tree,
+                  XDR *xdrs,
+                  int hf,
+                  gint ett,
+                  int rhf,
+                  const gchar *rtype,
+                  guint32 maxlen,
+                  vir_xdr_dissector_t dissect)
 {
     goffset start;
     proto_item *ti;
@@ -271,12 +336,14 @@ dissect_xdr_array(tvbuff_t *tvb, proto_tree *tree, XDR *xdrs, int hf, gint ett,
 
     ti = proto_tree_add_item(tree, hf, tvb, start, -1, ENC_NA);
     proto_item_append_text(ti, " :: %s<%u>", rtype, length);
-    return dissect_xdr_iterable(tvb, ti, xdrs, ett, rhf, length, dissect, start);
+    return dissect_xdr_iterable(tvb, pinfo, ti, xdrs, ett, rhf, length, dissect, start);
 }
 
 static vir_xdr_dissector_t
-find_payload_dissector(guint32 proc, guint32 type,
-                       const vir_dissector_index_t *pds, gsize length)
+find_payload_dissector(int32_t proc,
+                       enum vir_net_message_type type,
+                       const vir_dissector_index_t *pds,
+                       gsize length)
 {
     const vir_dissector_index_t *pd;
     guint32 first, last, direction;
@@ -309,12 +376,19 @@ find_payload_dissector(guint32 proc, guint32 type,
         return pd->ret;
     case VIR_NET_MESSAGE:
         return pd->msg;
+    case VIR_NET_STREAM:
+    case VIR_NET_STREAM_HOLE:
+        /* Handled elsewhere */
+        return NULL;
     }
     return NULL;
 }
 
 static void
-dissect_libvirt_stream(tvbuff_t *tvb, proto_tree *tree, gint payload_length)
+dissect_libvirt_stream(tvbuff_t *tvb,
+                       packet_info *pinfo G_GNUC_UNUSED,
+                       proto_tree *tree,
+                       gint payload_length)
 {
     proto_tree_add_item(tree, hf_libvirt_stream, tvb, VIR_HEADER_LEN,
                         payload_length - VIR_HEADER_LEN, ENC_NA);
@@ -331,6 +405,7 @@ dissect_libvirt_num_of_fds(tvbuff_t *tvb, proto_tree *tree)
 
 static void
 dissect_libvirt_fds(tvbuff_t *tvb G_GNUC_UNUSED,
+                    packet_info *pinfo G_GNUC_UNUSED,
                     gint start G_GNUC_UNUSED,
                     gint32 nfds G_GNUC_UNUSED)
 {
@@ -338,8 +413,12 @@ dissect_libvirt_fds(tvbuff_t *tvb G_GNUC_UNUSED,
 }
 
 static void
-dissect_libvirt_payload_xdr_data(tvbuff_t *tvb, proto_tree *tree, gint payload_length,
-                                 gint32 status, vir_xdr_dissector_t dissect)
+dissect_libvirt_payload_xdr_data(tvbuff_t *tvb,
+                                 packet_info *pinfo,
+                                 proto_tree *tree,
+                                 gint payload_length,
+                                 gint32 status,
+                                 vir_xdr_dissector_t dissect)
 {
     gint32 nfds = 0;
     gint start = VIR_HEADER_LEN;
@@ -358,17 +437,21 @@ dissect_libvirt_payload_xdr_data(tvbuff_t *tvb, proto_tree *tree, gint payload_l
     payload_data = (caddr_t)tvb_memdup(NULL, payload_tvb, 0, payload_length);
     xdrmem_create(&xdrs, payload_data, payload_length, XDR_DECODE);
 
-    dissect(payload_tvb, tree, &xdrs, -1);
+    dissect(payload_tvb, pinfo, tree, &xdrs, -1);
 
     xdr_destroy(&xdrs);
     g_free(payload_data);
 
     if (nfds != 0)
-        dissect_libvirt_fds(tvb, start + payload_length, nfds);
+        dissect_libvirt_fds(tvb, pinfo, start + payload_length, nfds);
 }
 
 static gboolean
-dissect_xdr_stream_hole(tvbuff_t *tvb, proto_tree *tree, XDR *xdrs, int hf)
+dissect_xdr_stream_hole(tvbuff_t *tvb,
+                        packet_info *pinfo,
+                        proto_tree *tree,
+                        XDR *xdrs,
+                        int hf)
 {
     goffset start;
     proto_item *ti;
@@ -385,10 +468,10 @@ dissect_xdr_stream_hole(tvbuff_t *tvb, proto_tree *tree, XDR *xdrs, int hf)
     tree = proto_item_add_subtree(ti, ett_libvirt_stream_hole);
 
     hf = hf_libvirt_stream_hole_length;
-    if (!dissect_xdr_hyper(tvb, tree, xdrs, hf)) return FALSE;
+    if (!dissect_xdr_hyper(tvb, pinfo, tree, xdrs, hf)) return FALSE;
 
     hf = hf_libvirt_stream_hole_flags;
-    if (!dissect_xdr_u_int(tvb, tree, xdrs, hf)) return FALSE;
+    if (!dissect_xdr_u_int(tvb, pinfo, tree, xdrs, hf)) return FALSE;
 
     proto_item_set_len(ti, xdr_getpos(xdrs) - start);
     return TRUE;
@@ -397,8 +480,13 @@ dissect_xdr_stream_hole(tvbuff_t *tvb, proto_tree *tree, XDR *xdrs, int hf)
 #include "libvirt/protocol.h"
 
 static void
-dissect_libvirt_payload(tvbuff_t *tvb, proto_tree *tree,
-                        guint32 prog, guint32 proc, guint32 type, guint32 status)
+dissect_libvirt_payload(tvbuff_t *tvb,
+                        packet_info *pinfo,
+                        proto_tree *tree,
+                        uint32_t prog,
+                        int32_t proc,
+                        int32_t type,
+                        int32_t status)
 {
     gssize payload_length;
 
@@ -417,20 +505,21 @@ dissect_libvirt_payload(tvbuff_t *tvb, proto_tree *tree,
         xd = find_payload_dissector(proc, type, pds, *len);
         if (xd == NULL)
             goto unknown;
-        dissect_libvirt_payload_xdr_data(tvb, tree, payload_length, status, xd);
+        dissect_libvirt_payload_xdr_data(tvb, pinfo, tree, payload_length, status, xd);
     } else if (status == VIR_NET_ERROR) {
-        dissect_libvirt_payload_xdr_data(tvb, tree, payload_length, status, dissect_xdr_remote_error);
+        dissect_libvirt_payload_xdr_data(tvb, pinfo, tree, payload_length, status, dissect_xdr_remote_error);
     } else if (type == VIR_NET_STREAM) { /* implicitly, status == VIR_NET_CONTINUE */
-        dissect_libvirt_stream(tvb, tree, payload_length);
+        dissect_libvirt_stream(tvb, pinfo, tree, payload_length);
     } else if (type == VIR_NET_STREAM_HOLE) {
-        dissect_libvirt_payload_xdr_data(tvb, tree, payload_length, status, dissect_xdr_stream_hole);
+        dissect_libvirt_payload_xdr_data(tvb, pinfo, tree, payload_length, status, dissect_xdr_stream_hole);
     } else {
         goto unknown;
     }
     return;
 
  unknown:
-    dbg("Cannot determine payload: Prog=%u, Proc=%u, Type=%u, Status=%u", prog, proc, type, status);
+    dbg("Cannot determine payload: Prog=%u, Proc=%d, Type=%d, Status=%d",
+        prog, proc, type, status);
     proto_tree_add_item(tree, hf_libvirt_unknown, tvb, VIR_HEADER_LEN, -1, ENC_NA);
 }
 
@@ -439,8 +528,13 @@ dissect_libvirt_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
                         void *opaque G_GNUC_UNUSED)
 {
     goffset offset;
-    guint32 prog, proc, type, serial, status;
+    uint32_t prog, serial;
+    int32_t proc, type, status;
     const value_string *vs;
+    char *prog_str = NULL;
+    char *proc_str = NULL;
+    char *type_str = NULL;
+    char *status_str = NULL;
 
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "Libvirt");
     col_clear(pinfo->cinfo, COL_INFO);
@@ -448,24 +542,26 @@ dissect_libvirt_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
     offset = 4; /* End of length field */
     prog   = tvb_get_ntohl(tvb, offset); offset += 4;
     offset += 4; /* Ignore version header field */
-    proc   = tvb_get_ntohl(tvb, offset); offset += 4;
-    type   = tvb_get_ntohl(tvb, offset); offset += 4;
+    proc   = tvb_get_ntohil(tvb, offset); offset += 4;
+    type   = tvb_get_ntohil(tvb, offset); offset += 4;
     serial = tvb_get_ntohl(tvb, offset); offset += 4;
-    status = tvb_get_ntohl(tvb, offset); offset += 4;
+    status = tvb_get_ntohil(tvb, offset); offset += 4;
 
-    col_add_fstr(pinfo->cinfo, COL_INFO, "Prog=%s",
-                 val_to_str(prog, program_strings, "%x"));
+    prog_str = vir_val_to_str(pinfo, prog, program_strings, "%x");
+    col_add_fstr(pinfo->cinfo, COL_INFO, "Prog=%s", prog_str);
+    vir_wmem_free(pinfo, prog_str);
 
     vs = get_program_data(prog, VIR_PROGRAM_PROCSTRINGS);
-    if (vs == NULL) {
-        col_append_fstr(pinfo->cinfo, COL_INFO, " Proc=%u", proc);
-    } else {
-        col_append_fstr(pinfo->cinfo, COL_INFO, " Proc=%s", val_to_str(proc, vs, "%d"));
-    }
+    proc_str = vir_val_to_str(pinfo, proc, vs, "%d");
+    col_append_fstr(pinfo->cinfo, COL_INFO, " Proc=%s", proc_str);
+    vir_wmem_free(pinfo, proc_str);
 
+    type_str = vir_val_to_str(pinfo, type, type_strings, "%d");
+    status_str = vir_val_to_str(pinfo, status, status_strings, "%d");
     col_append_fstr(pinfo->cinfo, COL_INFO, " Type=%s Serial=%u Status=%s",
-                    val_to_str(type, type_strings, "%d"), serial,
-                    val_to_str(status, status_strings, "%d"));
+                    type_str, serial, status_str);
+    vir_wmem_free(pinfo, status_str);
+    vir_wmem_free(pinfo, type_str);
 
     if (tree) {
         gint *hf_proc;
@@ -494,21 +590,26 @@ dissect_libvirt_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
         proto_tree_add_item(libvirt_tree, hf_libvirt_status,  tvb, offset, 4, ENC_NA); offset += 4;
 
         /* Dissect payload remaining */
-        dissect_libvirt_payload(tvb, libvirt_tree, prog, proc, type, status);
+        dissect_libvirt_payload(tvb, pinfo, libvirt_tree, prog, proc, type, status);
     }
 
     return 0;
 }
 
 static guint
-get_message_len(packet_info *pinfo G_GNUC_UNUSED, tvbuff_t *tvb, int offset, void *data G_GNUC_UNUSED)
+get_message_len(packet_info *pinfo G_GNUC_UNUSED,
+                tvbuff_t *tvb,
+                int offset,
+                void *data G_GNUC_UNUSED)
 {
     return tvb_get_ntohl(tvb, offset);
 }
 
 static int
-dissect_libvirt(tvbuff_t *tvb, packet_info *pinfo,
-                proto_tree *tree, void *data G_GNUC_UNUSED)
+dissect_libvirt(tvbuff_t *tvb,
+                packet_info *pinfo,
+                proto_tree *tree,
+                void *data G_GNUC_UNUSED)
 {
     /* Another magic const - 4; simply, how much bytes
      * is needed to tell the length of libvirt packet. */

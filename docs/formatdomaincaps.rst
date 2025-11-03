@@ -869,11 +869,10 @@ Hyper-V Enlightenments
 Report which features improving behavior of guests running Microsoft Windows
 are supported. The ``features`` enum corresponds to the ``<hyperv/>`` element
 (well, its children) as documented in `Hypervisor features
-<formatdomain.html#hypervisor-features>`__.
-
-Please note that depending on the QEMU version some capabilities might be
-missing even though QEMU does support them. This is because prior to QEMU-6.1.0
-not all features were reported by QEMU.
+<formatdomain.html#hypervisor-features>`__. The ``defaults`` element then
+contains child elements describing default values as reported by hypervisor,
+e.h. whether direct or extended TLB flushes are available. :since:`(since
+11.9.0)`
 
 Launch security
 ^^^^^^^^^^^^^^^

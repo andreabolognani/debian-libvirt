@@ -983,9 +983,11 @@ qemuBuildVirtioDevGetConfigDev(const virDomainDeviceDef *device,
             switch (device->data.memory->model) {
             case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_PMEM:
                 *baseName = "virtio-pmem";
+                *virtioOptions = device->data.memory->virtio;
                 break;
             case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM:
                 *baseName = "virtio-mem";
+                *virtioOptions = device->data.memory->virtio;
                 break;
             case VIR_DOMAIN_MEMORY_MODEL_DIMM:
             case VIR_DOMAIN_MEMORY_MODEL_NVDIMM:
@@ -2558,67 +2560,6 @@ qemuBuildFilesystemCommandLine(virCommand *cmd,
 }
 
 
-static int
-qemuControllerModelUSBToCaps(int model)
-{
-    switch (model) {
-    case VIR_DOMAIN_CONTROLLER_MODEL_USB_PIIX3_UHCI:
-        return QEMU_CAPS_PIIX3_USB_UHCI;
-    case VIR_DOMAIN_CONTROLLER_MODEL_USB_PIIX4_UHCI:
-        return QEMU_CAPS_PIIX4_USB_UHCI;
-    case VIR_DOMAIN_CONTROLLER_MODEL_USB_EHCI:
-        return QEMU_CAPS_USB_EHCI;
-    case VIR_DOMAIN_CONTROLLER_MODEL_USB_ICH9_EHCI1:
-    case VIR_DOMAIN_CONTROLLER_MODEL_USB_ICH9_UHCI1:
-    case VIR_DOMAIN_CONTROLLER_MODEL_USB_ICH9_UHCI2:
-    case VIR_DOMAIN_CONTROLLER_MODEL_USB_ICH9_UHCI3:
-        return QEMU_CAPS_ICH9_USB_EHCI1;
-    case VIR_DOMAIN_CONTROLLER_MODEL_USB_VT82C686B_UHCI:
-        return QEMU_CAPS_VT82C686B_USB_UHCI;
-    case VIR_DOMAIN_CONTROLLER_MODEL_USB_PCI_OHCI:
-        return QEMU_CAPS_PCI_OHCI;
-    case VIR_DOMAIN_CONTROLLER_MODEL_USB_NEC_XHCI:
-        return QEMU_CAPS_NEC_USB_XHCI;
-    case VIR_DOMAIN_CONTROLLER_MODEL_USB_QEMU_XHCI:
-        return QEMU_CAPS_DEVICE_QEMU_XHCI;
-    default:
-        return -1;
-    }
-}
-
-
-static int
-qemuValidateDomainDeviceDefControllerUSB(const virDomainControllerDef *def,
-                                         virQEMUCaps *qemuCaps)
-{
-    if (def->model == VIR_DOMAIN_CONTROLLER_MODEL_USB_DEFAULT) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Unable to determine model for USB controller idx=%1$d"),
-                       def->idx);
-        return -1;
-    }
-
-    if (!virQEMUCapsGet(qemuCaps, qemuControllerModelUSBToCaps(def->model))) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("USB controller model '%1$s' not supported in this QEMU binary"),
-                       virDomainControllerModelUSBTypeToString(def->model));
-        return -1;
-    }
-
-    if (def->opts.usbopts.ports != -1) {
-        if (def->model != VIR_DOMAIN_CONTROLLER_MODEL_USB_NEC_XHCI &&
-            def->model != VIR_DOMAIN_CONTROLLER_MODEL_USB_QEMU_XHCI) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("usb controller type '%1$s' doesn't support 'ports' with this QEMU binary"),
-                           virDomainControllerModelUSBTypeToString(def->model));
-            return -1;
-        }
-    }
-
-    return 0;
-}
-
-
 static const char *
 qemuBuildUSBControllerFindMasterAlias(const virDomainDef *domainDef,
                                       const virDomainControllerDef *def)
@@ -2646,13 +2587,9 @@ qemuBuildUSBControllerFindMasterAlias(const virDomainDef *domainDef,
 
 static virJSONValue *
 qemuBuildUSBControllerDevProps(const virDomainDef *domainDef,
-                               virDomainControllerDef *def,
-                               virQEMUCaps *qemuCaps)
+                               virDomainControllerDef *def)
 {
     g_autoptr(virJSONValue) props = NULL;
-
-    if (qemuValidateDomainDeviceDefControllerUSB(def, qemuCaps) < 0)
-        return NULL;
 
     if (virJSONValueObjectAdd(&props,
                               "s:driver", qemuControllerModelUSBTypeToString(def->model),
@@ -2949,7 +2886,7 @@ qemuBuildControllerDevProps(const virDomainDef *domainDef,
         break;
 
     case VIR_DOMAIN_CONTROLLER_TYPE_USB:
-        if (!(props = qemuBuildUSBControllerDevProps(domainDef, def, qemuCaps)))
+        if (!(props = qemuBuildUSBControllerDevProps(domainDef, def)))
             return -1;
 
         break;
@@ -3036,6 +2973,11 @@ qemuBuildSkipController(const virDomainControllerDef *controller,
         return true;
     }
 
+    /* skip USB controllers with type none */
+    if (controller->type == VIR_DOMAIN_CONTROLLER_TYPE_USB &&
+        controller->model == VIR_DOMAIN_CONTROLLER_MODEL_USB_NONE)
+        return true;
+
     return false;
 }
 
@@ -3073,18 +3015,6 @@ qemuBuildControllersByTypeCommandLine(virCommand *cmd,
 
         if (qemuBuildSkipController(cont, def))
             continue;
-
-        if (cont->type == VIR_DOMAIN_CONTROLLER_TYPE_USB) {
-
-            /* skip USB controllers with type none*/
-            if (cont->model == VIR_DOMAIN_CONTROLLER_MODEL_USB_NONE)
-                continue;
-
-            /* skip 'default' controllers on s390 for legacy reasons */
-            if (ARCH_IS_S390(def->os.arch) &&
-                cont->model == VIR_DOMAIN_CONTROLLER_MODEL_USB_DEFAULT)
-                continue;
-        }
 
         if (qemuBuildControllerDevProps(def, cont, qemuCaps, &props) < 0)
             return -1;
@@ -6119,7 +6049,7 @@ qemuBuildClockCommandLine(virCommand *cmd,
     }
 
     for (i = 0; i < def->clock.ntimers; i++) {
-        switch ((virDomainTimerNameType)def->clock.timers[i]->name) {
+        switch (def->clock.timers[i]->name) {
         case VIR_DOMAIN_TIMER_NAME_PLATFORM:
             /* qemuDomainDefValidateClockTimers will handle this
              * error condition  */
@@ -6521,6 +6451,90 @@ qemuBuildCpuModelArgStr(virQEMUDriver *driver,
     return 0;
 }
 
+
+static int
+qemuBuildCpuHypervCommandLine(virBuffer *buf,
+                              const virDomainDef *def)
+{
+    size_t i;
+
+    if (def->features[VIR_DOMAIN_FEATURE_HYPERV] == VIR_DOMAIN_HYPERV_MODE_NONE)
+        return 0;
+
+    switch ((virDomainHyperVMode) def->features[VIR_DOMAIN_FEATURE_HYPERV]) {
+    case VIR_DOMAIN_HYPERV_MODE_CUSTOM:
+        break;
+
+    case VIR_DOMAIN_HYPERV_MODE_PASSTHROUGH:
+        virBufferAddLit(buf, ",hv-passthrough=on");
+        break;
+
+    case VIR_DOMAIN_HYPERV_MODE_HOST_MODEL:
+    case VIR_DOMAIN_HYPERV_MODE_NONE:
+    case VIR_DOMAIN_HYPERV_MODE_LAST:
+    default:
+        virReportEnumRangeError(virDomainHyperVMode,
+                                def->features[VIR_DOMAIN_FEATURE_HYPERV]);
+        return -1;
+    }
+
+    for (i = 0; i < VIR_DOMAIN_HYPERV_LAST; i++) {
+        switch ((virDomainHyperv) i) {
+        case VIR_DOMAIN_HYPERV_RELAXED:
+        case VIR_DOMAIN_HYPERV_VAPIC:
+        case VIR_DOMAIN_HYPERV_VPINDEX:
+        case VIR_DOMAIN_HYPERV_RUNTIME:
+        case VIR_DOMAIN_HYPERV_SYNIC:
+        case VIR_DOMAIN_HYPERV_STIMER:
+        case VIR_DOMAIN_HYPERV_RESET:
+        case VIR_DOMAIN_HYPERV_FREQUENCIES:
+        case VIR_DOMAIN_HYPERV_REENLIGHTENMENT:
+        case VIR_DOMAIN_HYPERV_TLBFLUSH:
+        case VIR_DOMAIN_HYPERV_IPI:
+        case VIR_DOMAIN_HYPERV_EVMCS:
+        case VIR_DOMAIN_HYPERV_AVIC:
+        case VIR_DOMAIN_HYPERV_EMSR_BITMAP:
+        case VIR_DOMAIN_HYPERV_XMM_INPUT:
+            if (def->hyperv.features[i] == VIR_TRISTATE_SWITCH_ON) {
+                const char *name = virDomainHypervTypeToString(i);
+                g_autofree char *full_name = g_strdup_printf("hv-%s", name);
+                const char *qemu_name = virQEMUCapsCPUFeatureToQEMU(def->os.arch,
+                                                                    full_name);
+                virBufferAsprintf(buf, ",%s=on", qemu_name);
+            }
+            if ((i == VIR_DOMAIN_HYPERV_STIMER) &&
+                (def->hyperv.stimer_direct == VIR_TRISTATE_SWITCH_ON))
+                virBufferAsprintf(buf, ",%s=on", VIR_CPU_x86_HV_STIMER_DIRECT);
+            if (i == VIR_DOMAIN_HYPERV_TLBFLUSH) {
+                if (def->hyperv.tlbflush_direct == VIR_TRISTATE_SWITCH_ON)
+                    virBufferAsprintf(buf, ",%s=on", VIR_CPU_x86_HV_TLBFLUSH_DIRECT);
+                if (def->hyperv.tlbflush_extended == VIR_TRISTATE_SWITCH_ON)
+                    virBufferAsprintf(buf, ",%s=on", VIR_CPU_x86_HV_TLBFLUSH_EXT);
+            }
+            break;
+
+        case VIR_DOMAIN_HYPERV_SPINLOCKS:
+            if (def->hyperv.features[i] == VIR_TRISTATE_SWITCH_ON)
+                virBufferAsprintf(buf, ",%s=0x%x",
+                                  VIR_CPU_x86_HV_SPINLOCKS,
+                                  def->hyperv.spinlocks);
+            break;
+
+        case VIR_DOMAIN_HYPERV_VENDOR_ID:
+            if (def->hyperv.features[i] == VIR_TRISTATE_SWITCH_ON)
+                virBufferAsprintf(buf, ",hv-vendor-id=%s",
+                                  def->hyperv.vendor_id);
+            break;
+
+        case VIR_DOMAIN_HYPERV_LAST:
+            break;
+        }
+    }
+
+    return 0;
+}
+
+
 static int
 qemuBuildCpuCommandLine(virCommand *cmd,
                         virQEMUDriver *driver,
@@ -6563,7 +6577,7 @@ qemuBuildCpuCommandLine(virCommand *cmd,
     for (i = 0; i < def->clock.ntimers; i++) {
         virDomainTimerDef *timer = def->clock.timers[i];
 
-        switch ((virDomainTimerNameType)timer->name) {
+        switch (timer->name) {
         case VIR_DOMAIN_TIMER_NAME_KVMCLOCK:
             if (timer->present != VIR_TRISTATE_BOOL_ABSENT) {
                 /* QEMU expects on/off -> virTristateSwitch. */
@@ -6617,76 +6631,8 @@ qemuBuildCpuCommandLine(virCommand *cmd,
                           VIR_TRISTATE_SWITCH_ON ? "on" : "off");
     }
 
-    if (def->features[VIR_DOMAIN_FEATURE_HYPERV] != VIR_DOMAIN_HYPERV_MODE_NONE) {
-        switch ((virDomainHyperVMode) def->features[VIR_DOMAIN_FEATURE_HYPERV]) {
-        case VIR_DOMAIN_HYPERV_MODE_CUSTOM:
-            break;
-
-        case VIR_DOMAIN_HYPERV_MODE_PASSTHROUGH:
-            virBufferAsprintf(&buf, ",hv-%s=on", "passthrough");
-            break;
-
-        case VIR_DOMAIN_HYPERV_MODE_NONE:
-        case VIR_DOMAIN_HYPERV_MODE_LAST:
-        default:
-            virReportEnumRangeError(virDomainHyperVMode,
-                                    def->features[VIR_DOMAIN_FEATURE_HYPERV]);
-            return -1;
-        }
-
-        for (i = 0; i < VIR_DOMAIN_HYPERV_LAST; i++) {
-            switch ((virDomainHyperv) i) {
-            case VIR_DOMAIN_HYPERV_RELAXED:
-            case VIR_DOMAIN_HYPERV_VAPIC:
-            case VIR_DOMAIN_HYPERV_VPINDEX:
-            case VIR_DOMAIN_HYPERV_RUNTIME:
-            case VIR_DOMAIN_HYPERV_SYNIC:
-            case VIR_DOMAIN_HYPERV_STIMER:
-            case VIR_DOMAIN_HYPERV_RESET:
-            case VIR_DOMAIN_HYPERV_FREQUENCIES:
-            case VIR_DOMAIN_HYPERV_REENLIGHTENMENT:
-            case VIR_DOMAIN_HYPERV_TLBFLUSH:
-            case VIR_DOMAIN_HYPERV_IPI:
-            case VIR_DOMAIN_HYPERV_EVMCS:
-            case VIR_DOMAIN_HYPERV_AVIC:
-            case VIR_DOMAIN_HYPERV_EMSR_BITMAP:
-            case VIR_DOMAIN_HYPERV_XMM_INPUT:
-                if (def->hyperv_features[i] == VIR_TRISTATE_SWITCH_ON) {
-                    const char *name = virDomainHypervTypeToString(i);
-                    g_autofree char *full_name = g_strdup_printf("hv-%s", name);
-                    const char *qemu_name = virQEMUCapsCPUFeatureToQEMU(def->os.arch,
-                                                                        full_name);
-                    virBufferAsprintf(&buf, ",%s=on", qemu_name);
-                }
-                if ((i == VIR_DOMAIN_HYPERV_STIMER) &&
-                    (def->hyperv_stimer_direct == VIR_TRISTATE_SWITCH_ON))
-                    virBufferAsprintf(&buf, ",%s=on", VIR_CPU_x86_HV_STIMER_DIRECT);
-                if (i == VIR_DOMAIN_HYPERV_TLBFLUSH) {
-                    if (def->hyperv_tlbflush_direct == VIR_TRISTATE_SWITCH_ON)
-                        virBufferAsprintf(&buf, ",%s=on", VIR_CPU_x86_HV_TLBFLUSH_DIRECT);
-                    if (def->hyperv_tlbflush_extended == VIR_TRISTATE_SWITCH_ON)
-                        virBufferAsprintf(&buf, ",%s=on", VIR_CPU_x86_HV_TLBFLUSH_EXT);
-                }
-                break;
-
-            case VIR_DOMAIN_HYPERV_SPINLOCKS:
-                if (def->hyperv_features[i] == VIR_TRISTATE_SWITCH_ON)
-                    virBufferAsprintf(&buf, ",%s=0x%x",
-                                      VIR_CPU_x86_HV_SPINLOCKS,
-                                      def->hyperv_spinlocks);
-                break;
-
-            case VIR_DOMAIN_HYPERV_VENDOR_ID:
-                if (def->hyperv_features[i] == VIR_TRISTATE_SWITCH_ON)
-                    virBufferAsprintf(&buf, ",hv-vendor-id=%s",
-                                      def->hyperv_vendor_id);
-                break;
-
-            case VIR_DOMAIN_HYPERV_LAST:
-                break;
-            }
-        }
-    }
+    if (qemuBuildCpuHypervCommandLine(&buf, def) < 0)
+        return -1;
 
     for (i = 0; i < def->npanics; i++) {
         if (def->panics[i]->model == VIR_DOMAIN_PANIC_MODEL_HYPERV) {
@@ -7272,7 +7218,7 @@ qemuBuildMachineCommandLine(virCommand *cmd,
     }
 
     for (i = 0; i < def->clock.ntimers; i++) {
-        switch ((virDomainTimerNameType)def->clock.timers[i]->name) {
+        switch (def->clock.timers[i]->name) {
         case VIR_DOMAIN_TIMER_NAME_HPET:
             /* qemuBuildClockCommandLine handles the old-style config via '-no-hpet' */
             if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_MACHINE_HPET) &&

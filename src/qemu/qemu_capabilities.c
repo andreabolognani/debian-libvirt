@@ -2070,8 +2070,7 @@ virQEMUCaps *virQEMUCapsNewCopy(virQEMUCaps *qemuCaps)
     if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_SGX_EPC))
         virQEMUCapsSGXInfoCopy(&ret->sgxCapabilities, qemuCaps->sgxCapabilities);
 
-    ret->hypervCapabilities = g_memdup2(qemuCaps->hypervCapabilities,
-                                        sizeof(virDomainCapsFeatureHyperv));
+    ret->hypervCapabilities = virDomainCapsFeatureHypervCopy(qemuCaps->hypervCapabilities);
 
     return g_steal_pointer(&ret);
 }
@@ -2113,7 +2112,7 @@ void virQEMUCapsDispose(void *obj)
     virSEVCapabilitiesFree(qemuCaps->sevCapabilities);
     virSGXCapabilitiesFree(qemuCaps->sgxCapabilities);
 
-    g_free(qemuCaps->hypervCapabilities);
+    virDomainCapsFeatureHypervFree(qemuCaps->hypervCapabilities);
 
     virQEMUCapsAccelClear(&qemuCaps->kvm);
     virQEMUCapsAccelClear(&qemuCaps->hvf);
@@ -2711,6 +2710,13 @@ virQEMUCapsGetSGXCapabilities(virQEMUCaps *qemuCaps)
 }
 
 
+virDomainCapsFeatureHyperv *
+virQEMUCapsGetHypervCapabilities(virQEMUCaps *qemuCaps)
+{
+    return qemuCaps->hypervCapabilities;
+}
+
+
 static int
 virQEMUCapsProbeQMPObjectTypes(virQEMUCaps *qemuCaps,
                                qemuMonitor *mon)
@@ -3138,7 +3144,7 @@ static int
 virQEMUCapsProbeHypervCapabilities(virQEMUCaps *qemuCaps,
                                    qemuMonitorCPUModelInfo *fullQEMU)
 {
-    g_autofree virDomainCapsFeatureHyperv *hvcaps = NULL;
+    g_autoptr(virDomainCapsFeatureHyperv) hvcaps = NULL;
     size_t i;
 
     if (!fullQEMU)
@@ -3155,6 +3161,50 @@ virQEMUCapsProbeHypervCapabilities(virQEMUCaps *qemuCaps,
 
         if (!(name = STRSKIP(prop.name, "hv-")))
             continue;
+
+        if (STREQ(prop.name, VIR_CPU_x86_HV_SPINLOCKS)) {
+            if (prop.type != QEMU_MONITOR_CPU_PROPERTY_NUMBER) {
+                VIR_DEBUG("Unexpected type '%s' for name '%s'",
+                          qemuMonitorCPUPropertyTypeToString(prop.type), prop.name);
+                continue;
+            }
+
+            if ((uint32_t)prop.value.number != (uint32_t)-1)
+                hvcaps->spinlocks = prop.value.number;
+        } else if (STREQ(prop.name, VIR_CPU_x86_HV_STIMER_DIRECT)) {
+            if (prop.type != QEMU_MONITOR_CPU_PROPERTY_BOOLEAN) {
+                VIR_DEBUG("Unexpected type '%s' for name '%s'",
+                          qemuMonitorCPUPropertyTypeToString(prop.type), prop.name);
+            } else {
+                hvcaps->stimer_direct = virTristateSwitchFromBool(prop.value.boolean);
+            }
+            continue;
+        } else if (STREQ(prop.name, VIR_CPU_x86_HV_TLBFLUSH_DIRECT)) {
+            if (prop.type != QEMU_MONITOR_CPU_PROPERTY_BOOLEAN) {
+                VIR_DEBUG("Unexpected type '%s' for name '%s'",
+                          qemuMonitorCPUPropertyTypeToString(prop.type), prop.name);
+            } else {
+                hvcaps->tlbflush_direct = virTristateSwitchFromBool(prop.value.boolean);
+            }
+            continue;
+        } else if (STREQ(prop.name, VIR_CPU_x86_HV_TLBFLUSH_EXT)) {
+            if (prop.type != QEMU_MONITOR_CPU_PROPERTY_BOOLEAN) {
+                VIR_DEBUG("Unexpected type '%s' for name '%s'",
+                          qemuMonitorCPUPropertyTypeToString(prop.type), prop.name);
+            } else {
+                hvcaps->tlbflush_extended = virTristateSwitchFromBool(prop.value.boolean);
+            }
+            continue;
+        } else if (STREQ(prop.name, "hv-vendor-id")) {
+            if (prop.type != QEMU_MONITOR_CPU_PROPERTY_STRING) {
+                VIR_DEBUG("Unexpected type '%s' for name '%s'",
+                          qemuMonitorCPUPropertyTypeToString(prop.type), prop.name);
+                continue;
+            }
+
+            if (STRNEQ(prop.value.string, ""))
+                hvcaps->vendor_id = g_strdup(prop.value.string);
+        }
 
         hvprop = virDomainHypervTypeFromString(name);
 
@@ -4494,9 +4544,10 @@ static int
 virQEMUCapsParseHypervCapabilities(virQEMUCaps *qemuCaps,
                                    xmlXPathContextPtr ctxt)
 {
-    g_autofree virDomainCapsFeatureHyperv *hvcaps = NULL;
+    g_autoptr(virDomainCapsFeatureHyperv) hvcaps = NULL;
     xmlNodePtr n = NULL;
     g_autofree xmlNodePtr *capNodes = NULL;
+    int rc;
     int ncapNodes;
     size_t i;
 
@@ -4531,6 +4582,28 @@ virQEMUCapsParseHypervCapabilities(virQEMUCaps *qemuCaps,
 
         VIR_DOMAIN_CAPS_ENUM_SET(hvcaps->features, val);
     }
+
+    rc = virXPathUInt("string(./hypervCapabilities/spinlocks)",
+                      ctxt, &hvcaps->spinlocks);
+    if (rc == -2)
+        return -1;
+
+    rc = virXPathTristateSwitch("string(./hypervCapabilities/stimer_direct)",
+                                ctxt, &hvcaps->stimer_direct);
+    if (rc == -2)
+        return -1;
+
+    rc = virXPathTristateSwitch("string(./hypervCapabilities/tlbflush_direct)",
+                                ctxt, &hvcaps->tlbflush_direct);
+    if (rc == -2)
+        return -1;
+
+    rc = virXPathTristateSwitch("string(./hypervCapabilities/tlbflush_extended)",
+                                ctxt, &hvcaps->tlbflush_extended);
+    if (rc == -2)
+        return -1;
+
+    hvcaps->vendor_id = virXPathString("string(./hypervCapabilities/vendor_id)", ctxt);
 
     qemuCaps->hypervCapabilities = g_steal_pointer(&hvcaps);
     return 0;
@@ -5065,12 +5138,31 @@ virQEMUCapsFormatHypervCapabilities(virQEMUCaps *qemuCaps,
         size_t i;
 
         for (i = 0; i < sizeof(hvcaps->features.values) * CHAR_BIT; i++) {
-            if (!(hvcaps->features.values & (1U << i)))
+            if (!VIR_DOMAIN_CAPS_ENUM_IS_SET(hvcaps->features, i))
                 continue;
 
             virBufferAsprintf(&childBuf, "<cap name='%s'/>\n",
                               virDomainHypervTypeToString(i));
         }
+
+        if (hvcaps->spinlocks != 0) {
+            virBufferAsprintf(&childBuf, "<spinlocks>%u</spinlocks>\n",
+                              hvcaps->spinlocks);
+        }
+        if (hvcaps->stimer_direct != VIR_TRISTATE_SWITCH_ABSENT) {
+            virBufferAsprintf(&childBuf, "<stimer_direct>%s</stimer_direct>\n",
+                              virTristateSwitchTypeToString(hvcaps->stimer_direct));
+        }
+        if (hvcaps->tlbflush_direct != VIR_TRISTATE_SWITCH_ABSENT) {
+            virBufferAsprintf(&childBuf, "<tlbflush_direct>%s</tlbflush_direct>\n",
+                              virTristateSwitchTypeToString(hvcaps->tlbflush_direct));
+        }
+        if (hvcaps->tlbflush_extended != VIR_TRISTATE_SWITCH_ABSENT) {
+            virBufferAsprintf(&childBuf, "<tlbflush_extended>%s</tlbflush_extended>\n",
+                              virTristateSwitchTypeToString(hvcaps->tlbflush_extended));
+        }
+        virBufferEscapeString(&childBuf, "<vendor_id>%s</vendor_id>\n",
+                              hvcaps->vendor_id);
     }
 
     return virXMLFormatElement(buf, "hypervCapabilities", &attrBuf, &childBuf);
@@ -6930,8 +7022,7 @@ static void
 virQEMUCapsFillDomainFeatureHypervCaps(virQEMUCaps *qemuCaps,
                                        virDomainCaps *domCaps)
 {
-    domCaps->hyperv = g_memdup2(qemuCaps->hypervCapabilities,
-                                sizeof(virDomainCapsFeatureHyperv));
+    domCaps->hyperv = virDomainCapsFeatureHypervCopy(qemuCaps->hypervCapabilities);
 }
 
 

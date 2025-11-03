@@ -1967,18 +1967,39 @@ qemuMonitorGetBlockInfo(qemuMonitor *mon)
 }
 
 
-/**
- * qemuMonitorQueryBlockstats:
- * @mon: monitor object
- *
- * Returns data from a call to 'query-blockstats' without using 'query-nodes'
- */
-virJSONValue *
-qemuMonitorQueryBlockstats(qemuMonitor *mon)
-{
-    QEMU_CHECK_MONITOR_NULL(mon);
+G_DEFINE_TYPE(qemuBlockStats, qemu_block_stats, G_TYPE_OBJECT);
 
-    return qemuMonitorJSONQueryBlockstats(mon, false);
+static void
+qemu_block_stats_init(qemuBlockStats *stats G_GNUC_UNUSED)
+{
+}
+
+
+static void
+qemuBlockStatsFinalize(GObject *object)
+{
+    qemuBlockStats *stats = QEMU_BLOCK_STATS(object);
+
+    if (!stats)
+        return;
+
+    G_OBJECT_CLASS(qemu_block_stats_parent_class)->finalize(object);
+}
+
+
+static void
+qemu_block_stats_class_init(qemuBlockStatsClass *klass)
+{
+    GObjectClass *obj = G_OBJECT_CLASS(klass);
+
+    obj->finalize = qemuBlockStatsFinalize;
+}
+
+
+qemuBlockStats *
+qemuBlockStatsNew(void)
+{
+    return g_object_new(qemu_block_stats_get_type(), NULL);
 }
 
 
@@ -1997,7 +2018,7 @@ qemuMonitorGetAllBlockStatsInfo(qemuMonitor *mon,
                                 GHashTable **ret_stats)
 {
     int ret;
-    g_autoptr(GHashTable) stats = virHashNew(g_free);
+    g_autoptr(GHashTable) stats = virHashNew(g_object_unref);
 
     QEMU_CHECK_MONITOR(mon);
 
@@ -2008,18 +2029,6 @@ qemuMonitorGetAllBlockStatsInfo(qemuMonitor *mon,
 
     *ret_stats = g_steal_pointer(&stats);
     return ret;
-}
-
-
-int
-qemuMonitorBlockStatsUpdateCapacityBlockdev(qemuMonitor *mon,
-                                            GHashTable *stats)
-{
-    VIR_DEBUG("stats=%p", stats);
-
-    QEMU_CHECK_MONITOR(mon);
-
-    return qemuMonitorJSONBlockStatsUpdateCapacityBlockdev(mon, stats);
 }
 
 

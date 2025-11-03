@@ -195,7 +195,8 @@ mymain(void)
                        BHYVE_CAP_NET_E1000 | BHYVE_CAP_LPC_BOOTROM | \
                        BHYVE_CAP_FBUF | BHYVE_CAP_XHCI | \
                        BHYVE_CAP_CPUTOPOLOGY | BHYVE_CAP_SOUND_HDA | \
-                       BHYVE_CAP_VNC_PASSWORD | BHYVE_CAP_VIRTIO_9P;
+                       BHYVE_CAP_VNC_PASSWORD | BHYVE_CAP_VIRTIO_9P | \
+                       BHYVE_CAP_NVME;
 
     DO_TEST("base");
     DO_TEST("wired");
@@ -259,6 +260,11 @@ mymain(void)
     DO_TEST("serial-tcp");
     DO_TEST("4-consoles");
     DO_TEST_FAILURE("serial-invalid-port");
+    DO_TEST("nvme");
+    DO_TEST("2-nvme-2-controllers");
+    DO_TEST_FAILURE("2-nvme-same-controller");
+    DO_TEST("sata-rotation-rate");
+    DO_TEST_FAILURE("disk-virtio-rotation-rate");
 
     /* Address allocation tests */
     DO_TEST("addr-single-sata-disk");
@@ -306,6 +312,9 @@ mymain(void)
 
     driver.bhyvecaps &= ~BHYVE_CAP_VNC_PASSWORD;
     DO_TEST_FAILURE("vnc-password");
+
+    driver.bhyvecaps &= ~BHYVE_CAP_NVME;
+    DO_TEST_FAILURE("nvme");
 
     driver.config->bhyveloadTimeout = 300;
     driver.config->bhyveloadTimeoutKill = 20;

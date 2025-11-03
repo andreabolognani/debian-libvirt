@@ -495,6 +495,23 @@ testCompareXMLToArgvCreateArgs(virQEMUDriver *drv,
         }
     }
 
+    for (i = 0; i < vm->def->nhostdevs; i++) {
+        virDomainHostdevDef *hostdev = vm->def->hostdevs[i];
+
+        if (hostdev->mode == VIR_DOMAIN_HOSTDEV_MODE_SUBSYS &&
+            hostdev->source.subsys.type == VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_USB) {
+            virDomainHostdevSubsysUSB *usb = &hostdev->source.subsys.u.usb;
+            if (!usb->device && !usb->bus) {
+                if (usb->vendor == 0x1234 && usb->product == 0x4321) {
+                    usb->bus = 42;
+                    usb->device = 0x1234;
+                } else {
+                    g_assert_not_reached();
+                }
+            }
+        }
+    }
+
     if (flags & FLAG_SLIRP_HELPER) {
         for (i = 0; i < vm->def->nnets; i++) {
             virDomainNetDef *net = vm->def->nets[i];
@@ -1365,8 +1382,6 @@ mymain(void)
     DO_TEST_CAPS_LATEST_ABI_UPDATE("x86_64-q35-minimal");
     DO_TEST_CAPS_ARCH_LATEST("aarch64-virt-minimal", "aarch64");
     DO_TEST_CAPS_ARCH_LATEST_ABI_UPDATE("aarch64-virt-minimal", "aarch64");
-    DO_TEST_CAPS_ARCH_LATEST("aarch64-versatilepb-minimal", "aarch64");
-    DO_TEST_CAPS_ARCH_LATEST_ABI_UPDATE("aarch64-versatilepb-minimal", "aarch64");
     DO_TEST_CAPS_ARCH_LATEST("armv7l-versatilepb-minimal", "armv7l");
     DO_TEST_CAPS_ARCH_LATEST_ABI_UPDATE("armv7l-versatilepb-minimal", "armv7l");
     DO_TEST_CAPS_ARCH_LATEST("aarch64-realview-minimal", "aarch64");
@@ -1407,6 +1422,9 @@ mymain(void)
     DO_TEST_CAPS_ARCH_LATEST_ABI_UPDATE("s390x-ccw-default-models", "s390x");
 
     DO_TEST_CAPS_LATEST_PARSE_ERROR("no-memory");
+
+    DO_TEST_CAPS_LATEST_PARSE_ERROR("isapc-pci");
+    DO_TEST_CAPS_LATEST_PARSE_ERROR("microvm-pci");
 
     DO_TEST_CAPS_LATEST("genid");
     DO_TEST_CAPS_LATEST("genid-auto");
@@ -1637,7 +1655,9 @@ mymain(void)
     DO_TEST_CAPS_LATEST("hyperv-off");
     DO_TEST_CAPS_LATEST("hyperv-panic");
     DO_TEST_CAPS_LATEST("hyperv-passthrough");
+    DO_TEST_CAPS_LATEST("hyperv-spinlocks-never-notify");
     DO_TEST_CAPS_LATEST("hyperv-stimer-direct");
+    DO_TEST_CAPS_LATEST("hyperv-host-model");
 
     DO_TEST_CAPS_LATEST("kvm-features");
     DO_TEST_CAPS_LATEST("kvm-features-off");
@@ -2059,10 +2079,49 @@ mymain(void)
     DO_TEST_CAPS_LATEST_PARSE_ERROR("chardev-reconnect-invalid-timeout");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("chardev-reconnect-generated-path");
 
-    DO_TEST_CAPS_LATEST("usb-controller-implicit-isapc");
-    DO_TEST_CAPS_LATEST("usb-controller-implicit-i440fx");
-    DO_TEST_CAPS_LATEST("usb-controller-implicit-q35");
+    DO_TEST_CAPS_LATEST("usb-controller-automatic-isapc");
+    DO_TEST_CAPS_LATEST("usb-controller-automatic-microvm");
+    DO_TEST_CAPS_LATEST("usb-controller-automatic-i440fx");
+    DO_TEST_CAPS_LATEST("usb-controller-automatic-q35");
+    DO_TEST_CAPS_ARCH_LATEST("usb-controller-automatic-pseries", "ppc64");
+    DO_TEST_CAPS_ARCH_LATEST_ABI_UPDATE("usb-controller-automatic-pseries", "ppc64");
+    DO_TEST_CAPS_ARCH_LATEST("usb-controller-automatic-s390x", "s390x");
+    DO_TEST_CAPS_ARCH_LATEST("usb-controller-automatic-virt-aarch64", "aarch64");
+    DO_TEST_CAPS_ARCH_LATEST("usb-controller-automatic-virt-riscv64", "riscv64");
+    DO_TEST_CAPS_ARCH_LATEST("usb-controller-automatic-virt-loongarch64", "loongarch64");
+
+    DO_TEST_CAPS_ARCH_LATEST("usb-controller-automatic-versatilepb", "armv7l");
+    DO_TEST_FULL("usb-controller-automatic-unavailable-versatilepb", ".armv7l-latest",
+                 ARG_CAPS_ARCH, "armv7l",
+                 ARG_CAPS_VER, "latest",
+                 ARG_FLAGS, FLAG_EXPECT_PARSE_ERROR,
+                 ARG_QEMU_CAPS_DEL, QEMU_CAPS_DEVICE_QEMU_XHCI, QEMU_CAPS_NEC_USB_XHCI, QEMU_CAPS_PIIX3_USB_UHCI, QEMU_CAPS_PCI_OHCI, QEMU_CAPS_LAST,
+                 ARG_END);
+
+    DO_TEST_CAPS_ARCH_LATEST("usb-controller-automatic-realview", "aarch64");
+    DO_TEST_FULL("usb-controller-automatic-unavailable-realview", ".aarch64-latest",
+                 ARG_CAPS_ARCH, "aarch64",
+                 ARG_CAPS_VER, "latest",
+                 ARG_FLAGS, FLAG_EXPECT_PARSE_ERROR,
+                 ARG_QEMU_CAPS_DEL, QEMU_CAPS_DEVICE_QEMU_XHCI, QEMU_CAPS_NEC_USB_XHCI, QEMU_CAPS_PIIX3_USB_UHCI, QEMU_CAPS_PCI_OHCI, QEMU_CAPS_LAST,
+                 ARG_END);
+
+    DO_TEST_FULL("usb-controller-automatic-unavailable-pseries", ".ppc64-latest",
+                 ARG_CAPS_ARCH, "ppc64",
+                 ARG_CAPS_VER, "latest",
+                 ARG_FLAGS, FLAG_EXPECT_PARSE_ERROR,
+                 ARG_QEMU_CAPS_DEL, QEMU_CAPS_DEVICE_QEMU_XHCI, QEMU_CAPS_NEC_USB_XHCI, QEMU_CAPS_PCI_OHCI, QEMU_CAPS_LAST,
+                 ARG_END);
+    DO_TEST_FULL("usb-controller-automatic-unavailable-pseries", ".ppc64-latest.abi-update",
+                 ARG_CAPS_ARCH, "ppc64",
+                 ARG_CAPS_VER, "latest",
+                 ARG_FLAGS, FLAG_EXPECT_PARSE_ERROR,
+                 ARG_PARSEFLAGS, VIR_DOMAIN_DEF_PARSE_ABI_UPDATE,
+                 ARG_QEMU_CAPS_DEL, QEMU_CAPS_DEVICE_QEMU_XHCI, QEMU_CAPS_NEC_USB_XHCI, QEMU_CAPS_PCI_OHCI, QEMU_CAPS_LAST,
+                 ARG_END);
+
     DO_TEST_CAPS_LATEST_PARSE_ERROR("usb-controller-default-isapc");
+    DO_TEST_CAPS_LATEST_PARSE_ERROR("usb-controller-default-microvm");
     DO_TEST_CAPS_LATEST("usb-controller-default-i440fx");
     DO_TEST_CAPS_LATEST("usb-controller-default-q35");
     DO_TEST_CAPS_ARCH_LATEST("usb-controller-default-pseries", "ppc64");
@@ -2071,19 +2130,29 @@ mymain(void)
     DO_TEST_CAPS_ARCH_LATEST("usb-controller-default-mac99", "ppc64");
     DO_TEST_CAPS_ARCH_LATEST("usb-controller-default-mac99ppc", "ppc");
     DO_TEST_CAPS_ARCH_LATEST("usb-controller-default-powernv9", "ppc64");
+    DO_TEST_CAPS_ARCH_LATEST("usb-controller-default-s390x", "s390x");
+
+    DO_TEST_CAPS_ARCH_LATEST("usb-controller-default-virt-loongarch64", "loongarch64");
+    DO_TEST_FULL("usb-controller-default-unavailable-virt-loongarch64", ".loongarch64-latest",
+                 ARG_CAPS_ARCH, "loongarch64",
+                 ARG_CAPS_VER, "latest",
+                 ARG_FLAGS, FLAG_EXPECT_PARSE_ERROR,
+                 ARG_QEMU_CAPS_DEL, QEMU_CAPS_DEVICE_QEMU_XHCI, QEMU_CAPS_NEC_USB_XHCI, QEMU_CAPS_PIIX3_USB_UHCI, QEMU_CAPS_PCI_OHCI, QEMU_CAPS_LAST,
+                 ARG_END);
+
     /* Until qemu-8.1 (see commit 6fe4464c05f) it was possible to compile
      * out USB support from i440fx; the implicit -usb controller still failed */
     DO_TEST_FULL("usb-controller-default-unavailable-i440fx", ".x86_64-latest",
                  ARG_CAPS_ARCH, "x86_64",
                  ARG_CAPS_VER, "latest",
-                 ARG_FLAGS, FLAG_EXPECT_FAILURE,
+                 ARG_FLAGS, FLAG_EXPECT_PARSE_ERROR,
                  ARG_QEMU_CAPS_DEL, QEMU_CAPS_PIIX3_USB_UHCI, QEMU_CAPS_LAST,
                  ARG_END);
     /* The implicit controller can be compiled out for q35; initialization fails though */
     DO_TEST_FULL("usb-controller-default-unavailable-q35", ".x86_64-latest",
                  ARG_CAPS_ARCH, "x86_64",
                  ARG_CAPS_VER, "latest",
-                 ARG_FLAGS, FLAG_EXPECT_FAILURE,
+                 ARG_FLAGS, FLAG_EXPECT_PARSE_ERROR,
                  ARG_QEMU_CAPS_DEL, QEMU_CAPS_PIIX3_USB_UHCI, QEMU_CAPS_LAST,
                  ARG_END);
     /* However, if the USB controller is the one that gets added
@@ -2099,60 +2168,61 @@ mymain(void)
     DO_TEST_FULL("usb-controller-default-unavailable-pseries", ".ppc64-latest",
                  ARG_CAPS_ARCH, "ppc64",
                  ARG_CAPS_VER, "latest",
-                 ARG_FLAGS, FLAG_EXPECT_FAILURE,
+                 ARG_FLAGS, FLAG_EXPECT_PARSE_ERROR,
                  ARG_QEMU_CAPS_DEL, QEMU_CAPS_NEC_USB_XHCI, QEMU_CAPS_PCI_OHCI, QEMU_CAPS_DEVICE_QEMU_XHCI, QEMU_CAPS_LAST,
                  ARG_END);
 
-    /* controller selection tests for various uncommon machine types */
-    DO_TEST_CAPS_ARCH_LATEST("usb-controller-default-versatilepb-aarch64", "aarch64");
-    DO_TEST_FULL("usb-controller-default-fallback-versatilepb-aarch64", ".aarch64-latest",
+    DO_TEST_CAPS_ARCH_LATEST("usb-controller-default-virt-aarch64", "aarch64");
+    DO_TEST_FULL("usb-controller-default-fallback-virt-aarch64", ".aarch64-latest",
                  ARG_CAPS_ARCH, "aarch64",
                  ARG_CAPS_VER, "latest",
-                 ARG_QEMU_CAPS_DEL, QEMU_CAPS_PIIX3_USB_UHCI, QEMU_CAPS_LAST,
+                 ARG_QEMU_CAPS_DEL, QEMU_CAPS_DEVICE_QEMU_XHCI, QEMU_CAPS_LAST,
                  ARG_END);
-    DO_TEST_FULL("usb-controller-default-unavailable-versatilepb-aarch64", ".aarch64-latest",
+    DO_TEST_FULL("usb-controller-default-unavailable-virt-aarch64", ".aarch64-latest",
                  ARG_CAPS_ARCH, "aarch64",
                  ARG_CAPS_VER, "latest",
-                 ARG_QEMU_CAPS_DEL, QEMU_CAPS_PIIX3_USB_UHCI, QEMU_CAPS_PCI_OHCI, QEMU_CAPS_LAST,
+                 ARG_FLAGS, FLAG_EXPECT_PARSE_ERROR,
+                 ARG_QEMU_CAPS_DEL, QEMU_CAPS_DEVICE_QEMU_XHCI, QEMU_CAPS_NEC_USB_XHCI, QEMU_CAPS_PIIX3_USB_UHCI, QEMU_CAPS_PCI_OHCI, QEMU_CAPS_LAST,
                  ARG_END);
 
-    DO_TEST_CAPS_ARCH_LATEST("usb-controller-default-versatilepb-armv7l", "armv7l");
-    DO_TEST_FULL("usb-controller-default-fallback-versatilepb-armv7l", ".armv7l-latest",
-                 ARG_CAPS_ARCH, "armv7l",
+    DO_TEST_CAPS_ARCH_LATEST("usb-controller-default-virt-riscv64", "riscv64");
+    DO_TEST_FULL("usb-controller-default-unavailable-virt-riscv64", ".riscv64-latest",
+                 ARG_CAPS_ARCH, "riscv64",
                  ARG_CAPS_VER, "latest",
-                 ARG_QEMU_CAPS_DEL, QEMU_CAPS_PIIX3_USB_UHCI, QEMU_CAPS_LAST,
+                 ARG_FLAGS, FLAG_EXPECT_PARSE_ERROR,
+                 ARG_QEMU_CAPS_DEL, QEMU_CAPS_DEVICE_QEMU_XHCI, QEMU_CAPS_PIIX3_USB_UHCI, QEMU_CAPS_PCI_OHCI, QEMU_CAPS_LAST,
                  ARG_END);
-    DO_TEST_FULL("usb-controller-default-unavailable-versatilepb-armv7l", ".armv7l-latest",
+
+    /* controller selection tests for various uncommon machine types */
+    DO_TEST_CAPS_ARCH_LATEST("usb-controller-default-versatilepb", "armv7l");
+    DO_TEST_FULL("usb-controller-default-fallback-versatilepb", ".armv7l-latest",
                  ARG_CAPS_ARCH, "armv7l",
                  ARG_CAPS_VER, "latest",
-                 ARG_FLAGS, FLAG_EXPECT_FAILURE,
-                 ARG_QEMU_CAPS_DEL, QEMU_CAPS_PIIX3_USB_UHCI, QEMU_CAPS_PCI_OHCI, QEMU_CAPS_LAST,
+                 ARG_QEMU_CAPS_DEL, QEMU_CAPS_DEVICE_QEMU_XHCI, QEMU_CAPS_NEC_USB_XHCI, QEMU_CAPS_PIIX3_USB_UHCI, QEMU_CAPS_LAST,
+                 ARG_END);
+    DO_TEST_FULL("usb-controller-default-unavailable-versatilepb", ".armv7l-latest",
+                 ARG_CAPS_ARCH, "armv7l",
+                 ARG_CAPS_VER, "latest",
+                 ARG_FLAGS, FLAG_EXPECT_PARSE_ERROR,
+                 ARG_QEMU_CAPS_DEL, QEMU_CAPS_DEVICE_QEMU_XHCI, QEMU_CAPS_NEC_USB_XHCI, QEMU_CAPS_PIIX3_USB_UHCI, QEMU_CAPS_PCI_OHCI, QEMU_CAPS_LAST,
                  ARG_END);
 
     DO_TEST_CAPS_ARCH_LATEST("usb-controller-default-realview", "aarch64");
     DO_TEST_FULL("usb-controller-default-fallback-realview", ".aarch64-latest",
                  ARG_CAPS_ARCH, "aarch64",
                  ARG_CAPS_VER, "latest",
-                 ARG_QEMU_CAPS_DEL, QEMU_CAPS_PIIX3_USB_UHCI, QEMU_CAPS_LAST,
+                 ARG_QEMU_CAPS_DEL, QEMU_CAPS_DEVICE_QEMU_XHCI, QEMU_CAPS_NEC_USB_XHCI, QEMU_CAPS_PIIX3_USB_UHCI, QEMU_CAPS_LAST,
                  ARG_END);
     DO_TEST_FULL("usb-controller-default-unavailable-realview", ".aarch64-latest",
                  ARG_CAPS_ARCH, "aarch64",
                  ARG_CAPS_VER, "latest",
-                 ARG_QEMU_CAPS_DEL, QEMU_CAPS_PIIX3_USB_UHCI, QEMU_CAPS_PCI_OHCI, QEMU_CAPS_LAST,
+                 ARG_FLAGS, FLAG_EXPECT_PARSE_ERROR,
+                 ARG_QEMU_CAPS_DEL, QEMU_CAPS_DEVICE_QEMU_XHCI, QEMU_CAPS_NEC_USB_XHCI, QEMU_CAPS_PIIX3_USB_UHCI, QEMU_CAPS_PCI_OHCI, QEMU_CAPS_LAST,
                  ARG_END);
 
     /* The '-nousb' test case tests machine without a built-in USB controller */
-    DO_TEST_CAPS_ARCH_LATEST("usb-controller-default-nousb", "aarch64");
-    DO_TEST_FULL("usb-controller-default-fallback-nousb", ".aarch64-latest",
-                 ARG_CAPS_ARCH, "aarch64",
-                 ARG_CAPS_VER, "latest",
-                 ARG_QEMU_CAPS_DEL, QEMU_CAPS_PIIX3_USB_UHCI, QEMU_CAPS_LAST,
-                 ARG_END);
-    DO_TEST_FULL("usb-controller-default-unavailable-nousb", ".aarch64-latest",
-                 ARG_CAPS_ARCH, "aarch64",
-                 ARG_CAPS_VER, "latest",
-                 ARG_QEMU_CAPS_DEL, QEMU_CAPS_PIIX3_USB_UHCI, QEMU_CAPS_PCI_OHCI, QEMU_CAPS_LAST,
-                 ARG_END);
+    DO_TEST_CAPS_ARCH_LATEST_PARSE_ERROR("usb-controller-default-nousb", "aarch64");
+    DO_TEST_CAPS_ARCH_LATEST_ABI_UPDATE_PARSE_ERROR("usb-controller-default-nousb", "aarch64");
 
     DO_TEST_FULL("usb-controller-default-fallback-g3beige", ".ppc64-latest",
                  ARG_CAPS_ARCH, "ppc64",
@@ -2162,7 +2232,7 @@ mymain(void)
     DO_TEST_FULL("usb-controller-default-unavailable-g3beige", ".ppc64-latest",
                  ARG_CAPS_ARCH, "ppc64",
                  ARG_CAPS_VER, "latest",
-                 ARG_FLAGS, FLAG_EXPECT_FAILURE,
+                 ARG_FLAGS, FLAG_EXPECT_PARSE_ERROR,
                  ARG_QEMU_CAPS_DEL, QEMU_CAPS_NEC_USB_XHCI, QEMU_CAPS_PCI_OHCI, QEMU_CAPS_DEVICE_QEMU_XHCI, QEMU_CAPS_LAST,
                  ARG_END);
 
@@ -2174,7 +2244,7 @@ mymain(void)
     DO_TEST_FULL("usb-controller-default-unavailable-mac99", ".ppc64-latest",
                  ARG_CAPS_ARCH, "ppc64",
                  ARG_CAPS_VER, "latest",
-                 ARG_FLAGS, FLAG_EXPECT_FAILURE,
+                 ARG_FLAGS, FLAG_EXPECT_PARSE_ERROR,
                  ARG_QEMU_CAPS_DEL, QEMU_CAPS_NEC_USB_XHCI, QEMU_CAPS_PCI_OHCI, QEMU_CAPS_DEVICE_QEMU_XHCI, QEMU_CAPS_LAST,
                  ARG_END);
 
@@ -2186,7 +2256,7 @@ mymain(void)
     DO_TEST_FULL("usb-controller-default-unavailable-mac99ppc", ".ppc-latest",
                  ARG_CAPS_ARCH, "ppc",
                  ARG_CAPS_VER, "latest",
-                 ARG_FLAGS, FLAG_EXPECT_FAILURE,
+                 ARG_FLAGS, FLAG_EXPECT_PARSE_ERROR,
                  ARG_QEMU_CAPS_DEL, QEMU_CAPS_NEC_USB_XHCI, QEMU_CAPS_PCI_OHCI, QEMU_CAPS_DEVICE_QEMU_XHCI, QEMU_CAPS_PIIX3_USB_UHCI, QEMU_CAPS_LAST,
                  ARG_END);
 
@@ -2198,7 +2268,7 @@ mymain(void)
     DO_TEST_FULL("usb-controller-default-unavailable-powernv9", ".ppc64-latest",
                  ARG_CAPS_ARCH, "ppc64",
                  ARG_CAPS_VER, "latest",
-                 ARG_FLAGS, FLAG_EXPECT_FAILURE,
+                 ARG_FLAGS, FLAG_EXPECT_PARSE_ERROR,
                  ARG_QEMU_CAPS_DEL, QEMU_CAPS_NEC_USB_XHCI, QEMU_CAPS_PCI_OHCI, QEMU_CAPS_DEVICE_QEMU_XHCI, QEMU_CAPS_LAST,
                  ARG_END);
     DO_TEST_CAPS_LATEST("usb-none");
@@ -2214,10 +2284,10 @@ mymain(void)
     DO_TEST_FULL("usb-controller-nec-xhci-unavailable", ".x86_64-latest",
                  ARG_CAPS_ARCH, "x86_64",
                  ARG_CAPS_VER, "latest",
-                 ARG_FLAGS, FLAG_EXPECT_FAILURE,
+                 ARG_FLAGS, FLAG_EXPECT_PARSE_ERROR,
                  ARG_QEMU_CAPS_DEL, QEMU_CAPS_NEC_USB_XHCI, QEMU_CAPS_LAST,
                  ARG_END);
-    DO_TEST_CAPS_LATEST("usb-controller-nex-xhci-autoassign");
+    DO_TEST_CAPS_LATEST("usb-controller-nec-xhci-autoassign");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("usb-controller-nec-xhci-limit");
     DO_TEST_CAPS_LATEST("usb-controller-qemu-xhci");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("usb-controller-qemu-xhci-limit");
@@ -2271,6 +2341,7 @@ mymain(void)
     DO_TEST_CAPS_LATEST("hostdev-usb-address-device");
     DO_TEST_CAPS_LATEST("hostdev-usb-address-device-boot");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("hostdev-usb-duplicate");
+    DO_TEST_CAPS_LATEST("hostdev-usb-vendor-product");
     DO_TEST_CAPS_LATEST("hostdev-pci-address");
     DO_TEST_CAPS_LATEST("hostdev-pci-address-device");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("hostdev-pci-duplicate");
@@ -2540,6 +2611,7 @@ mymain(void)
     DO_TEST_CAPS_LATEST("seclabel-static-labelskip");
     DO_TEST_CAPS_LATEST("seclabel-none");
     DO_TEST_CAPS_LATEST("seclabel-dac-none");
+    DO_TEST_CAPS_LATEST("seclabel-selinux-none-override");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("seclabel-multiple");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("seclabel-device-duplicates");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("seclabel-device-relabel-invalid");
@@ -3189,6 +3261,7 @@ mymain(void)
     DO_TEST_CAPS_LATEST("seclabel-dynamic-none");
     DO_TEST_CAPS_LATEST("serial-target-port-auto");
     DO_TEST_CAPS_LATEST("vhost-user-fs-sock");
+    DO_TEST_CAPS_LATEST_PARSE_ERROR("vhost-user-fs-sock-readonly");
     DO_TEST_CAPS_ARCH_LATEST("video-virtio-gpu-ccw-auto", "s390x");
 
     DO_TEST_CAPS_LATEST("graphics-listen-network");

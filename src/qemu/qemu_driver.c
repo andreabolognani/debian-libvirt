@@ -9597,7 +9597,6 @@ qemuDomainBlockStatsGatherTotals(qemuBlockStats *data,
  * @driver: driver object
  * @vm: domain object
  * @path: to gather the statistics for
- * @capacity: refresh capacity of the backing image
  * @retstats: returns pointer to structure holding the stats
  *
  * Gathers the block statistics for use in qemuDomainBlockStats* APIs.
@@ -9607,13 +9606,11 @@ qemuDomainBlockStatsGatherTotals(qemuBlockStats *data,
 static int
 qemuDomainBlocksStatsGather(virDomainObj *vm,
                             const char *path,
-                            bool capacity,
                             qemuBlockStats **retstats)
 {
     qemuDomainObjPrivate *priv = vm->privateData;
     virDomainDiskDef *disk = NULL;
     g_autoptr(GHashTable) blockstats = NULL;
-    qemuBlockStats *stats;
     size_t i;
     int nstats;
     int rc = 0;
@@ -9645,39 +9642,23 @@ qemuDomainBlocksStatsGather(virDomainObj *vm,
 
     qemuDomainObjEnterMonitor(vm);
     nstats = qemuMonitorGetAllBlockStatsInfo(priv->mon, &blockstats);
-
-    if (capacity && nstats >= 0)
-        rc = qemuMonitorBlockStatsUpdateCapacityBlockdev(priv->mon, blockstats);
-
     qemuDomainObjExitMonitor(vm);
 
     if (nstats < 0 || rc < 0)
         return -1;
 
-    *retstats = g_new0(qemuBlockStats, 1);
-
     if (entryname) {
-        qemuBlockStats *capstats;
-
-        if (!(stats = virHashLookup(blockstats, entryname))) {
+        if (!(*retstats = virHashSteal(blockstats, entryname))) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
                            _("cannot find statistics for device '%1$s'"), entryname);
             return -1;
         }
-
-        **retstats = *stats;
-
-        /* capacity are reported only per node-name so we need to transfer them */
-        if (disk && disk->src &&
-            (capstats = virHashLookup(blockstats, qemuBlockStorageSourceGetEffectiveNodename(disk->src)))) {
-            (*retstats)->capacity = capstats->capacity;
-            (*retstats)->physical = capstats->physical;
-            (*retstats)->wr_highest_offset = capstats->wr_highest_offset;
-            (*retstats)->wr_highest_offset_valid = capstats->wr_highest_offset_valid;
-            (*retstats)->write_threshold = capstats->write_threshold;
-        }
     } else {
+        g_autoptr(qemuBlockStats) stats = qemuBlockStatsNew();
+
         for (i = 0; i < vm->def->ndisks; i++) {
+            qemuBlockStats *entry;
+
             disk = vm->def->disks[i];
             entryname = disk->info.alias;
 
@@ -9691,14 +9672,16 @@ qemuDomainBlocksStatsGather(virDomainObj *vm,
             if (!entryname)
                 continue;
 
-            if (!(stats = virHashLookup(blockstats, entryname))) {
+            if (!(entry = virHashLookup(blockstats, entryname))) {
                 virReportError(VIR_ERR_INTERNAL_ERROR,
                                _("cannot find statistics for device '%1$s'"), entryname);
                 return -1;
             }
 
-            qemuDomainBlockStatsGatherTotals(stats, *retstats);
+            qemuDomainBlockStatsGatherTotals(entry, stats);
         }
+
+        *retstats = g_steal_pointer(&stats);
     }
 
     return nstats;
@@ -9710,7 +9693,7 @@ qemuDomainBlockStats(virDomainPtr dom,
                      const char *path,
                      virDomainBlockStatsPtr stats)
 {
-    qemuBlockStats *blockstats = NULL;
+    g_autoptr(qemuBlockStats) blockstats = NULL;
     int ret = -1;
     virDomainObj *vm;
 
@@ -9726,7 +9709,7 @@ qemuDomainBlockStats(virDomainPtr dom,
     if (virDomainObjCheckActive(vm) < 0)
         goto endjob;
 
-    if (qemuDomainBlocksStatsGather(vm, path, false, &blockstats) < 0)
+    if (qemuDomainBlocksStatsGather(vm, path, &blockstats) < 0)
         goto endjob;
 
     if (VIR_ASSIGN_IS_OVERFLOW(stats->rd_req, blockstats->rd_req) ||
@@ -9747,7 +9730,6 @@ qemuDomainBlockStats(virDomainPtr dom,
 
  cleanup:
     virDomainObjEndAPI(&vm);
-    VIR_FREE(blockstats);
     return ret;
 }
 
@@ -9760,7 +9742,7 @@ qemuDomainBlockStatsFlags(virDomainPtr dom,
                           unsigned int flags)
 {
     virDomainObj *vm;
-    qemuBlockStats *blockstats = NULL;
+    g_autoptr(qemuBlockStats) blockstats = NULL;
     int nstats;
     int ret = -1;
 
@@ -9783,8 +9765,7 @@ qemuDomainBlockStatsFlags(virDomainPtr dom,
     if (virDomainObjCheckActive(vm) < 0)
         goto endjob;
 
-    if ((nstats = qemuDomainBlocksStatsGather(vm, path, false,
-                                              &blockstats)) < 0)
+    if ((nstats = qemuDomainBlocksStatsGather(vm, path, &blockstats)) < 0)
         goto endjob;
 
     /* return count of supported stats */
@@ -9833,7 +9814,6 @@ qemuDomainBlockStatsFlags(virDomainPtr dom,
     virDomainObjEndJob(vm);
 
  cleanup:
-    VIR_FREE(blockstats);
     virDomainObjEndAPI(&vm);
     return ret;
 }
@@ -10565,7 +10545,7 @@ qemuDomainGetBlockInfo(virDomainPtr dom,
     int ret = -1;
     virDomainDiskDef *disk;
     g_autoptr(virQEMUDriverConfig) cfg = NULL;
-    qemuBlockStats *entry = NULL;
+    g_autoptr(qemuBlockStats) entry = NULL;
 
     virCheckFlags(0, -1);
 
@@ -10618,7 +10598,7 @@ qemuDomainGetBlockInfo(virDomainPtr dom,
         goto endjob;
     }
 
-    if (qemuDomainBlocksStatsGather(vm, path, true, &entry) < 0)
+    if (qemuDomainBlocksStatsGather(vm, path, &entry) < 0)
         goto endjob;
 
     if (!entry->wr_highest_offset_valid) {
@@ -10663,7 +10643,6 @@ qemuDomainGetBlockInfo(virDomainPtr dom,
  endjob:
     virDomainObjEndJob(vm);
  cleanup:
-    VIR_FREE(entry);
     virDomainObjEndAPI(&vm);
     return ret;
 }
@@ -13820,6 +13799,9 @@ qemuDomainBlockPullCommon(virDomainObj *vm,
         speed <<= 20;
     }
 
+    if (qemuBlockNodesEnsureActive(vm, VIR_ASYNC_JOB_NONE) < 0)
+        goto endjob;
+
     if (!(job = qemuBlockJobDiskNewPull(vm, disk, baseSource, flags)))
         goto endjob;
 
@@ -14390,6 +14372,9 @@ qemuDomainBlockCopyCommon(virDomainObj *vm,
         goto endjob;
     }
 
+    if (qemuBlockNodesEnsureActive(vm, VIR_ASYNC_JOB_NONE) < 0)
+        goto endjob;
+
     /* pre-create the image file. This is required so that libvirt can properly
      * label the image for access by qemu */
     if (!existing) {
@@ -14794,6 +14779,9 @@ qemuDomainBlockCommit(virDomainPtr dom,
         baseSource = topSource->backingStore;
     else if (!(baseSource = virStorageSourceChainLookup(disk->src, topSource,
                                                         base, disk->dst, NULL)))
+        goto endjob;
+
+    if (qemuBlockNodesEnsureActive(vm, VIR_ASYNC_JOB_NONE) < 0)
         goto endjob;
 
     job = qemuBlockCommit(vm, disk, baseSource, topSource, top_parent,
@@ -17054,9 +17042,9 @@ qemuDomainGetStatsCpuProc(virDomainObj *vm,
         return;
     }
 
-    virTypedParamListAddULLong(params, cpuTime, "cpu.time");
-    virTypedParamListAddULLong(params, userTime, "cpu.user");
-    virTypedParamListAddULLong(params, sysTime, "cpu.system");
+    virTypedParamListAddULLong(params, cpuTime, VIR_DOMAIN_STATS_CPU_TIME);
+    virTypedParamListAddULLong(params, userTime, VIR_DOMAIN_STATS_CPU_USER);
+    virTypedParamListAddULLong(params, sysTime, VIR_DOMAIN_STATS_CPU_SYSTEM);
 }
 
 
@@ -17739,9 +17727,6 @@ qemuDomainGetStatsBlock(virQEMUDriver *driver,
         qemuDomainObjEnterMonitor(dom);
 
         rc = qemuMonitorGetAllBlockStatsInfo(priv->mon, &stats);
-
-        if (rc >= 0)
-            rc = qemuMonitorBlockStatsUpdateCapacityBlockdev(priv->mon, stats);
 
         qemuDomainObjExitMonitor(dom);
 
