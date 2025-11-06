@@ -1,3 +1,10 @@
+libvirt (11.9.0-2) unstable; urgency=medium
+
+  * [2b22a1b] daemon-plugin-sanlock: Always install augeas config
+    - Fixes FTBFS on architectures that don't enable the QEMU driver
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Thu, 06 Nov 2025 21:37:35 +0100
+
 libvirt (11.9.0-1) unstable; urgency=medium
 
   * [a76d51f] New upstream version 11.9.0
