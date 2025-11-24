@@ -1,0 +1,74 @@
+From: Martin Kletzander <mkletzan@redhat.com>
+Date: Thu, 6 Nov 2025 15:31:12 +0100
+Subject: bhyve: Check ACLs before parsing the whole domain XML
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+Utilise the new virDomainDefIDsParseString() for that.
+
+Fixes: CVE-2025-12748
+Reported-by: Святослав Терешин <s.tereshin@fobos-nt.ru>
+Signed-off-by: Martin Kletzander <mkletzan@redhat.com>
+Reviewed-by: Michal Privoznik <mprivozn@redhat.com>
+(cherry picked from commit b45f10bc0a2f30ccdbf2cb55da2e4f85b3ebfb23)
+
+Bug-Debian: https://bugs.debian.org/1120584
+
+Forwarded: not-needed
+Origin: https://gitlab.com/libvirt/libvirt/-/commits/b45f10bc0a2f30ccdbf2cb55da2e4f85b3ebfb23
+---
+ src/bhyve/bhyve_driver.c | 24 ++++++++++++++++++------
+ 1 file changed, 18 insertions(+), 6 deletions(-)
+
+diff --git a/src/bhyve/bhyve_driver.c b/src/bhyve/bhyve_driver.c
+index 6843469..296837b 100644
+--- a/src/bhyve/bhyve_driver.c
++++ b/src/bhyve/bhyve_driver.c
+@@ -481,6 +481,15 @@ bhyveDomainDefineXMLFlags(virConnectPtr conn, const char *xml, unsigned int flag
+     if (!caps)
+         return NULL;
+ 
++    /* Avoid parsing the whole domain definition for ACL checks */
++    if (!(def = virDomainDefIDsParseString(xml, provconn->xmlopt, parse_flags)))
++        return NULL;
++
++    if (virDomainDefineXMLFlagsEnsureACL(conn, def) < 0)
++        return NULL;
++
++    g_clear_pointer(&def, virDomainDefFree);
++
+     if ((def = virDomainDefParseString(xml, privconn->xmlopt,
+                                        NULL, parse_flags)) == NULL)
+         goto cleanup;
+@@ -488,9 +497,6 @@ bhyveDomainDefineXMLFlags(virConnectPtr conn, const char *xml, unsigned int flag
+     if (virXMLCheckIllegalChars("name", def->name, "\n") < 0)
+         goto cleanup;
+ 
+-    if (virDomainDefineXMLFlagsEnsureACL(conn, def) < 0)
+-        goto cleanup;
+-
+     if (bhyveDomainAssignAddresses(def, NULL) < 0)
+         goto cleanup;
+ 
+@@ -854,11 +860,17 @@ bhyveDomainCreateXML(virConnectPtr conn,
+     if (flags & VIR_DOMAIN_START_AUTODESTROY)
+         start_flags |= VIR_BHYVE_PROCESS_START_AUTODESTROY;
+ 
+-    if ((def = virDomainDefParseString(xml, privconn->xmlopt,
+-                                       NULL, parse_flags)) == NULL)
+-        goto cleanup;
++    /* Avoid parsing the whole domain definition for ACL checks */
++    if (!(def = virDomainDefIDsParseString(xml, provconn->xmlopt, parse_flags)))
++        return NULL;
+ 
+     if (virDomainCreateXMLEnsureACL(conn, def) < 0)
++        return NULL;
++
++    g_clear_pointer(&def, virDomainDefFree);
++
++    if ((def = virDomainDefParseString(xml, privconn->xmlopt,
++                                       NULL, parse_flags)) == NULL)
+         goto cleanup;
+ 
+     if (bhyveDomainAssignAddresses(def, NULL) < 0)
