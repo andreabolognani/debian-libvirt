@@ -12,6 +12,7 @@ backport/lxc-Check-ACLs-before-parsing-the-whole-domain-XML.patch
 backport/vz-Check-ACLs-before-parsing-the-whole-domain-XML.patch
 backport/ch-Check-ACLs-before-parsing-the-whole-domain-XML.patch
 backport/qemu-Check-ACLs-before-parsing-the-whole-domain-XML.patch
+backport/qemu-snapshot-Set-umask-for-qemu-img-when-creating-extern.patch
 debian/Debianize-libvirt-guests.patch
 debian/apparmor_profiles_local_include.patch
 debian/Use-sensible-editor-by-default.patch
