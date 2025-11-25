@@ -1,0 +1,166 @@
+From: Peter Krempa <pkrempa@redhat.com>
+Date: Fri, 14 Nov 2025 16:05:06 +0100
+Subject: qemuDomainPrepareDiskSourceData: Setup 'detect_zeroes' for all
+ layers
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+While it may seem that zero detection is pointless for backing chain
+layers other than the top one, which is usually the only one gettin
+written to,  with block operations such as active-layer commit the
+non-top layer may become active, in which case the VM wouldn't be
+configured in accordance to the XML any more.
+
+Similarly with snapshots a new image is introduced which would not get
+zero detection enabled, but next start of the VM would enable it.
+
+Fix this by propagating the zero detection setting for all layers.
+
+This problem partially addresses one of the issues reported in
+https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1120389
+
+Fixes: 8a78f88a1a6 and a522c3044bd (effectively reverts them)
+Signed-off-by: Peter Krempa <pkrempa@redhat.com>
+Reviewed-by: Ján Tomko <jtomko@redhat.com>
+Reviewed-by: Andrea Bolognani <abologna@redhat.com>
+(cherry picked from commit 475ed7075d400347f7e1b0f49ce1d1a39798ef99)
+
+Bug-Debian: https://bugs.debian.org/1121280
+
+Forwarded: not-needed
+Origin: https://gitlab.com/libvirt/libvirt/-/commits/475ed7075d400347f7e1b0f49ce1d1a39798ef99
+---
+ src/qemu/qemu_domain.c                                              | 6 +-----
+ tests/qemublocktestdata/xml2json/file-backing_basic-detect.json     | 3 +++
+ .../qemublocktestdata/xml2json/file-backing_basic-unmap-detect.json | 3 +++
+ .../qemublocktestdata/xml2json/file-backing_basic-unmap-ignore.json | 3 +++
+ tests/qemuxmlconfdata/disk-detect-zeroes.x86_64-latest.args         | 6 +++---
+ 5 files changed, 13 insertions(+), 8 deletions(-)
+
+diff --git a/src/qemu/qemu_domain.c b/src/qemu/qemu_domain.c
+index 52da234..37317fc 100644
+--- a/src/qemu/qemu_domain.c
++++ b/src/qemu/qemu_domain.c
+@@ -9555,11 +9555,7 @@ qemuDomainPrepareDiskSourceData(virDomainDiskDef *disk,
+     if (!disk)
+         return;
+ 
+-    /* transfer properties valid only for the top level image */
+-    if (src == disk->src || src == disk->src->dataFileStore)
+-        src->detect_zeroes = disk->detect_zeroes;
+-
+-    /* transfer properties valid for the full chain */
++    src->detect_zeroes = disk->detect_zeroes;
+     src->iomode = disk->iomode;
+     src->cachemode = disk->cachemode;
+     src->discard = disk->discard;
+diff --git a/tests/qemublocktestdata/xml2json/file-backing_basic-detect.json b/tests/qemublocktestdata/xml2json/file-backing_basic-detect.json
+index c272332..773b7b3 100644
+--- a/tests/qemublocktestdata/xml2json/file-backing_basic-detect.json
++++ b/tests/qemublocktestdata/xml2json/file-backing_basic-detect.json
+@@ -16,6 +16,7 @@
+ {
+   "node-name": "node-b-f",
+   "read-only": true,
++  "detect-zeroes": "on",
+   "driver": "qed",
+   "file": "node-b-s",
+   "backing": "node-c-f"
+@@ -30,6 +31,7 @@
+ {
+   "node-name": "node-c-f",
+   "read-only": true,
++  "detect-zeroes": "on",
+   "driver": "vmdk",
+   "file": "node-c-s",
+   "backing": "node-d-f"
+@@ -49,6 +51,7 @@
+ {
+   "node-name": "node-d-f",
+   "read-only": true,
++  "detect-zeroes": "on",
+   "driver": "raw",
+   "file": "node-d-s"
+ }
+diff --git a/tests/qemublocktestdata/xml2json/file-backing_basic-unmap-detect.json b/tests/qemublocktestdata/xml2json/file-backing_basic-unmap-detect.json
+index 1ec0b8f..70faaa8 100644
+--- a/tests/qemublocktestdata/xml2json/file-backing_basic-unmap-detect.json
++++ b/tests/qemublocktestdata/xml2json/file-backing_basic-unmap-detect.json
+@@ -18,6 +18,7 @@
+   "node-name": "node-b-f",
+   "read-only": true,
+   "discard": "unmap",
++  "detect-zeroes": "unmap",
+   "driver": "qed",
+   "file": "node-b-s",
+   "backing": "node-c-f"
+@@ -33,6 +34,7 @@
+   "node-name": "node-c-f",
+   "read-only": true,
+   "discard": "unmap",
++  "detect-zeroes": "unmap",
+   "driver": "vmdk",
+   "file": "node-c-s",
+   "backing": "node-d-f"
+@@ -53,6 +55,7 @@
+   "node-name": "node-d-f",
+   "read-only": true,
+   "discard": "unmap",
++  "detect-zeroes": "unmap",
+   "driver": "raw",
+   "file": "node-d-s"
+ }
+diff --git a/tests/qemublocktestdata/xml2json/file-backing_basic-unmap-ignore.json b/tests/qemublocktestdata/xml2json/file-backing_basic-unmap-ignore.json
+index 315a173..4bb964a 100644
+--- a/tests/qemublocktestdata/xml2json/file-backing_basic-unmap-ignore.json
++++ b/tests/qemublocktestdata/xml2json/file-backing_basic-unmap-ignore.json
+@@ -18,6 +18,7 @@
+   "node-name": "node-b-f",
+   "read-only": true,
+   "discard": "ignore",
++  "detect-zeroes": "on",
+   "driver": "qed",
+   "file": "node-b-s",
+   "backing": "node-c-f"
+@@ -33,6 +34,7 @@
+   "node-name": "node-c-f",
+   "read-only": true,
+   "discard": "ignore",
++  "detect-zeroes": "on",
+   "driver": "vmdk",
+   "file": "node-c-s",
+   "backing": "node-d-f"
+@@ -53,6 +55,7 @@
+   "node-name": "node-d-f",
+   "read-only": true,
+   "discard": "ignore",
++  "detect-zeroes": "on",
+   "driver": "raw",
+   "file": "node-d-s"
+ }
+diff --git a/tests/qemuxmlconfdata/disk-detect-zeroes.x86_64-latest.args b/tests/qemuxmlconfdata/disk-detect-zeroes.x86_64-latest.args
+index d959d4a..6284c08 100644
+--- a/tests/qemuxmlconfdata/disk-detect-zeroes.x86_64-latest.args
++++ b/tests/qemuxmlconfdata/disk-detect-zeroes.x86_64-latest.args
+@@ -28,17 +28,17 @@ XDG_CONFIG_HOME=/var/lib/libvirt/qemu/domain--1-test/.config \
+ -boot menu=on,strict=on \
+ -device '{"driver":"piix3-usb-uhci","id":"usb","bus":"pci.0","addr":"0x1.0x2"}' \
+ -blockdev '{"driver":"file","filename":"/var/lib/libvirt/images/detect-zeroes-unmap-back.img","node-name":"libvirt-7-storage","auto-read-only":true,"discard":"unmap"}' \
+--blockdev '{"node-name":"libvirt-7-format","read-only":true,"discard":"unmap","driver":"qcow2","file":"libvirt-7-storage","backing":null}' \
++-blockdev '{"node-name":"libvirt-7-format","read-only":true,"discard":"unmap","detect-zeroes":"unmap","driver":"qcow2","file":"libvirt-7-storage","backing":null}' \
+ -blockdev '{"driver":"file","filename":"/var/lib/libvirt/images/detect-zeroes-unmap.img","node-name":"libvirt-6-storage","auto-read-only":true,"discard":"unmap"}' \
+ -blockdev '{"node-name":"libvirt-6-format","read-only":false,"discard":"unmap","detect-zeroes":"unmap","driver":"qcow2","file":"libvirt-6-storage","backing":"libvirt-7-format"}' \
+ -device '{"driver":"virtio-blk-pci","bus":"pci.0","addr":"0x4","drive":"libvirt-6-format","id":"virtio-disk0","bootindex":2}' \
+ -blockdev '{"driver":"file","filename":"/var/lib/libvirt/images/detect-zeroes-on-back.img","node-name":"libvirt-5-storage","auto-read-only":true,"discard":"unmap"}' \
+--blockdev '{"node-name":"libvirt-5-format","read-only":true,"discard":"unmap","driver":"qcow2","file":"libvirt-5-storage","backing":null}' \
++-blockdev '{"node-name":"libvirt-5-format","read-only":true,"discard":"unmap","detect-zeroes":"on","driver":"qcow2","file":"libvirt-5-storage","backing":null}' \
+ -blockdev '{"driver":"file","filename":"/var/lib/libvirt/images/detect-zeroes-on.img","node-name":"libvirt-4-storage","auto-read-only":true,"discard":"unmap"}' \
+ -blockdev '{"node-name":"libvirt-4-format","read-only":false,"discard":"unmap","detect-zeroes":"on","driver":"qcow2","file":"libvirt-4-storage","backing":"libvirt-5-format"}' \
+ -device '{"driver":"virtio-blk-pci","bus":"pci.0","addr":"0x5","drive":"libvirt-4-format","id":"virtio-disk1"}' \
+ -blockdev '{"driver":"file","filename":"/var/lib/libvirt/images/detect-zeroes-off-back.img","node-name":"libvirt-3-storage","auto-read-only":true,"discard":"unmap"}' \
+--blockdev '{"node-name":"libvirt-3-format","read-only":true,"discard":"unmap","driver":"qcow2","file":"libvirt-3-storage","backing":null}' \
++-blockdev '{"node-name":"libvirt-3-format","read-only":true,"discard":"unmap","detect-zeroes":"off","driver":"qcow2","file":"libvirt-3-storage","backing":null}' \
+ -blockdev '{"driver":"file","filename":"/var/lib/libvirt/images/detect-zeroes-off.img","node-name":"libvirt-2-storage","auto-read-only":true,"discard":"unmap"}' \
+ -blockdev '{"node-name":"libvirt-2-format","read-only":false,"discard":"unmap","detect-zeroes":"off","driver":"qcow2","file":"libvirt-2-storage","backing":"libvirt-3-format"}' \
+ -device '{"driver":"virtio-blk-pci","bus":"pci.0","addr":"0x6","drive":"libvirt-2-format","id":"virtio-disk2"}' \
