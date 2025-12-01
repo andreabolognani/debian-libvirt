@@ -1,8 +1,17 @@
-libvirt (11.10.0-1) UNRELEASED; urgency=medium
+libvirt (11.10.0-1) unstable; urgency=medium
 
   * [13462ab] New upstream version 11.10.0
+    - Perform ACL checks earlier, preventing malicious users
+      from potentially being able to crash the daemon
+      - Closes: #1120584 (CVE-2025-12748)
+    - Ensure that newly-created snapshots are not world-readable
+      - Closes: #1120119 (CVE-2025-13193)
+    - Apply the detect_zeroes settings across all layers of the
+      backing chain instead of just the topmost one
+      - Closes: #1121280
+  * [5732866] common: Add several CPU models
 
- -- Andrea Bolognani <eof@kiyuko.org>  Mon, 01 Dec 2025 22:37:14 +0100
+ -- Andrea Bolognani <eof@kiyuko.org>  Mon, 01 Dec 2025 23:25:35 +0100
 
 libvirt (11.9.0-2) unstable; urgency=medium
 
