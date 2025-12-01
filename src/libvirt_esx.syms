@@ -2,10 +2,33 @@
 # These symbols are dependent upon --with-esx via WITH_ESX
 #
 
+# esx/esx_driverpriv.h
+esxParseVMXFileName;
+
+
 # esx/esx_util.h
 esxUtil_EscapeDatastoreItem;
 esxUtil_ParseDatastorePath;
+
+
+# esx/esx_vi.h
+esxVI_LookupDatastoreByName;
+esxVI_LookupDatastoreHostMount;
+esxVI_LookupDatastoreList;
+
+
+# esx/esx_vi_types.h
+esxVI_AnyType_Alloc;
 esxVI_DateTime_ConvertToCalendarTime;
+
+
+# esx/esx/esx_vi_types.generated.h
+esxVI_DatastoreHostMount_Alloc;
+esxVI_DynamicProperty_Alloc;
+esxVI_DynamicProperty_AppendToList;
+esxVI_HostMountInfo_Alloc;
+esxVI_ObjectContent_Alloc;
+esxVI_ObjectContent_AppendToList;
 
 # Let emacs know we want case-insensitive sorting
 # Local Variables:

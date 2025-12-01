@@ -907,7 +907,7 @@ qemuValidateDomainVCpuTopology(const virDomainDef *def, virQEMUCaps *qemuCaps)
                            QEMU_MAX_VCPUS_WITHOUT_EIM);
             return -1;
         }
-        if (!def->iommu || def->iommu->eim != VIR_TRISTATE_SWITCH_ON) {
+        if (!def->iommus || def->iommus[0]->eim != VIR_TRISTATE_SWITCH_ON) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                            _("more than %1$d vCPUs require extended interrupt mode enabled on the iommu device"),
                            QEMU_MAX_VCPUS_WITHOUT_EIM);
@@ -3414,6 +3414,35 @@ qemuValidateDomainDeviceDefDiskFrontend(const virDomainDiskDef *disk,
     if (qemuValidateDomainDeviceDefDiskIOThreads(def, disk, qemuCaps) < 0)
         return -1;
 
+    if (disk->statistics) {
+        if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_DISK_TIMED_STATS)) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("statistics collection is not supported by this QEMU binary"));
+            return -1;
+        }
+
+        switch (disk->bus) {
+        case VIR_DOMAIN_DISK_BUS_SCSI:
+        case VIR_DOMAIN_DISK_BUS_IDE:
+        case VIR_DOMAIN_DISK_BUS_SATA:
+        case VIR_DOMAIN_DISK_BUS_VIRTIO:
+        case VIR_DOMAIN_DISK_BUS_USB:
+            break;
+
+        case VIR_DOMAIN_DISK_BUS_FDC:
+        case VIR_DOMAIN_DISK_BUS_NVME:
+        case VIR_DOMAIN_DISK_BUS_XEN:
+        case VIR_DOMAIN_DISK_BUS_SD:
+        case VIR_DOMAIN_DISK_BUS_NONE:
+        case VIR_DOMAIN_DISK_BUS_UML:
+        case VIR_DOMAIN_DISK_BUS_LAST:
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                           _("statistics collection is not supported by disks on bus '%1$s'"),
+                           NULLSTR(virDomainDiskBusTypeToString(disk->bus)));
+            return -1;
+        }
+    }
+
     return 0;
 }
 
@@ -3665,6 +3694,20 @@ qemuValidateDomainDeviceDefDisk(const virDomainDiskDef *disk,
                            virStorageTypeToString(disk->src->type),
                            virDomainDiskCacheTypeToString(VIR_DOMAIN_DISK_CACHE_DIRECTSYNC),
                            virDomainDiskCacheTypeToString(VIR_DOMAIN_DISK_CACHE_DISABLE));
+            return -1;
+        }
+    }
+
+    if (disk->bus != VIR_DOMAIN_DISK_BUS_VIRTIO) {
+        if (disk->queues) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("queues attribute in disk driver element is only supported for virtio bus"));
+            return -1;
+        }
+
+        if (disk->queue_size) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("queue_size attribute in disk driver is only supported for virtio bus"));
             return -1;
         }
     }

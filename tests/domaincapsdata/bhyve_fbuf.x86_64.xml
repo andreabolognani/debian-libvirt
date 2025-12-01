@@ -43,7 +43,7 @@
         <value>gop</value>
       </enum>
     </video>
-    <hostdev supported='no'/>
+    <hostdev supported='yes'/>
     <console supported='yes'>
       <enum name='type'>
         <value>tcp</value>

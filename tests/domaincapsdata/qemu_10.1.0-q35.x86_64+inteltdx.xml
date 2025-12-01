@@ -97,6 +97,50 @@
       <model usable='yes' vendor='Intel'>Cascadelake-Server-v3</model>
       <model usable='yes' vendor='Intel'>Cascadelake-Server-v4</model>
       <model usable='yes' vendor='Intel'>Cascadelake-Server-v5</model>
+      <model usable='no' vendor='Intel' canonical='ClearwaterForest-v1'>ClearwaterForest</model>
+      <blockers model='ClearwaterForest'>
+        <feature name='avx-ifma'/>
+        <feature name='avx-ne-convert'/>
+        <feature name='avx-vnni-int16'/>
+        <feature name='avx-vnni-int8'/>
+        <feature name='bhi-ctrl'/>
+        <feature name='bhi-no'/>
+        <feature name='cmpccxadd'/>
+        <feature name='ddpd-u'/>
+        <feature name='fbsdp-no'/>
+        <feature name='ipred-ctrl'/>
+        <feature name='lam'/>
+        <feature name='mcdt-no'/>
+        <feature name='pbrsb-no'/>
+        <feature name='psdp-no'/>
+        <feature name='rrsba-ctrl'/>
+        <feature name='sbdr-ssdp-no'/>
+        <feature name='sha512'/>
+        <feature name='sm3'/>
+        <feature name='sm4'/>
+      </blockers>
+      <model usable='no' vendor='Intel'>ClearwaterForest-v1</model>
+      <blockers model='ClearwaterForest-v1'>
+        <feature name='avx-ifma'/>
+        <feature name='avx-ne-convert'/>
+        <feature name='avx-vnni-int16'/>
+        <feature name='avx-vnni-int8'/>
+        <feature name='bhi-ctrl'/>
+        <feature name='bhi-no'/>
+        <feature name='cmpccxadd'/>
+        <feature name='ddpd-u'/>
+        <feature name='fbsdp-no'/>
+        <feature name='ipred-ctrl'/>
+        <feature name='lam'/>
+        <feature name='mcdt-no'/>
+        <feature name='pbrsb-no'/>
+        <feature name='psdp-no'/>
+        <feature name='rrsba-ctrl'/>
+        <feature name='sbdr-ssdp-no'/>
+        <feature name='sha512'/>
+        <feature name='sm3'/>
+        <feature name='sm4'/>
+      </blockers>
       <model usable='yes' vendor='Intel' canonical='Conroe-v1'>Conroe</model>
       <model usable='yes' vendor='Intel'>Conroe-v1</model>
       <model usable='yes' vendor='Intel' canonical='Cooperlake-v1'>Cooperlake</model>
@@ -184,6 +228,26 @@
         <feature name='stibp-always-on'/>
         <feature name='xsaveerptr'/>
       </blockers>
+      <model usable='no' vendor='AMD'>EPYC-Genoa-v2</model>
+      <blockers model='EPYC-Genoa-v2'>
+        <feature name='amd-psfd'/>
+        <feature name='auto-ibrs'/>
+        <feature name='clzero'/>
+        <feature name='cr8legacy'/>
+        <feature name='fs-gs-base-ns'/>
+        <feature name='fxsr_opt'/>
+        <feature name='lfence-always-serializing'/>
+        <feature name='misalignsse'/>
+        <feature name='mmxext'/>
+        <feature name='no-nested-data-bp'/>
+        <feature name='null-sel-clr-base'/>
+        <feature name='osvw'/>
+        <feature name='perfctr_core'/>
+        <feature name='perfmon-v2'/>
+        <feature name='sse4a'/>
+        <feature name='stibp-always-on'/>
+        <feature name='xsaveerptr'/>
+      </blockers>
       <model usable='no' vendor='AMD' canonical='EPYC-v2'>EPYC-IBPB</model>
       <blockers model='EPYC-IBPB'>
         <feature name='cr8legacy'/>
@@ -219,6 +283,23 @@
       </blockers>
       <model usable='no' vendor='AMD'>EPYC-Milan-v2</model>
       <blockers model='EPYC-Milan-v2'>
+        <feature name='amd-psfd'/>
+        <feature name='clzero'/>
+        <feature name='cr8legacy'/>
+        <feature name='fxsr_opt'/>
+        <feature name='lfence-always-serializing'/>
+        <feature name='misalignsse'/>
+        <feature name='mmxext'/>
+        <feature name='no-nested-data-bp'/>
+        <feature name='null-sel-clr-base'/>
+        <feature name='osvw'/>
+        <feature name='perfctr_core'/>
+        <feature name='sse4a'/>
+        <feature name='stibp-always-on'/>
+        <feature name='xsaveerptr'/>
+      </blockers>
+      <model usable='no' vendor='AMD'>EPYC-Milan-v3</model>
+      <blockers model='EPYC-Milan-v3'>
         <feature name='amd-psfd'/>
         <feature name='clzero'/>
         <feature name='cr8legacy'/>
@@ -294,6 +375,68 @@
         <feature name='sse4a'/>
         <feature name='xsaveerptr'/>
       </blockers>
+      <model usable='no' vendor='AMD'>EPYC-Rome-v5</model>
+      <blockers model='EPYC-Rome-v5'>
+        <feature name='clzero'/>
+        <feature name='cr8legacy'/>
+        <feature name='fxsr_opt'/>
+        <feature name='misalignsse'/>
+        <feature name='mmxext'/>
+        <feature name='osvw'/>
+        <feature name='perfctr_core'/>
+        <feature name='sse4a'/>
+        <feature name='xsaveerptr'/>
+      </blockers>
+      <model usable='no' vendor='AMD' canonical='EPYC-Turin-v1'>EPYC-Turin</model>
+      <blockers model='EPYC-Turin'>
+        <feature name='amd-psfd'/>
+        <feature name='auto-ibrs'/>
+        <feature name='avx512-vp2intersect'/>
+        <feature name='clzero'/>
+        <feature name='cr8legacy'/>
+        <feature name='fs-gs-base-ns'/>
+        <feature name='fxsr_opt'/>
+        <feature name='ibpb-brtype'/>
+        <feature name='lfence-always-serializing'/>
+        <feature name='misalignsse'/>
+        <feature name='mmxext'/>
+        <feature name='no-nested-data-bp'/>
+        <feature name='null-sel-clr-base'/>
+        <feature name='osvw'/>
+        <feature name='perfctr_core'/>
+        <feature name='perfmon-v2'/>
+        <feature name='prefetchi'/>
+        <feature name='sbpb'/>
+        <feature name='srso-user-kernel-no'/>
+        <feature name='sse4a'/>
+        <feature name='stibp-always-on'/>
+        <feature name='xsaveerptr'/>
+      </blockers>
+      <model usable='no' vendor='AMD'>EPYC-Turin-v1</model>
+      <blockers model='EPYC-Turin-v1'>
+        <feature name='amd-psfd'/>
+        <feature name='auto-ibrs'/>
+        <feature name='avx512-vp2intersect'/>
+        <feature name='clzero'/>
+        <feature name='cr8legacy'/>
+        <feature name='fs-gs-base-ns'/>
+        <feature name='fxsr_opt'/>
+        <feature name='ibpb-brtype'/>
+        <feature name='lfence-always-serializing'/>
+        <feature name='misalignsse'/>
+        <feature name='mmxext'/>
+        <feature name='no-nested-data-bp'/>
+        <feature name='null-sel-clr-base'/>
+        <feature name='osvw'/>
+        <feature name='perfctr_core'/>
+        <feature name='perfmon-v2'/>
+        <feature name='prefetchi'/>
+        <feature name='sbpb'/>
+        <feature name='srso-user-kernel-no'/>
+        <feature name='sse4a'/>
+        <feature name='stibp-always-on'/>
+        <feature name='xsaveerptr'/>
+      </blockers>
       <model usable='no' vendor='AMD'>EPYC-v1</model>
       <blockers model='EPYC-v1'>
         <feature name='cr8legacy'/>
@@ -326,6 +469,18 @@
       </blockers>
       <model usable='no' vendor='AMD'>EPYC-v4</model>
       <blockers model='EPYC-v4'>
+        <feature name='clzero'/>
+        <feature name='cr8legacy'/>
+        <feature name='fxsr_opt'/>
+        <feature name='misalignsse'/>
+        <feature name='mmxext'/>
+        <feature name='osvw'/>
+        <feature name='perfctr_core'/>
+        <feature name='sse4a'/>
+        <feature name='xsaveerptr'/>
+      </blockers>
+      <model usable='no' vendor='AMD'>EPYC-v5</model>
+      <blockers model='EPYC-v5'>
         <feature name='clzero'/>
         <feature name='cr8legacy'/>
         <feature name='fxsr_opt'/>
@@ -491,6 +646,22 @@
         <feature name='psdp-no'/>
         <feature name='sbdr-ssdp-no'/>
       </blockers>
+      <model usable='no' vendor='Intel'>SierraForest-v2</model>
+      <blockers model='SierraForest-v2'>
+        <feature name='avx-ifma'/>
+        <feature name='avx-ne-convert'/>
+        <feature name='avx-vnni-int8'/>
+        <feature name='bhi-ctrl'/>
+        <feature name='cmpccxadd'/>
+        <feature name='fbsdp-no'/>
+        <feature name='ipred-ctrl'/>
+        <feature name='lam'/>
+        <feature name='mcdt-no'/>
+        <feature name='pbrsb-no'/>
+        <feature name='psdp-no'/>
+        <feature name='rrsba-ctrl'/>
+        <feature name='sbdr-ssdp-no'/>
+      </blockers>
       <model usable='yes' vendor='Intel' canonical='Skylake-Client-v1'>Skylake-Client</model>
       <model usable='yes' vendor='Intel' canonical='Skylake-Client-v2'>Skylake-Client-IBRS</model>
       <model usable='yes' vendor='Intel' canonical='Skylake-Client-v3'>Skylake-Client-noTSX-IBRS</model>
@@ -533,6 +704,45 @@
       <model usable='yes' vendor='Intel' canonical='Westmere-v2'>Westmere-IBRS</model>
       <model usable='yes' vendor='Intel'>Westmere-v1</model>
       <model usable='yes' vendor='Intel'>Westmere-v2</model>
+      <model usable='no' vendor='Zhaoxin CentaurHauls' canonical='YongFeng-v1'>YongFeng</model>
+      <blockers model='YongFeng'>
+        <feature name='ace2'/>
+        <feature name='phe'/>
+        <feature name='phe-en'/>
+        <feature name='pmm'/>
+        <feature name='pmm-en'/>
+        <feature name='ssb-no'/>
+        <feature name='xcrypt'/>
+        <feature name='xcrypt-en'/>
+        <feature name='xstore'/>
+        <feature name='xstore-en'/>
+      </blockers>
+      <model usable='no' vendor='Zhaoxin CentaurHauls'>YongFeng-v1</model>
+      <blockers model='YongFeng-v1'>
+        <feature name='ace2'/>
+        <feature name='phe'/>
+        <feature name='phe-en'/>
+        <feature name='pmm'/>
+        <feature name='pmm-en'/>
+        <feature name='ssb-no'/>
+        <feature name='xcrypt'/>
+        <feature name='xcrypt-en'/>
+        <feature name='xstore'/>
+        <feature name='xstore-en'/>
+      </blockers>
+      <model usable='no' vendor='Zhaoxin CentaurHauls'>YongFeng-v2</model>
+      <blockers model='YongFeng-v2'>
+        <feature name='ace2'/>
+        <feature name='phe'/>
+        <feature name='phe-en'/>
+        <feature name='pmm'/>
+        <feature name='pmm-en'/>
+        <feature name='ssb-no'/>
+        <feature name='xcrypt'/>
+        <feature name='xcrypt-en'/>
+        <feature name='xstore'/>
+        <feature name='xstore-en'/>
+      </blockers>
       <model usable='no' vendor='AMD' canonical='athlon-v1'>athlon</model>
       <blockers model='athlon'>
         <feature name='3dnow'/>
@@ -738,6 +948,7 @@
     <backingStoreInput supported='yes'/>
     <backup supported='yes'/>
     <async-teardown supported='yes'/>
+    <s390-pv supported='no'/>
     <ps2 supported='yes'/>
     <tdx supported='yes'/>
     <sev supported='no'/>

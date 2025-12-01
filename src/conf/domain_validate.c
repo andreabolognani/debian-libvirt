@@ -835,18 +835,6 @@ virDomainDiskDefValidate(const virDomainDef *def,
             return -1;
         }
 
-        if (disk->queues) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("queues attribute in disk driver element is only supported for virtio bus"));
-            return -1;
-        }
-
-        if (disk->queue_size) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("queue_size attribute in disk driver is only supported for virtio bus"));
-            return -1;
-        }
-
         if (disk->event_idx != VIR_TRISTATE_SWITCH_ABSENT) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                            _("disk event_idx mode supported only for virtio bus"));
@@ -1034,6 +1022,13 @@ virDomainDiskDefValidate(const virDomainDef *def,
                 return -1;
             }
         }
+    }
+
+    if (disk->dpofua != VIR_TRISTATE_SWITCH_ABSENT &&
+        disk->bus != VIR_DOMAIN_DISK_BUS_SCSI) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("'dpofua' option is available only for SCSI disks"));
+            return -1;
     }
 
     return 0;
@@ -1856,21 +1851,33 @@ virDomainDefCputuneValidate(const virDomainDef *def)
 static int
 virDomainDefIOMMUValidate(const virDomainDef *def)
 {
-    if (!def->iommu)
-        return 0;
+    size_t i;
 
-    if (def->iommu->intremap == VIR_TRISTATE_SWITCH_ON &&
-        def->features[VIR_DOMAIN_FEATURE_IOAPIC] != VIR_DOMAIN_IOAPIC_QEMU) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("IOMMU interrupt remapping requires split I/O APIC (ioapic driver='qemu')"));
-        return -1;
-    }
+    for (i = 0; i < def->niommus; i++) {
+        virDomainIOMMUDef *iommu = def->iommus[i];
+        if (def->niommus > 1 && iommu->model != VIR_DOMAIN_IOMMU_MODEL_SMMUV3) {
+            virReportError(VIR_ERR_XML_ERROR, "%s",
+                           _("IOMMU model smmuv3 must be specified for multiple IOMMU definitions"));
+        }
 
-    if (def->iommu->eim == VIR_TRISTATE_SWITCH_ON &&
-        def->iommu->intremap != VIR_TRISTATE_SWITCH_ON) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("IOMMU eim requires interrupt remapping to be enabled"));
-        return -1;
+        if (def->niommus > 1 && iommu->pci_bus < 0) {
+            virReportError(VIR_ERR_XML_ERROR, "%s",
+                           _("device-pluggable IOMMU with pciBus attribute must be specified for multiple IOMMU definitions"));
+        }
+
+        if (iommu->intremap == VIR_TRISTATE_SWITCH_ON &&
+            def->features[VIR_DOMAIN_FEATURE_IOAPIC] != VIR_DOMAIN_IOAPIC_QEMU) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("IOMMU interrupt remapping requires split I/O APIC (ioapic driver='qemu')"));
+            return -1;
+        }
+
+        if (iommu->eim == VIR_TRISTATE_SWITCH_ON &&
+            iommu->intremap != VIR_TRISTATE_SWITCH_ON) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("IOMMU eim requires interrupt remapping to be enabled"));
+            return -1;
+        }
     }
 
     return 0;
@@ -3112,13 +3119,28 @@ virDomainIOMMUDefValidate(const virDomainIOMMUDef *iommu)
 {
     switch (iommu->model) {
     case VIR_DOMAIN_IOMMU_MODEL_SMMUV3:
+        if (iommu->intremap != VIR_TRISTATE_SWITCH_ABSENT ||
+            iommu->caching_mode != VIR_TRISTATE_SWITCH_ABSENT ||
+            iommu->eim != VIR_TRISTATE_SWITCH_ABSENT ||
+            iommu->iotlb != VIR_TRISTATE_SWITCH_ABSENT ||
+            iommu->aw_bits != 0 ||
+            iommu->dma_translation != VIR_TRISTATE_SWITCH_ABSENT ||
+            iommu->xtsup != VIR_TRISTATE_SWITCH_ABSENT ||
+            iommu->pt != VIR_TRISTATE_SWITCH_ABSENT) {
+            virReportError(VIR_ERR_XML_ERROR,
+                           _("iommu model '%1$s' doesn't support some additional attributes"),
+                           virDomainIOMMUModelTypeToString(iommu->model));
+            return -1;
+        }
+        break;
     case VIR_DOMAIN_IOMMU_MODEL_VIRTIO:
         if (iommu->intremap != VIR_TRISTATE_SWITCH_ABSENT ||
             iommu->caching_mode != VIR_TRISTATE_SWITCH_ABSENT ||
             iommu->eim != VIR_TRISTATE_SWITCH_ABSENT ||
             iommu->iotlb != VIR_TRISTATE_SWITCH_ABSENT ||
             iommu->aw_bits != 0 ||
-            iommu->dma_translation != VIR_TRISTATE_SWITCH_ABSENT) {
+            iommu->dma_translation != VIR_TRISTATE_SWITCH_ABSENT ||
+            iommu->pci_bus >= 0) {
             virReportError(VIR_ERR_XML_ERROR,
                            _("iommu model '%1$s' doesn't support additional attributes"),
                            virDomainIOMMUModelTypeToString(iommu->model));
@@ -3130,7 +3152,8 @@ virDomainIOMMUDefValidate(const virDomainIOMMUDef *iommu)
         if (iommu->caching_mode != VIR_TRISTATE_SWITCH_ABSENT ||
             iommu->eim != VIR_TRISTATE_SWITCH_ABSENT ||
             iommu->aw_bits != 0 ||
-            iommu->dma_translation != VIR_TRISTATE_SWITCH_ABSENT) {
+            iommu->dma_translation != VIR_TRISTATE_SWITCH_ABSENT ||
+            iommu->pci_bus >= 0) {
             virReportError(VIR_ERR_XML_ERROR,
                            _("iommu model '%1$s' doesn't support some additional attributes"),
                            virDomainIOMMUModelTypeToString(iommu->model));
@@ -3140,7 +3163,8 @@ virDomainIOMMUDefValidate(const virDomainIOMMUDef *iommu)
 
     case VIR_DOMAIN_IOMMU_MODEL_INTEL:
         if (iommu->pt != VIR_TRISTATE_SWITCH_ABSENT ||
-            iommu->xtsup != VIR_TRISTATE_SWITCH_ABSENT) {
+            iommu->xtsup != VIR_TRISTATE_SWITCH_ABSENT ||
+            iommu->pci_bus >= 0) {
             virReportError(VIR_ERR_XML_ERROR,
                            _("iommu model '%1$s' doesn't support some additional attributes"),
                            virDomainIOMMUModelTypeToString(iommu->model));

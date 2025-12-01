@@ -332,7 +332,7 @@ qemuBuildMasterKeyCommandLine(virCommand *cmd,
 
 static char *
 qemuBuildDeviceAddressPCIGetBus(const virDomainDef *domainDef,
-                                const virDomainDeviceInfo *info)
+                                const virPCIDeviceAddress *pci)
 {
     g_autofree char *devStr = NULL;
     const char *contAlias = NULL;
@@ -340,14 +340,14 @@ qemuBuildDeviceAddressPCIGetBus(const virDomainDef *domainDef,
     int contTargetIndex = 0;
     size_t i;
 
-    if (!(devStr = virPCIDeviceAddressAsString(&info->addr.pci)))
+    if (!(devStr = virPCIDeviceAddressAsString(pci)))
         return NULL;
 
     for (i = 0; i < domainDef->ncontrollers; i++) {
         virDomainControllerDef *cont = domainDef->controllers[i];
 
         if (cont->type == VIR_DOMAIN_CONTROLLER_TYPE_PCI &&
-            cont->idx == info->addr.pci.bus) {
+            cont->idx == pci->bus) {
             contAlias = cont->info.alias;
             contIsPHB = virDomainControllerIsPSeriesPHB(cont);
             contTargetIndex = cont->opts.pciopts.targetIndex;
@@ -355,7 +355,7 @@ qemuBuildDeviceAddressPCIGetBus(const virDomainDef *domainDef,
             if (!contAlias) {
                 virReportError(VIR_ERR_INTERNAL_ERROR,
                                _("Device alias was not set for PCI controller with index '%1$u' required for device at address '%2$s'"),
-                               info->addr.pci.bus, devStr);
+                               pci->bus, devStr);
                 return NULL;
             }
 
@@ -397,7 +397,7 @@ qemuBuildDeviceAddressPCIGetBus(const virDomainDef *domainDef,
     if (!contAlias) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("Could not find PCI controller with index '%1$u' required for device at address '%2$s'"),
-                       info->addr.pci.bus, devStr);
+                       pci->bus, devStr);
         return NULL;
     }
 
@@ -584,7 +584,7 @@ qemuBuildDeviceAddressProps(virJSONValue *props,
     switch (info->type) {
     case VIR_DOMAIN_DEVICE_ADDRESS_TYPE_PCI: {
         g_autofree char *pciaddr = NULL;
-        g_autofree char *bus = qemuBuildDeviceAddressPCIGetBus(domainDef, info);
+        g_autofree char *bus = qemuBuildDeviceAddressPCIGetBus(domainDef, &info->addr.pci);
 
         if (!bus)
             return -1;
@@ -1690,6 +1690,7 @@ qemuBuildDiskDeviceProps(const virDomainDef *def,
     const char *alias = disk->info.alias;
     g_autofree char *usbdiskalias = NULL;
     const virDomainDeviceInfo *deviceinfo = &disk->info;
+    g_autoptr(virJSONValue) statistics = NULL;
     virDomainDeviceInfo usbSCSIinfo = {
         .type = VIR_DOMAIN_DEVICE_ADDRESS_TYPE_DRIVE,
         .addr.drive = { .diskbus = VIR_DOMAIN_DISK_BUS_USB },
@@ -1897,6 +1898,19 @@ qemuBuildDiskDeviceProps(const virDomainDef *def,
 
     qemuBuildDiskGetErrorPolicy(disk, &wpolicy, &rpolicy);
 
+    if (disk->statistics) {
+        size_t i;
+
+        statistics = virJSONValueNewArray();
+
+        for (i = 0; disk->statistics[i] > 0; i++) {
+            g_autoptr(virJSONValue) num = virJSONValueNewNumberUint(disk->statistics[i]);
+
+            if (virJSONValueArrayAppend(statistics, &num) < 0)
+                return NULL;
+        }
+    }
+
     if (virJSONValueObjectAdd(&props,
                               "S:device_id", scsiVPDDeviceId,
                               "T:share-rw", shareRW,
@@ -1921,6 +1935,8 @@ qemuBuildDiskDeviceProps(const virDomainDef *def,
                               "S:serial", serial,
                               "S:werror", wpolicy,
                               "S:rerror", rpolicy,
+                              "A:stats-intervals", &statistics,
+                              "T:dpofua", disk->dpofua, /* SCSI-only, ensured by validation */
                               NULL) < 0)
         return NULL;
 
@@ -6224,89 +6240,122 @@ qemuBuildBootCommandLine(virCommand *cmd,
 }
 
 
+static virJSONValue *
+qemuBuildPCINestedSmmuv3DevProps(const virDomainDef *def,
+                                 const virDomainIOMMUDef *iommu)
+{
+    g_autoptr(virJSONValue) props = NULL;
+    g_autofree char *bus = NULL;
+    virPCIDeviceAddress addr = { .bus = iommu->pci_bus };
+
+    bus = qemuBuildDeviceAddressPCIGetBus(def, &addr);
+
+    if (!bus) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                        _("Could not find a suitable controller for smmuv3"));
+        return NULL;
+    }
+
+    if (virJSONValueObjectAdd(&props,
+                              "s:driver", "arm-smmuv3",
+                              "s:primary-bus", bus,
+                              "s:id", iommu->info.alias,
+                              NULL) < 0)
+        return NULL;
+
+    return g_steal_pointer(&props);
+}
+
+
 static int
 qemuBuildIOMMUCommandLine(virCommand *cmd,
                           const virDomainDef *def,
                           virQEMUCaps *qemuCaps)
 {
-    g_autoptr(virJSONValue) props = NULL;
-    g_autoptr(virJSONValue) wrapperProps = NULL;
-    const virDomainIOMMUDef *iommu = def->iommu;
+    size_t i;
 
-    if (!iommu)
-        return 0;
+    for (i = 0; i < def->niommus; i++) {
+        virDomainIOMMUDef *iommu = def->iommus[i];
+        g_autoptr(virJSONValue) props = NULL;
+        g_autoptr(virJSONValue) wrapperProps = NULL;
 
-    switch (iommu->model) {
-    case VIR_DOMAIN_IOMMU_MODEL_INTEL:
-        if (virJSONValueObjectAdd(&props,
-                                  "s:driver", "intel-iommu",
-                                  "s:id", iommu->info.alias,
-                                  "S:intremap", qemuOnOffAuto(iommu->intremap),
-                                  "T:caching-mode", iommu->caching_mode,
-                                  "S:eim", qemuOnOffAuto(iommu->eim),
-                                  "T:device-iotlb", iommu->iotlb,
-                                  "z:aw-bits", iommu->aw_bits,
-                                  "T:dma-translation", iommu->dma_translation,
-                                  NULL) < 0)
-            return -1;
+        switch (iommu->model) {
+        case VIR_DOMAIN_IOMMU_MODEL_INTEL:
+            if (virJSONValueObjectAdd(&props,
+                                      "s:driver", "intel-iommu",
+                                      "s:id", iommu->info.alias,
+                                      "S:intremap", qemuOnOffAuto(iommu->intremap),
+                                      "T:caching-mode", iommu->caching_mode,
+                                      "S:eim", qemuOnOffAuto(iommu->eim),
+                                      "T:device-iotlb", iommu->iotlb,
+                                      "z:aw-bits", iommu->aw_bits,
+                                      "T:dma-translation", iommu->dma_translation,
+                                      NULL) < 0)
+                return -1;
 
-        if (qemuBuildDeviceCommandlineFromJSON(cmd, props, def, qemuCaps) < 0)
-            return -1;
+            if (qemuBuildDeviceCommandlineFromJSON(cmd, props, def, qemuCaps) < 0)
+                return -1;
 
-        return 0;
+            break;
 
-    case VIR_DOMAIN_IOMMU_MODEL_VIRTIO:
-        if (virJSONValueObjectAdd(&props,
-                                  "s:driver", "virtio-iommu",
-                                  "s:id", iommu->info.alias,
-                                  NULL) < 0) {
+        case VIR_DOMAIN_IOMMU_MODEL_VIRTIO:
+            if (virJSONValueObjectAdd(&props,
+                                      "s:driver", "virtio-iommu",
+                                      "s:id", iommu->info.alias,
+                                      NULL) < 0) {
+                return -1;
+            }
+
+            if (qemuBuildDeviceAddressProps(props, def, &iommu->info) < 0)
+                return -1;
+
+            if (qemuBuildDeviceCommandlineFromJSON(cmd, props, def, qemuCaps) < 0)
+                return -1;
+
+            break;
+
+        case VIR_DOMAIN_IOMMU_MODEL_AMD:
+            if (virJSONValueObjectAdd(&wrapperProps,
+                                      "s:driver", "AMDVI-PCI",
+                                      "s:id", iommu->info.alias,
+                                      NULL) < 0)
+                return -1;
+
+            if (qemuBuildDeviceAddressProps(wrapperProps, def, &iommu->info) < 0)
+                return -1;
+
+            if (qemuBuildDeviceCommandlineFromJSON(cmd, wrapperProps, def, qemuCaps) < 0)
+                return -1;
+
+            if (virJSONValueObjectAdd(&props,
+                                      "s:driver", "amd-iommu",
+                                      "s:pci-id", iommu->info.alias,
+                                      "S:intremap", qemuOnOffAuto(iommu->intremap),
+                                      "T:pt", iommu->pt,
+                                      "T:xtsup", iommu->xtsup,
+                                      "T:device-iotlb", iommu->iotlb,
+                                      NULL) < 0)
+                return -1;
+
+            if (qemuBuildDeviceCommandlineFromJSON(cmd, props, def, qemuCaps) < 0)
+                return -1;
+
+            break;
+
+        case VIR_DOMAIN_IOMMU_MODEL_SMMUV3:
+            if (iommu->pci_bus >= 0) {
+                if (!(props = qemuBuildPCINestedSmmuv3DevProps(def, iommu)))
+                    return -1;
+                if (qemuBuildDeviceCommandlineFromJSON(cmd, props, def, qemuCaps) < 0)
+                    return -1;
+            }
+            break;
+
+        case VIR_DOMAIN_IOMMU_MODEL_LAST:
+        default:
+            virReportEnumRangeError(virDomainIOMMUModel, iommu->model);
             return -1;
         }
-
-        if (qemuBuildDeviceAddressProps(props, def, &iommu->info) < 0)
-            return -1;
-
-        if (qemuBuildDeviceCommandlineFromJSON(cmd, props, def, qemuCaps) < 0)
-            return -1;
-
-        return 0;
-
-    case VIR_DOMAIN_IOMMU_MODEL_SMMUV3:
-        /* There is no -device for SMMUv3, so nothing to be done here */
-        return 0;
-
-    case VIR_DOMAIN_IOMMU_MODEL_AMD:
-        if (virJSONValueObjectAdd(&wrapperProps,
-                                  "s:driver", "AMDVI-PCI",
-                                  "s:id", iommu->info.alias,
-                                  NULL) < 0)
-            return -1;
-
-        if (qemuBuildDeviceAddressProps(wrapperProps, def, &iommu->info) < 0)
-            return -1;
-
-        if (qemuBuildDeviceCommandlineFromJSON(cmd, wrapperProps, def, qemuCaps) < 0)
-            return -1;
-
-        if (virJSONValueObjectAdd(&props,
-                                  "s:driver", "amd-iommu",
-                                  "s:pci-id", iommu->info.alias,
-                                  "S:intremap", qemuOnOffAuto(iommu->intremap),
-                                  "T:pt", iommu->pt,
-                                  "T:xtsup", iommu->xtsup,
-                                  "T:device-iotlb", iommu->iotlb,
-                                  NULL) < 0)
-            return -1;
-
-        if (qemuBuildDeviceCommandlineFromJSON(cmd, props, def, qemuCaps) < 0)
-            return -1;
-
-        return 0;
-
-    case VIR_DOMAIN_IOMMU_MODEL_LAST:
-    default:
-        virReportEnumRangeError(virDomainIOMMUModel, iommu->model);
-        return -1;
     }
 
     return 0;
@@ -7143,8 +7192,8 @@ qemuBuildMachineCommandLine(virCommand *cmd,
     if (qemuAppendDomainFeaturesMachineParam(&buf, def, qemuCaps) < 0)
         return -1;
 
-    if (def->iommu) {
-        switch (def->iommu->model) {
+    if (def->niommus == 1) {
+        switch (def->iommus[0]->model) {
         case VIR_DOMAIN_IOMMU_MODEL_SMMUV3:
             virBufferAddLit(&buf, ",iommu=smmuv3");
             break;
@@ -7157,7 +7206,7 @@ qemuBuildMachineCommandLine(virCommand *cmd,
 
         case VIR_DOMAIN_IOMMU_MODEL_LAST:
         default:
-            virReportEnumRangeError(virDomainIOMMUModel, def->iommu->model);
+            virReportEnumRangeError(virDomainIOMMUModel, def->iommus[0]->model);
             return -1;
         }
     }
@@ -7311,6 +7360,10 @@ qemuBuildAccelCommandLine(virCommand *cmd,
         virBufferAddLit(&buf, "hvf");
         break;
 
+    case VIR_DOMAIN_VIRT_HYPERV:
+        virBufferAddLit(&buf, "mshv");
+        break;
+
     case VIR_DOMAIN_VIRT_KQEMU:
     case VIR_DOMAIN_VIRT_XEN:
     case VIR_DOMAIN_VIRT_LXC:
@@ -7318,7 +7371,6 @@ qemuBuildAccelCommandLine(virCommand *cmd,
     case VIR_DOMAIN_VIRT_OPENVZ:
     case VIR_DOMAIN_VIRT_TEST:
     case VIR_DOMAIN_VIRT_VMWARE:
-    case VIR_DOMAIN_VIRT_HYPERV:
     case VIR_DOMAIN_VIRT_VBOX:
     case VIR_DOMAIN_VIRT_PHYP:
     case VIR_DOMAIN_VIRT_PARALLELS:
@@ -10806,13 +10858,13 @@ qemuBuildCommandLine(virDomainObj *vm,
     if (qemuBuildBootCommandLine(cmd, def) < 0)
         return NULL;
 
-    if (qemuBuildIOMMUCommandLine(cmd, def, qemuCaps) < 0)
-        return NULL;
-
     if (qemuBuildGlobalControllerCommandLine(cmd, def) < 0)
         return NULL;
 
     if (qemuBuildControllersCommandLine(cmd, def, qemuCaps) < 0)
+        return NULL;
+
+    if (qemuBuildIOMMUCommandLine(cmd, def, qemuCaps) < 0)
         return NULL;
 
     if (qemuBuildMemoryDeviceCommandLine(cmd, cfg, def, priv) < 0)

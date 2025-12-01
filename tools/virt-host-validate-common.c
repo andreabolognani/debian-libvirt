@@ -260,7 +260,7 @@ int virHostValidateIOMMU(const char *hvname,
 
     if (isIntel) {
         if (access("/sys/firmware/acpi/tables/DMAR", F_OK) == 0) {
-            virValidatePass();
+            virValidatePassDetails("DMAR");
             bootarg = "intel_iommu=on";
         } else {
             virValidateFail(level,
@@ -271,7 +271,7 @@ int virHostValidateIOMMU(const char *hvname,
         }
     } else if (isAMD) {
         if (access("/sys/firmware/acpi/tables/IVRS", F_OK) == 0) {
-            virValidatePass();
+            virValidatePassDetails("IVRS");
             bootarg = "iommu=pt iommu=1";
         } else {
             virValidateFail(level,
@@ -318,7 +318,7 @@ int virHostValidateIOMMU(const char *hvname,
                                 "No SMMU found");
                 return VIR_VALIDATE_FAILURE(level);
             } else {
-                virValidatePass();
+                virValidatePassDetails("SMMU");
             }
         }
     } else {
@@ -378,8 +378,7 @@ bool virHostKernelModuleIsLoaded(const char *module)
 
 
 static int
-virHostValidateAMDSev(const char *hvname,
-                      virValidateLevel level)
+virHostValidateAMDSev(virValidateLevel level)
 {
     g_autofree char *mod_value = NULL;
     uint32_t eax, ebx;
@@ -405,31 +404,14 @@ virHostValidateAMDSev(const char *hvname,
         return VIR_VALIDATE_FAILURE(level);
     }
 
-    virValidatePass();
-
-    virValidateCheck(hvname, "%s",
-                     _("Checking for AMD Secure Encrypted Virtualization-Encrypted State (SEV-ES)"));
-
     virHostCPUX86GetCPUID(0x8000001F, 0, &eax, &ebx, NULL, NULL);
 
-    if (eax & (1U << 3)) {
-        virValidatePass();
-    } else {
-        virValidateFail(level,
-                        "AMD SEV-ES is not supported");
-        return VIR_VALIDATE_FAILURE(level);
-    }
-
-    virValidateCheck(hvname, "%s",
-                     _("Checking for AMD Secure Encrypted Virtualization-Secure Nested Paging (SEV-SNP)"));
-
-    if (eax & (1U << 4)) {
-        virValidatePass();
-    } else {
-        virValidateFail(level,
-                        "AMD SEV-SNP is not supported");
-        return VIR_VALIDATE_FAILURE(level);
-    }
+    if (eax & (1U << 4))
+        virValidatePassDetails("SEV-SNP");
+    else if (eax & (1U << 3))
+        virValidatePassDetails("SEV-ES");
+    else
+        virValidatePassDetails("SEV");
 
     return 1;
 }
@@ -453,7 +435,7 @@ static int virHostValidateIntelTDX(virValidateLevel level)
         return VIR_VALIDATE_FAILURE(level);
     }
 
-    virValidatePass();
+    virValidatePassDetails("TDX");
     return 1;
 }
 
@@ -496,7 +478,7 @@ int virHostValidateSecureGuests(const char *hvname,
                                            G_N_ELEMENTS(kIBMValues),
                                            VIR_KERNEL_CMDLINE_FLAGS_SEARCH_FIRST |
                                            VIR_KERNEL_CMDLINE_FLAGS_CMP_PREFIX)) {
-                virValidatePass();
+                virValidatePassDetails("PROT-VIRT");
                 return 1;
             } else {
                 virValidateFail(level,
@@ -510,13 +492,17 @@ int virHostValidateSecureGuests(const char *hvname,
                             "support for IBM Secure Execution");
             return VIR_VALIDATE_FAILURE(level);
         }
-    } else if (hasAMDSev) {
-        return virHostValidateAMDSev(hvname, level);
-    } else if (hasIntelTDX) {
-        return virHostValidateIntelTDX(level);
+    } else if (arch == VIR_ARCH_X86_64) {
+        if (hasAMDSev) {
+            return virHostValidateAMDSev(level);
+        } else if (hasIntelTDX) {
+            return virHostValidateIntelTDX(level);
+        } else {
+            virValidateFail(level, "None of SEV, SEV-ES, SEV-SNP, TDX available");
+        }
+    } else {
+        virValidateFail(level,
+                        "Unknown if this platform has Secure Guest support");
     }
-
-    virValidateFail(level,
-                    "Unknown if this platform has Secure Guest support");
     return VIR_VALIDATE_FAILURE(level);
 }

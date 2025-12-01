@@ -393,7 +393,7 @@ exposed to the guest using the ``vgaconf`` attribute:
 
 If not specified, bhyve's default mode for ``vgaconf`` will be used. Please
 refer to the
-`bhyve(8) <https://www.freebsd.org/cgi/man.cgi?query=bhyve&sektion=8&manpath=FreeBSD+12-current>`__
+`bhyve(8) <https://www.freebsd.org/cgi/man.cgi?query=bhyve&sektion=8>`__
 manual page and the `bhyve wiki <https://wiki.freebsd.org/bhyve>`__ for more
 details on using the ``vgaconf`` option.
 
@@ -428,6 +428,16 @@ authentication:
 Note: VNC password authentication is known to be cryptographically weak.
 Additionally, the password is passed as a command line argument in clear text.
 Make sure you understand the risks associated with this feature before using it.
+
+:since:`Since 11.10.0`, the guest can be configured to wait for an incoming
+VNC connection before booting:
+
+::
+
+    <graphics type='vnc' port='5904' wait='yes'>
+      <listen type='address' address='127.0.0.1'/>
+    </graphics>
+
 
 Clock configuration
 ~~~~~~~~~~~~~~~~~~~
@@ -659,3 +669,43 @@ As ``bhyve(1)`` uses one NVMe device per PCI address, it's modeled in a way
 that there is one device per controller. That is, if using more than one
 NVMe device, for device name users should increment controller number rather
 than namespace number, i.e.: ``nvme0n1``, ``nvme1n1``, etc.
+
+Device passthrough
+~~~~~~~~~~~~~~~~~~
+:since:`Since 11.10.0`, it is possible to passthrough PCI devices.
+
+Example:
+
+::
+
+  ...
+    <hostdev mode='subsystem' type='pci' managed='no'>
+      <source>
+        <address domain='0x0000' bus='0x01' slot='0x00' function='0x0'/>
+      </source>
+    </hostdev>
+  ...
+
+Using passthrough devices requires wiring guest memory, see `Wiring guest memory`_.
+
+Note: currently, the `nodedev <drvnodedev.html>`_ driver is not supported
+on FreeBSD.
+Users must configure the device for passthrough manually either by
+using ``devctl(8)`` or by setting ``pptdevs`` in ``loader.conf(5)``.
+Please refer to the ``vmm(4)`` manual page for more details.
+
+Guest-specific considerations
+-----------------------------
+
+Windows
+~~~~~~~
+
+For Windows guests, it is recommended to have the LPC controller on slot 31.
+As the libvirt driver allocates slot 1 for the LPC controller by default,
+the address must be specified explicitly:
+
+::
+
+    <controller type='isa' index='0'>
+      <address type='pci' domain='0x0000' bus='0x00' slot='0x1f' function='0x0'/>
+    </controller>

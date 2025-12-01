@@ -5319,8 +5319,7 @@ qemuDomainMakeCPUMigratable(virArch arch,
             g_auto(GStrv) keep = virCPUDefListExplicitFeatures(origCPU);
             data.keep = keep;
 
-            if (virCPUDefFilterFeatures(cpu, qemuDomainDropAddedCPUFeatures, &data) < 0)
-                return -1;
+            virCPUDefFilterFeatures(cpu, qemuDomainDropAddedCPUFeatures, &data);
         }
     }
 
@@ -8372,7 +8371,7 @@ qemuDomainGetMemLockLimitBytes(virDomainDef *def)
         int factor = nvdpa + nnvme;
 
         if (nvfio) {
-            if (def->iommu)
+            if (def->niommus > 0)
                 factor += nvfio;
             else
                 factor += 1;
@@ -9615,15 +9614,20 @@ qemuDomainUpdateCPU(virDomainObj *vm,
 
 
 /**
- * qemuDomainFixupCPUS:
+ * qemuDomainFixupCPUs:
  * @vm: domain object
  * @origCPU: original CPU used when the domain was started
  *
  * Libvirt older than 3.9.0 could have messed up the expansion of host-model
  * CPU when reconnecting to a running domain by adding features QEMU does not
- * support (such as cmt). This API fixes both the actual CPU provided by QEMU
- * (stored in the domain object) and the @origCPU used when starting the
- * domain.
+ * support (such as cmt).
+ *
+ * Newer libvirt would not include feature unknown to QEMU, but the CPU
+ * definitions could contain features that were removed from QEMU and added to
+ * our list of ignored features as they were not actually doing anything.
+ *
+ * This API fixes both the actual CPU provided by QEMU (stored in the domain
+ * object) and the @origCPU used when starting the domain.
  *
  * This is safe even if the original CPU definition used mode='custom' (rather
  * than host-model) since we know QEMU was able to start the domain and thus
@@ -9634,7 +9638,7 @@ qemuDomainUpdateCPU(virDomainObj *vm,
  */
 void
 qemuDomainFixupCPUs(virDomainObj *vm,
-                    virCPUDef **origCPU)
+                    virCPUDef *origCPU)
 {
     virArch arch = vm->def->os.arch;
 
@@ -9650,28 +9654,11 @@ qemuDomainFixupCPUs(virDomainObj *vm,
      * we asked for or libvirt was too old to mess up the translation from
      * host-model.
      */
-    if (!*origCPU)
+    if (!origCPU)
         return;
 
-    if (virCPUDefFindFeature(vm->def->cpu, "cmt")) {
-        g_autoptr(virCPUDef) fixedCPU = virCPUDefCopyWithoutModel(vm->def->cpu);
-
-        virCPUDefCopyModelFilter(fixedCPU, vm->def->cpu, false,
-                                 virQEMUCapsCPUFilterFeatures, &arch);
-
-        virCPUDefFree(vm->def->cpu);
-        vm->def->cpu = g_steal_pointer(&fixedCPU);
-    }
-
-    if (virCPUDefFindFeature(*origCPU, "cmt")) {
-        g_autoptr(virCPUDef) fixedOrig = virCPUDefCopyWithoutModel(*origCPU);
-
-        virCPUDefCopyModelFilter(fixedOrig, *origCPU, false,
-                                 virQEMUCapsCPUFilterFeatures, &arch);
-
-        virCPUDefFree(*origCPU);
-        *origCPU = g_steal_pointer(&fixedOrig);
-    }
+    virCPUDefFilterFeatures(vm->def->cpu, virQEMUCapsCPUFilterFeatures, &arch);
+    virCPUDefFilterFeatures(origCPU, virQEMUCapsCPUFilterFeatures, &arch);
 }
 
 
@@ -9715,11 +9702,7 @@ qemuDomainPrepareDiskSourceData(virDomainDiskDef *disk,
     if (!disk)
         return;
 
-    /* transfer properties valid only for the top level image */
-    if (src == disk->src || src == disk->src->dataFileStore)
-        src->detect_zeroes = disk->detect_zeroes;
-
-    /* transfer properties valid for the full chain */
+    src->detect_zeroes = disk->detect_zeroes;
     src->iomode = disk->iomode;
     src->cachemode = disk->cachemode;
     src->discard = disk->discard;

@@ -419,7 +419,7 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
 
     /* 265 */
     X_QEMU_CAPS_VIRTIO_NET_TX_QUEUE_SIZE, /* virtio-net-*.tx_queue_size */
-    QEMU_CAPS_CHARDEV_RECONNECT, /* -chardev reconnect */
+    X_QEMU_CAPS_CHARDEV_RECONNECT, /* -chardev reconnect */
     X_QEMU_CAPS_VIRTIO_GPU_MAX_OUTPUTS, /* -device virtio-(vga|gpu-*),max-outputs= */
     X_QEMU_CAPS_VXHS, /* -drive file.driver=vxhs via query-qmp-schema */
     X_QEMU_CAPS_VIRTIO_BLK_NUM_QUEUES, /* virtio-blk-*.num-queues */
@@ -727,6 +727,9 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
 
     /* 485 */
     QEMU_CAPS_ACPI_GENERIC_INITIATOR, /* -object acpi-generic-initiator */
+    QEMU_CAPS_DISK_TIMED_STATS, /* timed stats support ('stats-intervals' property of disk frontends) */
+    QEMU_CAPS_QUERY_ACCELERATORS, /* query-accelerators command */
+    QEMU_CAPS_MSHV, /* -accel mshv */
 
     QEMU_CAPS_LAST /* this must always be the last item */
 } virQEMUCapsFlags;
@@ -977,3 +980,6 @@ int
 virQEMUCapsProbeQMPMachineTypes(virQEMUCaps *qemuCaps,
                                 virDomainVirtType virtType,
                                 qemuMonitor *mon);
+
+bool
+virQEMUCapsKVMSupportsVMTypeTDX(void) ATTRIBUTE_MOCKABLE;

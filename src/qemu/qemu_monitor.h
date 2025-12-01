@@ -789,6 +789,48 @@ qemuMonitorBlockIOStatusToError(const char *status);
 GHashTable *
 qemuMonitorGetBlockInfo(qemuMonitor *mon);
 
+
+struct qemuBlockStatsLimits {
+    unsigned long long request_alignment;
+    unsigned long long discard_max;
+    unsigned long long discard_alignment;
+    unsigned long long write_zeroes_max;
+    unsigned long long write_zeroes_alignment;
+    unsigned long long transfer_optimal;
+    unsigned long long transfer_max;
+    unsigned long long transfer_hw_max;
+    unsigned long long iov_max;
+    unsigned long long iov_hw_max;
+    unsigned long long memory_alignment_minimal;
+    unsigned long long memory_alignment_optimal;
+};
+
+
+struct qemuBlockStatsTimed {
+    unsigned long long interval_length;
+
+    /* latencies are in nanoseconds */
+    unsigned long long rd_latency_min;
+    unsigned long long rd_latency_max;
+    unsigned long long rd_latency_avg;
+
+    unsigned long long wr_latency_min;
+    unsigned long long wr_latency_max;
+    unsigned long long wr_latency_avg;
+
+    unsigned long long zone_append_latency_min;
+    unsigned long long zone_append_latency_max;
+    unsigned long long zone_append_latency_avg;
+
+    unsigned long long flush_latency_min;
+    unsigned long long flush_latency_max;
+    unsigned long long flush_latency_avg;
+
+    double rd_queue_depth_avg;
+    double wr_queue_depth_avg;
+    double zone_append_queue_depth_avg;
+};
+
 struct _qemuBlockStats {
     GObject parent;
 
@@ -810,6 +852,12 @@ struct _qemuBlockStats {
 
     /* write_threshold is valid only if it's non-zero, conforming to qemu semantics */
     unsigned long long write_threshold;
+
+    struct qemuBlockStatsLimits *limits;
+
+    /* block accounting/timed stats from qemu - one entry per interval configured */
+    size_t n_timed_stats;
+    struct qemuBlockStatsTimed *timed_stats;
 };
 G_DECLARE_FINAL_TYPE(qemuBlockStats, qemu_block_stats, QEMU, BLOCK_STATS, GObject);
 
@@ -1382,7 +1430,8 @@ struct _qemuMonitorCPUModelInfo {
     char *name;
     size_t nprops;
     qemuMonitorCPUProperty *props;
-    GStrv deprecated_props;
+    GStrv full_dep_props;   /* deprecated properties resulting from a full model expansion */
+    GStrv static_dep_props; /* deprecated properties resulting from a static model expansion */
     bool migratability;
 };
 
@@ -1428,6 +1477,10 @@ int
 qemuMonitorGetKVMState(qemuMonitor *mon,
                        bool *enabled,
                        bool *present);
+
+int
+qemuMonitorGetAccelerators(qemuMonitor *mon,
+                           char **enabled);
 
 int
 qemuMonitorGetObjectTypes(qemuMonitor *mon,
@@ -1495,6 +1548,7 @@ qemuMonitorGetGuestCPU(qemuMonitor *mon,
                        bool qomListGet,
                        const char *cpuQOMPath,
                        qemuMonitorCPUFeatureTranslationCallback translate,
+                       virCPUDefFeatureFilter filter,
                        virCPUData **enabled,
                        virCPUData **disabled);
 

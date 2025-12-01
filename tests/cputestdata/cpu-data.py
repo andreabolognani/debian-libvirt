@@ -145,26 +145,43 @@ def gather_msr():
     addresses = [
         0x10a,  # IA32_ARCH_CAPABILITIES_MSR
         0xcf,   # IA32_CORE_CAPABILITY_MSR
+        0x480,  # MSR_IA32_VMX_BASIC
+        0x485,  # MSR_IA32_VMX_MISC
+        0x48b,  # MSR_IA32_VMX_PROCBASED_CTLS2
+        0x48c,  # MSR_IA32_VMX_EPT_VPID_CAP
+        0x48d,  # MSR_IA32_VMX_TRUE_PINBASED_CTLS
+        0x48e,  # MSR_IA32_VMX_TRUE_PROCBASED_CTLS
+        0x48f,  # MSR_IA32_VMX_TRUE_EXIT_CTLS
+        0x490,  # MSR_IA32_VMX_TRUE_ENTRY_CTLS
+        0x491,  # MSR_IA32_VMX_VMFUNC
     ]
     KVM_GET_MSRS = 0xc008ae88
 
     try:
         with open("/dev/cpu/0/msr", "rb") as f:
             for addr in addresses:
-                f.seek(addr)
-                buf = f.read(8)
-                msrs[addr] = struct.unpack("=Q", buf)[0]
-            return "", msrs
+                try:
+                    f.seek(addr)
+                    buf = f.read(8)
+                    msrs[addr] = struct.unpack("=Q", buf)[0]
+                except IOError:
+                    pass
+            if msrs:
+                return "", msrs
     except IOError as e:
         print("Warning: {}".format(e), file=sys.stderr)
 
     try:
         with open("/dev/kvm", "rb") as f:
             for addr in addresses:
-                bufIn = struct.pack("=LLLLQ", 1, 0, addr, 0, 0)
-                bufOut = fcntl.ioctl(f, KVM_GET_MSRS, bufIn)
-                msrs[addr] = struct.unpack("=LLLLQ", bufOut)[4]
-            return " via KVM", msrs
+                try:
+                    bufIn = struct.pack("=LLLLQ", 1, 0, addr, 0, 0)
+                    bufOut = fcntl.ioctl(f, KVM_GET_MSRS, bufIn)
+                    msrs[addr] = struct.unpack("=LLLLQ", bufOut)[4]
+                except IOError:
+                    pass
+            if msrs:
+                return " via KVM", msrs
     except IOError as e:
         print("Warning: {}".format(e), file=sys.stderr)
 

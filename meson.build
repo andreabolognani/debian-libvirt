@@ -1,6 +1,6 @@
 project(
   'libvirt', 'c',
-  version: '11.9.0',
+  version: '11.10.0',
   license: 'LGPLv2+',
   meson_version: '>= 0.57.0',
   default_options: [
@@ -2029,13 +2029,18 @@ elif get_option('sysctl_config').enabled()
   error('sysctl configuration is supported only on linux')
 endif
 
-if not get_option('userfaultfd_sysctl').disabled() and conf.has('WITH_SYSCTL')
-  conf.set('WITH_USERFAULTFD_SYSCTL', 1)
-elif get_option('userfaultfd_sysctl').enabled()
-  error('userfaultfd_sysctl option requires sysctl_config to be enabled')
+prio = get_option('tls_priority')
+if prio == 'auto'
+    # If local OS has 'crypto-policies' then default to that
+    policy = '/etc/crypto-policies/config'
+    if get_option('system') and \
+       run_command('test', '-f', policy, check: false).returncode() == 0
+        prio = '@LIBVIRT,SYSTEM'
+    else
+        prio = 'NORMAL'
+    endif
 endif
-
-conf.set_quoted('TLS_PRIORITY', get_option('tls_priority'))
+conf.set_quoted('TLS_PRIORITY', prio)
 
 
 # test options
@@ -2334,7 +2339,6 @@ misc_summary = {
   'sysctl config': conf.has('WITH_SYSCTL'),
   'tests': tests_enabled,
   'TLS priority': conf.get_unquoted('TLS_PRIORITY'),
-  'userfaultfd sysctl': conf.has('WITH_USERFAULTFD_SYSCTL'),
   'virt-host-validate': conf.has('WITH_HOST_VALIDATE'),
   'virt-login-shell': conf.has('WITH_LOGIN_SHELL'),
   'Warning Flags': supported_cc_flags,

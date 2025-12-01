@@ -2386,6 +2386,45 @@ qemuMonitorJSONGetBlockInfo(qemuMonitor *mon,
 }
 
 
+static void
+qemuMonitorJSONBlockStatsCollectDataTimedOne(virJSONValue *j,
+                                             struct qemuBlockStatsTimed *s)
+{
+    virJSONValueObjectGetNumberUlong(j, "interval_length", &s->interval_length);
+
+    virJSONValueObjectGetNumberUlong(j, "min_rd_latency_ns", &s->rd_latency_min);
+    virJSONValueObjectGetNumberUlong(j, "max_rd_latency_ns", &s->rd_latency_max);
+    virJSONValueObjectGetNumberUlong(j, "avg_rd_latency_ns", &s->rd_latency_avg);
+
+    virJSONValueObjectGetNumberUlong(j, "min_wr_latency_ns", &s->wr_latency_min);
+    virJSONValueObjectGetNumberUlong(j, "max_wr_latency_ns", &s->wr_latency_max);
+    virJSONValueObjectGetNumberUlong(j, "avg_wr_latency_ns", &s->wr_latency_avg);
+
+    virJSONValueObjectGetNumberUlong(j, "min_zone_append_latency_ns", &s->zone_append_latency_min);
+    virJSONValueObjectGetNumberUlong(j, "max_zone_append_latency_ns", &s->zone_append_latency_max);
+    virJSONValueObjectGetNumberUlong(j, "avg_zone_append_latency_ns", &s->zone_append_latency_avg);
+
+    virJSONValueObjectGetNumberDouble(j, "avg_rd_queue_depth", &s->rd_queue_depth_avg);
+    virJSONValueObjectGetNumberDouble(j, "avg_wr_queue_depth", &s->wr_queue_depth_avg);
+    virJSONValueObjectGetNumberDouble(j, "avg_zone_append_queue_depth", &s->zone_append_queue_depth_avg);
+}
+
+
+static void
+qemuMonitorJSONBlockStatsCollectDataTimed(virJSONValue *timed_stats,
+                                          qemuBlockStats *bstats)
+{
+    size_t i;
+
+    bstats->n_timed_stats = virJSONValueArraySize(timed_stats);
+    bstats->timed_stats = g_new0(struct qemuBlockStatsTimed, bstats->n_timed_stats);
+
+    for (i = 0; i < bstats->n_timed_stats; i++)
+        qemuMonitorJSONBlockStatsCollectDataTimedOne(virJSONValueArrayGet(timed_stats, i),
+                                                     bstats->timed_stats + i);
+}
+
+
 static qemuBlockStats *
 qemuMonitorJSONBlockStatsCollectData(virJSONValue *dev,
                                      int *nstats)
@@ -2394,6 +2433,7 @@ qemuMonitorJSONBlockStatsCollectData(virJSONValue *dev,
     virJSONValue *parent;
     virJSONValue *parentstats;
     virJSONValue *stats;
+    virJSONValue *timed_stats;
 
     if ((stats = virJSONValueObjectGetObject(dev, "stats")) == NULL) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
@@ -2428,6 +2468,10 @@ qemuMonitorJSONBlockStatsCollectData(virJSONValue *dev,
                                              &bstats->wr_highest_offset) == 0)
             bstats->wr_highest_offset_valid = true;
     }
+
+    if ((timed_stats = virJSONValueObjectGetArray(stats, "timed_stats")) &&
+        virJSONValueArraySize(timed_stats) > 0)
+        qemuMonitorJSONBlockStatsCollectDataTimed(timed_stats, bstats);
 
     return g_steal_pointer(&bstats);
 }
@@ -2524,6 +2568,33 @@ qemuMonitorJSONQueryBlockstats(qemuMonitor *mon,
 }
 
 
+static struct qemuBlockStatsLimits *
+qemuMonitorJSONBlockStatsCollectLimits(virJSONValue *limits_json)
+{
+    struct qemuBlockStatsLimits *limits = g_new0(struct qemuBlockStatsLimits, 1);
+
+    virJSONValueObjectGetNumberUlong(limits_json, "request-alignment", &limits->request_alignment);
+
+    virJSONValueObjectGetNumberUlong(limits_json, "max-discard", &limits->discard_max);
+    virJSONValueObjectGetNumberUlong(limits_json, "discard-alignment", &limits->discard_alignment);
+
+    virJSONValueObjectGetNumberUlong(limits_json, "max-write-zeroes", &limits->write_zeroes_max);
+    virJSONValueObjectGetNumberUlong(limits_json, "write-zeroes-alignment", &limits->write_zeroes_alignment);
+
+    virJSONValueObjectGetNumberUlong(limits_json, "opt-transfer", &limits->transfer_optimal);
+    virJSONValueObjectGetNumberUlong(limits_json, "max-transfer", &limits->transfer_max);
+    virJSONValueObjectGetNumberUlong(limits_json, "max-hw-transfer", &limits->transfer_hw_max);
+
+    virJSONValueObjectGetNumberUlong(limits_json, "max-iov", &limits->iov_max);
+    virJSONValueObjectGetNumberUlong(limits_json, "max-hw-iov", &limits->iov_hw_max);
+
+    virJSONValueObjectGetNumberUlong(limits_json, "min-mem-alignment", &limits->memory_alignment_minimal);
+    virJSONValueObjectGetNumberUlong(limits_json, "opt-mem-alignment", &limits->memory_alignment_optimal);
+
+    return limits;
+}
+
+
 static int
 qemuMonitorJSONGetOneBlockStatsNamedNodes(size_t pos G_GNUC_UNUSED,
                                           virJSONValue *val,
@@ -2531,6 +2602,7 @@ qemuMonitorJSONGetOneBlockStatsNamedNodes(size_t pos G_GNUC_UNUSED,
 {
     GHashTable *stats = opaque;
     virJSONValue *image;
+    virJSONValue *limits;
     const char *nodename;
     qemuBlockStats *entry;
 
@@ -2555,6 +2627,9 @@ qemuMonitorJSONGetOneBlockStatsNamedNodes(size_t pos G_GNUC_UNUSED,
 
     ignore_value(virJSONValueObjectGetNumberUlong(val, "write_threshold",
                                                   &entry->write_threshold));
+
+    if ((limits = virJSONValueObjectGetObject(image, "limits")))
+        entry->limits = qemuMonitorJSONBlockStatsCollectLimits(limits);
 
     return 1; /* we don't want to steal the value from the JSON array */
 }
@@ -5317,17 +5392,30 @@ static int
 qemuMonitorJSONParseCPUModelExpansion(const char *cpu_name,
                                       virJSONValue *cpu_props,
                                       virJSONValue *cpu_deprecated_props,
+                                      qemuMonitorCPUModelExpansionType type,
                                       qemuMonitorCPUModelInfo **model_info)
 {
     g_autoptr(qemuMonitorCPUModelInfo) expanded_model = NULL;
+    GStrv dep_props = NULL;
 
     if (qemuMonitorJSONParseCPUModel(cpu_name, cpu_props, &expanded_model) < 0)
         return -1;
 
     if (cpu_deprecated_props &&
         virJSONValueArraySize(cpu_deprecated_props) &&
-        (!(expanded_model->deprecated_props = virJSONValueArrayToStringList(cpu_deprecated_props)))) {
+        (!(dep_props = virJSONValueArrayToStringList(cpu_deprecated_props)))) {
         return -1;
+    }
+
+    switch (type) {
+    case QEMU_MONITOR_CPU_MODEL_EXPANSION_STATIC:
+        expanded_model->static_dep_props = dep_props;
+        break;
+
+    case QEMU_MONITOR_CPU_MODEL_EXPANSION_STATIC_FULL:
+    case QEMU_MONITOR_CPU_MODEL_EXPANSION_FULL:
+        expanded_model->full_dep_props = dep_props;
+        break;
     }
 
     *model_info = g_steal_pointer(&expanded_model);
@@ -5434,7 +5522,7 @@ qemuMonitorJSONGetCPUModelExpansion(qemuMonitor *mon,
 
     return qemuMonitorJSONParseCPUModelExpansion(cpu_name, cpu_props,
                                                  cpu_deprecated_props,
-                                                 model_info);
+                                                 type, model_info);
 }
 
 
@@ -5596,6 +5684,35 @@ qemuMonitorJSONGetKVMState(qemuMonitor *mon,
                        _("query-kvm replied unexpected data"));
         return -1;
     }
+
+    return 0;
+}
+
+
+int
+qemuMonitorJSONGetAccelerators(qemuMonitor *mon, char **enabled)
+{
+    g_autoptr(virJSONValue) cmd = NULL;
+    g_autoptr(virJSONValue) reply = NULL;
+    virJSONValue *data;
+    const char *str;
+
+    if (!(cmd = qemuMonitorJSONMakeCommand("query-accelerators", NULL)))
+        return -1;
+
+    if (qemuMonitorJSONCommand(mon, cmd, &reply) < 0)
+        return -1;
+
+    if (!(data = qemuMonitorJSONGetReply(cmd, reply, VIR_JSON_TYPE_OBJECT)))
+        return -1;
+
+    if (!(str = virJSONValueObjectGetString(data, "enabled"))) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       _("query-accelerators was missing 'enabled'"));
+        return -1;
+    }
+
+    *enabled = g_strdup(str);
 
     return 0;
 }
@@ -6795,7 +6912,8 @@ qemuMonitorJSONGetCPUProperties(qemuMonitor *mon,
 static int
 qemuMonitorJSONCPUDataAddFeatures(virCPUData *data,
                                   GStrv props,
-                                  qemuMonitorCPUFeatureTranslationCallback translate)
+                                  qemuMonitorCPUFeatureTranslationCallback translate,
+                                  virCPUDefFeatureFilter filter)
 {
     char **p;
 
@@ -6804,6 +6922,9 @@ qemuMonitorJSONCPUDataAddFeatures(virCPUData *data,
 
         if (translate)
             name = translate(data->arch, name);
+
+        if (filter && !filter(name, VIR_CPU_FEATURE_REQUIRE, &data->arch))
+            continue;
 
         if (virCPUDataAddFeature(data, name) < 0)
             return -1;
@@ -6821,7 +6942,8 @@ qemuMonitorJSONCPUDataAddFeatures(virCPUData *data,
  *      a single qom-list-get QMP command
  * @cpuQOMPath: QOM path of a CPU to probe
  * @translate: callback for translating CPU feature names from QEMU to libvirt
- * @opaque: data for @translate callback
+ * @filter: callback for filtering ignored features, a pointer to @arch is
+ *      passed as opaque pointer to the callback
  * @enabled: returns the CPU data for all enabled features
  * @disabled: returns the CPU data for features which we asked for
  *      (either explicitly or via a named CPU model) but QEMU disabled them
@@ -6836,6 +6958,7 @@ qemuMonitorJSONGetGuestCPU(qemuMonitor *mon,
                            bool qomListGet,
                            const char *cpuQOMPath,
                            qemuMonitorCPUFeatureTranslationCallback translate,
+                           virCPUDefFeatureFilter filter,
                            virCPUData **enabled,
                            virCPUData **disabled)
 {
@@ -6852,8 +6975,10 @@ qemuMonitorJSONGetGuestCPU(qemuMonitor *mon,
                                         &propsEnabled, &propsDisabled) < 0)
         return -1;
 
-    if (qemuMonitorJSONCPUDataAddFeatures(cpuEnabled, propsEnabled, translate) < 0 ||
-        qemuMonitorJSONCPUDataAddFeatures(cpuDisabled, propsDisabled, translate) < 0)
+    if (qemuMonitorJSONCPUDataAddFeatures(cpuEnabled, propsEnabled,
+                                          translate, filter) < 0 ||
+        qemuMonitorJSONCPUDataAddFeatures(cpuDisabled, propsDisabled,
+                                          translate, filter) < 0)
         return -1;
 
     *enabled = g_steal_pointer(&cpuEnabled);

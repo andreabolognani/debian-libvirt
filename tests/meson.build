@@ -548,10 +548,13 @@ if conf.has('WITH_VMWARE')
   ]
 endif
 
-if conf.has('WITH_VMX')
+if conf.has('WITH_VMX') and conf.has('WITH_ESX')
   tests += [
-    { 'name': 'vmx2xmltest' },
+    { 'name': 'vmx2xmltest', 'include': [ esx_inc_dir ] },
     { 'name': 'xml2vmxtest' },
+  ]
+  mock_libs += [
+    { 'name': 'vmx2xmlmock', 'deps': [ esx_dep ] },
   ]
 endif
 

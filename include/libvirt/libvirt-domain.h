@@ -3488,6 +3488,332 @@ struct _virDomainStatsRecord {
  */
 # define VIR_DOMAIN_STATS_BLOCK_SUFFIX_THRESHOLD ".threshold"
 
+/**
+ * VIR_DOMAIN_STATS_BLOCK_SUFFIX_LIMITS_REQUEST_ALIGNMENT:
+ *
+ * limits represent constraints on individual operations as imposed by the
+ * backing file storage technology.
+ *
+ * Alignment requirement, in bytes, for offset/length of I/O requests, as
+ * unsigned long long.
+ *
+ * Since: 11.10.0
+ */
+# define VIR_DOMAIN_STATS_BLOCK_SUFFIX_LIMITS_REQUEST_ALIGNMENT ".limits.request_alignment"
+
+/**
+ * VIR_DOMAIN_STATS_BLOCK_SUFFIX_LIMITS_DISCARD_MAX:
+ *
+ * limits represent constraints on individual operations as imposed by the
+ * backing file storage technology.
+ *
+ * Maximum number of bytes that can be discarded at once, as unsigned long long.
+ *
+ * Since: 11.10.0
+ */
+# define VIR_DOMAIN_STATS_BLOCK_SUFFIX_LIMITS_DISCARD_MAX ".limits.discard_max"
+
+/**
+ * VIR_DOMAIN_STATS_BLOCK_SUFFIX_LIMITS_DISCARD_ALIGNMENT:
+ *
+ * limits represent constraints on individual operations as imposed by the
+ * backing file storage technology.
+ *
+ * Optimal alignment for discard requests in bytes, as unsigned long long.
+ *
+ * Since: 11.10.0
+ */
+# define VIR_DOMAIN_STATS_BLOCK_SUFFIX_LIMITS_DISCARD_ALIGNMENT ".limits.discard_alignment"
+
+/**
+ * VIR_DOMAIN_STATS_BLOCK_SUFFIX_LIMITS_WRITE_ZEROES_MAX:
+ *
+ * limits represent constraints on individual operations as imposed by the
+ * backing file storage technology.
+ *
+ * Maximum number of bytes that can be zeroed out at once, as unsigned long long.
+ *
+ * Since: 11.10.0
+ */
+# define VIR_DOMAIN_STATS_BLOCK_SUFFIX_LIMITS_WRITE_ZEROES_MAX ".limits.write_zeroes_max"
+
+/**
+ * VIR_DOMAIN_STATS_BLOCK_SUFFIX_LIMITS_WRITE_ZEROES_ALIGNMENT:
+ *
+ * limits represent constraints on individual operations as imposed by the
+ * backing file storage technology.
+ *
+ * Optimal alignment for write_zeroes requests in bytes, as unsigned long long.
+ *
+ * Since: 11.10.0
+ */
+# define VIR_DOMAIN_STATS_BLOCK_SUFFIX_LIMITS_WRITE_ZEROES_ALIGNMENT ".limits.write_zeroes_alignment"
+
+/**
+ * VIR_DOMAIN_STATS_BLOCK_SUFFIX_LIMITS_TRANSFER_OPTIMAL:
+ *
+ * limits represent constraints on individual operations as imposed by the
+ * backing file storage technology.
+ *
+ * Optimal transfer length in bytes, as unsigned long long.
+ *
+ * Since: 11.10.0
+ */
+# define VIR_DOMAIN_STATS_BLOCK_SUFFIX_LIMITS_TRANSFER_OPTIMAL ".limits.transfer_optimal"
+
+/**
+ * VIR_DOMAIN_STATS_BLOCK_SUFFIX_LIMITS_TRANSFER_MAX:
+ *
+ * limits represent constraints on individual operations as imposed by the
+ * backing file storage technology.
+ *
+ * Maximal transfer length in bytes, as unsigned long long.
+ *
+ * Since: 11.10.0
+ */
+# define VIR_DOMAIN_STATS_BLOCK_SUFFIX_LIMITS_TRANSFER_MAX ".limits.transfer_max"
+
+/**
+ * VIR_DOMAIN_STATS_BLOCK_SUFFIX_LIMITS_TRANSFER_HW_MAX:
+ *
+ * limits represent constraints on individual operations as imposed by the
+ * backing file storage technology.
+ *
+ * Maximal hardware transfer length of requests bypassing kernel IO scheduler
+ * in bytes, as unsigned long long.
+ *
+ * Since: 11.10.0
+ */
+# define VIR_DOMAIN_STATS_BLOCK_SUFFIX_LIMITS_TRANSFER_HW_MAX ".limits.transfer_hw_max"
+
+/**
+ * VIR_DOMAIN_STATS_BLOCK_SUFFIX_LIMITS_IOV_MAX:
+ *
+ * limits represent constraints on individual operations as imposed by the
+ * backing file storage technology.
+ *
+ * Maximum number of scatter/gather elements, as unsigned long long.
+ *
+ * Since: 11.10.0
+ */
+# define VIR_DOMAIN_STATS_BLOCK_SUFFIX_LIMITS_IOV_MAX ".limits.iov_max"
+
+/**
+ * VIR_DOMAIN_STATS_BLOCK_SUFFIX_LIMITS_IOV_HW_MAX:
+ *
+ * limits represent constraints on individual operations as imposed by the
+ * backing file storage technology.
+ *
+ * Maximal number of scatter/gather elements of requests bypassing kernel IO
+ * scheduler, as unsigned long long.
+ *
+ * Since: 11.10.0
+ */
+# define VIR_DOMAIN_STATS_BLOCK_SUFFIX_LIMITS_IOV_HW_MAX ".limits.iov_hw_max"
+
+/**
+ * VIR_DOMAIN_STATS_BLOCK_SUFFIX_LIMITS_MEMORY_ALIGNMENT_MINIMAL:
+ *
+ * limits represent constraints on individual operations as imposed by the
+ * backing file storage technology.
+ *
+ * memory alignment in bytes so that no bounce buffer is needed, as
+ * unsigned long long.
+ *
+ * Since: 11.10.0
+ */
+# define VIR_DOMAIN_STATS_BLOCK_SUFFIX_LIMITS_MEMORY_ALIGNMENT_MINIMAL ".limits.memory_alignment_minimal"
+
+/**
+ * VIR_DOMAIN_STATS_BLOCK_SUFFIX_LIMITS_MEMORY_ALIGNMENT_OPTIMAL:
+ *
+ * limits represent constraints on individual operations as imposed by the
+ * backing file storage technology.
+ *
+ * memory alignment in bytes that is used for bounce buffers, as
+ * unsigned long long.
+ *
+ * Since: 11.10.0
+ */
+# define VIR_DOMAIN_STATS_BLOCK_SUFFIX_LIMITS_MEMORY_ALIGNMENT_OPTIMAL ".limits.memory_alignment_optimal"
+
+/**
+ * VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_COUNT:
+ *
+ * Number of groups of statistics accounted in a configured time intervals as
+ * unsigned long long.
+ *
+ * Since: 11.10.0
+ */
+# define VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_COUNT ".timed_group.count"
+
+/**
+ * VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_PREFIX:
+ *
+ * The parameter name prefix to access each group of timed stats. Concatenate the
+ * prefix, the entry number formatted as an unsigned integer and one of the
+ * timed group suffix parameters to form a complete paramter name.
+ *
+ * Since: 11.10.0
+ */
+# define VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_PREFIX ".timed_group."
+
+/**
+ * VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_SUFFIX_INTERVAL:
+ *
+ * The time interval in seconds as unsigned long long for which the statistics
+ * in this group were collected.
+ *
+ * Since: 11.10.0
+ */
+# define VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_SUFFIX_INTERVAL ".interval"
+
+/**
+ * VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_SUFFIX_RD_LATENCY_MIN:
+ *
+ * Minimum latency of read operations in the defined interval, in nanoseconds as
+ * unsigned long long.
+ *
+ * Since: 11.10.0
+ */
+# define VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_SUFFIX_RD_LATENCY_MIN ".rd_latency_min"
+
+/**
+ * VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_SUFFIX_RD_LATENCY_MAX:
+ *
+ * Maximum latency of read operations in the defined interval, in nanoseconds as
+ * unsigned long long.
+ *
+ * Since: 11.10.0
+ */
+# define VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_SUFFIX_RD_LATENCY_MAX ".rd_latency_max"
+
+/**
+ * VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_SUFFIX_RD_LATENCY_AVG:
+ *
+ * Average latency of read operations in the defined interval, in nanoseconds as
+ * unsigned long long.
+ *
+ * Since: 11.10.0
+ */
+# define VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_SUFFIX_RD_LATENCY_AVG ".rd_latency_avg"
+
+/**
+ * VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_SUFFIX_WR_LATENCY_MIN:
+ *
+ * Minimum latency of write operations in the defined interval, in nanoseconds
+ * as unsigned long long.
+ *
+ * Since: 11.10.0
+ */
+# define VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_SUFFIX_WR_LATENCY_MIN ".wr_latency_min"
+
+/**
+ * VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_SUFFIX_WR_LATENCY_MAX:
+ *
+ * Maximum latency of write operations in the defined interval, in nanoseconds
+ * as unsigned long long.
+ *
+ * Since: 11.10.0
+ */
+# define VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_SUFFIX_WR_LATENCY_MAX ".wr_latency_max"
+
+/**
+ * VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_SUFFIX_WR_LATENCY_AVG:
+ *
+ * Average latency of write operations in the defined interval, in nanoseconds
+ * as unsigned long long.
+ *
+ * Since: 11.10.0
+ */
+# define VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_SUFFIX_WR_LATENCY_AVG ".wr_latency_avg"
+
+/**
+ * VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_SUFFIX_ZONE_APPEND_LATENCY_MIN:
+ * Minimum latency of zone append operations in the defined interval, in
+ * nanoseconds as unsigned long long.
+ *
+ * Since: 11.10.0
+ */
+# define VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_SUFFIX_ZONE_APPEND_LATENCY_MIN ".zone_append_latency_min"
+
+/**
+ * VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_SUFFIX_ZONE_APPEND_LATENCY_MAX:
+ *
+ * Maximum latency of zone append operations in the defined interval, in
+ * nanoseconds as unsigned long long.
+ *
+ * Since: 11.10.0
+ */
+# define VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_SUFFIX_ZONE_APPEND_LATENCY_MAX ".zone_append_latency_max"
+
+/**
+ * VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_SUFFIX_ZONE_APPEND_LATENCY_AVG:
+ *
+ * Average latency of zone append operations in the defined interval, in
+ * nanoseconds as unsigned long long.
+ *
+ * Since: 11.10.0
+ */
+# define VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_SUFFIX_ZONE_APPEND_LATENCY_AVG ".zone_append_latency_avg"
+
+/**
+ * VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_SUFFIX_FLUSH_LATENCY_MIN:
+ *
+ * Minimum latency of flush operations in the defined interval, in nanoseconds
+ * as unsigned long long.
+ *
+ * Since: 11.10.0
+ */
+# define VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_SUFFIX_FLUSH_LATENCY_MIN ".flush_latency_min"
+
+/**
+ * VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_SUFFIX_FLUSH_LATENCY_MAX:
+ *
+ * Maximum latency of flush operations in the defined interval, in nanoseconds
+ * as unsigned long long.
+ *
+ * Since: 11.10.0
+ */
+# define VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_SUFFIX_FLUSH_LATENCY_MAX ".flush_latency_max"
+
+/**
+ * VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_SUFFIX_FLUSH_LATENCY_AVG:
+ *
+ * Average latency of flush operations in the defined interval, in nanoseconds
+ * as unsigned long long.
+ *
+ * Since: 11.10.0
+ */
+# define VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_SUFFIX_FLUSH_LATENCY_AVG ".flush_latency_avg"
+
+/**
+ * VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_SUFFIX_RD_QUEUE_DEPTH_AVG:
+ *
+ * Average number of pending read operations in the defined interval as double.
+ *
+ * Since: 11.10.0
+ */
+# define VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_SUFFIX_RD_QUEUE_DEPTH_AVG ".rd_queue_depth_avg"
+
+/**
+ * VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_SUFFIX_WR_QUEUE_DEPTH_AVG:
+ *
+ * Average number of pending write operations in the defined interval as double.
+ *
+ * Since: 11.10.0
+ */
+# define VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_SUFFIX_WR_QUEUE_DEPTH_AVG ".wr_queue_depth_avg"
+
+/**
+ * VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_SUFFIX_ZONE_APPEND_QUEUE_DEPTH_AVG:
+ *
+ * Average number of pending zone append operations in the defined interval as
+ * double.
+ *
+ * Since: 11.10.0
+ */
+# define VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_SUFFIX_ZONE_APPEND_QUEUE_DEPTH_AVG ".zone_append_queue_depth_avg"
 
 /**
  * VIR_DOMAIN_STATS_PERF_CMT:
@@ -5075,6 +5401,7 @@ typedef enum {
     VIR_DOMAIN_EVENT_SUSPENDED_API_ERROR = 6, /* Some APIs (e.g., migration, snapshot) internally need to suspend a domain. This event detail is used when resume operation at the end of such API fails. (Since: 1.0.1) */
     VIR_DOMAIN_EVENT_SUSPENDED_POSTCOPY = 7, /* suspended for post-copy migration (Since: 1.3.3) */
     VIR_DOMAIN_EVENT_SUSPENDED_POSTCOPY_FAILED = 8, /* suspended after failed post-copy (Since: 1.3.3) */
+    VIR_DOMAIN_EVENT_SUSPENDED_GUEST_SHUTDOWN = 9, /* suspended after guest os shut-down (a long running job is preserving the VM until completion) (Since: 11.10.0) */
 
 # ifdef VIR_ENUM_SENTINELS
     VIR_DOMAIN_EVENT_SUSPENDED_LAST /* (Since: 0.9.10) */
@@ -8191,8 +8518,10 @@ int virDomainAgentSetResponseTimeout(virDomainPtr domain,
  * Since: 6.0.0
  */
 typedef enum {
-    VIR_DOMAIN_BACKUP_BEGIN_REUSE_EXTERNAL = (1 << 0), /* reuse separately
-                                                          provided images (Since: 6.0.0) */
+    /* reuse separately provided images (Since: 6.0.0) */
+    VIR_DOMAIN_BACKUP_BEGIN_REUSE_EXTERNAL = (1 << 0),
+    /* preserve the domain if the guest OS shuts down while the backup is running (Since: 11.10.0) */
+    VIR_DOMAIN_BACKUP_BEGIN_PRESERVE_SHUTDOWN_DOMAIN = (1 << 1),
 } virDomainBackupBeginFlags;
 
 int virDomainBackupBegin(virDomainPtr domain,

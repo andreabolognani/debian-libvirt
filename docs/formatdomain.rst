@@ -3378,6 +3378,11 @@ paravirtualized driver is specified via the ``disk`` element.
    :since:`since after 0.4.4`; "sata" attribute value :since:`since 0.9.7`;
    "removable" attribute value :since:`since 1.1.3`;
    "rotation_rate" attribute value :since:`since 7.3.0`
+   The optional attribute ``dpofua`` (:since:`Since 11.10.0, only QEMU driver`)
+   controls the support of DPO(Disable Page Out) and FUA(Force Unit Access)
+   properties of a SCSI disk cache access (both must be present or absent).
+   If the value is omitted hypervisor default is applied (which may depend on
+   the machine type version) and is the suggested setting.
 ``throttlefilters``
    The optional ``throttlefilters`` element provides the ability to provide additional
    per-device throttle chain :since:`Since 11.2.0`
@@ -3596,6 +3601,23 @@ paravirtualized driver is specified via the ``disk`` element.
             </iothread>
           </iothreads>
         </driver>
+
+   - The optional ``statistics`` sub-element allows configuring statistics
+     collection in configurable intervals for the given disk. Intervals are
+     configured by ``<statistic>`` sub-elements with ``interval`` attribute
+     configuring the collection window duration in seconds. The statistics
+     are available via the bulk statistics API.
+
+     Example::
+
+       <driver name='qemu'>
+         <statistics>
+           <statistic interval='1'/>
+           <statistic interval='10'/>
+         </statistics>
+       </driver>
+
+    :since:`Since 11.9.0 (QEMU 10.2, virtio, ide, scsi disks only)`.
 
    -  The optional ``queues`` attribute specifies the number of virt queues for
       virtio-blk ( :since:`Since 3.9.0` ) or vhost-user-blk
@@ -6885,6 +6907,10 @@ interaction with the admin.
       ID is specified, then the default audio backend will be used.
       :since:`Since 7.2.0, qemu`.
 
+      The optional ``wait`` attribute, when set to ``yes``, causes the guest
+      to wait for an incoming VNC connection before booting.
+      :since:`Since 11.10.0, bhyve`.
+
    ``spice`` :since:`Since 0.8.6`
       Starts a SPICE server. The ``port`` attribute specifies the TCP port
       number (with -1 as legacy syntax indicating that it should be
@@ -8359,8 +8385,8 @@ The watchdog device requires an additional driver and management daemon in the
 guest. Just enabling the watchdog in the libvirt configuration does not do
 anything useful on its own.
 
-Currently libvirt does not support notification when the watchdog fires. This
-feature is planned for a future version of libvirt.
+:since:`Since 0.8.0`, a notification is available when the watchdog fires, using
+the event ID ``VIR_DOMAIN_EVENT_ID_WATCHDOG``.
 
 Having multiple watchdogs is usually not something very common, but be aware
 that this might happen, for example, when an implicit watchdog device is added
@@ -9220,6 +9246,10 @@ Example:
    ``xtsup``
       Enable x2APIC mode. Useful for higher number of guest CPUs.
       :since:`Since 11.5.0` (QEMU/KVM and ``amd`` model only)
+
+   ``pciBus``
+      The ``pciBus`` attribute notes the index of the controller that an
+      IOMMU device is attached to. (QEMU/KVM and ``smmuv3`` model only)
 
 The ``virtio`` IOMMU devices can further have ``address`` element as described
 in `Device addresses`_ (address has to by type of ``pci``).

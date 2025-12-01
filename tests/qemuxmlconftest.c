@@ -1829,6 +1829,7 @@ mymain(void)
 
     DO_TEST_CAPS_LATEST("disk-slices");
     DO_TEST_CAPS_LATEST("disk-rotation");
+    DO_TEST_CAPS_LATEST("disk-statistics-intervals");
 
     DO_TEST_CAPS_ARCH_LATEST("disk-arm-virtio-sd", "aarch64");
 
@@ -2054,6 +2055,7 @@ mymain(void)
     DO_TEST_CAPS_LATEST("channel-virtio-autoadd");
     DO_TEST_CAPS_LATEST("console-virtio");
     DO_TEST_CAPS_LATEST("console-virtio-many");
+    DO_TEST_CAPS_LATEST("console-virtio-serial-autoassign-address");
     DO_TEST_CAPS_ARCH_LATEST("console-virtio-ccw", "s390x");
     DO_TEST_CAPS_LATEST("console-virtio-unix");
     DO_TEST_CAPS_ARCH_LATEST("console-sclp", "s390x");
@@ -3036,6 +3038,7 @@ mymain(void)
     DO_TEST_CAPS_LATEST_ABI_UPDATE("intel-iommu-eim-autoadd");
     DO_TEST_CAPS_LATEST_ABI_UPDATE("intel-iommu-eim-autoadd-v2");
     DO_TEST_CAPS_ARCH_LATEST("iommu-smmuv3", "aarch64");
+    DO_TEST_CAPS_ARCH_LATEST("iommu-smmuv3-pci-bus", "aarch64");
     DO_TEST_CAPS_LATEST("virtio-iommu-x86_64");
     DO_TEST_CAPS_ARCH_LATEST("virtio-iommu-aarch64", "aarch64");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("virtio-iommu-wrong-machine");
@@ -3183,8 +3186,10 @@ mymain(void)
 
     DO_TEST_CAPS_LATEST("cpu-Icelake-Server-pconfig");
 
-    DO_TEST_CAPS_ARCH_LATEST("aarch64-default-cpu-kvm-virt-4.2", "aarch64");
-    DO_TEST_CAPS_ARCH_LATEST("aarch64-default-cpu-tcg-virt-4.2", "aarch64");
+    DO_TEST_CAPS_ARCH_VER("aarch64-default-cpu-kvm-virt-4.2", "aarch64", "10.0.0");
+    DO_TEST_CAPS_ARCH_LATEST("aarch64-default-cpu-kvm-virt-10.0", "aarch64");
+    DO_TEST_CAPS_ARCH_VER("aarch64-default-cpu-tcg-virt-4.2", "aarch64", "10.0.0");
+    DO_TEST_CAPS_ARCH_LATEST("aarch64-default-cpu-tcg-virt-10.0", "aarch64");
     DO_TEST_CAPS_ARCH_VER("ppc64-default-cpu-kvm-pseries-2.7", "ppc64", "7.0.0");
     DO_TEST_CAPS_ARCH_VER("ppc64-default-cpu-tcg-pseries-2.7", "ppc64", "7.0.0");
     DO_TEST_CAPS_ARCH_LATEST("ppc64-default-cpu-kvm-pseries-3.1", "ppc64");
@@ -3290,6 +3295,11 @@ mymain(void)
 
     DO_TEST_CAPS_LATEST("hwuuid");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("hwuuid-smbios-uuid-match");
+
+    DO_TEST_CAPS_ARCH_LATEST_FULL("mshv-x86_64-q35-headless", "x86_64",
+                                  ARG_CAPS_VARIANT, "+mshv", ARG_END);
+    /* MSHV guests should not work on Linux with KVM */
+    DO_TEST_CAPS_LATEST_PARSE_ERROR("mshv-x86_64-q35-headless");
 
     /* check that all input files were actually used here */
     if (testConfXMLCheck(existingTestCases) < 0)
