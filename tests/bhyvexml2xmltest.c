@@ -109,6 +109,8 @@ mymain(void)
     DO_TEST_DIFFERENT("vnc-autoport");
     DO_TEST_DIFFERENT("vnc-resolution");
     DO_TEST_DIFFERENT("vnc-password");
+    DO_TEST_DIFFERENT("vnc-wait");
+    DO_TEST_DIFFERENT("vnc-wait-no");
     DO_TEST_DIFFERENT("commandline");
     DO_TEST_DIFFERENT("msrs");
     DO_TEST_DIFFERENT("sound");
@@ -119,6 +121,7 @@ mymain(void)
     DO_TEST_DIFFERENT("4-consoles");
     DO_TEST_DIFFERENT("nvme");
     DO_TEST_DIFFERENT("2-nvme-2-controllers");
+    DO_TEST_DIFFERENT("passthru-multiple-devs");
 
     /* Address allocation tests */
     DO_TEST_DIFFERENT("addr-single-sata-disk");

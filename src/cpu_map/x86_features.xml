@@ -468,6 +468,11 @@
     <cpuid eax_in='0x00000007' ecx_in='0x00000001' eax='0x04000000'/>
   </feature>
 
+  <!-- cpuid level 0x00000007, 0x0001 (ecx) -->
+  <feature name='msr-imm'>
+    <cpuid eax_in='0x00000007' ecx_in='0x00000001' ecx='0x00000020'/>
+  </feature>
+
   <!-- cpuid level 0x00000007, 0x0001 (edx) -->
   <feature name='avx-vnni-int8'>
     <cpuid eax_in='0x00000007' ecx_in='0x00000001' edx='0x00000010'/>
@@ -798,14 +803,23 @@
   <feature name='no-nested-data-bp'>
     <cpuid eax_in='0x80000021' eax='0x00000001'/>
   </feature>
+  <feature name='fs-gs-base-ns'>
+    <cpuid eax_in='0x80000021' eax='0x00000002'/>
+  </feature>
   <feature name='lfence-always-serializing'>
     <cpuid eax_in='0x80000021' eax='0x00000004'/>
+  </feature>
+  <feature name='verw-clear'>
+    <cpuid eax_in='0x80000021' eax='0x00000020'/>
   </feature>
   <feature name='null-sel-clr-base'>
     <cpuid eax_in='0x80000021' eax='0x00000040'/>
   </feature>
   <feature name='auto-ibrs'>
     <cpuid eax_in='0x80000021' eax='0x00000100'/>
+  </feature>
+  <feature name='prefetchi'>
+    <cpuid eax_in='0x80000021' eax='0x00100000'/>
   </feature>
   <feature name='eraps'>
     <cpuid eax_in='0x80000021' eax='0x01000000'/>
@@ -823,9 +837,49 @@
     <cpuid eax_in='0x80000021' eax='0x40000000'/>
   </feature>
 
+  <!-- cpuid level 0x80000021 (ecx) -->
+  <feature name='tsa-sq-no'>
+    <cpuid eax_in='0x80000021' ecx='0x00000002'/>
+  </feature>
+  <feature name='tsa-l1-no'>
+    <cpuid eax_in='0x80000021' ecx='0x00000004'/>
+  </feature>
+
   <!-- cpuid level 0x80000022 (eax) -->
   <feature name='perfmon-v2'>
     <cpuid eax_in='0x80000022' eax='0x00000001'/>
+  </feature>
+
+  <!-- cpuid level 0xc0000001 (edx) -->
+  <feature name='xstore'>
+    <cpuid eax_in='0xc0000001' edx='0x00000004'/>
+  </feature>
+  <feature name='xstore-en'>
+    <cpuid eax_in='0xc0000001' edx='0x00000008'/>
+  </feature>
+  <feature name='xcrypt'>
+    <cpuid eax_in='0xc0000001' edx='0x00000040'/>
+  </feature>
+  <feature name='xcrypt-en'>
+    <cpuid eax_in='0xc0000001' edx='0x00000080'/>
+  </feature>
+  <feature name='ace2'>
+    <cpuid eax_in='0xc0000001' edx='0x00000100'/>
+  </feature>
+  <feature name='ace2-en'>
+    <cpuid eax_in='0xc0000001' edx='0x00000200'/>
+  </feature>
+  <feature name='phe'>
+    <cpuid eax_in='0xc0000001' edx='0x00000400'/>
+  </feature>
+  <feature name='phe-en'>
+    <cpuid eax_in='0xc0000001' edx='0x00000800'/>
+  </feature>
+  <feature name='pmm'>
+    <cpuid eax_in='0xc0000001' edx='0x00001000'/>
+  </feature>
+  <feature name='pmm-en'>
+    <cpuid eax_in='0xc0000001' edx='0x00002000'/>
   </feature>
 
   <!-- msr 0x000000cf -->
@@ -873,6 +927,9 @@
   <feature name='fb-clear'>
     <msr index='0x0000010a' edx='0x00000000' eax='0x00020000'/>
   </feature>
+  <feature name='bhi-no'>
+    <msr index='0x0000010a' edx='0x00000000' eax='0x00100000'/>
+  </feature>
   <feature name='pbrsb-no'>
     <msr index='0x0000010a' edx='0x00000000' eax='0x01000000'/>
   </feature>
@@ -884,6 +941,9 @@
   </feature>
   <feature name='rfds-clear'>
     <msr index='0x0000010a' edx='0x00000000' eax='0x10000000'/>
+  </feature>
+  <feature name='its-no'>
+    <msr index='0x0000010a' edx='0x40000000' eax='0x00000000'/>
   </feature>
 
   <!-- msr 0x00000480 -->

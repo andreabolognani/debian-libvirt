@@ -373,27 +373,38 @@ virDomainCapsStringValuesFormat(virBuffer *buf,
 }
 
 
+/**
+ * FORMAT_PROLOGUE:
+ * @item: item to format
+ *
+ * Formats part of domain capabilities for @item. The element name is #item so
+ * variable name is important. If the particular capability is not supported,
+ * then the macro also returns early.
+ *
+ * Additionally, the macro declares two variables: @childBuf and @attrBuf where
+ * the former holds contents of the child elements and the latter holds
+ * contents of <#item/> attributes (so far limited to "supported='yes/no'").
+ */
 #define FORMAT_PROLOGUE(item) \
+    g_auto(virBuffer) childBuf = VIR_BUFFER_INIT_CHILD(buf); \
+    g_auto(virBuffer) attrBuf = VIR_BUFFER_INITIALIZER; \
     do { \
-        if (item->supported == VIR_TRISTATE_BOOL_ABSENT) \
+        if (!item || item->supported == VIR_TRISTATE_BOOL_ABSENT) \
             return; \
-        virBufferAsprintf(buf, "<" #item " supported='%s'%s\n", \
-                (item->supported == VIR_TRISTATE_BOOL_YES) ? "yes" : "no", \
-                (item->supported == VIR_TRISTATE_BOOL_YES) ? ">" : "/>"); \
-        if (item->supported == VIR_TRISTATE_BOOL_NO) \
+        virBufferAsprintf(&attrBuf, " supported='%s'", \
+                          (item->supported == VIR_TRISTATE_BOOL_YES) ? "yes" : "no"); \
+        if (item->supported == VIR_TRISTATE_BOOL_NO) { \
+            virXMLFormatElement(buf, #item, &attrBuf, NULL); \
             return; \
-        virBufferAdjustIndent(buf, 2); \
+        } \
     } while (0)
 
 #define FORMAT_EPILOGUE(item) \
-    do { \
-        virBufferAdjustIndent(buf, -2); \
-        virBufferAddLit(buf, "</" #item ">\n"); \
-    } while (0)
+    virXMLFormatElement(buf, #item, &attrBuf, &childBuf)
 
 #define ENUM_PROCESS(master, capsEnum, valToStr) \
     do { \
-        virDomainCapsEnumFormat(buf, &master->capsEnum, \
+        virDomainCapsEnumFormat(&childBuf, &master->capsEnum, \
                                 #capsEnum, valToStr); \
     } while (0)
 
@@ -417,7 +428,7 @@ virDomainCapsLoaderFormat(virBuffer *buf,
 {
     FORMAT_PROLOGUE(loader);
 
-    virDomainCapsStringValuesFormat(buf, &loader->values);
+    virDomainCapsStringValuesFormat(&childBuf, &loader->values);
     ENUM_PROCESS(loader, type, virDomainLoaderTypeToString);
     ENUM_PROCESS(loader, readonly, virTristateBoolTypeToString);
     ENUM_PROCESS(loader, secure, virTristateBoolTypeToString);
@@ -435,7 +446,7 @@ virDomainCapsOSFormat(virBuffer *buf,
 
     ENUM_PROCESS(os, firmware, virDomainOsDefFirmwareTypeToString);
 
-    virDomainCapsLoaderFormat(buf, loader);
+    virDomainCapsLoaderFormat(&childBuf, loader);
 
     FORMAT_EPILOGUE(os);
 }
@@ -446,107 +457,106 @@ virDomainCapsCPUCustomFormat(virBuffer *buf,
 {
     size_t i;
 
-    virBufferAdjustIndent(buf, 2);
-
     for (i = 0; i < custom->nmodels; i++) {
+        g_auto(virBuffer) attrBuf = VIR_BUFFER_INITIALIZER;
+        g_auto(virBuffer) childBuf = VIR_BUFFER_INITIALIZER;
         virDomainCapsCPUModel *model = custom->models + i;
 
-        virBufferAsprintf(buf, "<model usable='%s'",
+        virBufferAsprintf(&attrBuf, " usable='%s'",
                           virDomainCapsCPUUsableTypeToString(model->usable));
 
         if (model->deprecated)
-            virBufferAddLit(buf, " deprecated='yes'");
+            virBufferAddLit(&attrBuf, " deprecated='yes'");
 
         if (model->vendor)
-            virBufferAsprintf(buf, " vendor='%s'", model->vendor);
+            virBufferAsprintf(&attrBuf, " vendor='%s'", model->vendor);
         else
-            virBufferAddLit(buf, " vendor='unknown'");
+            virBufferAddLit(&attrBuf, " vendor='unknown'");
 
         if (model->canonical)
-            virBufferAsprintf(buf, " canonical='%s'", model->canonical);
+            virBufferAsprintf(&attrBuf, " canonical='%s'", model->canonical);
 
-        virBufferAsprintf(buf, ">%s</model>\n", model->name);
+        virBufferAddStr(&childBuf, model->name);
+
+        virXMLFormatElementDirect(buf, "model", &attrBuf, &childBuf);
 
         if (model->blockers) {
+            g_auto(virBuffer) blockerAttrBuf = VIR_BUFFER_INITIALIZER;
+            g_auto(virBuffer) blockerChildBuf = VIR_BUFFER_INIT_CHILD(buf);
             char **blocker;
 
-            virBufferAsprintf(buf, "<blockers model='%s'>\n", model->name);
-            virBufferAdjustIndent(buf, 2);
+            virBufferAsprintf(&blockerAttrBuf, " model='%s'", model->name);
 
             for (blocker = model->blockers; *blocker; blocker++)
-                virBufferAsprintf(buf, "<feature name='%s'/>\n", *blocker);
+                virBufferAsprintf(&blockerChildBuf, "<feature name='%s'/>\n", *blocker);
 
-            virBufferAdjustIndent(buf, -2);
-            virBufferAddLit(buf, "</blockers>\n");
+            virXMLFormatElement(buf, "blockers", &blockerAttrBuf, &blockerChildBuf);
         }
     }
-
-    virBufferAdjustIndent(buf, -2);
 }
 
 static void
 virDomainCapsCPUFormat(virBuffer *buf,
                        const virDomainCapsCPU *cpu)
 {
-    virBufferAddLit(buf, "<cpu>\n");
-    virBufferAdjustIndent(buf, 2);
+    g_auto(virBuffer) childBuf = VIR_BUFFER_INIT_CHILD(buf);
+    g_auto(virBuffer) hostPassModeChildBuf = VIR_BUFFER_INIT_CHILD(&childBuf);
+    g_auto(virBuffer) hostPassModeAttrBuf = VIR_BUFFER_INITIALIZER;
+    g_auto(virBuffer) maxModeChildBuf = VIR_BUFFER_INIT_CHILD(&childBuf);
+    g_auto(virBuffer) maxModeAttrBuf = VIR_BUFFER_INITIALIZER;
+    g_auto(virBuffer) hostModeChildBuf = VIR_BUFFER_INIT_CHILD(&childBuf);
+    g_auto(virBuffer) hostModeAttrBuf = VIR_BUFFER_INITIALIZER;
+    g_auto(virBuffer) customModeChildBuf = VIR_BUFFER_INIT_CHILD(&childBuf);
+    g_auto(virBuffer) customModeAttrBuf = VIR_BUFFER_INITIALIZER;
 
-    virBufferAsprintf(buf, "<mode name='%s' supported='%s'",
+    virBufferAsprintf(&hostPassModeAttrBuf, " name='%s' supported='%s'",
                       virCPUModeTypeToString(VIR_CPU_MODE_HOST_PASSTHROUGH),
                       cpu->hostPassthrough ? "yes" : "no");
 
     if (cpu->hostPassthrough && cpu->hostPassthroughMigratable.report) {
-        virBufferAddLit(buf, ">\n");
-        virBufferAdjustIndent(buf, 2);
-        ENUM_PROCESS(cpu, hostPassthroughMigratable,
-                     virTristateSwitchTypeToString);
-        virBufferAdjustIndent(buf, -2);
-        virBufferAddLit(buf, "</mode>\n");
-    } else {
-        virBufferAddLit(buf, "/>\n");
+        virDomainCapsEnumFormat(&hostPassModeChildBuf,
+                                &cpu->hostPassthroughMigratable,
+                                "hostPassthroughMigratable",
+                                virTristateSwitchTypeToString);
     }
 
-    virBufferAsprintf(buf, "<mode name='%s' supported='%s'",
+    virXMLFormatElement(&childBuf, "mode", &hostPassModeAttrBuf, &hostPassModeChildBuf);
+
+    virBufferAsprintf(&maxModeAttrBuf, " name='%s' supported='%s'",
                       virCPUModeTypeToString(VIR_CPU_MODE_MAXIMUM),
                       cpu->maximum ? "yes" : "no");
 
     if (cpu->maximum && cpu->maximumMigratable.report) {
-        virBufferAddLit(buf, ">\n");
-        virBufferAdjustIndent(buf, 2);
-        ENUM_PROCESS(cpu, maximumMigratable,
-                     virTristateSwitchTypeToString);
-        virBufferAdjustIndent(buf, -2);
-        virBufferAddLit(buf, "</mode>\n");
-    } else {
-        virBufferAddLit(buf, "/>\n");
+        virDomainCapsEnumFormat(&maxModeChildBuf,
+                                &cpu->maximumMigratable,
+                                "maximumMigratable",
+                                virTristateSwitchTypeToString);
     }
 
-    virBufferAsprintf(buf, "<mode name='%s' ",
-                      virCPUModeTypeToString(VIR_CPU_MODE_HOST_MODEL));
+    virXMLFormatElement(&childBuf, "mode", &maxModeAttrBuf, &maxModeChildBuf);
+
+    virBufferAsprintf(&hostModeAttrBuf, " name='%s' supported='%s'",
+                      virCPUModeTypeToString(VIR_CPU_MODE_HOST_MODEL),
+                      cpu->hostModel ? "yes" : "no");
+
     if (cpu->hostModel) {
-        virBufferAddLit(buf, "supported='yes'>\n");
-        virBufferAdjustIndent(buf, 2);
-
-        virCPUDefFormatBuf(buf, cpu->hostModel);
-
-        virBufferAdjustIndent(buf, -2);
-        virBufferAddLit(buf, "</mode>\n");
-    } else {
-        virBufferAddLit(buf, "supported='no'/>\n");
+        virCPUDefFormatBuf(&hostModeChildBuf, cpu->hostModel);
     }
 
-    virBufferAsprintf(buf, "<mode name='%s' ",
+    virXMLFormatElement(&childBuf, "mode", &hostModeAttrBuf, &hostModeChildBuf);
+
+    virBufferAsprintf(&customModeAttrBuf, " name='%s'",
                       virCPUModeTypeToString(VIR_CPU_MODE_CUSTOM));
     if (cpu->custom && cpu->custom->nmodels) {
-        virBufferAddLit(buf, "supported='yes'>\n");
-        virDomainCapsCPUCustomFormat(buf, cpu->custom);
-        virBufferAddLit(buf, "</mode>\n");
+        virBufferAddLit(&customModeAttrBuf, " supported='yes'");
+        virDomainCapsCPUCustomFormat(&customModeChildBuf, cpu->custom);
     } else {
-        virBufferAddLit(buf, "supported='no'/>\n");
+        virBufferAddLit(&customModeAttrBuf, " supported='no'");
     }
 
-    virBufferAdjustIndent(buf, -2);
-    virBufferAddLit(buf, "</cpu>\n");
+    virXMLFormatElement(&childBuf, "mode", &customModeAttrBuf, &customModeChildBuf);
+
+    virXMLFormatElement(buf, "cpu", NULL, &childBuf);
 }
 
 static void
@@ -819,9 +829,6 @@ virDomainCapsFeatureHypervFormat(virBuffer *buf,
 {
     virBuffer defaults = VIR_BUFFER_INIT_CHILD(buf);
 
-    if (!hyperv)
-        return;
-
     FORMAT_PROLOGUE(hyperv);
 
     ENUM_PROCESS(hyperv, features, virDomainHypervTypeToString);
@@ -855,7 +862,7 @@ virDomainCapsFeatureHypervFormat(virBuffer *buf,
         virBufferEscapeString(&defaults, "<vendor_id>%s</vendor_id>\n", hyperv->vendor_id);
     }
 
-    virXMLFormatElement(buf, "defaults", NULL, &defaults);
+    virXMLFormatElement(&childBuf, "defaults", NULL, &defaults);
 
     FORMAT_EPILOGUE(hyperv);
 }

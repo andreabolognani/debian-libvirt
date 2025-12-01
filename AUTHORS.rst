@@ -97,6 +97,7 @@ Patches have also been contributed by:
 
 * Aaron M. Brown <aaronmbr@linux.ibm.com>
 * Abhiram Tilak <atp.exp@gmail.com>
+* Achill Gilgenast via Devel <devel@lists.libvirt.org>
 * Adam Julis <ajulis@redhat.com>
 * Adam Litke <agl@us.ibm.com>
 * Adam Walters <adam@pandorasboxen.com>
@@ -113,6 +114,7 @@ Patches have also been contributed by:
 * Alexander Kuznetsov <kuznetsovam@altlinux.org>
 * Alexander Larsson <alexl@redhat.com>
 * Alexander Nusov <alexander.nusov@nfvexpress.com>
+* Alexander Shursha <kekek2@ya.ru>
 * Alexander Todorov <atodorov@otb.bg>
 * Alexander Vasilenko <kaperang07@gmail.com>
 * Alexandra Diupina <adiupina@astralinux.ru>
@@ -348,6 +350,7 @@ Patches have also been contributed by:
 * Erik Skultety <eskultet@redhat.com>
 * Ersek Laszlo <lacos@caesar.elte.hu>
 * Ettore Atalan <atalanttore@googlemail.com>
+* Eugene Fedorenko <eugene.fedor@gmail.com>
 * Eugen Feller <eugen.feller@inria.fr>
 * Eugenio Pérez <eperezma@redhat.com>
 * Fabian Affolter <mail@fabian-affolter.ch>
@@ -434,6 +437,7 @@ Patches have also been contributed by:
 * Hongbin Lu <hongbin034@gmail.com>
 * hongmianquan <hongmianquan@bytedance.com>
 * Hongwei Bi <hwbi2008@gmail.com>
+* Hosted Weblate <hosted@weblate.org>
 * hsu zangmen <chzang55@gmail.com>
 * Huanle Han <hanxueluo@gmail.com>
 * Huaqiang <huaqiang.wang@intel.com>
@@ -646,6 +650,7 @@ Patches have also been contributed by:
 * Martin Wilck <mwilck@suse.de>
 * Marti Raudsepp <marti@juffo.org>
 * Masayoshi Mizuma <m.mizuma@jp.fujitsu.com>
+* Massimiliano Minella <massimiliano.minella@se.com>
 * Matej Cepl <mcepl@cepl.eu>
 * MATSUDA Daiki <matsudadik@intellilink.co.jp>
 * Matt Coleman <matt@datto.com>
@@ -712,6 +717,7 @@ Patches have also been contributed by:
 * Naoya Horiguchi <n-horiguchi@ah.jp.nec.com>
 * Narayana Murty N <nnmlinux@linux.ibm.com>
 * Natanael Copa <ncopa@alpinelinux.org>
+* Nathan Chen <nathanc@nvidia.com>
 * Nathan <nathan95@live.it>
 * Neal Gompa <ngompa13@gmail.com>
 * Nehal J Wani <nehaljw.kkd1@gmail.com>
@@ -741,6 +747,7 @@ Patches have also been contributed by:
 * Nitesh Konkar <niteshkonkar.libvirt@gmail.com>
 * Nobuhiro MIKI <nmiki@yahoo-corp.jp>
 * Noella Ashu <ashu.noella207@gmail.com>
+* Nux <nux@li.nux.ro>
 * Ohad Levy <ohadlevy@gmail.com>
 * Olaf Hering <olaf@aepfle.de>
 * Oleg Strikov <oleg.strikov@canonical.com>
@@ -818,6 +825,7 @@ Patches have also been contributed by:
 * ray <honglei.wang@smartx.com>
 * Reinier Schoof <reinier@transip.nl>
 * Remus-Gabriel Chelu <remusgabriel.chelu@disroot.org>
+* Renan Birck Pinheiro <renan.birck.pinheiro@gmail.com>
 * Richa Marwaha <rmarwah@linux.vnet.ibm.com>
 * Richard Laager <rlaager@wiktel.com>
 * Richard Weinberger <richard@nod.at>

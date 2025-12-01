@@ -251,6 +251,76 @@
         <feature name='xsavec'/>
         <feature name='xsaves'/>
       </blockers>
+      <model usable='no' vendor='Intel' canonical='ClearwaterForest-v1'>ClearwaterForest</model>
+      <blockers model='ClearwaterForest'>
+        <feature name='arch-capabilities'/>
+        <feature name='avx-ifma'/>
+        <feature name='avx-ne-convert'/>
+        <feature name='avx-vnni'/>
+        <feature name='avx-vnni-int16'/>
+        <feature name='avx-vnni-int8'/>
+        <feature name='bhi-ctrl'/>
+        <feature name='bus-lock-detect'/>
+        <feature name='cldemote'/>
+        <feature name='ddpd-u'/>
+        <feature name='gfni'/>
+        <feature name='intel-psfd'/>
+        <feature name='invpcid'/>
+        <feature name='ipred-ctrl'/>
+        <feature name='lam'/>
+        <feature name='mcdt-no'/>
+        <feature name='movdir64b'/>
+        <feature name='movdiri'/>
+        <feature name='pcid'/>
+        <feature name='prefetchiti'/>
+        <feature name='rrsba-ctrl'/>
+        <feature name='serialize'/>
+        <feature name='sha512'/>
+        <feature name='sm3'/>
+        <feature name='sm4'/>
+        <feature name='spec-ctrl'/>
+        <feature name='ssbd'/>
+        <feature name='tsc-deadline'/>
+        <feature name='tsc_adjust'/>
+        <feature name='vpclmulqdq'/>
+        <feature name='xsavec'/>
+        <feature name='xsaves'/>
+      </blockers>
+      <model usable='no' vendor='Intel'>ClearwaterForest-v1</model>
+      <blockers model='ClearwaterForest-v1'>
+        <feature name='arch-capabilities'/>
+        <feature name='avx-ifma'/>
+        <feature name='avx-ne-convert'/>
+        <feature name='avx-vnni'/>
+        <feature name='avx-vnni-int16'/>
+        <feature name='avx-vnni-int8'/>
+        <feature name='bhi-ctrl'/>
+        <feature name='bus-lock-detect'/>
+        <feature name='cldemote'/>
+        <feature name='ddpd-u'/>
+        <feature name='gfni'/>
+        <feature name='intel-psfd'/>
+        <feature name='invpcid'/>
+        <feature name='ipred-ctrl'/>
+        <feature name='lam'/>
+        <feature name='mcdt-no'/>
+        <feature name='movdir64b'/>
+        <feature name='movdiri'/>
+        <feature name='pcid'/>
+        <feature name='prefetchiti'/>
+        <feature name='rrsba-ctrl'/>
+        <feature name='serialize'/>
+        <feature name='sha512'/>
+        <feature name='sm3'/>
+        <feature name='sm4'/>
+        <feature name='spec-ctrl'/>
+        <feature name='ssbd'/>
+        <feature name='tsc-deadline'/>
+        <feature name='tsc_adjust'/>
+        <feature name='vpclmulqdq'/>
+        <feature name='xsavec'/>
+        <feature name='xsaves'/>
+      </blockers>
       <model usable='yes' vendor='Intel' canonical='Conroe-v1'>Conroe</model>
       <model usable='yes' vendor='Intel'>Conroe-v1</model>
       <model usable='no' vendor='Intel' canonical='Cooperlake-v1'>Cooperlake</model>
@@ -1347,6 +1417,35 @@
         <feature name='xsavec'/>
         <feature name='xsaves'/>
       </blockers>
+      <model usable='no' vendor='Intel'>SierraForest-v2</model>
+      <blockers model='SierraForest-v2'>
+        <feature name='arch-capabilities'/>
+        <feature name='avx-ifma'/>
+        <feature name='avx-ne-convert'/>
+        <feature name='avx-vnni'/>
+        <feature name='avx-vnni-int8'/>
+        <feature name='bhi-ctrl'/>
+        <feature name='bus-lock-detect'/>
+        <feature name='cldemote'/>
+        <feature name='gfni'/>
+        <feature name='intel-psfd'/>
+        <feature name='invpcid'/>
+        <feature name='ipred-ctrl'/>
+        <feature name='lam'/>
+        <feature name='mcdt-no'/>
+        <feature name='movdir64b'/>
+        <feature name='movdiri'/>
+        <feature name='pcid'/>
+        <feature name='rrsba-ctrl'/>
+        <feature name='serialize'/>
+        <feature name='spec-ctrl'/>
+        <feature name='ssbd'/>
+        <feature name='tsc-deadline'/>
+        <feature name='tsc_adjust'/>
+        <feature name='vpclmulqdq'/>
+        <feature name='xsavec'/>
+        <feature name='xsaves'/>
+      </blockers>
       <model usable='no' vendor='Intel' canonical='Skylake-Client-v1'>Skylake-Client</model>
       <blockers model='Skylake-Client'>
         <feature name='hle'/>
@@ -1601,6 +1700,42 @@
       <blockers model='Westmere-v2'>
         <feature name='spec-ctrl'/>
       </blockers>
+      <model usable='no' vendor='Zhaoxin CentaurHauls' canonical='YongFeng-v1'>YongFeng</model>
+      <blockers model='YongFeng'>
+        <feature name='ace2'/>
+        <feature name='arch-capabilities'/>
+        <feature name='invpcid'/>
+        <feature name='invtsc'/>
+        <feature name='pcid'/>
+        <feature name='phe'/>
+        <feature name='phe-en'/>
+        <feature name='pmm'/>
+        <feature name='pmm-en'/>
+        <feature name='spec-ctrl'/>
+        <feature name='tsc-deadline'/>
+        <feature name='xcrypt'/>
+        <feature name='xcrypt-en'/>
+        <feature name='xstore'/>
+        <feature name='xstore-en'/>
+      </blockers>
+      <model usable='no' vendor='Zhaoxin CentaurHauls'>YongFeng-v1</model>
+      <blockers model='YongFeng-v1'>
+        <feature name='ace2'/>
+        <feature name='arch-capabilities'/>
+        <feature name='invpcid'/>
+        <feature name='invtsc'/>
+        <feature name='pcid'/>
+        <feature name='phe'/>
+        <feature name='phe-en'/>
+        <feature name='pmm'/>
+        <feature name='pmm-en'/>
+        <feature name='spec-ctrl'/>
+        <feature name='tsc-deadline'/>
+        <feature name='xcrypt'/>
+        <feature name='xcrypt-en'/>
+        <feature name='xstore'/>
+        <feature name='xstore-en'/>
+      </blockers>
       <model usable='yes' vendor='AMD' canonical='athlon-v1'>athlon</model>
       <model usable='yes' vendor='AMD'>athlon-v1</model>
       <model usable='yes' vendor='Intel' canonical='core2duo-v1'>core2duo</model>
@@ -1802,7 +1937,9 @@
     <backingStoreInput supported='yes'/>
     <backup supported='yes'/>
     <async-teardown supported='yes'/>
+    <s390-pv supported='no'/>
     <ps2 supported='yes'/>
+    <tdx supported='no'/>
     <sev supported='yes'>
       <cbitpos>51</cbitpos>
       <reducedPhysBits>1</reducedPhysBits>

@@ -17,8 +17,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: libvirt 6.0.0\n"
 "Report-Msgid-Bugs-To: https://libvirt.org/bugs.html\n"
-"POT-Creation-Date: 2025-10-29 11:46+0000\n"
-"PO-Revision-Date: 2025-09-27 07:52+0000\n"
+"POT-Creation-Date: 2025-11-25 09:28+0000\n"
+"PO-Revision-Date: 2025-11-27 06:58+0000\n"
 "Last-Translator: 김인수 <simmon@nplob.com>\n"
 "Language-Team: Korean <https://translate.fedoraproject.org/projects/libvirt/"
 "libvirt/ko/>\n"
@@ -27,7 +27,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
-"X-Generator: Weblate 5.13.3\n"
+"X-Generator: Weblate 5.14.3\n"
 
 msgid ""
 "\n"
@@ -1226,11 +1226,11 @@ msgstr "'%1$s' 파일은 메모리에 들어갈 수 없습니다"
 
 #, c-format
 msgid "'%1$s' hyperv feature requires '%2$s' feature"
-msgstr ""
+msgstr "'%1$s' hyperv 기능은 '%2$s' 기능이 필요합니다"
 
 #, c-format
 msgid "'%1$s' hyperv feature requires '%2$s' timer"
-msgstr ""
+msgstr "'%1$s' hyperv 기능은 '%2$s' 타이머가 필요합니다"
 
 #, c-format
 msgid "'%1$s' is currently not supported by the qemu encryption engine"
@@ -1371,6 +1371,9 @@ msgstr "'discard_no_unref'는 qcow2 디스크 형식에서만 동작합니다"
 
 msgid "'disk' missing or not an array in reply of guest-get-fsinfo"
 msgstr "'disk' 누락이거나 guest-get-fsinfo의 응답에서 배열이 아님"
+
+msgid "'dpofua' option is available only for SCSI disks"
+msgstr "'dpofua' 옵션은 SCSI 디스크용만 사용 할 수 있습니다"
 
 #, c-format
 msgid "'extended_l2' not supported with compat level %1$s"
@@ -2348,7 +2351,7 @@ msgstr ""
 "습니다"
 
 msgid "Bhyve version does not support NVMe"
-msgstr ""
+msgstr "Bhyve 버전은 NVME를 지원하지 않습니다"
 
 msgid "Bhyve version does not support framebuffer"
 msgstr "Bhyve 버전은 프레임 버퍼를 지원하지 않습니다"
@@ -2458,6 +2461,10 @@ msgstr "Bus0는 통합된 PIIX3 USB 또는 IDE 제어기를 위한 PCI여야 합
 
 msgid "Busy"
 msgstr "바쁨"
+
+#, c-format
+msgid "CA certificate '%1$s' does not exist"
+msgstr "CA 인증서 '%1$s' 는 존재하지 않습니다"
 
 msgid "CA certificate:"
 msgstr "인증서:"
@@ -3281,7 +3288,7 @@ msgid "Cannot get storage controller name"
 msgstr "저장소 제어기의 이름을 가져올 수 없습니다"
 
 msgid "Cannot have more than one disk per NVMe controller"
-msgstr ""
+msgstr "NVMe 제어기당 디스크를 두 개 이상 가질 수 없습니다"
 
 msgid "Cannot hotplug platform device"
 msgstr "기술환경 장치를 핫플러그 할 수 없습니다"
@@ -3488,10 +3495,6 @@ msgstr ""
 #, c-format
 msgid "Cannot print data type %1$x"
 msgstr "자료 유형 %1$x을 출력 할 수 없음"
-
-#, c-format
-msgid "Cannot read %1$s '%2$s'"
-msgstr "%1$s '%2$s'을 읽을 수 없음"
 
 msgid "Cannot read cputime for domain"
 msgstr "도메인에 대한 cputime을 읽을 수 없음"
@@ -3754,6 +3757,14 @@ msgid "Certificate %1$s usage does not permit digital signature"
 msgstr "인증서 %1$s 사용은 디지털 서명을 허용하지 않습니다"
 
 #, c-format
+msgid "Certificate '%1$s' does not exist"
+msgstr "인증서 '%1$s' 는 존재하지 않습니다"
+
+#, c-format
+msgid "Certificate '%1$s' does not exist, but key '%2$s' does"
+msgstr "인증서 '%1$s' 가 존재하지 않지만, 키 '%2$s' 는 존재합니다"
+
+#, c-format
 msgid "Certificate failed validation: %1$s"
 msgstr "인증서 유효성 검사 실패: %1$s"
 
@@ -3866,15 +3877,6 @@ msgstr "사용자정의 PKI base dir 접근 확인 중"
 #, c-format
 msgid "Checking for %1$s module"
 msgstr "%1$s 모듈을 위해 확인 중"
-
-msgid ""
-"Checking for AMD Secure Encrypted Virtualization-Encrypted State (SEV-ES)"
-msgstr "AMD SEV-ES(보안 암호화된 가상화-암호화된 상태)를 위해 확인 중"
-
-msgid ""
-"Checking for AMD Secure Encrypted Virtualization-Secure Nested Paging (SEV-"
-"SNP)"
-msgstr "AMD SEV-SNP (보안 암호화된 가상화-보안 중첩 페이징)를 위해 확인 중"
 
 #, c-format
 msgid "Checking for Linux >= %1$d.%2$d.%3$d"
@@ -4510,6 +4512,9 @@ msgstr "키 '%1$s'의 PhysicalNic을 찾을 수 없음"
 #, c-format
 msgid "Could not find PhysicalNic with name '%1$s'"
 msgstr "이름 '%1$s'의 PhysicalNic을 찾을 수 없음"
+
+msgid "Could not find a suitable controller for smmuv3"
+msgstr "smmuv3를 위한 적합한 제어기를 찾을 수 없습니다"
 
 msgid "Could not find any 'network' element in status file"
 msgstr "상태 파일에서 'network' 요소를 찾을 수 없음"
@@ -5940,6 +5945,10 @@ msgid "Domain %1$s didn't show up"
 msgstr "%1$s 도메인을 보여주지 못함"
 
 #, c-format
+msgid "Domain %1$s didn't show up in /dev/vmm"
+msgstr "도메인 %1$s 가 /dev/vmm 에서 표시되지 않습니다"
+
+#, c-format
 msgid "Domain '%1$d' has to be running because libxenlight will suspend it"
 msgstr ""
 "libxenlight가 도메인을 일시 중단하기 때문에 도메인 '%1$d'이(가) 실행 중이어"
@@ -7153,7 +7162,7 @@ msgid "Failed to complete tree listing"
 msgstr "나무 목록을 완료하지 못했습니다"
 
 msgid "Failed to connect network interfaces"
-msgstr ""
+msgstr "네트워크 연결장치에 연결하는 데 실패함"
 
 #, c-format
 msgid "Failed to connect socket to '%1$s'"
@@ -8237,6 +8246,10 @@ msgstr "HTTP 응답 코드를 구문 분석하는데 실패"
 #, c-format
 msgid "Failed to parse MAC address from '%1$s'"
 msgstr "'%1$s'에서 맥 주소를 구문 분석하는데 실패"
+
+#, c-format
+msgid "Failed to parse PCI address %1$s"
+msgstr "PCI 주소 %1$s 를 구문 분석하는 데 실패함"
 
 #, c-format
 msgid "Failed to parse PCI config address '%1$s'"
@@ -9841,6 +9854,9 @@ msgid ""
 msgstr ""
 "IOMMU 인터럽트 재매핑에는 분할 I/O APIC가 필요합니다(ioapic 드라이버='qemu')"
 
+msgid "IOMMU model smmuv3 must be specified for multiple IOMMU definitions"
+msgstr "IOMMU 모델 smmuv3는 여러 IOMMU 정의를 위해 지정되어야 합니다"
+
 msgid "IORT table header ended early"
 msgstr "IORT 테이블 헤더가 일찍 종료됨"
 
@@ -10831,7 +10847,7 @@ msgstr "잘못된 resctrl 모니터"
 
 #, c-format
 msgid "Invalid response from CH. Device removal failed for device %1$s."
-msgstr ""
+msgstr "CH에서 잘못된 응답. 장치 %1$s 용 장치 제거가 실패함."
 
 #, c-format
 msgid "Invalid save_image_format '%1$s'"
@@ -11148,6 +11164,10 @@ msgstr ""
 "커널 이미지 경로가 정의되지 않았습니다. sev_snp=on과 함께 igvm 경로를 전달합"
 "니다"
 
+#, c-format
+msgid "Key '%1$s' does not exist, but certificate '%2$s' does"
+msgstr "키 '%1$s' 가 존재하지 않지만, 인증서 '%2$s' 가 있습니다"
+
 msgid "Key file path must be provided for private key authentication"
 msgstr "개인 키 인증을 위해 키 파일 경로를 제공해야 합니다"
 
@@ -11383,15 +11403,15 @@ msgstr "기계가 null입니다"
 
 #, c-format
 msgid "Machine type '%1$s' does not support PCI"
-msgstr ""
+msgstr "장비 유형 '%1$s' 는 PCI를 지원하지 않습니다"
 
 #, c-format
 msgid "Machine type '%1$s' supports PCI but no PCI controller added"
-msgstr ""
+msgstr "장비 유형 %1$s' 는 PCI를 지원하지만 추가된 PCI 제어기가 없습니다"
 
 #, c-format
 msgid "Machine type '%1$s' wants PCI but PCI is not supported"
-msgstr ""
+msgstr "장비 유형 '%1$s' 는 PCI가 필요하지만 PCI가 지원되지 않습니다"
 
 msgid "Malformatted array index"
 msgstr "잘못된 형식의 배열 인덱스"
@@ -12788,8 +12808,8 @@ msgstr "스케일된 정수로 블록 장치의 새 크기(기본 KiB)"
 msgid "Nicdev support unavailable"
 msgstr "Nicdev는 지원 할 수 없습니다"
 
-msgid "No CA certificate path set to match server key/cert"
-msgstr "서버 키/인증서와 일치하도록 설정된 CA 인증서 경로가 없습니다"
+msgid "No CA certificate path set to match server key(s)/cert(s)"
+msgstr "서버 key(s)/cert(s)와 일치하는 CA 인증서 경로가 없습니다"
 
 msgid "No DRM render nodes available"
 msgstr "사용 가능한 DRM 렌더 노드가 없습니다"
@@ -12807,6 +12827,9 @@ msgstr "호스트 '%1$s'의 IP 주소를 찾을 수 없음: %2$s"
 
 msgid "No JSON parser implementation is available"
 msgstr "구현된 JSON 구문분석기가 없습니다"
+
+msgid "No PCI address provided"
+msgstr "제공된 PCI 주소가 없습니다"
 
 msgid "No PCI buses available"
 msgstr "사용 가능한 PCI 버스 없음"
@@ -13071,11 +13094,11 @@ msgstr "qemu 환경 이름이 지정되지 않았습니다"
 msgid "No runstatedir specified"
 msgstr "runstatedir이 지정되지 않았습니다"
 
-msgid "No server certificate path set to match server key"
-msgstr "서버 키와 일치하도록 설정된 서버 인증서 경로가 없습니다"
+msgid "No server certificate path(s) set to match server key(s)"
+msgstr "서버 key(s)와 일치하는 서버 인증서 path(s)가 없습니다"
 
-msgid "No server key path set to match server cert"
-msgstr "서버 인증서와 일치하도록 설정된 서버 키 경로가 없습니다"
+msgid "No server key path(s) set to match server cert(s)"
+msgstr "서버 cert(s)와 일치하는 서버 키 path(s)가 없습니다"
 
 #, c-format
 msgid "No server named '%1$s'"
@@ -13294,6 +13317,10 @@ msgstr "<numa>에 있는 CPU 수가 <vcpu> 수를 초과합니다"
 
 msgid "Number of CPUs in <numa> exceeds the desired maximum vcpu count"
 msgstr "<numa>에 있는 CPU 수가 원하는 최대 vcpu 수를 초과합니다"
+
+#, c-format
+msgid "Number of certificates (%1$zu) must match number of keys (%2$zu)"
+msgstr "인증서 (%1$zu) 의 수는 키 (%2$zu) 의 수와 일치해야 합니다"
 
 #, c-format
 msgid "Number of domain stats records is %1$d, which exceeds max limit: %2$d"
@@ -16419,6 +16446,14 @@ msgstr ""
 msgid "Target disk %1$s does not match source %2$s"
 msgstr "대상 디스크 %1$s가 소스 %2$s와 일치하지 않음"
 
+#, c-format
+msgid "Target disk 'dpofua' property %1$s does not match source %2$s"
+msgstr "대상 디스크 'dpofua' 속성 %1$s 는 원천 %2$s 와 일치하지 않습니다"
+
+#, c-format
+msgid "Target disk 'removable' property %1$s does not match source %2$s"
+msgstr "대상 디스크 'removable' 속성 %1$s 는 원천 %2$s 와 일치하지 않습니다"
+
 msgid "Target disk access mode does not match source"
 msgstr "대상 디스크 접근 방식은 원천과 일치하지 않습니다"
 
@@ -16479,8 +16514,9 @@ msgstr ""
 "대상 도메인 IOMMU 장치 캐싱 모드 '%1$s'이(가) 소스 '%2$s'과(와) 일치하지 않습"
 "니다"
 
-msgid "Target domain IOMMU device count does not match source"
-msgstr "대상 도메인 IOMMU 장치 수가 소스와 일치하지 않습니다"
+#, c-format
+msgid "Target domain IOMMU device count %1$zu does not match source %2$zu"
+msgstr "대상 도메인 IOMMU 장치 계수 %1$zu 가 원천 %2$zu 와 일치하지 않습니다"
 
 #, c-format
 msgid ""
@@ -16512,6 +16548,11 @@ msgstr ""
 msgid "Target domain IOMMU device model '%1$s' does not match source '%2$s'"
 msgstr ""
 "대상 도메인 IOMMU 장치 모델 '%1$s'이(가) 소스 '%2$s'과(와) 일치하지 않습니다"
+
+#, c-format
+msgid ""
+"Target domain IOMMU device pci_bus value '%1$d' does not match source '%2$d'"
+msgstr "대상 도메인 IOMMU 장치 pci_bus 값 '%1$d' 가 원천 '%2$d' 와 일치하지 않습니다"
 
 #, c-format
 msgid "Target domain OS type %1$s does not match source %2$s"
@@ -17203,8 +17244,8 @@ msgstr "클라이언트 인증서 %1$s가 아직 활성화되지 않았습니다
 
 #, c-format
 msgid ""
-"The client key %1$s must be accessible to all users. As root run: chown root."
-"root %2$s; chmod 0644 %3$s"
+"The client key %1$s must be accessible to all users. As root run: chown "
+"root.root %2$s; chmod 0644 %3$s"
 msgstr ""
 "클라이언트 키 %1$s 는 모든 사용자에게 접근 할 수 있어야 합니다. root으로 실"
 "행: chown root.root %2$s; chmod 0644 %3$s"
@@ -17290,16 +17331,16 @@ msgstr ""
 
 #, c-format
 msgid ""
-"The machine cannot act as a client. See https://libvirt.org/kbase/tlscerts."
-"html#issuing-client-certificates on how to regenerate %1$s"
+"The machine cannot act as a client. See https://libvirt.org/kbase/"
+"tlscerts.html#issuing-client-certificates on how to regenerate %1$s"
 msgstr ""
 "장비는 클라이언트로 동작 할 수 없습니다. %1$s를 재-생산하는 방법에서 https://"
 "libvirt.org/kbase/tlscerts.html#issuing-client-certificates를 참고하세요"
 
 #, c-format
 msgid ""
-"The machine cannot act as a server. See https://libvirt.org/kbase/tlscerts."
-"html#issuing-server-certificates on how to regenerate %1$s"
+"The machine cannot act as a server. See https://libvirt.org/kbase/"
+"tlscerts.html#issuing-server-certificates on how to regenerate %1$s"
 msgstr ""
 "장비는 서버로서 동작 할 수 없습니다. %1$s 를 재-생산하는 방법에서 https://"
 "libvirt.org/kbase/tlscerts.html#issuing-server-certificates를 참고하세요"
@@ -17912,6 +17953,8 @@ msgid ""
 "USB controller model '%1$s' requires PCI but machine type '%2$s' does not "
 "support PCI"
 msgstr ""
+"USB 제어기 모델 '%1$s' 는 PCI가 필요하지만 장비 유형 '%2$s' 는 PCI를 지원하"
+"지 않습니다"
 
 #, c-format
 msgid "USB controller model type 'qusb1' or 'qusb2' is not supported in %1$s"
@@ -18042,6 +18085,9 @@ msgstr "미디어 레지스트리에 하드 디스크를 추가할 수 없습니
 msgid "Unable to add hardware machine"
 msgstr "하드웨어 시스템을 추가할 수 없습니다"
 
+msgid "Unable to add keepalive timer"
+msgstr "keepalive 타이머를 추가 할 수 없습니다"
+
 #, c-format
 msgid "Unable to add lockspace %1$s"
 msgstr "잠금공간 %1$s를 추가 할 수 없습니다"
@@ -18050,12 +18096,24 @@ msgstr "잠금공간 %1$s를 추가 할 수 없습니다"
 msgid "Unable to add lockspace %1$s: %2$s"
 msgstr "잠금공간 %1$s: %2$s를 추가 할 수 없습니다"
 
+msgid "Unable to add log cleanup timer"
+msgstr "로그 청소 타이머를 추가 할 수 없습니다"
+
 msgid "Unable to add media registry other media"
 msgstr "미디어 레지스트리 다른 미디어를 추가 할 수 없습니다"
 
 #, c-format
 msgid "Unable to add port %1$s to OVS bridge %2$s: %3$s"
 msgstr "OVS 브릿지에 포트 %1$s를 추가 할 수 없음 %2$s: %3$s"
+
+msgid "Unable to add service timer"
+msgstr "서비스 타이머를 추가 할 수 없습니다"
+
+msgid "Unable to add shutdown timer"
+msgstr "종료 타이머를 추가 할 수 없습니다"
+
+msgid "Unable to add socket timer"
+msgstr "소켓 타이머를 추가 할 수 없습니다"
 
 msgid "Unable to add storage controller"
 msgstr "저장소 제어기를 추가 할 수 없습니다"
@@ -18074,6 +18132,23 @@ msgid ""
 "machine"
 msgstr ""
 "이 순간찍기를 추가 할 수 없으며, 이미 장비에 연결된 순간찍기가 있습니다"
+
+msgid "Unable to add timer to event loop"
+msgstr "이벤트 루프에 타이머를 추가 할 수 없습니다"
+
+#, c-format
+msgid "Unable to add watch on log FD %1$d"
+msgstr "로그 FD %1$d 에 감시를 추가 할 수 없습니다"
+
+msgid "Unable to add watch on stdin"
+msgstr "stdin에 감시를 추가 할 수 없습니다"
+
+msgid "Unable to add watch on stdout"
+msgstr "stdoutd에 감시를 추가 할 수 없습니다"
+
+#, c-format
+msgid "Unable to add watch on udev FD %1$d"
+msgstr "udev FD %1$d 에 감시를 추가 할 수 없습니다"
 
 msgid "Unable to add/delete fdb entries on this platform"
 msgstr "이 기술환경에서 fdb 항목을 추가/삭제 할 수 없습니다"
@@ -22103,6 +22178,9 @@ msgstr "복원 시 파일 시스템 캐시 방지"
 msgid "avoid file system cache when saving"
 msgstr "저장할 때 파일 시스템 캐시 피하기"
 
+msgid "avoid shutdown of the domain while the backup is running"
+msgstr "백업이 동작 중일 때에 도메인 종료를 방지합니다"
+
 msgid "await a domain event"
 msgstr "도메인 사건 기다리기"
 
@@ -24054,8 +24132,8 @@ msgid "cannot update guest CPU for %1$s architecture"
 msgstr "%1$s 구조에 대한 CPU 자료를 복호화 할 수 없음"
 
 msgid ""
-"cannot update lifecycle action because QEMU was started with incompatible -"
-"no-reboot setting"
+"cannot update lifecycle action because QEMU was started with incompatible "
+"-no-reboot setting"
 msgstr ""
 "QEMU가 incompatiable-no-reboot 설정으로 시작되었기 때문에 수명 주기 작업을 최"
 "신화 할 수 없습니다"
@@ -24147,6 +24225,9 @@ msgstr "%1$s의 cellNum은 %2$d보다 작거나 같아야 합니다"
 #, c-format
 msgid "cellNum in %1$s only accepts %2$d as a negative value"
 msgstr "%1$s에서의 cellNum은 음수 값으로 %2$d 만을 허용합니다"
+
+msgid "cert_file/key_file are mutually exclusive with cert_files/key_files"
+msgstr "cert_file/key_file 는 cert_files/key_files과 상호 베타적입니다"
 
 #, c-format
 msgid "cfs_period '%1$llu' must be in range (%2$llu, %3$llu)"
@@ -25621,6 +25702,12 @@ msgstr "장치 유형 '%1$s'를 최신화 할 수 없습니다"
 #, c-format
 msgid "device type '%1$s' cannot hot unplugged"
 msgstr "장치 유형 '%1$s'은(는) 핫 언플러그할 수 없습니다"
+
+msgid ""
+"device-pluggable IOMMU with pciBus attribute must be specified for multiple "
+"IOMMU definitions"
+msgstr "pciBUS 속성인 장치-플러그 가능 IOMMU는 다중 IOMMU 정의를 위해 지정되어야 합니"
+"다"
 
 msgid "devices cgroup isn't mounted"
 msgstr "장치 cgroup이 적재되지 않았습니다"
@@ -29010,6 +29097,9 @@ msgstr "게스트 인터페이스"
 msgid "guest is missing vCPUs '%1$s'"
 msgstr "게스트에 vCPU '%1$s'이(가) 없습니다"
 
+msgid "guest shutdown"
+msgstr "게스트 종료"
+
 msgid "guest unexpectedly quit"
 msgstr "게스트가 갑자기 종료됨"
 
@@ -29161,7 +29251,7 @@ msgid "host-certificates mode needs exactly three certificates"
 msgstr "호스트 인증 모드에는 세 개의 인증서가 필요합니다"
 
 msgid "host-model hyperv mode unsupported, no hyperv capabilities found"
-msgstr ""
+msgstr "host-model hyperv 방식 미지원됨, hyperv 기능을 찾을 수 없습니다"
 
 msgid "hostName field not available (missing VMware Tools?)"
 msgstr "hostName 필드를 사용할 수 없음(VMware Tools가 누락되었습니까?)"
@@ -32968,7 +33058,7 @@ msgstr "중첩된 JSON 배열에서 명령줄로의 변환은 지원되지 않�
 
 #, c-format
 msgid "net %1$s not found"
-msgstr ""
+msgstr "net %1$s 를 찾을 수 없습니다"
 
 msgid "net definition failed validation"
 msgstr "net 정의 검증에 실패함"
@@ -33535,7 +33625,7 @@ msgid "no iSCSI interface defined for IQN %1$s"
 msgstr "IQN %1$s 를 위해 정의된 iSCSI 연결장치가 없습니다"
 
 msgid "no interface name specified"
-msgstr ""
+msgstr "지정된 연결장치 이름이 없습니다"
 
 #, c-format
 msgid "no interface with matching mac '%1$s'"
@@ -34133,9 +34223,6 @@ msgstr "iSCSI 볼륨에는 TCP 전송만 지원됩니다"
 msgid "only USB input devices are supported"
 msgstr "USB 입력 장치만 지원됩니다"
 
-msgid "only a single IOMMU device is supported"
-msgstr "단일 IOMMU 장치만 지원됨"
-
 msgid "only a single QGS element is supported"
 msgstr "단일 QGS 요소만 지원됩니다"
 
@@ -34671,23 +34758,23 @@ msgid "per-device boot elements cannot be used together with os/boot elements"
 msgstr "장치 별 boot 요소는 os/boot 요소와 함께 사용할 수 없습니다"
 
 msgid ""
-"per-device bytes read per second, in the form of /path/to/device,"
-"read_bytes_sec,..."
+"per-device bytes read per second, in the form of /path/to/"
+"device,read_bytes_sec,..."
 msgstr "/path/to/device,read_bytes_sec의 형식의 초당 장치당 바이트 읽기."
 
 msgid ""
-"per-device bytes wrote per second, in the form of /path/to/device,"
-"write_bytes_sec,..."
+"per-device bytes wrote per second, in the form of /path/to/"
+"device,write_bytes_sec,..."
 msgstr "/path/to/device,write_bytes_sec의 형식의 초당 작성된 장치당 바이트."
 
 msgid ""
-"per-device read I/O limit per second, in the form of /path/to/device,"
-"read_iops_sec,..."
+"per-device read I/O limit per second, in the form of /path/to/"
+"device,read_iops_sec,..."
 msgstr "/path/to/device,read_iops_sec,... 형식의 장치당 초당 읽기 I/O 제한."
 
 msgid ""
-"per-device write I/O limit per second, in the form of /path/to/device,"
-"write_iops_sec,..."
+"per-device write I/O limit per second, in the form of /path/to/"
+"device,write_iops_sec,..."
 msgstr "/path/to/device,write_iops_sec 형식으로 초당 장치 쓰기 I/O 제한,..."
 
 #, c-format
@@ -35232,6 +35319,9 @@ msgstr "쿼리는 HTTP(S) 프로토콜에서만 지원됩니다"
 msgid "query or modify state of vcpu in the guest (via agent)"
 msgstr "에이전트를 통해 게스트의 vcpu 상태 쿼리 또는 수정"
 
+msgid "query-accelerators was missing 'enabled'"
+msgstr "query-accelerators에는 'enabled' 가 없습니다"
+
 msgid "query-block device entry was not in expected format"
 msgstr "쿼리 블록 장치 항목이 예상 형식이 아닙니다"
 
@@ -35392,6 +35482,9 @@ msgid ""
 "querying maximum post-copy migration speed is not supported by QEMU binary"
 msgstr "최대 복사-후 이전 속도 쿼리는 QEMU 바이너리에서 지원되지 않습니다"
 
+msgid "queue configuration is only valid for NVMe bus"
+msgstr "대기열 구성은 NVMe 버스만 유효합니다"
+
 msgid "queue-size property isn't supported by this QEMU binary"
 msgstr "이 대기열(queue)-크기 특성은 이 QEMU 바이너리에서 지원되지 않습니다"
 
@@ -35490,7 +35583,7 @@ msgid "readonly is not supported with vhostuser disk"
 msgstr "읽기 전용은 vhostuser 디스크에서 지원되지 않습니다"
 
 msgid "readonly mode cannot be set for externally started virtiofsd"
-msgstr ""
+msgstr "읽기전용 방식은 외부에서 시작된 virtiofsd를 위해 설정 할 수 없습니다"
 
 msgid "readonly sata disks are not supported"
 msgstr "읽기 전용 sata 디스크는 지원되지 않습니다"
@@ -35972,7 +36065,7 @@ msgid "rotation rate is not supported with this QEMU"
 msgstr "이 QEMU에서는 회전 속도가 지원되지 않습니다"
 
 msgid "rotation rate is only valid for SATA bus"
-msgstr ""
+msgstr "회전 속도는 SATA 버스에서만 유효합니다"
 
 msgid "rotation rate is only valid for SCSI/IDE/SATA bus"
 msgstr "회전 속도는 SCSI/IDE/SATA 버스에만 유효합니다"
@@ -36778,6 +36871,13 @@ msgstr "'%1$s'에 대한 stat이 실패했습니다"
 
 msgid "statistic value too large"
 msgstr "통계 값이 너무 큼"
+
+#, c-format
+msgid "statistics collection is not supported by disks on bus '%1$s'"
+msgstr "통계 수집은 버스 '%1$s' 의 디스크에서 지원되지 않습니다"
+
+msgid "statistics collection is not supported by this QEMU binary"
+msgstr "통계 수집은 이 QEMU 바이너리에서 지원되지 않습니다"
 
 #, c-format
 msgid "status mismatch in event (actual 0x%1$x, expected 0x%2$x)"
@@ -39990,6 +40090,9 @@ msgstr ""
 msgid "using host CPU definition as input may provide incorrect results"
 msgstr "호스트 CPU 정의를 입력으로 사용하면 잘못된 결과를 초래 할 수 있습니다"
 
+msgid "using passthrough devices requires locking guest memory"
+msgstr "통과 장치 사용하기는 게스트 메모리 잠금이 필요합니다"
+
 #, c-format
 msgid "using unix socket and remote server '%1$s' is not supported."
 msgstr "유닉스 소켓 사용과 원격서버 '%1$s'은 지원되지 않습니다."
@@ -40960,6 +41063,34 @@ msgid ""
 msgstr ""
 "영역 %1$s 는 네트워크 %2$s 를 위해 요청되었으나 firewqlld는 BSD에서 지원되지 "
 "않습니다"
+
+#, c-format
+#~ msgid "Cannot read %1$s '%2$s'"
+#~ msgstr "%1$s '%2$s'을 읽을 수 없음"
+
+#~ msgid ""
+#~ "Checking for AMD Secure Encrypted Virtualization-Encrypted State (SEV-ES)"
+#~ msgstr "AMD SEV-ES(보안 암호화된 가상화-암호화된 상태)를 위해 확인 중"
+
+#~ msgid ""
+#~ "Checking for AMD Secure Encrypted Virtualization-Secure Nested Paging "
+#~ "(SEV-SNP)"
+#~ msgstr "AMD SEV-SNP (보안 암호화된 가상화-보안 중첩 페이징)를 위해 확인 중"
+
+#~ msgid "No CA certificate path set to match server key/cert"
+#~ msgstr "서버 키/인증서와 일치하도록 설정된 CA 인증서 경로가 없습니다"
+
+#~ msgid "No server certificate path set to match server key"
+#~ msgstr "서버 키와 일치하도록 설정된 서버 인증서 경로가 없습니다"
+
+#~ msgid "No server key path set to match server cert"
+#~ msgstr "서버 인증서와 일치하도록 설정된 서버 키 경로가 없습니다"
+
+#~ msgid "Target domain IOMMU device count does not match source"
+#~ msgstr "대상 도메인 IOMMU 장치 수가 소스와 일치하지 않습니다"
+
+#~ msgid "only a single IOMMU device is supported"
+#~ msgstr "단일 IOMMU 장치만 지원됨"
 
 #~ msgid "Invalid response from CH. Disk removal failed."
 #~ msgstr "CH에서 잘못된 응답. 디스크 제거가 실패했습니다."

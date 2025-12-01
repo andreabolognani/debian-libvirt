@@ -8,6 +8,106 @@ the changes introduced by each of them.
 For a more fine-grained view, use the `git log`_.
 
 
+v11.10.0 (2025-12-01)
+=====================
+
+* **Security**
+
+  * CVE-2025-12748: Denial of service by some ACL-limited accounts
+
+    Parsing of user provided XMLs in APIs which needed the identification
+    information from those XML definitions was done in full before ACL checks
+    were performed.  Some valid, but useless, definitions could cause allocation
+    of too much memory, leading to denial of service. APIs which do equate to
+    full root access (such as ``domain:write``), and were parsing XML
+    definitions in full before performing ACL checks could, potentially, be
+    exploited in a way that would allow users (which were about to be denied the
+    API call) to cause aforementioned overallocation even before the ACL checks
+    were performed.
+
+    A change was made so that parsing before ACL checks are done only for the
+    identification parts of the XML definition (which is needed to perform the
+    checks) and full parsing is done only after checking all ACLs.
+
+  * CVE-2025-13193: Incorrect permissions on images after external snapshot of an inactive VM
+
+    The overlay ``qcow2`` images which are created as part of creation of an
+    external snapshot of an inactive VM had world-readable (644) permissions
+    which would allow unauthorized users to see contents of blocks written by
+    the VM after snapshot was taken. Libvirt now sets proper umask so that
+    the images are created with 600 mode.
+
+* **New features**
+
+  * Hyper-V virttype support for Qemu domains
+
+    Libvirt now supports Hyper-V virttype while lauching QEMU domains. This
+    feature requires Qemu version 10.2.0 or later and is available on Linux
+    hosts where the /dev/mshv is present.
+
+  * Add more statistics for block devices on QEMU domains
+
+    The block devices now report optimal access request sizes as well as
+    statistics such as the queue depth.
+
+* **Improvements**
+
+  * bhyve: VNC ``wait`` attribute support
+
+    Bhyve guests can now be configured to wait for a VNC connection before
+    booting.
+
+  * remote: multiple certificate support
+
+    The remote daemon and client can be configured to load multiple x509
+    certificate identities. This facilitates a transition to certificates
+    supporting Post-Quantum Crytographic algorithms.
+
+  * tools: improved virt-host-validate output
+
+    The virt-host-validate tool will now report extra details when certain
+    checks pass.
+
+  * qemu: Allow backup jobs to continue if guest OS shuts down
+
+    When starting a backup job users can now use a flag which prevents the VM
+    to be completely cleaned up if the guest OS shuts down while the backup is
+    running so that the backup can be finalized.
+
+* **Bug fixes**
+
+  * ch: Use correct domain definition in chDomainGetXMLDesc()
+
+    Cloud-Hypervisor driver claims to support ``VIR_DOMAIN_XML_INACTIVE`` but
+    in fact it never formatted the inactive XML. This is now fixed.
+
+  * esx: Allow disk images in subdirectories
+
+    If a domain has a disk image that's not in a datastore path but in a
+    subdirectory, the ESX driver would have failed to parse that and an error
+    was reported when obtaining domain XML. This is now fixed.
+
+ * qemu: Fix incoming migration to QEMU 10.0.0 and newer
+
+    Due to a change in the way QEMU 10.0.0 reports the state of "ht" CPU
+    feature, incoming migration of a domain with multiple CPU threads would
+    fail with "guest CPU doesn't match specification: extra features: ht"
+    error.
+
+  * qemu: fix incorrect reporting of the TDX launch security type
+
+    The TDX launch security type was incorrectly reported on all platforms
+    if the QEMU binary had it built-in. It is now limited to only platforms
+    with the TDX kernel feature available for use.
+
+  * qemu: set ``detect_zeroes`` for all backing chain layers
+
+    Some block jobs (snapshots, block commit) could modify the backing chain in
+    a way where ``detect_zeroes`` would no longer be honoured. We now set
+    it for all images in the backing chain, so that it will behave correctly
+    even after those operations.
+
+
 v11.9.0 (2025-11-03)
 ====================
 

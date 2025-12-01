@@ -592,6 +592,8 @@ struct _virDomainDiskDef {
     virDomainDiskDiscard discard;
     unsigned int iothread; /* unused = 0, > 0 specific thread # */
     GSList *iothreads; /* List of virDomainIothreadMappingDef */
+    unsigned int *statistics; /* Optional, zero terminated list of intervals to
+                                collect statistics for */
     virDomainDiskDetectZeroes detect_zeroes;
     virTristateSwitch discard_no_unref;
     char *domain_name; /* backend domain name */
@@ -599,6 +601,7 @@ struct _virDomainDiskDef {
     unsigned int queue_size;
     virDomainDiskModel model;
     virDomainVirtioOptions *virtio;
+    virTristateSwitch dpofua; /* only SCSI disks; control of the DPO/FUA cache setting */
 
     bool diskElementAuth;
     bool diskElementEnc;
@@ -2046,6 +2049,7 @@ struct _virDomainGraphicsDef {
             virDomainGraphicsVNCSharePolicy sharePolicy;
             virTristateBool powerControl;
             unsigned int audioId;
+            virTristateBool wait;
         } vnc;
         struct {
             char *display;
@@ -3053,6 +3057,7 @@ struct _virDomainIOMMUDef {
     virTristateSwitch eim;
     virTristateSwitch iotlb;
     unsigned int aw_bits;
+    int pci_bus;
     virDomainDeviceInfo info;
     virTristateSwitch dma_translation;
     virTristateSwitch xtsup;
@@ -3301,6 +3306,9 @@ struct _virDomainDef {
     size_t nwatchdogs;
     virDomainWatchdogDef **watchdogs;
 
+    size_t niommus;
+    virDomainIOMMUDef **iommus;
+
     /* At maximum 2 TPMs on the domain if a TPM Proxy is present. */
     size_t ntpms;
     virDomainTPMDef **tpms;
@@ -3310,7 +3318,6 @@ struct _virDomainDef {
     virDomainNVRAMDef *nvram;
     virCPUDef *cpu;
     virDomainRedirFilterDef *redirfilter;
-    virDomainIOMMUDef *iommu;
     virDomainVsockDef *vsock;
     virDomainPstoreDef *pstore;
 
@@ -3946,6 +3953,9 @@ virDomainDiskDef *virDomainDiskDefParse(const char *xmlStr,
 virStorageSource *virDomainDiskDefParseSource(const char *xmlStr,
                                               virDomainXMLOption *xmlopt,
                                               unsigned int flags);
+virDomainDef * virDomainDefIDsParseString(const char *xmlStr,
+                                          virDomainXMLOption *xmlopt,
+                                          unsigned int flags);
 virDomainDef *virDomainDefParseString(const char *xmlStr,
                                       virDomainXMLOption *xmlopt,
                                       void *parseOpaque,
@@ -4314,6 +4324,11 @@ virDomainShmemDef *virDomainShmemDefRemove(virDomainDef *def, size_t idx)
     ATTRIBUTE_NONNULL(1);
 ssize_t virDomainInputDefFind(const virDomainDef *def,
                               const virDomainInputDef *input)
+    ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2) G_GNUC_WARN_UNUSED_RESULT;
+bool virDomainIOMMUDefEquals(const virDomainIOMMUDef *a,
+                             const virDomainIOMMUDef *b);
+ssize_t virDomainIOMMUDefFind(const virDomainDef *def,
+                              const virDomainIOMMUDef *iommu)
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2) G_GNUC_WARN_UNUSED_RESULT;
 bool virDomainVsockDefEquals(const virDomainVsockDef *a,
                              const virDomainVsockDef *b)

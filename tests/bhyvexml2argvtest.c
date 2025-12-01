@@ -222,6 +222,8 @@ mymain(void)
     DO_TEST("serial-grub");
     DO_TEST("localtime");
     DO_TEST("net-e1000");
+    DO_TEST("passthru");
+    DO_TEST("passthru-multiple-devs");
     DO_TEST("uefi");
     DO_TEST("uefi-nvram");
     DO_TEST("uefi-nvram-template-set");
@@ -233,6 +235,8 @@ mymain(void)
     DO_TEST("vnc-autoport");
     DO_TEST("vnc-resolution");
     DO_TEST("vnc-password");
+    DO_TEST("vnc-wait");
+    DO_TEST("vnc-wait-no");
     DO_TEST_FAILURE("vnc-password-comma");
     DO_TEST("cputopology");
     DO_TEST_FAILURE("cputopology-nvcpu-mismatch");
@@ -265,6 +269,7 @@ mymain(void)
     DO_TEST_FAILURE("2-nvme-same-controller");
     DO_TEST("sata-rotation-rate");
     DO_TEST_FAILURE("disk-virtio-rotation-rate");
+    DO_TEST_FAILURE("disk-virtio-queue-opts");
 
     /* Address allocation tests */
     DO_TEST("addr-single-sata-disk");

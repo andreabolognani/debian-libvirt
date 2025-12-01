@@ -1983,6 +1983,9 @@ qemuBlockStatsFinalize(GObject *object)
     if (!stats)
         return;
 
+    g_free(stats->limits);
+    g_free(stats->timed_stats);
+
     G_OBJECT_CLASS(qemu_block_stats_parent_class)->finalize(object);
 }
 
@@ -3371,7 +3374,8 @@ qemuMonitorCPUModelInfoFree(qemuMonitorCPUModelInfo *model_info)
             g_free(model_info->props[i].value.string);
     }
 
-    g_strfreev(model_info->deprecated_props);
+    g_strfreev(model_info->full_dep_props);
+    g_strfreev(model_info->static_dep_props);
     g_free(model_info->props);
     g_free(model_info->name);
     g_free(model_info);
@@ -3416,7 +3420,8 @@ qemuMonitorCPUModelInfoCopy(const qemuMonitorCPUModelInfo *orig)
         }
     }
 
-    copy->deprecated_props = g_strdupv(orig->deprecated_props);
+    copy->full_dep_props = g_strdupv(orig->full_dep_props);
+    copy->static_dep_props = g_strdupv(orig->static_dep_props);
 
     return copy;
 }
@@ -3441,6 +3446,16 @@ qemuMonitorGetKVMState(qemuMonitor *mon,
     QEMU_CHECK_MONITOR(mon);
 
     return qemuMonitorJSONGetKVMState(mon, enabled, present);
+}
+
+
+int
+qemuMonitorGetAccelerators(qemuMonitor *mon,
+                           char **enabled)
+{
+    QEMU_CHECK_MONITOR(mon);
+
+    return qemuMonitorJSONGetAccelerators(mon, enabled);
 }
 
 
@@ -3686,7 +3701,8 @@ qemuMonitorSetDomainLog(qemuMonitor *mon,
  *      a single qom-list-get QMP command
  * @cpuQOMPath: QOM path of a CPU to probe
  * @translate: callback for translating CPU feature names from QEMU to libvirt
- * @opaque: data for @translate callback
+ * @filter: callback for filtering ignored features, a pointer to @arch is
+ *      passed as opaque pointer to the callback
  * @enabled: returns the CPU data for all enabled features
  * @disabled: returns the CPU data for features which we asked for
  *      (either explicitly or via a named CPU model) but QEMU disabled them
@@ -3701,6 +3717,7 @@ qemuMonitorGetGuestCPU(qemuMonitor *mon,
                        bool qomListGet,
                        const char *cpuQOMPath,
                        qemuMonitorCPUFeatureTranslationCallback translate,
+                       virCPUDefFeatureFilter filter,
                        virCPUData **enabled,
                        virCPUData **disabled)
 {
@@ -3715,7 +3732,7 @@ qemuMonitorGetGuestCPU(qemuMonitor *mon,
     *disabled = NULL;
 
     return qemuMonitorJSONGetGuestCPU(mon, arch, qomListGet, cpuQOMPath,
-                                      translate, enabled, disabled);
+                                      translate, filter, enabled, disabled);
 }
 
 

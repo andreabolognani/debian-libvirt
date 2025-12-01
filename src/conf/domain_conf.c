@@ -2444,6 +2444,7 @@ virDomainDiskDefFree(virDomainDiskDef *def)
     virDomainDeviceInfoClear(&def->info);
     virObjectUnref(def->privateData);
     g_slist_free_full(def->iothreads, (GDestroyNotify) virDomainIothreadMappingDefFree);
+    g_free(def->statistics);
 
     if (def->throttlefilters) {
         size_t i;
@@ -2813,6 +2814,8 @@ virDomainIOMMUDefNew(void)
     g_autoptr(virDomainIOMMUDef) iommu = NULL;
 
     iommu = g_new0(virDomainIOMMUDef, 1);
+
+    iommu->pci_bus = -1;
 
     return g_steal_pointer(&iommu);
 }
@@ -4140,7 +4143,9 @@ void virDomainDefFree(virDomainDef *def)
         virDomainCryptoDefFree(def->cryptos[i]);
     g_free(def->cryptos);
 
-    virDomainIOMMUDefFree(def->iommu);
+    for (i = 0; i < def->niommus; i++)
+        virDomainIOMMUDefFree(def->iommus[i]);
+    g_free(def->iommus);
 
     virDomainPstoreDefFree(def->pstore);
 
@@ -5012,9 +5017,9 @@ virDomainDeviceInfoIterateFlags(virDomainDef *def,
     }
 
     device.type = VIR_DOMAIN_DEVICE_IOMMU;
-    if (def->iommu) {
-        device.data.iommu = def->iommu;
-        if ((rc = cb(def, &device, &def->iommu->info, opaque)) != 0)
+    for (i = 0; i < def->niommus; i++) {
+        device.data.iommu = def->iommus[i];
+        if ((rc = cb(def, &device, &def->iommus[i]->info, opaque)) != 0)
             return rc;
     }
 
@@ -8297,6 +8302,8 @@ static int
 virDomainDiskDefDriverParseXML(virDomainDiskDef *def,
                                xmlNodePtr cur)
 {
+    xmlNodePtr statisticsNode;
+
     def->driverName = virXMLPropString(cur, "name");
 
     if (virXMLPropEnum(cur, "cache", virDomainDiskCacheTypeFromString,
@@ -8345,6 +8352,26 @@ virDomainDiskDefDriverParseXML(virDomainDiskDef *def,
 
     if (virDomainIothreadMappingDefParse(cur, &def->iothreads) < 0)
         return -1;
+
+    if ((statisticsNode = virXMLNodeGetSubelement(cur, "statistics"))) {
+        g_autoptr(GPtrArray) statisticNodes = NULL;
+
+        statisticNodes = virXMLNodeGetSubelementList(statisticsNode, "statistic");
+
+        if (statisticNodes->len > 0) {
+            size_t i;
+
+            def->statistics = g_new0(unsigned int, statisticNodes->len + 1);
+
+            for (i = 0; i < statisticNodes->len; i++) {
+                if (virXMLPropUInt(g_ptr_array_index(statisticNodes, i),
+                                   "interval", 10,
+                                   VIR_XML_PROP_REQUIRED | VIR_XML_PROP_NONZERO,
+                                   def->statistics + i) < 0)
+                    return -1;
+            }
+        }
+    }
 
     if (virXMLPropEnum(cur, "detect_zeroes",
                        virDomainDiskDetectZeroesTypeFromString,
@@ -8569,6 +8596,10 @@ virDomainDiskDefParseXML(virDomainXMLOption *xmlopt,
 
         if (virXMLPropUInt(targetNode, "rotation_rate", 10, VIR_XML_PROP_NONE,
                            &def->rotation_rate) < 0)
+            return NULL;
+
+        if (virXMLPropTristateSwitch(targetNode, "dpofua", VIR_XML_PROP_NONE,
+                                     &def->dpofua) < 0)
             return NULL;
     }
 
@@ -11917,6 +11948,10 @@ virDomainGraphicsDefParseXMLVNC(virDomainGraphicsDef *def,
 
     def->data.vnc.keymap = virXMLPropString(node, "keymap");
 
+    if (virXMLPropTristateBool(node, "wait", VIR_XML_PROP_NONE,
+                               &def->data.vnc.wait) < 0)
+        return -1;
+
     ctxt->node = node;
     audioNode = virXPathNode("./audio", ctxt);
     if (audioNode) {
@@ -14472,6 +14507,10 @@ virDomainIOMMUDefParseXML(virDomainXMLOption *xmlopt,
         if (virXMLPropTristateSwitch(driver, "passthrough", VIR_XML_PROP_NONE,
                                      &iommu->pt) < 0)
             return NULL;
+
+        if (virXMLPropInt(driver, "pciBus", 10, VIR_XML_PROP_NONE,
+                          &iommu->pci_bus, -1) < 0)
+            return NULL;
     }
 
     if (virDomainDeviceInfoParseXML(xmlopt, node, ctxt,
@@ -16506,6 +16545,42 @@ virDomainInputDefFind(const virDomainDef *def,
 
     for (i = 0; i < def->ninputs; i++) {
         if (virDomainInputDefEquals(input, def->inputs[i]))
+            return i;
+    }
+
+    return -1;
+}
+
+
+bool
+virDomainIOMMUDefEquals(const virDomainIOMMUDef *a,
+                        const virDomainIOMMUDef *b)
+{
+    if (a->model != b->model ||
+        a->intremap != b->intremap ||
+        a->caching_mode != b->caching_mode ||
+        a->eim != b->eim ||
+        a->iotlb != b->iotlb ||
+        a->aw_bits != b->aw_bits ||
+        a->dma_translation != b->dma_translation)
+        return false;
+
+    if (a->info.type != VIR_DOMAIN_DEVICE_ADDRESS_TYPE_NONE &&
+        !virDomainDeviceInfoAddressIsEqual(&a->info, &b->info))
+        return false;
+
+    return true;
+}
+
+
+ssize_t
+virDomainIOMMUDefFind(const virDomainDef *def,
+                      const virDomainIOMMUDef *iommu)
+{
+    size_t i;
+
+    for (i = 0; i < def->niommus; i++) {
+        if (virDomainIOMMUDefEquals(iommu, def->iommus[i]))
             return i;
     }
 
@@ -20182,19 +20257,22 @@ virDomainDefParseXML(xmlXPathContextPtr ctxt,
     }
     VIR_FREE(nodes);
 
+    /* Parsing iommu device definitions */
     if ((n = virXPathNodeSet("./devices/iommu", ctxt, &nodes)) < 0)
         return NULL;
 
-    if (n > 1) {
-        virReportError(VIR_ERR_XML_ERROR, "%s",
-                       _("only a single IOMMU device is supported"));
-        return NULL;
-    }
+    if (n > 0)
+        def->iommus = g_new0(virDomainIOMMUDef *, n);
 
-    if (n > 0) {
-        if (!(def->iommu = virDomainIOMMUDefParseXML(xmlopt, nodes[0],
-                                                     ctxt, flags)))
+    for (i = 0; i < n; i++) {
+        virDomainIOMMUDef *iommu;
+
+        iommu = virDomainIOMMUDefParseXML(xmlopt, nodes[i], ctxt, flags);
+
+        if (!iommu)
             return NULL;
+
+        def->iommus[def->niommus++] = iommu;
     }
     VIR_FREE(nodes);
 
@@ -20421,6 +20499,35 @@ virDomainDefParse(const char *xmlStr,
         return NULL;
 
     return virDomainDefParseNode(ctxt, xmlopt, parseOpaque, flags);
+}
+
+virDomainDef *
+virDomainDefIDsParseString(const char *xmlStr,
+                           virDomainXMLOption *xmlopt,
+                           unsigned int flags)
+{
+    g_autoptr(virDomainDef) def = NULL;
+    g_autoptr(xmlDoc) xml = NULL;
+    g_autoptr(xmlXPathContext) ctxt = NULL;
+    bool uuid_generated = false;
+
+    xml = virXMLParseWithIndent(NULL, xmlStr, _("(domain_definition)"),
+                                "domain", &ctxt, "domain.rng", false);
+
+    if (!xml)
+        return NULL;
+
+    def = virDomainDefNew(xmlopt);
+    if (!def)
+        return NULL;
+
+    if (virDomainDefParseIDs(def, ctxt, flags, &uuid_generated) < 0)
+        return NULL;
+
+    if (uuid_generated)
+        memset(def->uuid, 0, VIR_UUID_BUFLEN);
+
+    return g_steal_pointer(&def);
 }
 
 virDomainDef *
@@ -20790,6 +20897,22 @@ virDomainDiskDefCheckABIStability(virDomainDiskDef *src,
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                        _("Target disk rotation rate %1$u RPM does not match source %2$u RPM"),
                        dst->rotation_rate, src->rotation_rate);
+        return false;
+    }
+
+    if (src->removable != dst->removable) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("Target disk 'removable' property %1$s does not match source %2$s"),
+                       virTristateSwitchTypeToString(dst->removable),
+                       virTristateSwitchTypeToString(src->removable));
+        return false;
+    }
+
+    if (src->dpofua != dst->dpofua) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("Target disk 'dpofua' property %1$s does not match source %2$s"),
+                       virTristateSwitchTypeToString(dst->dpofua),
+                       virTristateSwitchTypeToString(src->dpofua));
         return false;
     }
 
@@ -22130,6 +22253,12 @@ virDomainIOMMUDefCheckABIStability(virDomainIOMMUDef *src,
                        dst->aw_bits, src->aw_bits);
         return false;
     }
+    if (src->pci_bus != dst->pci_bus) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("Target domain IOMMU device pci_bus value '%1$d' does not match source '%2$d'"),
+                       dst->pci_bus, src->pci_bus);
+        return false;
+    }
     if (src->dma_translation != dst->dma_translation) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                        _("Target domain IOMMU device dma translation '%1$s' does not match source '%2$s'"),
@@ -22644,15 +22773,17 @@ virDomainDefCheckABIStabilityFlags(virDomainDef *src,
             goto error;
     }
 
-    if (!!src->iommu != !!dst->iommu) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("Target domain IOMMU device count does not match source"));
+    if (src->niommus != dst->niommus) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("Target domain IOMMU device count %1$zu does not match source %2$zu"),
+                       dst->niommus, src->niommus);
         goto error;
     }
 
-    if (src->iommu &&
-        !virDomainIOMMUDefCheckABIStability(src->iommu, dst->iommu))
-        goto error;
+    for (i = 0; i < src->niommus; i++) {
+        if (!virDomainIOMMUDefCheckABIStability(src->iommus[i], dst->iommus[i]))
+            goto error;
+    }
 
     if (!!src->vsock != !!dst->vsock) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
@@ -23864,6 +23995,18 @@ virDomainDiskDefFormatDriver(virBuffer *buf,
 
     virDomainIothreadMappingDefFormat(&childBuf, disk->iothreads);
 
+    if (disk->statistics) {
+        g_auto(virBuffer) statisticsChildBuf = VIR_BUFFER_INIT_CHILD(&childBuf);
+        size_t i;
+
+        for (i = 0; disk->statistics[i] > 0; i++)
+            virBufferAsprintf(&statisticsChildBuf, "<statistic interval='%u'/>\n",
+                              disk->statistics[i]);
+
+        virXMLFormatElement(&childBuf, "statistics", NULL, &statisticsChildBuf);
+    }
+
+
     virXMLFormatElement(buf, "driver", &attrBuf, &childBuf);
 }
 
@@ -24048,6 +24191,9 @@ virDomainDiskDefFormat(virBuffer *buf,
     }
     if (def->rotation_rate)
         virBufferAsprintf(&childBuf, " rotation_rate='%u'", def->rotation_rate);
+    if (def->dpofua != VIR_TRISTATE_SWITCH_ABSENT)
+        virBufferAsprintf(&childBuf, " dpofua='%s'",
+                          virTristateSwitchTypeToString(def->dpofua));
     virBufferAddLit(&childBuf, "/>\n");
 
     virDomainDiskDefFormatIotune(&childBuf, def);
@@ -27149,6 +27295,10 @@ virDomainGraphicsDefFormatVNC(virBuffer *attrBuf,
             virBufferAsprintf(attrBuf, " websocketGenerated='%s'",
                               def->data.vnc.websocketGenerated ? "yes" : "no");
 
+        if (def->data.vnc.wait != VIR_TRISTATE_BOOL_ABSENT)
+            virBufferAsprintf(attrBuf, " wait='%s'",
+                              virTristateBoolTypeToString(def->data.vnc.wait));
+
         virDomainGraphicsListenDefFormatAddr(attrBuf, glisten, flags);
         break;
     case VIR_DOMAIN_GRAPHICS_LISTEN_TYPE_NONE:
@@ -28447,6 +28597,10 @@ virDomainIOMMUDefFormat(virBuffer *buf,
         virBufferAsprintf(&driverAttrBuf, " xtsup='%s'",
                           virTristateSwitchTypeToString(iommu->xtsup));
     }
+    if (iommu->pci_bus >= 0) {
+        virBufferAsprintf(&driverAttrBuf, " pciBus='%d'",
+                          iommu->pci_bus);
+    }
 
     virXMLFormatElement(&childBuf, "driver", &driverAttrBuf, NULL);
 
@@ -29496,8 +29650,9 @@ virDomainDefFormatInternalSetRootName(virDomainDef *def,
     for (n = 0; n < def->ncryptos; n++) {
         virDomainCryptoDefFormat(buf, def->cryptos[n], flags);
     }
-    if (def->iommu)
-        virDomainIOMMUDefFormat(buf, def->iommu);
+
+    for (n = 0; n < def->niommus; n++)
+        virDomainIOMMUDefFormat(buf, def->iommus[n]);
 
     if (def->vsock)
         virDomainVsockDefFormat(buf, def->vsock);
