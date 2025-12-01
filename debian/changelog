@@ -1,3 +1,9 @@
+libvirt (11.10.0-1) UNRELEASED; urgency=medium
+
+  * [13462ab] New upstream version 11.10.0
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Mon, 01 Dec 2025 22:37:14 +0100
+
 libvirt (11.9.0-2) unstable; urgency=medium
 
   * [2b22a1b] daemon-plugin-sanlock: Always install augeas config
