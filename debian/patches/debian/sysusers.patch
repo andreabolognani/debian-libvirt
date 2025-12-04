@@ -1,5 +1,14 @@
-Description: customize sysusers.d file
+From: Luca Boccassi <luca.boccassi@gmail.com>
+Date: Sun, 19 Oct 2025 14:47:15 +0100
+Subject: customize sysusers.d file
+
 Forwarded: not-needed
+---
+ src/qemu/libvirt-qemu.sysusers.conf | 7 ++++---
+ 1 file changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/src/qemu/libvirt-qemu.sysusers.conf b/src/qemu/libvirt-qemu.sysusers.conf
+index 05c35f9..e912e52 100644
 --- a/src/qemu/libvirt-qemu.sysusers.conf
 +++ b/src/qemu/libvirt-qemu.sysusers.conf
 @@ -1,3 +1,4 @@
