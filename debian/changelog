@@ -1,3 +1,31 @@
+libvirt (11.3.0-3+deb13u2) trixie; urgency=medium
+
+  * [c5ef2ce] patches: Add backports
+    - backport/conf-Add-virDomainDefIDsParseString[...]
+    - backport/bhyve-Check-ACLs-before-parsing-[...]
+    - backport/libxl-Check-ACLs-before-parsing-[...]
+    - backport/lxc-Check-ACLs-before-parsing-[...]
+    - backport/vz-Check-ACLs-before-parsing-[...]
+    - backport/ch-Check-ACLs-before-parsing-[...]
+    - backport/qemu-Check-ACLs-before-parsing-[...]
+      - Perform ACL checks earlier, preventing malicious users
+        from potentially being able to crash the daemon
+      - CVE-2025-12748
+      - Closes: #1120584
+  * [9c44722] patches: Add backports
+    - backport/qemu-snapshot-Set-umask-for-qemu-img-[...]
+      - Ensure that newly-created snapshots are not world-readable
+      - CVE-2025-13193
+      - Closes: #1120119
+  * [74ba3ed] patches: Add backports
+    - backport/qemuxmlconftest-Improve-coverage-of-disk-[...]
+    - backport/qemu[...]-Setup-detect_zeroes-[...]
+      - Apply the detect_zeroes settings across all layers of the
+        backing chain instead of just the topmost one
+      - Closes: #1121280
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Sun, 07 Dec 2025 16:22:24 +0100
+
 libvirt (11.3.0-3+deb13u1) trixie; urgency=medium
 
   * [6a549fc] patches: Add backports
