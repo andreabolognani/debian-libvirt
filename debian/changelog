@@ -1,3 +1,21 @@
+libvirt (11.10.0-2) experimental; urgency=medium
+
+  [ Luca Boccassi ]
+  * [5f62c20] Install and use sysusers.d config files
+    - Replace existing bespoke handling of user/groups in
+      maintainer scripts with a declarative approach. It should
+      be completely transparent for users, except for the fact
+      that users/groups are no longer deleted on purge, which
+      prevents accidental ownership transfer for existing files
+
+  [ Andrea Bolognani ]
+  * [7f00f6b] Tweak details for libvirt-qemu user
+    - Improve GECOS field and change home directory to /nonexistent.
+      This only affects new installations: existing users will not
+      be modified
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Mon, 08 Dec 2025 23:11:12 +0100
+
 libvirt (11.10.0-1) unstable; urgency=medium
 
   * [13462ab] New upstream version 11.10.0
