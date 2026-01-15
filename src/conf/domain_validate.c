@@ -1765,6 +1765,26 @@ virDomainDefOSValidate(const virDomainDef *def,
         }
     }
 
+    if (loader->readonly == VIR_TRISTATE_BOOL_NO) {
+        if (loader->type == VIR_DOMAIN_LOADER_TYPE_ROM) {
+            virReportError(VIR_ERR_XML_DETAIL, "%s",
+                           _("ROM loader type cannot be used as read/write"));
+            return -1;
+        }
+
+        if (loader->nvramTemplate) {
+            virReportError(VIR_ERR_XML_DETAIL, "%s",
+                           _("NVRAM template is not permitted when loader is read/write"));
+            return -1;
+        }
+
+        if (loader->nvram) {
+            virReportError(VIR_ERR_XML_DETAIL, "%s",
+                           _("NVRAM is not permitted when loader is read/write"));
+            return -1;
+        }
+    }
+
     if (loader->stateless == VIR_TRISTATE_BOOL_YES) {
         if (loader->nvramTemplate) {
             virReportError(VIR_ERR_XML_DETAIL, "%s",
@@ -1787,6 +1807,16 @@ virDomainDefOSValidate(const virDomainDef *def,
         } else if (def->os.firmware != VIR_DOMAIN_OS_DEF_FIRMWARE_EFI) {
             virReportError(VIR_ERR_XML_DETAIL, "%s",
                            _("Only EFI firmware permits NVRAM"));
+            return -1;
+        }
+    }
+
+    if (loader->type == VIR_DOMAIN_LOADER_TYPE_ROM) {
+        if (loader->format &&
+            loader->format != VIR_STORAGE_FILE_RAW) {
+            virReportError(VIR_ERR_XML_DETAIL,
+                           _("Invalid format '%1$s' for ROM loader type"),
+                           virStorageFileFormatTypeToString(loader->format));
             return -1;
         }
     }

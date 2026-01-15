@@ -219,7 +219,7 @@ static int
 virSysinfoParsePPCSystem(const char *base, virSysinfoSystemDef **sysdef)
 {
     int ret = -1;
-    char *eol = NULL;
+    const char *eol = NULL;
     const char *cur;
     virSysinfoSystemDef *def;
 
@@ -267,7 +267,7 @@ static void
 virSysinfoParsePPCProcessor(const char *base, virSysinfoDef *ret)
 {
     const char *cur;
-    char *eol, *tmp_base;
+    const char *eol, *tmp_base;
     virSysinfoProcessorDef *processor;
 
     while ((tmp_base = strstr(base, "processor")) != NULL) {
@@ -336,7 +336,7 @@ static int
 virSysinfoParseARMSystem(const char *base, virSysinfoSystemDef **sysdef)
 {
     int ret = -1;
-    char *eol = NULL;
+    const char *eol = NULL;
     const char *cur;
     virSysinfoSystemDef *def;
 
@@ -384,7 +384,7 @@ static void
 virSysinfoParseARMProcessor(const char *base, virSysinfoDef *ret)
 {
     const char *cur;
-    char *eol, *tmp_base;
+    const char *eol, *tmp_base;
     virSysinfoProcessorDef *processor;
     char *processor_type = NULL;
 
@@ -625,7 +625,7 @@ virSysinfoParseBIOS(const char *base, virSysinfoBIOSDef **bios)
 {
     int ret = -1;
     const char *cur;
-    char *eol = NULL;
+    const char *eol = NULL;
     virSysinfoBIOSDef *def;
 
     if ((cur = strstr(base, "BIOS Information")) == NULL)
@@ -679,7 +679,7 @@ virSysinfoParseX86System(const char *base, virSysinfoSystemDef **sysdef)
 {
     int ret = -1;
     const char *cur;
-    char *eol = NULL;
+    const char *eol = NULL;
     virSysinfoSystemDef *def;
 
     if ((cur = strstr(base, "System Information")) == NULL)
@@ -755,7 +755,7 @@ virSysinfoParseX86BaseBoard(const char *base,
                             size_t *nbaseBoard)
 {
     const char *cur;
-    char *eol = NULL;
+    const char *eol = NULL;
     virSysinfoBaseBoardDef *boards = NULL;
     size_t nboards = 0;
 
@@ -832,7 +832,7 @@ virSysinfoParseX86Chassis(const char *base,
 {
     int ret = -1;
     const char *cur;
-    char *eol = NULL;
+    const char *eol = NULL;
     virSysinfoChassisDef *def;
 
     if ((cur = strstr(base, "Chassis Information")) == NULL)
@@ -942,7 +942,7 @@ virSysinfoParseOEMStrings(const char *base,
     while ((cur = strstr(cur, "String "))) {
         char *collon = NULL;
         unsigned int idx = 0;
-        char *eol;
+        const char *eol;
 
         cur += 7;
 
@@ -1005,7 +1005,7 @@ static void
 virSysinfoParseX86Processor(const char *base, virSysinfoDef *ret)
 {
     const char *cur, *tmp_base;
-    char *eol;
+    const char *eol;
     virSysinfoProcessorDef *processor;
 
     while ((tmp_base = strstr(base, "Processor Information")) != NULL) {
@@ -1103,7 +1103,7 @@ static void
 virSysinfoParseX86Memory(const char *base, virSysinfoDef *ret)
 {
     const char *cur, *tmp_base;
-    char *eol;
+    const char *eol;
     virSysinfoMemoryDef *memory;
 
     while ((tmp_base = strstr(base, "Memory Device")) != NULL) {

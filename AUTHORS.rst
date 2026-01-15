@@ -152,6 +152,7 @@ Patches have also been contributed by:
 * Anthony PERARD <anthony.perard@citrix.com>
 * Antoine Millet <antoine.millet@tdf.fr>
 * antonios-f <anton.fadeev@red-soft.ru>
+* Antonio Terceiro <terceiro@debian.org>
 * Antoni Segura Puimedon <toni@midokura.com>
 * Antoni S. Puimedon <asegurap@redhat.com>
 * Anton Khramov <anton@endocode.com>
@@ -267,6 +268,7 @@ Patches have also been contributed by:
 * Daniel Letai <dani@letai.org.il>
 * Daniel Liu <srwx4096@gmail.com>
 * Daniel Nicoletti <dantti12@gmail.com>
+* Daniel Nylander <po@danielnylander.se>
 * Daniel P. Berrangé <berrange@redhat.com>
 * Daniel Veillard <veillard@redhat.com>
 * Dankaházi (ifj.) István <dankahazi.istvan@gmail.com>
@@ -413,6 +415,7 @@ Patches have also been contributed by:
 * Halil Pasic <pasic@linux.ibm.com>
 * Han Cheng <hanc.fnst@cn.fujitsu.com>
 * Han Han <hhan@redhat.com>
+* Han Han via Devel <devel@lists.libvirt.org>
 * Hao Liu <hliu@redhat.com>
 * Haonan Wang <hnwanga1@gmail.com>
 * Hao Peng <peng.hao2@zte.com.cn>
@@ -718,6 +721,7 @@ Patches have also been contributed by:
 * Narayana Murty N <nnmlinux@linux.ibm.com>
 * Natanael Copa <ncopa@alpinelinux.org>
 * Nathan Chen <nathanc@nvidia.com>
+* Nathan Chen via Devel <devel@lists.libvirt.org>
 * Nathan <nathan95@live.it>
 * Neal Gompa <ngompa13@gmail.com>
 * Nehal J Wani <nehaljw.kkd1@gmail.com>
@@ -958,6 +962,7 @@ Patches have also been contributed by:
 * Thibault VINCENT <thibault.vincent@smartjog.com>
 * Thierry Parmentelat <thierry.parmentelat@inria.fr>
 * Thomas Huth <thuth@redhat.com>
+* Thomas Prescher <thomas.prescher@cyberus-technology.de>
 * Thomas Treutner <thomas@scripty.at>
 * Thomas Woerner <twoerner@redhat.com>
 * Thorsten Behrens <tbehrens@suse.com>

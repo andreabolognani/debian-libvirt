@@ -3359,7 +3359,7 @@ char *
 virFileSanitizePath(const char *path)
 {
     const char *cur = path;
-    char *uri;
+    const char *uri;
     char *cleanpath;
     int idx = 0;
 
@@ -3445,30 +3445,60 @@ virFileRemoveLastComponent(char *path)
 }
 
 
-static char *
-virFileGetExistingParent(const char *path)
+/* Check callback for virFileCheckParents */
+typedef bool (*virFileCheckParentsCallback)(const char *dirpath,
+                                            void *opaque);
+
+/**
+ * virFileCheckParents:
+ * @path: path to check
+ * @parent: where to store the closest parent satisfying the check
+ * @check: callback called on parent paths
+ * @opaque: data for the @check callback
+ *
+ * Calls @check on the @path and its parent paths until it returns true or a
+ * root directory is reached. When @check returns true, the @parent (if
+ * non-NULL) will be set to a copy of the corresponding path. The caller is
+ * responsible for freeing it.
+ *
+ * Returns  0 on success (@parent set),
+ *         -1 on invalid input,
+ *         -2 when no path (including "/") satisfies the @check.
+ */
+static int
+virFileCheckParents(const char *path,
+                    char **parent,
+                    virFileCheckParentsCallback check,
+                    void *opaque)
 {
     g_autofree char *dirpath = g_strdup(path);
     char *p = NULL;
+    bool checkOK;
 
-    /* Try less and less of the path until we get to a directory we can access.
-     * Even if we don't have 'x' permission on any directory in the path on the
-     * NFS server (assuming it's NFS), we will be able to stat the mount point.
-     */
-    while (!virFileExists(dirpath) && p != dirpath) {
-        if (!(p = strrchr(dirpath, '/'))) {
+    checkOK = check(dirpath, opaque);
+
+    while (!checkOK && p != dirpath) {
+        if (!(p = strrchr(dirpath, G_DIR_SEPARATOR))) {
             virReportSystemError(EINVAL,
-                                 _("Invalid relative path '%1$s'"), path);
-            return NULL;
+                                 _("Invalid absolute path '%1$s'"), path);
+            return -1;
         }
 
         if (p == dirpath)
             *(p + 1) = '\0';
         else
             *p = '\0';
+
+        checkOK = check(dirpath, opaque);
     }
 
-    return g_steal_pointer(&dirpath);
+    if (!checkOK)
+        return -2;
+
+    if (parent)
+        *parent = g_steal_pointer(&dirpath);
+
+    return 0;
 }
 
 
@@ -3599,6 +3629,14 @@ static const struct virFileSharedFsData virFileSharedFs[] = {
 };
 
 
+static bool
+virFileCheckParentsStatFS(const char *path,
+                          void *opaque)
+{
+    return statfs(path, (struct statfs *) opaque) == 0;
+}
+
+
 int
 virFileIsSharedFSType(const char *path,
                       unsigned int fstypes)
@@ -3607,11 +3645,13 @@ virFileIsSharedFSType(const char *path,
     struct statfs sb;
     long long f_type = 0;
     size_t i;
+    int rc;
 
-    if (!(dirpath = virFileGetExistingParent(path)))
+    if ((rc = virFileCheckParents(path, &dirpath,
+                                  virFileCheckParentsStatFS, &sb)) == -1)
         return -1;
 
-    if (statfs(dirpath, &sb) < 0) {
+    if (rc != 0) {
         virReportSystemError(errno,
                              _("cannot determine filesystem for '%1$s'"),
                              path);
@@ -3808,6 +3848,25 @@ virFileGetDefaultHugepage(virHugeTLBFS *fs,
 }
 
 
+static bool
+virFileCheckParentsCanonicalize(const char *path,
+                                void *opaque)
+{
+    char **canonical = opaque;
+
+    *canonical = virFileCanonicalizePath(path);
+    return !!*canonical;
+}
+
+
+static bool
+virFileCheckParentsInOverrides(const char *path,
+                               void *opaque)
+{
+    return g_strv_contains((const char *const *) opaque, path);
+}
+
+
 /**
  * virFileIsSharedFSOverride:
  * @path: Path to check
@@ -3821,50 +3880,32 @@ virFileIsSharedFSOverride(const char *path,
                           char *const *overrides)
 {
     g_autofree char *dirpath = NULL;
-    g_autofree char *existing = NULL;
-    char *p = NULL;
+    int rc;
 
     if (!path || path[0] != '/' || !overrides)
         return false;
 
     /* We only care about the longest existing sub-path. Further components
-     * may will later be created by libvirt will not magically become a shared
-     * filesystem. */
-    if (!(existing = virFileGetExistingParent(path)))
+     * that may later be created by libvirt will not magically become a shared
+     * filesystem. Overrides have been canonicalized ahead of time, so we need
+     * to do the same for the provided path or we'll never be able to find a
+     * match if symlinks are involved.
+     */
+    rc = virFileCheckParents(path, NULL,
+                             virFileCheckParentsCanonicalize, &dirpath);
+    if (rc == -1)
         return false;
 
-    /* Overrides have been canonicalized ahead of time, so we need to
-     * do the same for the provided path or we'll never be able to
-     * find a match if symlinks are involved */
-    if (!(dirpath = virFileCanonicalizePath(existing))) {
-        VIR_DEBUG("Cannot canonicalize parent '%s' of path '%s'",
-                  existing, path);
+    if (rc != 0) {
+        VIR_DEBUG("Cannot canonicalize path '%s'", path);
         return false;
     }
 
-    if (g_strv_contains((const char *const *) overrides, dirpath))
-        return true;
+    if (virFileCheckParents(dirpath, NULL, virFileCheckParentsInOverrides,
+                            (void *) overrides) < 0)
+        return false;
 
-    /* Continue until we've scanned the entire path */
-    while (p != dirpath) {
-
-        /* Find the last slash */
-        if ((p = strrchr(dirpath, '/')) == NULL)
-            break;
-
-        /* Truncate the path by overwriting the slash that we've just
-         * found with a null byte. If it is the very first slash in
-         * the path, we need to handle things slightly differently */
-        if (p == dirpath)
-            *(p+1) = '\0';
-        else
-            *p = '\0';
-
-        if (g_strv_contains((const char *const *) overrides, dirpath))
-            return true;
-    }
-
-    return false;
+    return true;
 }
 
 

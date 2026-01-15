@@ -130,15 +130,16 @@ testCompareXMLToArgvHelper(const void *data)
     g_autofree char *args = NULL;
     g_autofree char *ldargs = NULL;
     g_autofree char *dmargs = NULL;
+    const char *arch = virArchToString(virArchFromHost());
 
-    xml = g_strdup_printf("%s/bhyvexml2argvdata/bhyvexml2argv-%s.xml",
-                          abs_srcdir, info->name);
-    args = g_strdup_printf("%s/bhyvexml2argvdata/bhyvexml2argv-%s.args",
-                           abs_srcdir, info->name);
-    ldargs = g_strdup_printf("%s/bhyvexml2argvdata/bhyvexml2argv-%s.ldargs",
-                             abs_srcdir, info->name);
-    dmargs = g_strdup_printf("%s/bhyvexml2argvdata/bhyvexml2argv-%s.devmap",
-                             abs_srcdir, info->name);
+    xml = g_strdup_printf("%s/bhyvexml2argvdata/%s/bhyvexml2argv-%s.xml",
+                          abs_srcdir, arch, info->name);
+    args = g_strdup_printf("%s/bhyvexml2argvdata/%s/bhyvexml2argv-%s.args",
+                           abs_srcdir, arch, info->name);
+    ldargs = g_strdup_printf("%s/bhyvexml2argvdata/%s/bhyvexml2argv-%s.ldargs",
+                             abs_srcdir, arch, info->name);
+    dmargs = g_strdup_printf("%s/bhyvexml2argvdata/%s/bhyvexml2argv-%s.devmap",
+                             abs_srcdir, arch, info->name);
 
     return testCompareXMLToArgvFiles(xml, args, ldargs, dmargs, info->flags);
 }
@@ -270,6 +271,10 @@ mymain(void)
     DO_TEST("sata-rotation-rate");
     DO_TEST_FAILURE("disk-virtio-rotation-rate");
     DO_TEST_FAILURE("disk-virtio-queue-opts");
+    DO_TEST("slirp");
+    DO_TEST("slirp-mac-addr");
+    DO_TEST_FAILURE("slirp-ip");
+    DO_TEST("virtio-scsi");
 
     /* Address allocation tests */
     DO_TEST("addr-single-sata-disk");
@@ -324,6 +329,14 @@ mymain(void)
     driver.config->bhyveloadTimeout = 300;
     driver.config->bhyveloadTimeoutKill = 20;
     DO_TEST("bhyveload-timeout");
+
+    /* arm64 tests */
+    virTestSetHostArch(VIR_ARCH_AARCH64);
+    driver.caps = virBhyveCapsBuild();
+
+    DO_TEST("base");
+    DO_TEST("console");
+    DO_TEST("bootloader");
 
     virObjectUnref(driver.caps);
     virObjectUnref(driver.xmlopt);

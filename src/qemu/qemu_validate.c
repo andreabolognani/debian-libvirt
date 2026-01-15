@@ -112,8 +112,6 @@ qemuValidateDomainDefHypervFeatures(const virDomainDef *def)
         return -1;
     }
 
-    CHECK_HV_FEAT(VIR_DOMAIN_HYPERV_SYNIC, VIR_DOMAIN_HYPERV_VPINDEX);
-
     if (def->hyperv.features[VIR_DOMAIN_HYPERV_STIMER] == VIR_TRISTATE_SWITCH_ON) {
         if (!virDomainDefHasTimer(def, VIR_DOMAIN_TIMER_NAME_HYPERVCLOCK)) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
@@ -124,7 +122,6 @@ qemuValidateDomainDefHypervFeatures(const virDomainDef *def)
         }
     }
 
-    CHECK_HV_FEAT(VIR_DOMAIN_HYPERV_STIMER, VIR_DOMAIN_HYPERV_VPINDEX);
     CHECK_HV_FEAT(VIR_DOMAIN_HYPERV_STIMER, VIR_DOMAIN_HYPERV_SYNIC);
 
     CHECK_HV_FEAT(VIR_DOMAIN_HYPERV_TLBFLUSH, VIR_DOMAIN_HYPERV_VPINDEX);
@@ -717,6 +714,7 @@ qemuValidateDomainDefNvram(const virDomainDef *def,
     case VIR_STORAGE_TYPE_NVME:
     case VIR_STORAGE_TYPE_VHOST_USER:
     case VIR_STORAGE_TYPE_VHOST_VDPA:
+    case VIR_STORAGE_TYPE_CTL:
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                        _("unsupported nvram disk type '%1$s'"),
                        virStorageTypeToString(src->type));

@@ -689,6 +689,7 @@ qemuSnapshotPrepareDiskExternalInactive(virDomainSnapshotDiskDef *snapdisk,
     case VIR_STORAGE_TYPE_NVME:
     case VIR_STORAGE_TYPE_VHOST_USER:
     case VIR_STORAGE_TYPE_VHOST_VDPA:
+    case VIR_STORAGE_TYPE_CTL:
     case VIR_STORAGE_TYPE_NONE:
     case VIR_STORAGE_TYPE_LAST:
         virReportError(VIR_ERR_INTERNAL_ERROR,
@@ -708,6 +709,7 @@ qemuSnapshotPrepareDiskExternalInactive(virDomainSnapshotDiskDef *snapdisk,
     case VIR_STORAGE_TYPE_NVME:
     case VIR_STORAGE_TYPE_VHOST_USER:
     case VIR_STORAGE_TYPE_VHOST_VDPA:
+    case VIR_STORAGE_TYPE_CTL:
     case VIR_STORAGE_TYPE_NONE:
     case VIR_STORAGE_TYPE_LAST:
         virReportError(VIR_ERR_INTERNAL_ERROR,
@@ -752,6 +754,7 @@ qemuSnapshotPrepareDiskExternalActive(virDomainSnapshotDiskDef *snapdisk,
     case VIR_STORAGE_TYPE_NVME:
     case VIR_STORAGE_TYPE_VHOST_USER:
     case VIR_STORAGE_TYPE_VHOST_VDPA:
+    case VIR_STORAGE_TYPE_CTL:
     case VIR_STORAGE_TYPE_NONE:
     case VIR_STORAGE_TYPE_LAST:
         virReportError(VIR_ERR_INTERNAL_ERROR,
@@ -914,6 +917,7 @@ qemuSnapshotPrepareDiskInternal(virDomainDiskDef *disk,
     case VIR_STORAGE_TYPE_NVME:
     case VIR_STORAGE_TYPE_VHOST_USER:
     case VIR_STORAGE_TYPE_VHOST_VDPA:
+    case VIR_STORAGE_TYPE_CTL:
     case VIR_STORAGE_TYPE_NONE:
     case VIR_STORAGE_TYPE_LAST:
         virReportError(VIR_ERR_INTERNAL_ERROR,
@@ -1073,6 +1077,12 @@ qemuSnapshotPrepare(virDomainObj *vm,
                            _("support for offline external snapshots while checkpoint exists was not yet implemented"));
             return -1;
         }
+    }
+
+    if (*has_manual && (*flags & VIR_DOMAIN_SNAPSHOT_CREATE_QUIESCE)) {
+            virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
+                           _("'manual' disk snapshot mode requires explicit quiescing (VIR_DOMAIN_SNAPSHOT_CREATE_QUIESCE is not supported)"));
+            return -1;
     }
 
     /* Alter flags to let later users know what we learned.  */
@@ -1655,6 +1665,12 @@ qemuSnapshotCreateActiveExternal(virQEMUDriver *driver,
     virQEMUSaveData *data = NULL;
     g_autoptr(GHashTable) blockNamedNodeData = NULL;
 
+    if (memory) {
+        /* When doing a snapshot with memory check if migration is possible */
+        if (!qemuMigrationSrcIsAllowed(vm, false, VIR_ASYNC_JOB_SNAPSHOT, 0))
+            return -1;
+    }
+
     /* If quiesce was requested, then issue a freeze command, and a
      * counterpart thaw command when it is actually sent to agent.
      * The command will fail if the guest is paused or the guest agent
@@ -1707,10 +1723,6 @@ qemuSnapshotCreateActiveExternal(virQEMUDriver *driver,
         }
     }
 
-    if (has_manual &&
-        qemuSnapshotCreateActiveExternalDisksManual(vm, snap, VIR_ASYNC_JOB_SNAPSHOT) < 0)
-        goto cleanup;
-
     /* We need to collect reply from 'query-named-block-nodes' prior to the
      * migration step as qemu deactivates bitmaps after migration so the result
      * would be wrong */
@@ -1720,10 +1732,6 @@ qemuSnapshotCreateActiveExternal(virQEMUDriver *driver,
     /* do the memory snapshot if necessary */
     if (memory) {
         g_autoptr(qemuMigrationParams) snap_params = NULL;
-
-        /* check if migration is possible */
-        if (!qemuMigrationSrcIsAllowed(vm, false, VIR_ASYNC_JOB_SNAPSHOT, 0))
-            goto cleanup;
 
         qemuDomainJobSetStatsType(vm->job->current,
                                   QEMU_DOMAIN_JOB_STATS_TYPE_SAVEDUMP);
@@ -1754,9 +1762,9 @@ qemuSnapshotCreateActiveExternal(virQEMUDriver *driver,
         if (!(snap_params = qemuMigrationParamsNew()))
             goto cleanup;
 
-        if ((ret = qemuSaveImageCreate(driver, vm, snapdef->memorysnapshotfile,
-                                       data, compressor, snap_params, 0,
-                                       VIR_ASYNC_JOB_SNAPSHOT)) < 0)
+        if (qemuSaveImageCreate(vm, snapdef->memorysnapshotfile,
+                                data, compressor, snap_params, 0,
+                                VIR_ASYNC_JOB_SNAPSHOT) < 0)
             goto cleanup;
 
         /* the memory image was created, remove it on errors */
@@ -1769,9 +1777,13 @@ qemuSnapshotCreateActiveExternal(virQEMUDriver *driver,
 
     /* the domain is now paused if a memory snapshot was requested */
 
-    if ((ret = qemuSnapshotCreateActiveExternalDisks(vm, snap,
-                                                     blockNamedNodeData, flags,
-                                                     VIR_ASYNC_JOB_SNAPSHOT)) < 0)
+    if (has_manual &&
+        qemuSnapshotCreateActiveExternalDisksManual(vm, snap, VIR_ASYNC_JOB_SNAPSHOT) < 0)
+        goto cleanup;
+
+    if (qemuSnapshotCreateActiveExternalDisks(vm, snap,
+                                              blockNamedNodeData, flags,
+                                              VIR_ASYNC_JOB_SNAPSHOT) < 0)
         goto cleanup;
 
     /* the snapshot is complete now */

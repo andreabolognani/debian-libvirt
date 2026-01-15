@@ -30,11 +30,12 @@ testCompareXMLToXMLHelper(const void *data)
     g_autofree char *xml_out = NULL;
     bool is_different = info->flags & FLAG_IS_DIFFERENT;
     int ret = -1;
+    const char *arch = virArchToString(virArchFromHost());
 
-    xml_in = g_strdup_printf("%s/bhyvexml2argvdata/bhyvexml2argv-%s.xml",
-                             abs_srcdir, info->name);
-    xml_out = g_strdup_printf("%s/bhyvexml2xmloutdata/bhyvexml2xmlout-%s.xml",
-                              abs_srcdir, info->name);
+    xml_in = g_strdup_printf("%s/bhyvexml2argvdata/%s/bhyvexml2argv-%s.xml",
+                             abs_srcdir, arch, info->name);
+    xml_out = g_strdup_printf("%s/bhyvexml2xmloutdata/%s/bhyvexml2xmlout-%s.xml",
+                              abs_srcdir, arch, info->name);
 
     ret = testCompareDomXML2XMLFiles(driver.caps, driver.xmlopt, xml_in,
                                      is_different ? xml_out : xml_in,
@@ -122,6 +123,8 @@ mymain(void)
     DO_TEST_DIFFERENT("nvme");
     DO_TEST_DIFFERENT("2-nvme-2-controllers");
     DO_TEST_DIFFERENT("passthru-multiple-devs");
+    DO_TEST_DIFFERENT("slirp");
+    DO_TEST_DIFFERENT("virtio-scsi");
 
     /* Address allocation tests */
     DO_TEST_DIFFERENT("addr-single-sata-disk");
@@ -140,6 +143,13 @@ mymain(void)
 
     /* USB xhci tablet */
     DO_TEST_DIFFERENT("input-xhci-tablet");
+
+    virTestSetHostArch(VIR_ARCH_AARCH64);
+    driver.caps = virBhyveCapsBuild();
+
+    DO_TEST_DIFFERENT("base");
+    DO_TEST_DIFFERENT("console");
+    DO_TEST_DIFFERENT("bootloader");
 
     virObjectUnref(driver.caps);
     virObjectUnref(driver.xmlopt);

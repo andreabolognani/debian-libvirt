@@ -45,8 +45,8 @@ VIR_LOG_INIT("storage_source");
 static bool
 virStorageSourceBackinStoreStringIsFile(const char *backing)
 {
-    char *colon;
-    char *slash;
+    const char *colon;
+    const char *slash;
 
     if (!backing)
         return false;
@@ -625,6 +625,7 @@ virStorageSourceUpdatePhysicalSize(virStorageSource *src,
     case VIR_STORAGE_TYPE_NVME:
     case VIR_STORAGE_TYPE_VHOST_USER:
     case VIR_STORAGE_TYPE_VHOST_VDPA:
+    case VIR_STORAGE_TYPE_CTL:
     case VIR_STORAGE_TYPE_NONE:
     case VIR_STORAGE_TYPE_LAST:
         return -1;

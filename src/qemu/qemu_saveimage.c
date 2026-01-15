@@ -39,13 +39,13 @@ VIR_LOG_INIT("qemu.qemu_saveimage");
 
 VIR_ENUM_IMPL(qemuSaveFormat,
               QEMU_SAVE_FORMAT_LAST,
-              "raw",
-              "gzip",
-              "bzip2",
-              "xz",
-              "lzop",
-              "zstd",
-              "sparse",
+              VIR_DOMAIN_SAVE_PARAM_IMAGE_FORMAT_RAW,
+              VIR_DOMAIN_SAVE_PARAM_IMAGE_FORMAT_GZIP,
+              VIR_DOMAIN_SAVE_PARAM_IMAGE_FORMAT_BZIP2,
+              VIR_DOMAIN_SAVE_PARAM_IMAGE_FORMAT_XZ,
+              VIR_DOMAIN_SAVE_PARAM_IMAGE_FORMAT_LZOP,
+              VIR_DOMAIN_SAVE_PARAM_IMAGE_FORMAT_ZSTD,
+              VIR_DOMAIN_SAVE_PARAM_IMAGE_FORMAT_SPARSE,
 );
 
 static void
@@ -79,10 +79,10 @@ virQEMUSaveData *
 virQEMUSaveDataNew(char *domXML,
                    qemuDomainSaveCookie *cookieObj,
                    bool running,
-                   int format,
+                   virQEMUSaveFormat format,
                    virDomainXMLOption *xmlopt)
 {
-    virQEMUSaveData *data = NULL;
+    g_autoptr(virQEMUSaveData) data = NULL;
     virQEMUSaveHeader *header;
 
     data = g_new0(virQEMUSaveData, 1);
@@ -90,7 +90,7 @@ virQEMUSaveDataNew(char *domXML,
     if (cookieObj &&
         !(data->cookie = virSaveCookieFormat((virObject *) cookieObj,
                                              virDomainXMLOptionGetSaveCookie(xmlopt))))
-        goto error;
+        return NULL;
 
     header = &data->header;
     memcpy(header->magic, QEMU_SAVE_PARTIAL, sizeof(header->magic));
@@ -99,11 +99,8 @@ virQEMUSaveDataNew(char *domXML,
     header->format = format;
 
     data->xml = domXML;
-    return data;
 
- error:
-    virQEMUSaveDataFree(data);
-    return NULL;
+    return g_steal_pointer(&data);
 }
 
 
@@ -427,15 +424,15 @@ qemuSaveImageDecompressionStop(virCommand *cmd,
 
 
 static int
-qemuSaveImageCreateFd(virQEMUDriver *driver,
-                      virDomainObj *vm,
+qemuSaveImageCreateFd(virDomainObj *vm,
                       const char *path,
                       virFileWrapperFd **wrapperFd,
                       bool sparse,
                       bool *needUnlink,
                       unsigned int flags)
 {
-    g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
+    qemuDomainObjPrivate *priv = vm->privateData;
+    g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(priv->driver);
     int ret = -1;
     VIR_AUTOCLOSE fd = -1;
     int directFlag = 0;
@@ -458,7 +455,7 @@ qemuSaveImageCreateFd(virQEMUDriver *driver,
     if (fd < 0)
         return -1;
 
-    if (qemuSecuritySetImageFDLabel(driver->securityManager, vm->def, fd) < 0)
+    if (qemuSecuritySetImageFDLabel(priv->driver->securityManager, vm->def, fd) < 0)
         return -1;
 
     if (!sparse && !(*wrapperFd = virFileWrapperFdNew(&fd, path, wrapperFlags)))
@@ -475,8 +472,7 @@ qemuSaveImageCreateFd(virQEMUDriver *driver,
  * the caller needs to make sure that the processors are stopped and do all other
  * actions besides saving memory */
 int
-qemuSaveImageCreate(virQEMUDriver *driver,
-                    virDomainObj *vm,
+qemuSaveImageCreate(virDomainObj *vm,
                     const char *path,
                     virQEMUSaveData *data,
                     virCommand *compressor,
@@ -484,7 +480,8 @@ qemuSaveImageCreate(virQEMUDriver *driver,
                     unsigned int flags,
                     virDomainAsyncJob asyncJob)
 {
-    g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
+    qemuDomainObjPrivate *priv = vm->privateData;
+    g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(priv->driver);
     bool needUnlink = false;
     int ret = -1;
     int fd = -1;
@@ -492,7 +489,7 @@ qemuSaveImageCreate(virQEMUDriver *driver,
     bool sparse = data->header.format == QEMU_SAVE_FORMAT_SPARSE;
 
     /* Obtain the file handle.  */
-    fd = qemuSaveImageCreateFd(driver, vm, path, &wrapperFd, sparse, &needUnlink, flags);
+    fd = qemuSaveImageCreateFd(vm, path, &wrapperFd, sparse, &needUnlink, flags);
 
     if (fd < 0)
         goto cleanup;
@@ -501,7 +498,9 @@ qemuSaveImageCreate(virQEMUDriver *driver,
         goto cleanup;
 
     /* Perform the migration */
-    if (qemuMigrationSrcToFile(driver, vm, path, &fd, compressor, saveParams, flags, asyncJob) < 0)
+    if (qemuMigrationSrcToFile(vm, path, &fd, compressor, saveParams,
+                               (flags & VIR_DOMAIN_SAVE_BYPASS_CACHE),
+                               asyncJob) < 0)
         goto cleanup;
 
     /* Touch up file header to mark image complete. */
@@ -551,7 +550,7 @@ qemuSaveImageCreate(virQEMUDriver *driver,
  * Returns -1 on failure, 0 on success.
  */
 int
-qemuSaveImageGetCompressionProgram(int format,
+qemuSaveImageGetCompressionProgram(virQEMUSaveFormat format,
                                    virCommand **compressor,
                                    const char *styleFormat)
 {
