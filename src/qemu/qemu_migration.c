@@ -344,6 +344,7 @@ qemuMigrationDstPrecreateDisk(virConnectPtr *conn,
     case VIR_STORAGE_TYPE_NVME:
     case VIR_STORAGE_TYPE_VHOST_USER:
     case VIR_STORAGE_TYPE_VHOST_VDPA:
+    case VIR_STORAGE_TYPE_CTL:
     case VIR_STORAGE_TYPE_NONE:
     case VIR_STORAGE_TYPE_LAST:
         virReportError(VIR_ERR_INTERNAL_ERROR,
@@ -499,6 +500,7 @@ qemuMigrationDstPrepareStorage(virDomainObj *vm,
             /* Existance of 'volume' type disks are handled when pre-creating them */
             break;
 
+        case VIR_STORAGE_TYPE_CTL:
         case VIR_STORAGE_TYPE_LAST:
         case VIR_STORAGE_TYPE_NONE:
             break;
@@ -1725,6 +1727,7 @@ qemuMigrationSrcCheckStorageSourceSafety(virStorageSource *src,
     case VIR_STORAGE_TYPE_BLOCK:
     case VIR_STORAGE_TYPE_DIR:
     case VIR_STORAGE_TYPE_VOLUME:
+    case VIR_STORAGE_TYPE_CTL:
     case VIR_STORAGE_TYPE_LAST:
         *requires_safe_cache = true;
         break;
@@ -4122,7 +4125,7 @@ qemuMigrationSrcComplete(virQEMUDriver *driver,
                                               VIR_DOMAIN_EVENT_STOPPED,
                                               VIR_DOMAIN_EVENT_STOPPED_MIGRATED);
     virObjectEventStateQueue(driver->domainEventState, event);
-    qemuDomainEventEmitJobCompleted(driver, vm);
+    qemuDomainEventEmitJobCompleted(vm);
     priv->preMigrationMemlock = 0;
 }
 
@@ -4602,15 +4605,14 @@ qemuMigrationSrcContinue(virDomainObj *vm,
 
 
 static int
-qemuMigrationSetDBusVMState(virQEMUDriver *driver,
-                            virDomainObj *vm)
+qemuMigrationSetDBusVMState(virDomainObj *vm)
 {
     qemuDomainObjPrivate *priv = vm->privateData;
 
     if (priv->dbusVMStateIds) {
         int rv;
 
-        if (qemuHotplugAttachDBusVMState(driver, vm, VIR_ASYNC_JOB_NONE) < 0)
+        if (qemuHotplugAttachDBusVMState(vm, VIR_ASYNC_JOB_NONE) < 0)
             return -1;
 
         if (qemuDomainObjEnterMonitorAsync(vm, VIR_ASYNC_JOB_NONE) < 0)
@@ -5097,7 +5099,7 @@ qemuMigrationSrcRun(virQEMUDriver *driver,
         }
     }
 
-    if (qemuMigrationSetDBusVMState(driver, vm) < 0)
+    if (qemuMigrationSetDBusVMState(vm) < 0)
         goto error;
 
     /* Before EnterMonitor, since already qemuProcessStopCPUs does that */
@@ -7143,8 +7145,7 @@ qemuMigrationProcessUnattended(virQEMUDriver *driver,
 
 
 static int
-qemuMigrationSrcToLegacyFile(virQEMUDriver *driver,
-                             virDomainObj *vm,
+qemuMigrationSrcToLegacyFile(virDomainObj *vm,
                              int fd,
                              virCommand *compressor,
                              virDomainAsyncJob asyncJob)
@@ -7161,7 +7162,7 @@ qemuMigrationSrcToLegacyFile(virQEMUDriver *driver,
      * doesn't have to open() the file, so while we still have to
      * grant SELinux access, we can do it on fd and avoid cleanup
      * later, as well as skip futzing with cgroup.  */
-    if (qemuSecuritySetImageFDLabel(driver->securityManager, vm->def,
+    if (qemuSecuritySetImageFDLabel(priv->driver->securityManager, vm->def,
                                     compressor ? pipeFD[1] : fd) < 0)
         goto cleanup;
 
@@ -7206,14 +7207,14 @@ qemuMigrationSrcToLegacyFile(virQEMUDriver *driver,
 
 
 static int
-qemuMigrationSrcToSparseFile(virQEMUDriver *driver,
-                             virDomainObj *vm,
+qemuMigrationSrcToSparseFile(virDomainObj *vm,
                              const char *path,
                              int *fd,
-                             unsigned int flags,
+                             bool bypassCache,
                              virDomainAsyncJob asyncJob)
 {
-    g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
+    qemuDomainObjPrivate *priv = vm->privateData;
+    g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(priv->driver);
     VIR_AUTOCLOSE directFd = -1;
     int directFlag = 0;
     bool needUnlink = false;
@@ -7222,7 +7223,7 @@ qemuMigrationSrcToSparseFile(virQEMUDriver *driver,
     /* When using directio with mapped-ram, qemu needs two fds. One with
      * O_DIRECT set writing the memory, and another without it set for
      * writing small bits of unaligned state. */
-    if ((flags & VIR_DOMAIN_SAVE_BYPASS_CACHE)) {
+    if (bypassCache) {
         directFlag = virFileDirectFdFlag();
         if (directFlag < 0) {
             virReportError(VIR_ERR_OPERATION_FAILED, "%s",
@@ -7235,12 +7236,14 @@ qemuMigrationSrcToSparseFile(virQEMUDriver *driver,
         if (directFd < 0)
             return -1;
 
-        if (qemuSecuritySetImageFDLabel(driver->securityManager, vm->def, directFd) < 0)
+        if (qemuSecuritySetImageFDLabel(priv->driver->securityManager, vm->def,
+                                        directFd) < 0)
             return -1;
 
     }
 
-    if (qemuSecuritySetImageFDLabel(driver->securityManager, vm->def, *fd) < 0)
+    if (qemuSecuritySetImageFDLabel(priv->driver->securityManager, vm->def,
+                                    *fd) < 0)
         return -1;
 
     if (qemuDomainObjEnterMonitorAsync(vm, asyncJob) < 0)
@@ -7254,12 +7257,12 @@ qemuMigrationSrcToSparseFile(virQEMUDriver *driver,
 
 /* Helper function called while vm is active.  */
 int
-qemuMigrationSrcToFile(virQEMUDriver *driver, virDomainObj *vm,
+qemuMigrationSrcToFile(virDomainObj *vm,
                        const char *path,
                        int *fd,
                        virCommand *compressor,
                        qemuMigrationParams *migParams,
-                       unsigned int flags,
+                       bool bypassCache,
                        virDomainAsyncJob asyncJob)
 {
     qemuDomainObjPrivate *priv = vm->privateData;
@@ -7268,7 +7271,7 @@ qemuMigrationSrcToFile(virQEMUDriver *driver, virDomainObj *vm,
     unsigned long saveMigBandwidth = priv->migMaxBandwidth;
     virErrorPtr orig_err = NULL;
 
-    if (qemuMigrationSetDBusVMState(driver, vm) < 0)
+    if (qemuMigrationSetDBusVMState(vm) < 0)
         return -1;
 
     /* Increase migration bandwidth to unlimited since target is a file.
@@ -7293,9 +7296,9 @@ qemuMigrationSrcToFile(virQEMUDriver *driver, virDomainObj *vm,
 
     if (migParams &&
         qemuMigrationParamsCapEnabled(migParams, QEMU_MIGRATION_CAP_MAPPED_RAM))
-        rc = qemuMigrationSrcToSparseFile(driver, vm, path, fd, flags, asyncJob);
+        rc = qemuMigrationSrcToSparseFile(vm, path, fd, bypassCache, asyncJob);
     else
-        rc = qemuMigrationSrcToLegacyFile(driver, vm, *fd, compressor, asyncJob);
+        rc = qemuMigrationSrcToLegacyFile(vm, *fd, compressor, asyncJob);
 
     if (rc < 0)
         goto cleanup;
@@ -7315,7 +7318,7 @@ qemuMigrationSrcToFile(virQEMUDriver *driver, virDomainObj *vm,
     if (compressor && virCommandWait(compressor, NULL) < 0)
         goto cleanup;
 
-    qemuDomainEventEmitJobCompleted(driver, vm);
+    qemuDomainEventEmitJobCompleted(vm);
     ret = 0;
 
  cleanup:
@@ -7325,11 +7328,13 @@ qemuMigrationSrcToFile(virQEMUDriver *driver, virDomainObj *vm,
     /* Remove fdset passed to qemu and restore max migration bandwidth */
     if (qemuDomainObjIsActive(vm)) {
         if (qemuDomainObjEnterMonitorAsync(vm, asyncJob) == 0) {
-            qemuFDPass *fdPass =
-                qemuFDPassNewFromMonitor("libvirt-outgoing-migrate", priv->mon);
+            g_autoptr(qemuFDPass) fdPass = NULL;
+
+            fdPass = qemuFDPassNewFromMonitor("libvirt-outgoing-migrate", priv->mon);
 
             if (fdPass)
                 qemuFDPassTransferMonitorRollback(fdPass, priv->mon);
+
             qemuDomainObjExitMonitor(vm);
         }
 

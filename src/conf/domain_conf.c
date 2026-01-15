@@ -7831,6 +7831,9 @@ virDomainStorageSourceParse(xmlNodePtr node,
         if (!(src->vdpadev = virXMLPropStringRequired(node, "dev")))
             return -1;
         break;
+    case VIR_STORAGE_TYPE_CTL:
+        src->path = virXMLPropString(node, "dev");
+        break;
     case VIR_STORAGE_TYPE_NONE:
     case VIR_STORAGE_TYPE_LAST:
         virReportError(VIR_ERR_INTERNAL_ERROR,
@@ -17823,24 +17826,8 @@ virDomainLoaderDefParseXMLLoader(virDomainLoaderDef *loader,
 {
     unsigned int format = 0;
 
-    if (!loaderNode) {
-        /* If there is no <loader> element but the <nvram> element
-         * was present, copy the format from the latter to the
-         * former.
-         *
-         * This ensures that a configuration such as
-         *
-         *   <os>
-         *     <nvram format='foo'/>
-         *   </os>
-         *
-         * behaves as expected, that is, results in a firmware build
-         * with format 'foo' being selected */
-        if (loader->nvram)
-            loader->format = loader->nvram->format;
-
+    if (!loaderNode)
         return 0;
-    }
 
     if (virXMLPropTristateBool(loaderNode, "readonly", VIR_XML_PROP_NONE,
                                &loader->readonly) < 0)
@@ -23709,6 +23696,10 @@ virDomainDiskSourceFormat(virBuffer *buf,
 
     case VIR_STORAGE_TYPE_VHOST_VDPA:
         virBufferEscapeString(&attrBuf, " dev='%s'", src->vdpadev);
+        break;
+
+    case VIR_STORAGE_TYPE_CTL:
+        virBufferEscapeString(&attrBuf, " dev='%s'", src->path);
         break;
 
     case VIR_STORAGE_TYPE_NONE:

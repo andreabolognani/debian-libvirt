@@ -84,27 +84,34 @@ iptablesPrivateChainCreate(virFirewall *fw,
 {
     iptablesGlobalChainData *data = opaque;
     g_autoptr(GHashTable) chains = virHashNew(NULL);
-    g_autoptr(GHashTable) links = virHashNew(NULL);
-    const char *const *tmp;
+    g_autoptr(GHashTable) links = virHashNew(g_free);
+    const char *const *line;
     size_t i;
 
-    tmp = lines;
-    while (tmp && *tmp) {
-        if (STRPREFIX(*tmp, "-N ")) { /* eg "-N LIBVIRT_INP" */
-            if (virHashUpdateEntry(chains, *tmp + 3, (void *)0x1) < 0)
+    line = lines;
+    while (line && *line) {
+        const char *tmp;
+
+        if ((tmp = STRSKIP(*line, "-N "))) { /* eg "-N LIBVIRT_INP" */
+            if (virHashUpdateEntry(chains, tmp, (void *)0x1) < 0)
                 return -1;
-        } else if (STRPREFIX(*tmp, "-A ")) { /* eg "-A INPUT -j LIBVIRT_INP" */
-            char *sep = strchr(*tmp + 3, ' ');
+        } else if ((tmp = STRSKIP(*line, "-A "))) { /* eg "-A INPUT -j LIBVIRT_INP" */
+            const char *sep = strchr(tmp, ' ');
+
             if (sep) {
-                *sep = '\0';
-                if (STRPREFIX(sep + 1, "-j ")) {
-                    if (virHashUpdateEntry(links, sep + 4,
-                                           (char *)*tmp + 3) < 0)
+                const char *target;
+
+                if ((target = STRSKIP(sep + 1, "-j "))) {
+                    char *chain = g_strndup(tmp, sep - tmp);
+
+                    if (virHashUpdateEntry(links, target, chain) < 0) {
+                        g_free(chain);
                         return -1;
+                    }
                 }
             }
         }
-        tmp++;
+        line++;
     }
 
     for (i = 0; i < data->nchains; i++) {

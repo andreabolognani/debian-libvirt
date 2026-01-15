@@ -2583,7 +2583,7 @@ static int
 qemuDomainSaveInternal(virQEMUDriver *driver,
                        virDomainObj *vm,
                        const char *path,
-                       int format,
+                       virQEMUSaveFormat format,
                        virCommand *compressor,
                        const char *xmlin,
                        virTypedParameterPtr params,
@@ -2679,10 +2679,10 @@ qemuDomainSaveInternal(virQEMUDriver *driver,
 
     if (!(saveParams = qemuMigrationParamsForSave(params, nparams,
                                                   format == QEMU_SAVE_FORMAT_SPARSE,
-                                                  flags)))
+                                                  (flags & VIR_DOMAIN_SAVE_BYPASS_CACHE))))
         goto endjob;
 
-    ret = qemuSaveImageCreate(driver, vm, path, data, compressor,
+    ret = qemuSaveImageCreate(vm, path, data, compressor,
                               saveParams, flags, VIR_ASYNC_JOB_SAVE);
     if (ret < 0)
         goto endjob;
@@ -2823,7 +2823,7 @@ qemuDomainSaveParams(virDomainPtr dom,
     const char *to = NULL;
     const char *dxml = NULL;
     const char *formatstr = NULL;
-    int format = cfg->saveImageFormat;
+    virQEMUSaveFormat format = cfg->saveImageFormat;
     int ret = -1;
 
     virCheckFlags(VIR_DOMAIN_SAVE_BYPASS_CACHE |
@@ -2863,10 +2863,16 @@ qemuDomainSaveParams(virDomainPtr dom,
         return qemuDomainManagedSaveHelper(driver, vm, dxml, flags);
     }
 
-    if (formatstr && (format = qemuSaveFormatTypeFromString(formatstr)) < 0) {
-        virReportError(VIR_ERR_OPERATION_FAILED,
-                       _("Invalid image_format '%1$s'"), formatstr);
-        goto cleanup;
+    if (formatstr) {
+        int formatVal;
+
+        if ((formatVal = qemuSaveFormatTypeFromString(formatstr)) < 0) {
+            virReportError(VIR_ERR_OPERATION_FAILED,
+                           _("Invalid image_format '%1$s'"), formatstr);
+            goto cleanup;
+        }
+
+        format = formatVal;
     }
 
     if (qemuSaveImageGetCompressionProgram(format, &compressor, "save") < 0)
@@ -3130,8 +3136,10 @@ doCoreDump(virQEMUDriver *driver,
         if (!(dump_params = qemuMigrationParamsNew()))
             goto cleanup;
 
-        if (qemuMigrationSrcToFile(driver, vm, path, &fd, compressor,
-                                   dump_params, dump_flags, VIR_ASYNC_JOB_DUMP) < 0)
+        if (qemuMigrationSrcToFile(vm, path, &fd, compressor,
+                                   dump_params,
+                                   (dump_flags & VIR_DUMP_BYPASS_CACHE),
+                                   VIR_ASYNC_JOB_DUMP) < 0)
             goto cleanup;
     }
 
@@ -5790,7 +5798,8 @@ qemuDomainRestoreInternal(virConnectPtr conn,
         goto cleanup;
 
     sparse = data->header.format == QEMU_SAVE_FORMAT_SPARSE;
-    if (!(restoreParams = qemuMigrationParamsForSave(params, nparams, sparse, flags)))
+    if (!(restoreParams = qemuMigrationParamsForSave(params, nparams, sparse,
+                                                     (flags & VIR_DOMAIN_SAVE_BYPASS_CACHE))))
         goto cleanup;
 
     fd = qemuSaveImageOpen(driver, path,
@@ -6122,7 +6131,7 @@ qemuDomainObjRestore(virConnectPtr conn,
 
     sparse = data->header.format == QEMU_SAVE_FORMAT_SPARSE;
     if (!(restoreParams = qemuMigrationParamsForSave(NULL, 0, sparse,
-                                                     bypass_cache ? VIR_DOMAIN_SAVE_BYPASS_CACHE : 0)))
+                                                     bypass_cache)))
         return -1;
 
     fd = qemuSaveImageOpen(driver, path, bypass_cache, sparse, &wrapperFd, false);

@@ -8,6 +8,101 @@ the changes introduced by each of them.
 For a more fine-grained view, use the `git log`_.
 
 
+v12.0.0 (2026-01-15)
+====================
+
+* **New features**
+
+  * bhyve: SLIRP networking support
+
+    Domain XMLs now can use SLIRP user-mode networking::
+
+     <interface type='user'>
+       <model type='virtio'/>
+     </interface>
+
+  * bhyve: virtio-scsi support
+
+    Domain XMLs now can use ``virtio-scsi`` devices::
+
+     <disk type='ctl'>
+       <source dev='/dev/cam/ctl'/>
+       <target dev='sda' bus='scsi'/>
+     </disk>
+
+  * bhyve: initial ARM64 support
+
+    The bhyve driver now supports booting ARM64 domains on ARM64 hosts.
+    This support is still in early stage of development and has some
+    limitations. For example, it requires using
+    ``<clock offset='localtime'/>`` in domain XMLs, and
+    bootrom autofill is not implemented.
+
+* **Improvements**
+
+  * qemu: Improvements and fixes to firmware selection
+
+    Firmware selection now works more reliably and predictably in many
+    scenarios.
+
+    Notably, issues that were preventing the use of firmware designed for
+    confidential VMs on aarch64 have been addressed.
+
+  * network: Introduce port for DNS forwarder
+
+    In the ``<dns/>`` section of network configuration users can set up
+    forwarding of DNS requests to custom DNS servers. These are specified using
+    ``addr`` attribute. But configuring port wasn't possible, until now. New
+    ``port`` attribute is introduced, which allows overriding the default DNS
+    port for given address.
+
+* **Bug fixes**
+
+  * qemu: Fix startup of VMs with more than ~25 external snapshots
+
+    After switch to json-c VMs with too deeply nested image chains would fail
+    to start due to nesting depth limit in json-c, which is now increased to once
+    again support backing chains up to 200 images deep.
+
+  * qemu: TPM: Properly handle migration when storage resides on NFS
+
+    The VM now can be properly migrated in scenarios where TPM data is stored
+    on a shared filesystem on the destination but on the source it's either
+    on a different NFS or unshared completely.
+
+  * qemu: Treat memory device source nodemask as strict NUMA policy
+
+    Until now, the NUMA policy for ``<memory/>`` devices was taken either from
+    the guest NUMA node or ``<numatune/>``. But this may lead to discrepancies,
+    where the memory device is configured to bind to a set of host NUMA nodes,
+    but the guest NUMA node is to bind to a disjoint set of host NUMA nodes. To
+    resolve this, specifying ``<nodemask/>`` for a memory device implies
+    ``strict`` policy.
+
+  * qemu: Relax validation of some hyperv features
+
+    Since 11.9.0 release, libvirt performs dependency checks for hyperv
+    features, for instance ``stimer`` requires ``synic``. But as it turned out,
+    for some ancient machine types (e.g. 'pc-i440fx-3.0' or 'pc-q35-3.0') some
+    dependencies are not true. Corresponding checks were removed.
+
+  * esx: URI encode inventory objects twice
+
+    Formatting domain XML for domains on an ESX server might fail if
+    corresponding datacenter or datastore contained special characters (e.g.
+    '+'). This is now fixed.
+
+  * Fix race when checking whether a path is on a shared file system
+
+    Finding an existing parent of a given path and checking whether it's on a
+    shared file system was not atomic and thus the path could have been
+    misinterpreted as non-shared if it was removed between these two
+    operations. This could cause migration with an emulated TPM device stored
+    on a shared file system to fail with the following bogus error::
+
+     Operation not supported: the running swtpm does not support migration with shared storage
+
+
 v11.10.0 (2025-12-01)
 =====================
 
@@ -87,7 +182,7 @@ v11.10.0 (2025-12-01)
     subdirectory, the ESX driver would have failed to parse that and an error
     was reported when obtaining domain XML. This is now fixed.
 
- * qemu: Fix incoming migration to QEMU 10.0.0 and newer
+  * qemu: Fix incoming migration to QEMU 10.0.0 and newer
 
     Due to a change in the way QEMU 10.0.0 reports the state of "ht" CPU
     feature, incoming migration of a domain with multiple CPU threads would
@@ -202,6 +297,11 @@ v11.8.0 (2025-10-01)
 
     On the XML side, the existing ``<acpi>`` element has been extended with a
     ``nodeset`` attribute to specify the NUMA node affinity of a PCI device.
+
+  * qemu: Add support for hostname and FQDN configration of passt backend
+
+    The attributes ``hostname`` and ``fqdn`` for passt backend configure
+    the guest interface with hostname and FQDN.
 
 * **Improvements**
 

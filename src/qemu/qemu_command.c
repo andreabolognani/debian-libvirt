@@ -1486,6 +1486,7 @@ qemuBuildDriveSourceStr(virDomainDiskDef *disk,
     case VIR_STORAGE_TYPE_NVME:
     case VIR_STORAGE_TYPE_VHOST_USER:
     case VIR_STORAGE_TYPE_VHOST_VDPA:
+    case VIR_STORAGE_TYPE_CTL:
     case VIR_STORAGE_TYPE_NONE:
     case VIR_STORAGE_TYPE_LAST:
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
@@ -3496,6 +3497,12 @@ qemuBuildMemoryBackendProps(virJSONValue **backendProps,
         /* Make sure the requested nodeset is sensible */
         if (!virNumaNodesetIsAvailable(nodemask))
             return -1;
+
+        /* Treat source nodes as strict mode, regardless of the target guest
+         * NUMA node mode. */
+        if (hasSourceNodes) {
+            mode = VIR_DOMAIN_NUMATUNE_MEM_STRICT;
+        }
 
         /* If mode is "restrictive", we should only use cgroups setting allowed memory
          * nodes, and skip passing the host-nodes and policy parameters to QEMU command
@@ -7192,7 +7199,7 @@ qemuBuildMachineCommandLine(virCommand *cmd,
     if (qemuAppendDomainFeaturesMachineParam(&buf, def, qemuCaps) < 0)
         return -1;
 
-    if (def->niommus == 1) {
+    if (def->iommus && def->iommus[0]->pci_bus < 0) {
         switch (def->iommus[0]->model) {
         case VIR_DOMAIN_IOMMU_MODEL_SMMUV3:
             virBufferAddLit(&buf, ",iommu=smmuv3");

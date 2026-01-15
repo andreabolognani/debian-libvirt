@@ -41,7 +41,7 @@
     %define with_qemu      0%{!?_without_qemu:1}
 %else
     # QEMU drops 32-bit in Fedora 44
-    %if %{?fedora} > 43
+    %if 0%{?fedora} > 43
         %define with_qemu  0
     %else
         %define with_qemu  0%{!?_without_qemu:1}
@@ -293,7 +293,7 @@
 
 Summary: Library providing a simple virtualization API
 Name: libvirt
-Version: 11.10.0
+Version: 12.0.0
 Release: 1%{?dist}
 License: GPL-2.0-or-later AND LGPL-2.1-only AND LGPL-2.1-or-later AND OFL-1.1
 URL: https://libvirt.org/

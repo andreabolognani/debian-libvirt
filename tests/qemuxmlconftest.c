@@ -1527,6 +1527,7 @@ mymain(void)
     DO_TEST_CAPS_LATEST("firmware-manual-bios");
     DO_TEST_CAPS_LATEST("firmware-manual-bios-stateless");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("firmware-manual-bios-not-stateless");
+    DO_TEST_CAPS_LATEST_PARSE_ERROR("firmware-manual-bios-rw");
     DO_TEST_CAPS_LATEST("firmware-manual-efi");
     DO_TEST_CAPS_LATEST("firmware-manual-efi-features");
     DO_TEST_CAPS_LATEST_ABI_UPDATE_PARSE_ERROR("firmware-manual-efi-features");
@@ -1534,6 +1535,7 @@ mymain(void)
     DO_TEST_CAPS_LATEST("firmware-manual-efi-rw-legacy-paths");
     DO_TEST_CAPS_LATEST("firmware-manual-efi-rw-modern-paths");
     DO_TEST_CAPS_LATEST("firmware-manual-efi-rw-implicit");
+    DO_TEST_CAPS_LATEST_PARSE_ERROR("firmware-manual-efi-rw-nvram");
     DO_TEST_CAPS_LATEST("firmware-manual-efi-loader-secure");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("firmware-manual-efi-loader-no-path");
     DO_TEST_CAPS_LATEST("firmware-manual-efi-loader-path-nonstandard");
@@ -1543,11 +1545,20 @@ mymain(void)
     DO_TEST_CAPS_LATEST("firmware-manual-efi-stateless");
     DO_TEST_CAPS_LATEST("firmware-manual-efi-nvram-template");
     DO_TEST_CAPS_LATEST("firmware-manual-efi-nvram-template-nonstandard");
+    DO_TEST_CAPS_LATEST("firmware-manual-efi-nvram-template-nonstandard-format");
+    DO_TEST_CAPS_LATEST("firmware-manual-efi-nvram-template-nonstandard-legacy-paths");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("firmware-manual-efi-nvram-template-stateless");
     DO_TEST_CAPS_LATEST("firmware-manual-efi-nvram-network-iscsi");
     DO_TEST_CAPS_LATEST("firmware-manual-efi-nvram-network-nbd");
     DO_TEST_CAPS_LATEST("firmware-manual-efi-nvram-file");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("firmware-manual-efi-nvram-stateless");
+
+    DO_TEST_CAPS_ARCH_LATEST_FULL("firmware-manual-efi-sev-snp", "x86_64",
+                                  ARG_CAPS_VARIANT, "+amdsev",
+                                  ARG_END);
+    DO_TEST_CAPS_ARCH_LATEST_FULL("firmware-manual-efi-tdx", "x86_64",
+                                  ARG_CAPS_VARIANT, "+inteltdx",
+                                  ARG_END);
 
     /* Make sure all combinations of ACPI and UEFI behave as expected */
     DO_TEST_CAPS_ARCH_LATEST("firmware-manual-efi-acpi-aarch64", "aarch64");
@@ -1567,6 +1578,7 @@ mymain(void)
 
     DO_TEST_CAPS_LATEST("firmware-auto-bios");
     DO_TEST_CAPS_LATEST("firmware-auto-bios-stateless");
+    DO_TEST_CAPS_LATEST_FAILURE("firmware-auto-bios-rw");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("firmware-auto-bios-not-stateless");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("firmware-auto-bios-nvram");
     DO_TEST_CAPS_LATEST("firmware-auto-efi");
@@ -1598,13 +1610,20 @@ mymain(void)
     DO_TEST_CAPS_LATEST("firmware-auto-efi-nvram-network-iscsi");
 
     DO_TEST_CAPS_LATEST("firmware-auto-efi-format-loader-qcow2");
+    DO_TEST_CAPS_LATEST_PARSE_ERROR("firmware-auto-efi-format-loader-qcow2-rom");
     DO_TEST_CAPS_LATEST("firmware-auto-efi-format-loader-qcow2-nvram-path");
     DO_TEST_CAPS_LATEST("firmware-auto-efi-format-nvram-qcow2");
     DO_TEST_CAPS_LATEST("firmware-auto-efi-format-nvram-qcow2-path");
     DO_TEST_CAPS_LATEST("firmware-auto-efi-format-nvram-qcow2-network-nbd");
+    DO_TEST_CAPS_LATEST("firmware-auto-efi-format-nvram-raw");
+    DO_TEST_CAPS_LATEST_ABI_UPDATE("firmware-auto-efi-format-nvram-raw");
+    DO_TEST_CAPS_LATEST("firmware-auto-efi-format-nvram-raw-loader-path");
+    DO_TEST_CAPS_LATEST("firmware-auto-efi-format-nvram-raw-nvramtemplate-path");
     DO_TEST_CAPS_ARCH_LATEST("firmware-auto-efi-format-loader-raw", "aarch64");
     DO_TEST_CAPS_ARCH_LATEST_ABI_UPDATE("firmware-auto-efi-format-loader-raw", "aarch64");
+    DO_TEST_CAPS_LATEST("firmware-auto-efi-format-nvramtemplate-qcow2");
     DO_TEST_CAPS_LATEST("firmware-auto-efi-format-mismatch");
+    DO_TEST_CAPS_LATEST_FAILURE("firmware-auto-efi-format-mismatch-nvramtemplate");
 
     /* This test passes, but the outcome is not the desired one: the
      * generic edk2 build gets selected instead of the AMD SEV one */
@@ -2962,6 +2981,7 @@ mymain(void)
     DO_TEST_CAPS_LATEST("memory-hotplug-nvdimm-readonly");
     DO_TEST_CAPS_ARCH_LATEST("memory-hotplug-nvdimm-ppc64", "ppc64");
     DO_TEST_CAPS_ARCH_LATEST_ABI_UPDATE("memory-hotplug-nvdimm-ppc64", "ppc64");
+    DO_TEST_CAPS_LATEST("memory-hotplug-numa-preferred");
     DO_TEST_CAPS_LATEST("memory-hotplug-virtio-pmem");
     DO_TEST_CAPS_LATEST("memory-hotplug-virtio-mem");
     DO_TEST_CAPS_LATEST("memory-hotplug-multiple");
@@ -3039,6 +3059,7 @@ mymain(void)
     DO_TEST_CAPS_LATEST_ABI_UPDATE("intel-iommu-eim-autoadd-v2");
     DO_TEST_CAPS_ARCH_LATEST("iommu-smmuv3", "aarch64");
     DO_TEST_CAPS_ARCH_LATEST("iommu-smmuv3-pci-bus", "aarch64");
+    DO_TEST_CAPS_ARCH_LATEST("iommu-smmuv3-pci-bus-single", "aarch64");
     DO_TEST_CAPS_LATEST("virtio-iommu-x86_64");
     DO_TEST_CAPS_ARCH_LATEST("virtio-iommu-aarch64", "aarch64");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("virtio-iommu-wrong-machine");

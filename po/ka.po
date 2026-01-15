@@ -8,9 +8,9 @@ msgid ""
 msgstr ""
 "Project-Id-Version: libvirt 8.4.0\n"
 "Report-Msgid-Bugs-To: https://libvirt.org/bugs.html\n"
-"POT-Creation-Date: 2025-11-25 09:28+0000\n"
-"PO-Revision-Date: 2025-05-11 06:24+0000\n"
-"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"POT-Creation-Date: 2026-01-09 09:51+0000\n"
+"PO-Revision-Date: 2025-12-10 09:35+0000\n"
+"Last-Translator: Temuri Doghonadze <temuri.doghonadze@gmail.com>\n"
 "Language-Team: Georgian <https://translate.fedoraproject.org/projects/"
 "libvirt/libvirt/ka/>\n"
 "Language: ka\n"
@@ -18,7 +18,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=n != 1;\n"
-"X-Generator: Weblate 5.11.3\n"
+"X-Generator: Weblate 5.14.3\n"
 
 msgid ""
 "\n"
@@ -70,7 +70,6 @@ msgstr ""
 "------$XDG_RUNTIME_DIR/libvirt/virtlockd.pid\n"
 "\n"
 
-#, fuzzy
 msgid ""
 "\n"
 "  Default paths:\n"
@@ -86,9 +85,9 @@ msgid ""
 "\n"
 msgstr ""
 "\n"
-"  ნაგულისხმევი გზები\n"
+"  ნაგულისხმევი ბილიკები:\n"
 "\n"
-"         კონფიგურაციის ფაილი (-f-ის მიერ უარყოფის შემთხვევის გარდა):\n"
+"         კონფიგურაციის ფაილი (-f-ის მიერ გადაფარვის გარდა):\n"
 "               $XDG_CONFIG_HOME/libvirt/virtlogd.conf\n"
 "\n"
 "         სოკეტები:\n"
@@ -98,7 +97,7 @@ msgstr ""
 "               $XDG_RUNTIME_DIR/libvirt/virtlogd.pid\n"
 "\n"
 
-#, fuzzy, c-format
+#, c-format
 msgid ""
 "\n"
 "  Default paths:\n"
@@ -114,19 +113,19 @@ msgid ""
 "\n"
 msgstr ""
 "\n"
-"  ნაგულისხმევი გზები:\n"
+"  ნაგულისხმევი ბილიკები:\n"
 "\n"
-"    კონფიგურაციის ფაილი (-f-ის მიერ უარყოფის შემთხვევის გარდა):\n"
+"    კონფიგურაციის ფაილი (-f-ის მიერ გადაფარვის გარდა):\n"
 "      %1$s/libvirt/virtlockd.conf\n"
 "\n"
 "    სოკეტები:\n"
 "      %2$s/libvirt/virtlockd-sock\n"
 "\n"
-"    PID ფაილი (-p-ს მიერ უარყოფის შემთხვევის გარდა):\n"
+"    PID ფაილი (-p-ს მიერ გადაფარვის გარდა):\n"
 "      %3$s/virtlockd.pid\n"
 "\n"
 
-#, fuzzy, c-format
+#, c-format
 msgid ""
 "\n"
 "  Default paths:\n"
@@ -142,15 +141,15 @@ msgid ""
 "\n"
 msgstr ""
 "\n"
-"  ნაგულისხმევი გზები:\n"
+"  ნაგულისხმევი ბილიკები:\n"
 "\n"
-"    კონფიგურაციის ფაილი (-f-ის მიერ უარყოფის შემთხვევის გარდა):\n"
+"    კონფიგურაციის ფაილი (-f-ის მიერ გადაფარვის გარდა):\n"
 "      %1$s/libvirt/virtlogd.conf\n"
 "\n"
 "    სოკეტები:\n"
 "      %2$s/libvirt/virtlogd-sock\n"
 "\n"
-"    PID ფაილი (-p-ის მიერ უარყოფის გარდა შემთხვევებში):\n"
+"    PID ფაილი (-p-ის მიერ გადაფარვის შემთხვევებში):\n"
 "      %3$s/virtlogd.pid\n"
 "\n"
 
@@ -168,7 +167,7 @@ msgstr ""
 "\n"
 "  დასკვნა\n"
 
-#, fuzzy, c-format
+#, c-format
 msgid ""
 "\n"
 "%1$s [options]... [<command_string>]\n"
@@ -187,20 +186,20 @@ msgid ""
 "\n"
 msgstr ""
 "\n"
-"%1$s [ოპციები]... [<ბრძანების_სტრინგი>]\n"
-"%2$s [ოპციები]... <ბრძანება> [არგუმენტები...]\n"
+"%1$s [პარამეტრები]... [<ბრძანების_სტრიქონი>]\n"
+"%2$s [პარამეტრები]... <ბრძანება> [არგუმენტები...]\n"
 "\n"
 "  options:\n"
-"    -c | --connect=URI      დემონის ადმინის დაკავშირების URI\n"
-"    -d | --debug=NUM        დებაგინგის დონე [0-4]\n"
-"    -h | --help             დახმარების ეს ფორმა\n"
+"    -c | --connect=URI      დემონის ადმინთან კავშირის URI\n"
+"    -d | --debug=NUM        გამართვის დონე [0-4]\n"
+"    -h | --help             ეს დახმარება\n"
 "    -l | --log=FILE         ბრძანების შედეგის ჩაწერა ფაილში\n"
 "    -q | --quiet            ჩუმი რეჟიმი\n"
 "    -v                      მოკლე ვერსია\n"
 "    -V                      გრძელი ვერსია\n"
 "         --version[=TYPE]   ვერსია, TYPE არის გრძელი ან მოკლე (ნაგულისხმევია "
 "მოკლე)\n"
-"  ბრძანებები (არაინტერაქციული რეჟიმი):\n"
+"  ბრძანებები (არაინტერაქტიული რეჟიმი):\n"
 "\n"
 
 #, c-format
@@ -230,7 +229,7 @@ msgid ""
 "\n"
 msgstr ""
 
-#, fuzzy, c-format
+#, c-format
 msgid ""
 "\n"
 "%1$s mode [options] [extra file] [< def.xml]\n"
@@ -252,23 +251,24 @@ msgid ""
 "\n"
 msgstr ""
 "\n"
-"%1$s რეჟიმი [ოპციები] [დამატებითი ფაილი] [< def.xml]\n"
+"%1$s რეჟიმი [პარამეტრები] [დამატებითი ფაილი] [< def.xml]\n"
 "\n"
 "  Modes:\n"
 "    -a | --add                     პროფილის ჩატვირთვა\n"
-"    -c | --create                  პროფილის თარგიდან შექმნა\n"
-"    -D | --delete                  პროფილის ამოტვირთვა და გენერირებული "
-"წესების წაშლა\n"
-"    -r | --replace                 პროფილის გადატვირთვა\n"
-"    -R | --remove                  პროფილის ამოტვირთვა\n"
+"    -c | --create                  პროფილის შექმნა შაბლონიდან\n"
+"    -D | --delete                  პროფილის გამოტვირთვა და შექმნილი წესების "
+"წაშლა\n"
+"    -r | --replace                 პროფილის თავიდან ჩატვირთვა\n"
+"    -R | --remove                  პროფილის გამოტვირთვა\n"
 "  Options:\n"
 "    -d | --dryrun                  მშრალი გაშვება\n"
 "    -u | --uuid <uuid>             uuid (პროფილის სახელი)\n"
-"    -h | --help                    დახმარების ეს ფორმა\n"
+"    -h | --help                    ეს დახმარება\n"
 "  Extra File:\n"
 "    -f | --add-file <file>         XML-იდან გენერირებული პროფილისთვის ფაილის "
 "დამატება\n"
-"    -F | --append-file <file>      არსებული პროფილისთვის ფაილის მიბმა\n"
+"    -F | --append-file <file>      ფაილის ბოლოში მიწერა არსებული "
+"პროფილისთვის\n"
 "\n"
 
 #, c-format
@@ -305,7 +305,7 @@ msgstr ""
 "\n"
 "დომენი '%1$s'-ის მდგომარეობა შენახულია libvirt-ის მიერ\n"
 
-#, fuzzy, c-format
+#, c-format
 msgid ""
 "\n"
 "Usage:\n"
@@ -319,17 +319,17 @@ msgid ""
 "libvirt login shell\n"
 msgstr ""
 "\n"
-"გამოყენების მეთოდი:\n"
+"გამოყენება:\n"
 "  %1$s [ოპცია]\n"
 "\n"
 "ოპციები:\n"
 "  -h | --help            პროგრამის დახმარების ჩვენება\n"
 "  -V | --version         პროგრამის ვერსიის ჩვენება\n"
-"  -c CMD                 CMD-ს გაშვება შელით\n"
+"  -c CMD                 CMD-ს გაშვება გარსით\n"
 "\n"
-"libvirt-ში შესასვლელი შელი\n"
+"libvirt-ში შესასვლელი გარსი\n"
 
-#, fuzzy, c-format
+#, c-format
 msgid ""
 "\n"
 "Usage:\n"
@@ -351,17 +351,17 @@ msgstr ""
 "  %1$s [ოპციები]\n"
 "\n"
 "ოპციები:\n"
-"  -h | --help            პროგრამის დახმარების გამოჩენა:\n"
+"  -h | --help            პროგრამის დახმარების ჩვენება:\n"
 "  -v | --verbose         დეტალური შეტყობინებები.\n"
-"  -d | --daemon          დემონად გაშვება და PID ფაილის დაწერა.\n"
-"  -t | --timeout <secs>  timeout პერიოდის მერე გასვლა.\n"
+"  -d | --daemon          დემონად გაშვება და PID ფაილის ჩაწერა.\n"
+"  -t | --timeout <secs>  გასვლა მოლოდინის დროის ამოწურვის შედეგ.\n"
 "  -f | --config <file>   კონფიგურაციის ფაილი.\n"
-"  -V | --version         პროგრამის ვერსიის გამოჩენა.\n"
+"  -V | --version         პროგრამის ვერსიის ჩვენება.\n"
 "  -p | --pid-file <file> PID ფაილის სახელის შეცვლა.\n"
 "\n"
-"libvirt-ის ბლოკადაში მოქცევის მართვის დემონი:\n"
+"libvirt-ის დაბლოკვის მართვის დემონი:\n"
 
-#, fuzzy, c-format
+#, c-format
 msgid ""
 "\n"
 "Usage:\n"
@@ -379,19 +379,19 @@ msgid ""
 "libvirt log management daemon:\n"
 msgstr ""
 "\n"
-"გამოყენების მეთოდი:\n"
-"  %1$s [ოპციები]\n"
+"გამოყენება:\n"
+"  %1$s [პარამეტრები]\n"
 "\n"
 "ოპციები:\n"
-"  -h | --help            პროგრამის დახმარების გამოჩენა:\n"
+"  -h | --help            პროგრამის დახმარების გამოტანა:\n"
 "  -v | --verbose         დეტალური შეტყობინებები.\n"
-"  -d | --daemon          დემონად გაშვება და PID ფაილის დაწერა.\n"
-"  -t | --timeout <secs>  timeout პერიოდის შემდეგ გასვლა.\n"
+"  -d | --daemon          დემონად გაშვება და PID ფაილის ჩაწერა.\n"
+"  -t | --timeout <secs>  გასვლა მოლოდინის დროის ამოწურვის შემდეგ.\n"
 "  -f | --config <file>   კონფიგურაციის ფაილი.\n"
 "  -V | --version        ვერსიის ინფორმაციის გამოჩენა.\n"
 "  -p | --pid-file <file> PID ფაილის სახელის შეცვლა.\n"
 "\n"
-"libvirt-ის ჩანაწერების მართვის დემონი:\n"
+"libvirt-ის ჟურნალის მართვის დემონი:\n"
 
 #, c-format
 msgid ""
@@ -407,7 +407,7 @@ msgid ""
 "session URI\n"
 msgstr ""
 
-#, fuzzy, c-format
+#, c-format
 msgid ""
 "\n"
 "syntax: %1$s [OPTIONS] [HVTYPE]\n"
@@ -426,7 +426,7 @@ msgid ""
 "\n"
 msgstr ""
 "\n"
-"სინტაქსი: %1$s [ოპციები] [ჰიპერვიზორის ტიპი]\n"
+"სინტაქსი: %1$s [პარამეტრები] [ჰიპერვიზორის ტიპი]\n"
 "\n"
 " ჰიპერვიზორის ტიპები:\n"
 "\n"
@@ -436,14 +436,14 @@ msgstr ""
 "   - ch\n"
 "\n"
 " ოპციები:\n"
-"   -h, --help     ბრძანებათა ხაზის დახმარების გამოჩენა\n"
-"   -v, --version  ბრძანების ვერსიის გამოჩენა\n"
-"   -q, --quiet    არ აჩვენო პროგრესის ინფორმაცია\n"
+"   -h, --help     ბრძანებათა სტრიქონის დახმარების ჩვენება\n"
+"   -v, --version  ბრძანების ვერსიის ჩვენება\n"
+"   -q, --quiet    მიმდინარეობის ინფორმაცის არჩვენება\n"
 "\n"
 
-#, fuzzy, c-format
+#, c-format
 msgid "    Bandwidth limit: %1$llu bytes/s (%2$-.3lf %3$s/s)"
-msgstr "    გამტარუნარიანობის ზღვარი: %1$llu ბაიტი/წმ (%2$-.3lf %3$s/წმ)"
+msgstr "    გამტარობის ზღვარი: %1$llu ბაიტი/წმ (%2$-.3lf %3$s/წმ)"
 
 msgid "  NAME\n"
 msgstr "  სახელი\n"
@@ -476,7 +476,7 @@ msgstr " საცავი:"
 msgid " [--%1$s <string>]..."
 msgstr ""
 
-#, fuzzy, c-format
+#, c-format
 msgid ""
 " type=%1$s\n"
 " bandwidth=%2$lu\n"
@@ -484,7 +484,7 @@ msgid ""
 " end=%4$llu\n"
 msgstr ""
 " ტიპი=%1$s\n"
-" გამტარუნარიანობა=%2$lu\n"
+" გამტარობა=%2$lu\n"
 " მიმდინარე=%3$llu\n"
 " დასასრული=%4$llu\n"
 
@@ -550,9 +550,9 @@ msgstr "%1$s ვერ აანალიზებს GID-ს '%2$s'"
 msgid "%1$s cannot parse UID '%2$s'"
 msgstr "%1$s ვერ აანალიზებს UID '%2$s'-ს"
 
-#, fuzzy, c-format
+#, c-format
 msgid "%1$s disk is not supported with this QEMU binary"
-msgstr "%1$s QEMU ბინარის მიერ ეს დისკი არაა მხარდაჭერილი"
+msgstr "%1$s დისკი ამ QEMU-ის გამშვები ფაილის მიერ მხარდაჭერილი არაა"
 
 #, c-format
 msgid "%1$s does not support file storage"
@@ -635,41 +635,42 @@ msgstr "%1$s: გაშვებადი ფაილი არაა"
 msgid "%1$s is not supported by this QEMU binary"
 msgstr "%1$s არ არის მხარდაჭერილი ამ QEMU-ის გამშვების მიერ"
 
-#, fuzzy, c-format
+#, c-format
 msgid "%1$s length greater than maximum: %2$d > %3$d"
-msgstr "%1$s სიგრძე მაქსიმუმზე დიდია: %2$d > %3$d"
+msgstr "%1$s-ის სიგრძე მაქსიმუმზე დიდია: %2$d > %3$d"
 
-#, fuzzy, c-format
+#, c-format
 msgid "%1$s model of watchdog can go only on PCI bus"
-msgstr "%1$s watchdog-ის მოდელი მხოლოდ PCI bus-ზე მიდის"
+msgstr "%1$s-ის watchdog-ის მოდელი მხოლოდ PCI სალტეზე მიდის"
 
-#, fuzzy, c-format
+#, c-format
 msgid "%1$s model of watchdog cannot be used with this machine type"
-msgstr "%1$s Watchdog-ის მოდელი ვერ გამოიყენება მანქანის ამ ტიპთან"
+msgstr "%1$s-ის Watchdog-ის მოდელს ამ მანქანის ტიპთან ვერ გამოიყენებთ"
 
-#, fuzzy, c-format
+#, c-format
 msgid "%1$s model of watchdog does not support configuring the address"
-msgstr ""
-"%1$s watchdog-ის მოდელის მიერ მისამართის კონფიგურაცია მხარდაჭერილი არაა"
+msgstr "%1$s-ის watchdog-ის მოდელს მისამართის მორგების მხარდაჭერა არ აქვს"
 
-#, fuzzy, c-format
+#, c-format
 msgid "%1$s model of watchdog is allowed for s390 and s390x only"
-msgstr "%1$s watchdog-ის მოდელი დაიშვება მხოლოდ s390-ისა და s390x-ისთვის"
+msgstr ""
+"%1$s-ის watchdog-ის მოდელი, მხოლოდ, s390-ისა და s390x-ისთვისაა დაშვებული"
 
-#, fuzzy, c-format
+#, c-format
 msgid "%1$s model of watchdog is only part of q35 machine"
-msgstr "%1$s watchdog-ის მოდელი მხოლოდ q35 მანქანის ნაწილია"
+msgstr "%1$s-ის watchdog-ის მოდელი, მხოლოდ, q35 მანქანის ნაწილია"
 
-#, fuzzy, c-format
+#, c-format
 msgid ""
 "%1$s model of watchdog is part of the machine and cannot have any address "
 "set."
 msgstr ""
-"%1$s watchdog-ის მოდელი მანქანის ნაწილია და ვერ ექნება მისამართი მიწერილი."
+"%1$s-ის watchdog-ის მოდელი მანქანის ნაწილია და მისამართი დაყენებული ვერ "
+"ექნება."
 
-#, fuzzy, c-format
+#, c-format
 msgid "%1$s model of watchdog is virtual and cannot go on any bus."
-msgstr "%1$s watchdog-ის მოდელი ვირტუალურია და ვერცერთ bus-ზე ვერ წავა."
+msgstr "%1$s-ის watchdog-ის მოდელი ვირტუალურია და წავა ვერცერთ სალტეზე."
 
 #, c-format
 msgid "%1$s module is not loaded, "
@@ -683,61 +684,61 @@ msgstr "%1$s სახელთა სივრცე ხელმისაწ�
 msgid "%1$s not found in %2$s"
 msgstr "%1$s ვერ ვიპოვე %2$s-ში"
 
-#, fuzzy, c-format
+#, c-format
 msgid "%1$s not implemented on Win32"
-msgstr "%1$s Win32-ზე არაა იმპლემენტირებული"
+msgstr "%1$s Win32-ზე განხორციელებული არაა"
 
-#, fuzzy, c-format
+#, c-format
 msgid "%1$s not matched against 'allowed_users' in %2$s"
 msgstr "%1$s არ ემთხვევა 'allowed_users'-ს %2$s-ში"
 
-#, fuzzy, c-format
+#, c-format
 msgid "%1$s not parseable"
-msgstr "%1$s არაა პარსირებადი"
+msgstr "%1$s დამუშავებადი არაა"
 
-#, fuzzy, c-format
+#, c-format
 msgid "%1$s not supported in this QEMU binary"
-msgstr "%1$s ამ QEMU ბინარიში არაა მხარდაჭერილი"
+msgstr "%1$s QEMU-ის ამ გამშვებ ფაილში მხარდაჭერილი არაა"
 
-#, fuzzy, c-format
+#, c-format
 msgid "%1$s object has invalid dynamic type"
-msgstr "%1$s ობიექტს აქვს არასწორი დინამიური ტიპი"
+msgstr "%1$s ობიექტის დინამიკური ტიპი არასწორია"
 
-#, fuzzy, c-format
+#, c-format
 msgid "%1$s object is missing the required '%2$s' property"
-msgstr "%1$s ობიექტს აკლია მოთხოვნილი '%2$s' თვისება"
+msgstr "%1$s ობიექტს აკლია აუცილებელი '%2$s' თვისება"
 
-#, fuzzy, c-format
+#, c-format
 msgid "%1$s reply data was missing 'model'"
-msgstr "%1$s გამოხმაურების მონაცემს აკლდა 'model'"
+msgstr "%1$s-ის პასუხ მონაცემებს აკლდა 'model'"
 
-#, fuzzy, c-format
+#, c-format
 msgid "%1$s reply data was missing 'name'"
-msgstr "%1$s გამოხმაურების მონაცემს აკლდა 'name'"
+msgstr "%1$s პასუხის მონაცემებს აკლდა 'name'"
 
-#, fuzzy, c-format
+#, c-format
 msgid "%1$s reply data was missing 'props'"
-msgstr "%1$s გამოხმაურების მონაცემებს აკლდა 'props'"
+msgstr "%1$s პასუხის მონაცემებს აკლდა 'props'"
 
-#, fuzzy, c-format
+#, c-format
 msgid ""
 "%1$s rule with port specification requires protocol specification with "
 "protocol to be either one of tcp(6), udp(17), dccp(33), or sctp(132)"
 msgstr ""
-"%1$s წესი პორტის სპეციფიკაციით მოითხოვს, რომ პროტოკოლის სპეციფიკაციისას იყოს "
-"ერთ-ერთი პროტოკოლი tcp(6), udp(17), dccp(33), ან sctp(132)-დან"
+"%1$s წესი პორტის სპეციფიკაციით მოითხოვს, რომ პროტოკოლის სპეციფიკაცია "
+"პროტოკოლით იყოს tcp(6), udp(17), dccp(33), ან sctp(132)"
 
-#, fuzzy, c-format
+#, c-format
 msgid "%1$s uri uuid action\n"
-msgstr "%1$s uri uuid მოქმედება\n"
+msgstr "%1$s uri uuid ქმედება\n"
 
-#, fuzzy, c-format
+#, c-format
 msgid ""
 "%1$s with index %2$d is configured for a NUMA node (%3$d) not present in the "
 "domain's <cpu><numa> array (%4$zu)"
 msgstr ""
-"%1$s ინდექსით %2$d არის კონფიგურირებული NUMA კვანძისთვის (%3$d), რომელიც არ "
-"არსებობს დომენის <cpu><numa> მასივში (%4$zu)"
+"%1$s ინდექსით %2$d მორგებულია NUMA კვანძისთვის (%3$d), რომელიც არ არსებობს "
+"დომენის <cpu><numa> მასივში (%4$zu)"
 
 #, c-format
 msgid ""
@@ -751,50 +752,50 @@ msgstr ""
 msgid "%1$s: %2$s"
 msgstr "%1$s: %2$s"
 
-#, fuzzy, c-format
+#, c-format
 msgid "%1$s: %2$s: unsupported auth %3$s"
-msgstr "%1$s: %2$s: მხარდაუჭერელი ავთენტიფიცირება %3$s"
+msgstr "%1$s: %2$s: მხარდაუჭერელი ავთენტიკაცია %3$s"
 
 #, c-format
 msgid "%1$s: '%2$s' does not exist"
 msgstr "%1$s: '%2$s' არ არსებობს"
 
-#, fuzzy, c-format
+#, c-format
 msgid "%1$s: Address '%2$s' in route definition is not a network address"
-msgstr "%1$s: მისამართი '%2$s' მარშრუტის განსაზღვრაში არ არის ქსელის მისამართი"
+msgstr "%1$s: მისამართი '%2$s' მარშრუტის განსაზღვრაში ქსელის მისამართი არაა"
 
-#, fuzzy, c-format
+#, c-format
 msgid "%1$s: Bad gateway address '%2$s' in route definition"
 msgstr ""
-"%1$s: არასწორი გადამცემი პუნქტის მისამართი '%2$s' მარშრუტის განსაზღვრაში"
+"%1$s: არასწორი ნაგულისხმევი რაუტერის მისამართი '%2$s' მარშრუტის განსაზღვრაში"
 
-#, fuzzy, c-format
+#, c-format
 msgid "%1$s: Bad netmask address '%2$s' in route definition"
 msgstr "%1$s: არასწორი ქსელური ნიღბის მისამართი '%2$s' მარშრუტის განსაზღვრაში"
 
-#, fuzzy, c-format
+#, c-format
 msgid "%1$s: Bad network address '%2$s' in route definition"
 msgstr "%1$s: არასწორი ქსელური მისამართი '%2$s' მარშრუტის განსაზღვრაში"
 
-#, fuzzy, c-format
+#, c-format
 msgid "%1$s: Cannot request read and write flags together"
-msgstr "%1$s: წაკითხვისა და დაწერის დანიშვნა ერთდროულად ვერ მოითხოვება"
+msgstr "%1$s: წაკითხვისა და ჩაწერის ალმების ერთად მოთხოვნა შეუძლებელია"
 
-#, fuzzy, c-format
+#, c-format
 msgid ""
 "%1$s: Error converting address '%2$s' with netmask '%3$s' to network-address "
 "in route definition"
 msgstr ""
-"%1$s: ვერ ხერხდება მისამართ '%2$s'-ის ქსელური ნიღბით '%3$s' გადაქცევა ქსელის-"
-"მისამართად მარშრუტის განსაზღვრაში"
+"%1$s: რაუტის აღწერაში მისამართის '%2$s'-ის ქსელური ნიღბით '%3$s' ქსელის "
+"მისამართში გადაყვანის შეცდომა"
 
-#, fuzzy, c-format
+#, c-format
 msgid ""
 "%1$s: Error converting address '%2$s' with prefix %3$u to network-address in "
 "route definition"
 msgstr ""
-"%1$s: შეცდომა მისამართ '%2$s'-ის პრეფიქსით %3$u ქსელის-მისამართად "
-"გადაქცევისას მარშრუტის განსაზღვრებაში"
+"%1$s: რაუტის აღწერაში მისამართის '%2$s'-ის პრეფიქსით %3$u ქსელის მისამართში "
+"გადაყვანის შეცდომა"
 
 #, c-format
 msgid "%1$s: Failed to open the event monitor FIFO(%2$s) read end!"
@@ -812,62 +813,61 @@ msgstr ""
 msgid "%1$s: Failed to read ch events!: %2$s"
 msgstr ""
 
-#, fuzzy, c-format
+#, c-format
 msgid "%1$s: File '%2$s' is too large\n"
-msgstr "%1$s: ფაილი '%2$s' ზედმეტად დიდია\n"
+msgstr "%1$s: ფაილი '%2$s' მეტისმეტად დიდია\n"
 
-#, fuzzy, c-format
+#, c-format
 msgid ""
 "%1$s: IPv4 family specified for non-IPv4 address '%2$s' in route definition"
 msgstr ""
-"%1$s: IPv4 ოჯახი იყო მითითებული არა-IPv4 მისამართი '%2$s'-თვის მარშრუტის "
-"განსაზღვრაში"
+"%1$s: მარშრუტის აღწერაში მითითებულია IPv4 ოჯახი არა-IPv4 მისამართისთვის "
+"'%2$s'"
 
-#, fuzzy, c-format
+#, c-format
 msgid ""
 "%1$s: IPv4 family specified for non-IPv4 gateway '%2$s' in route definition"
 msgstr ""
-"%1$s: IPv4 ოჯახი იყო მითითებული არა-IPv4 გამშვები პუნქტისთვის '%2$s' "
-"მარშრუტის განსაზღვრებაში"
+"%1$s: მარშრუტის აღწერაში მითითებულია IPv4 ოჯახი არა-IPv4 ნაგულისხმევი "
+"რაუტერისთვის '%2$s'"
 
 #, c-format
 msgid "%1$s: Invalid JSON event doc: %2$s"
 msgstr ""
 
-#, fuzzy, c-format
+#, c-format
 msgid "%1$s: Invalid netmask '%2$s' for address '%3$s' (both must be IPv4)"
 msgstr ""
-"%1$s: არასწორი ქსელური ნიღაბი '%2$s' მისამართი '%3$s'-თვის (ორივე უნდა იყოს "
+"%1$s: არასწორი ქსელური ნიღაბი '%2$s' მისამართისთვის '%3$s' (ორივე უნდა იყოს "
 "IPv4)"
 
-#, fuzzy, c-format
+#, c-format
 msgid ""
 "%1$s: Invalid prefix %2$u specified in route definition, must be 0 - 128"
 msgstr ""
-"%1$s: არასწორი პრეფიქსი %2$u მითითებულია მარშრუტის განსაზღვრებაში, უნდა იყოს "
-"0 - 128"
+"%1$s: მარშრუტის აღწერაში მითითებულია არასწორი პრეფიქსი %2$u. უნდა იყოს 0 - "
+"128"
 
-#, fuzzy, c-format
+#, c-format
 msgid "%1$s: Invalid prefix %2$u specified in route definition, must be 0 - 32"
 msgstr ""
-"%1$s: არასწორი პრეფიქსი %2$u მითითებულია მარშრუტის განსაზღვრებაში, უნდა იყოს "
-"0 - 32"
+"%1$s: მარშრუტის აღწერაში მითითებულია არასწორი პრეფიქსი %2$u . უნდა იყოს 0 - "
+"32"
 
-#, fuzzy, c-format
+#, c-format
 msgid "%1$s: Missing required address attribute in route definition"
-msgstr "%1$s: მოთხოვნილი მისამართის ატრიბუტი აკლია მარშრუტის განსაზღვრებაში"
+msgstr "%1$s: მარშრუტის აღწერას აუცილებელი მისამართის ატრიბუტი აკლია"
 
-#, fuzzy, c-format
+#, c-format
 msgid "%1$s: Missing required gateway attribute in route definition"
 msgstr ""
-"%1$s: მოთხოვნილი გამშვები პუნქტის ატრიბუტი აკლია მარშრუტის განსაზღვრებაში"
+"%1$s: მარშრუტის აღწერას აუცილებელი ნაგულისხმევი რაუტერის ატრიბუტი აკლია"
 
-#, fuzzy, c-format
+#, c-format
 msgid ""
 "%1$s: No family specified for non-IPv4 address '%2$s' in route definition"
 msgstr ""
-"%1$s: არცერთი ოჯახია მითითებული არა-IPv4 მისამართისთვის '%2$s' მარშრუტის "
-"განსაზღვრებაში"
+"%1$s: რაუტის აღწერაში არა-IPv4 მისამართისთვის '%2$s' ოჯახი მითითებული არაა"
 
 #, c-format
 msgid ""
@@ -1368,6 +1368,11 @@ msgid "'logical-id' missing in reply of guest-get-vcpus"
 msgstr ""
 
 msgid "'login-time' missing in reply of guest-get-users"
+msgstr ""
+
+msgid ""
+"'manual' disk snapshot mode requires explicit quiescing "
+"(VIR_DOMAIN_SNAPSHOT_CREATE_QUIESCE is not supported)"
 msgstr ""
 
 msgid "'manual' memory snapshot mode not supported"
@@ -9876,6 +9881,10 @@ msgid "Invalid XML response"
 msgstr ""
 
 #, c-format
+msgid "Invalid absolute path '%1$s'"
+msgstr ""
+
+#, c-format
 msgid "Invalid adapter name '%1$s' for SCSI pool"
 msgstr ""
 
@@ -10152,6 +10161,10 @@ msgid "Invalid floppy device name: %1$s"
 msgstr ""
 
 #, c-format
+msgid "Invalid format '%1$s' for ROM loader type"
+msgstr ""
+
+#, c-format
 msgid "Invalid format for 'bonding/arp_validate' for '%1$s'"
 msgstr ""
 
@@ -10402,10 +10415,6 @@ msgstr ""
 
 #, c-format
 msgid "Invalid rate '%1$s' specified"
-msgstr ""
-
-#, c-format
-msgid "Invalid relative path '%1$s'"
 msgstr ""
 
 msgid "Invalid resctrl monitor"
@@ -12119,7 +12128,13 @@ msgstr ""
 msgid "NVMe namespace can't be zero"
 msgstr ""
 
+msgid "NVRAM is not permitted when loader is read/write"
+msgstr ""
+
 msgid "NVRAM is not permitted when loader is stateless"
+msgstr ""
+
+msgid "NVRAM template is not permitted when loader is read/write"
 msgstr ""
 
 msgid "NVRAM template is not permitted when loader is stateless"
@@ -12895,6 +12910,9 @@ msgstr ""
 msgid "Only 'nmdm' and 'tcp' console types are supported"
 msgstr ""
 
+msgid "Only 'nmdm' console type is supported on arm64"
+msgstr ""
+
 msgid "Only 'random' backend model is supported"
 msgstr ""
 
@@ -13049,6 +13067,9 @@ msgstr ""
 
 msgid ""
 "Only one compression method could be specified with parallel compression"
+msgstr ""
+
+msgid "Only one console is supported on arm64"
 msgstr ""
 
 msgid "Only one hostdev of model vfio-ap is supported"
@@ -13859,6 +13880,9 @@ msgstr ""
 msgid "RNG device is missing alias"
 msgstr ""
 
+msgid "ROM loader type cannot be used as read/write"
+msgstr ""
+
 msgid "ROM tuning is not supported when ROM is disabled"
 msgstr ""
 
@@ -14619,6 +14643,9 @@ msgstr ""
 
 #, c-format
 msgid "Secret not found: %1$s"
+msgstr ""
+
+msgid "Secret value is not valid base64"
 msgstr ""
 
 msgid "Secret value set\n"
@@ -16851,7 +16878,7 @@ msgid "Time elapsed:"
 msgstr ""
 
 msgid "Time remaining:"
-msgstr ""
+msgstr "დარჩენილი დრო:"
 
 #, c-format
 msgid "Time: %1$lld"
@@ -28057,7 +28084,7 @@ msgid "guest-get-vcpus reply was missing return data"
 msgstr ""
 
 msgid "guest:"
-msgstr ""
+msgstr "სტუმარი:"
 
 msgid "guestReset is not supported with this version of QEMU"
 msgstr ""
@@ -33710,6 +33737,10 @@ msgid "port %1$u out of range in USB address bus: %2$u port: %3$s"
 msgstr ""
 
 #, c-format
+msgid "port '%1$d' out of range"
+msgstr ""
+
+#, c-format
 msgid "port '%1$s' out of range"
 msgstr ""
 
@@ -35153,6 +35184,9 @@ msgid ""
 msgstr ""
 
 msgid "setting ACPI S3/S4 not supported"
+msgstr ""
+
+msgid "setting IP addresses for SLIRP networking is not supported"
 msgstr ""
 
 #, c-format

@@ -159,8 +159,6 @@ esxUtil_ParseUri(esxUtil_ParsedUri **parsedUri, virURI *uri)
 }
 
 
-
-
 void
 esxUtil_FreeParsedUri(esxUtil_ParsedUri **parsedUri)
 {
@@ -175,7 +173,6 @@ esxUtil_FreeParsedUri(esxUtil_ParsedUri **parsedUri)
 
     g_free(*parsedUri);
 }
-
 
 
 int
@@ -196,7 +193,6 @@ esxUtil_ParseVirtualMachineIDString(const char *id_string, int *id)
 
     return -1;
 }
-
 
 
 int
@@ -271,7 +267,6 @@ esxUtil_ParseDatastorePath(const char *datastorePath, char **datastoreName,
 }
 
 
-
 int
 esxUtil_ResolveHostname(const char *hostname, char **ipAddress)
 {
@@ -319,7 +314,6 @@ esxUtil_ResolveHostname(const char *hostname, char **ipAddress)
 }
 
 
-
 int
 esxUtil_ReformatUuid(const char *input, char *output)
 {
@@ -336,7 +330,6 @@ esxUtil_ReformatUuid(const char *input, char *output)
 
     return 0;
 }
-
 
 
 char *
@@ -394,7 +387,6 @@ esxUtil_EscapeBase64(const char *string)
 }
 
 
-
 void
 esxUtil_ReplaceSpecialWindowsPathChars(char *string)
 {
@@ -418,7 +410,6 @@ esxUtil_ReplaceSpecialWindowsPathChars(char *string)
 }
 
 
-
 char *
 esxUtil_EscapeDatastoreItem(const char *string)
 {
@@ -438,7 +429,6 @@ esxUtil_EscapeDatastoreItem(const char *string)
 }
 
 
-
 char *
 esxUtil_EscapeForXml(const char *string)
 {
@@ -447,4 +437,22 @@ esxUtil_EscapeForXml(const char *string)
     virBufferEscapeString(&buffer, "%s", string);
 
     return virBufferContentAndReset(&buffer);
+}
+
+
+/* esxUtil_EscapeInventoryObject:
+ * @buf: the buffer to append to
+ * @string: the string argument which will be URI-encoded
+ *
+ * URI-encode given @string TWICE and append the result to the @buf. This is
+ * to be used with inventory objects (like 'dcPath' and 'dsName') to work
+ * around a VMware bug in which once round of URI-encoding is not enough.
+ */
+void
+esxUtil_EscapeInventoryObject(virBuffer *buf, const char *string)
+{
+    g_autoptr(GString) escaped = g_string_new(NULL);
+
+    g_string_append_uri_escaped(escaped, string, NULL, false);
+    virBufferURIEncodeString(buf, escaped->str);
 }
