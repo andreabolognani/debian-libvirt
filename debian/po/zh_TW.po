@@ -1,0 +1,60 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the libvirt package.
+# Yangfl <mmyangfl@gmail.com>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: libvirt\n"
+"Report-Msgid-Bugs-To: libvirt@packages.debian.org\n"
+"POT-Creation-Date: 2016-12-22 14:20+0100\n"
+"PO-Revision-Date: 2026-01-09 05:07+0800\n"
+"Last-Translator: Yangfl <mmyangfl@gmail.com>\n"
+"Language-Team: 漢語 <debian-l10n-chinese@lists.debian.org>\n"
+"Language: zh_TW\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Generator: Poedit 3.8\n"
+
+#. Type: boolean
+#. Description
+#: ../libvirt-daemon-driver-qemu.templates:1001
+msgid "Continue with incorrect libvirt-qemu user/group ID(s)?"
+msgstr "使用錯誤的 libvirt-qemu 使用者/群組 ID 繼續？"
+
+#. Type: boolean
+#. Description
+#: ../libvirt-daemon-driver-qemu.templates:1001
+msgid ""
+" The user/group ID (uid/gid) allocated for libvirt-qemu (64055)\n"
+" seems to be taken by another user/group, thus it is not possible\n"
+" to create the user/group with this numeric ID."
+msgstr "分配給 libvirt-qemu 的使用者/群組 ID（uid/gid）64055 似乎已被其他使用者/群組佔用，因此無法建立此數字 ID 的使用者/群組。"
+
+#. Type: boolean
+#. Description
+#: ../libvirt-daemon-driver-qemu.templates:1001
+msgid ""
+" The migration of guests with disk image files shared over NFS\n"
+" requires a static libvirt-qemu user and group ID (uid and gid)\n"
+" between the source and destination host systems."
+msgstr "使用 NFS 遷移虛擬機器的磁碟映像檔案時，需要來源主機和目標主機系統之間共享相同的靜態 libvirt-qemu 使用者和群組 ID（uid 和 gid）。"
+
+#. Type: boolean
+#. Description
+#: ../libvirt-daemon-driver-qemu.templates:1001
+msgid ""
+" If guest migration over NFS is not required, you can continue\n"
+" the installation."
+msgstr "若無需使用 NFS 遷移虛擬機器，則可繼續安裝。"
+
+#. Type: boolean
+#. Description
+#: ../libvirt-daemon-driver-qemu.templates:1001
+msgid ""
+" In order to resolve this problem, do not continue the installation,\n"
+" release the 64055 uid/gid (which might involve permission changes),\n"
+" then install this package again."
+msgstr "要解決此問題，請勿繼續安裝，釋放 64055 uid/gid（這可能涉及權限變更），然後再次安裝此軟體套件。"
