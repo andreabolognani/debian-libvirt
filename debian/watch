@@ -1,6 +1,6 @@
 Version: 5
 
-Source: https://libvirt.org/sources/
+Source: https://download.libvirt.org/
 Matching-Pattern: ^libvirt-((?:[\d\.]+)(?:-rc\d)?)\.tar\.[gx]z$
 Pgpmode: auto
 Uversionmangle: s/-rc/~rc/
