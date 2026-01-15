@@ -1,4 +1,6 @@
-version=4
-opts="uversionmangle=s/-rc/~rc/,pgpmode=auto" \
-https://libvirt.org/sources/ \
-  ^libvirt-((?:[\d\.]+)(?:-rc\d)?)\.tar\.[gx]z$
+Version: 5
+
+Source: https://libvirt.org/sources/
+Matching-Pattern: ^libvirt-((?:[\d\.]+)(?:-rc\d)?)\.tar\.[gx]z$
+Pgpmode: auto
+Uversionmangle: s/-rc/~rc/
