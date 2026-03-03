@@ -23,10 +23,10 @@ Forwarded: not-needed
  1 file changed, 2 deletions(-)
 
 diff --git a/src/remote/libvirtd.service.in b/src/remote/libvirtd.service.in
-index b0a062e..073555e 100644
+index 7965010..cc50555 100644
 --- a/src/remote/libvirtd.service.in
 +++ b/src/remote/libvirtd.service.in
-@@ -36,8 +36,6 @@ Restart=on-failure
+@@ -40,8 +40,6 @@ Restart=on-failure
  
  [Install]
  WantedBy=multi-user.target
