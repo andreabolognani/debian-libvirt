@@ -1,3 +1,9 @@
+libvirt (12.1.0-1) UNRELEASED; urgency=medium
+
+  * [6b2d3ee] New upstream version 12.1.0
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Tue, 03 Mar 2026 22:06:00 +0100
+
 libvirt (12.0.0-1) unstable; urgency=medium
 
   * [f56956f] New upstream version 12.0.0
