@@ -84,7 +84,7 @@ testFWPrecedence(const void *opaque G_GNUC_UNUSED)
     g_autofree char *fakehome = NULL;
     g_auto(GStrv) fwList = NULL;
     const char *expected[] = {
-        SYSCONFDIR "/qemu/firmware/20-bios.json",
+        SYSCONFDIR "/qemu/firmware/20-libvirt-bios.json",
         PREFIX "/share/qemu/firmware/30-edk2-ovmf-4m-qcow2-x64-sb-enrolled.json",
         PREFIX "/share/qemu/firmware/31-edk2-ovmf-2m-raw-x64-sb-enrolled.json",
         PREFIX "/share/qemu/firmware/40-edk2-ovmf-4m-qcow2-x64-sb.json",
@@ -98,12 +98,16 @@ testFWPrecedence(const void *opaque G_GNUC_UNUSED)
         PREFIX "/share/qemu/firmware/51-edk2-ovmf-2m-raw-x64-nosb.json",
         PREFIX "/share/qemu/firmware/52-edk2-aarch64-verbose-qcow2.json",
         PREFIX "/share/qemu/firmware/53-edk2-aarch64-verbose-raw.json",
-        SYSCONFDIR "/qemu/firmware/59-combined.json",
+        SYSCONFDIR "/qemu/firmware/59-libvirt-combined.json",
         PREFIX "/share/qemu/firmware/60-edk2-ovmf-x64-amdsev.json",
         PREFIX "/share/qemu/firmware/60-edk2-ovmf-x64-inteltdx.json",
-        PREFIX "/share/qemu/firmware/90-combined.json",
-        PREFIX "/share/qemu/firmware/91-bios.json",
-        PREFIX "/share/qemu/firmware/93-invalid.json",
+        PREFIX "/share/qemu/firmware/90-edk2-aarch64-qemuvars-sb-enrolled.json",
+        PREFIX "/share/qemu/firmware/90-edk2-ovmf-qemuvars-x64-sb-enrolled.json",
+        PREFIX "/share/qemu/firmware/90-libvirt-combined.json",
+        PREFIX "/share/qemu/firmware/91-edk2-aarch64-qemuvars-sb.json",
+        PREFIX "/share/qemu/firmware/91-edk2-ovmf-qemuvars-x64-sb.json",
+        PREFIX "/share/qemu/firmware/91-libvirt-bios.json",
+        PREFIX "/share/qemu/firmware/93-libvirt-invalid.json",
         NULL
     };
     const char **e;
@@ -143,6 +147,7 @@ struct supportedData {
     const char *machine;
     virArch arch;
     bool secure;
+    bool varstore;
     const char *fwlist;
     unsigned int *interfaces;
     size_t ninterfaces;
@@ -155,7 +160,10 @@ testSupportedFW(const void *opaque)
     const struct supportedData *data = opaque;
     uint64_t actualInterfaces;
     uint64_t expectedInterfaces = 0;
+    uint64_t actualFeatureSecureBoot;
+    uint64_t actualFeatureEnrolledKeys;
     bool actualSecure;
+    bool actualVarstore;
     virFirmware **expFWs = NULL;
     size_t nexpFWs = 0;
     virFirmware **actFWs = NULL;
@@ -182,7 +190,11 @@ testSupportedFW(const void *opaque)
     }
 
     if (qemuFirmwareGetSupported(data->machine, data->arch, false,
-                                 &actualInterfaces, &actualSecure, &actFWs, &nactFWs) < 0) {
+                                 &actualInterfaces,
+                                 &actualFeatureSecureBoot,
+                                 &actualFeatureEnrolledKeys,
+                                 &actualSecure, &actualVarstore,
+                                 &actFWs, &nactFWs) < 0) {
         fprintf(stderr, "Unable to get list of supported interfaces\n");
         goto cleanup;
     }
@@ -200,6 +212,14 @@ testSupportedFW(const void *opaque)
                 "Mismatch in SMM requirement/support. "
                 "Expected %d got %d\n",
                 data->secure, actualSecure);
+        goto cleanup;
+    }
+
+    if (actualVarstore != data->varstore) {
+        fprintf(stderr,
+                "Mismatch in varstore support. "
+                "Expected %d got %d\n",
+                data->varstore, actualVarstore);
         goto cleanup;
     }
 
@@ -280,9 +300,13 @@ mymain(void)
     DO_PARSE_TEST("usr/share/qemu/firmware/53-edk2-aarch64-verbose-raw.json");
     DO_PARSE_TEST("usr/share/qemu/firmware/60-edk2-ovmf-x64-amdsev.json");
     DO_PARSE_TEST("usr/share/qemu/firmware/60-edk2-ovmf-x64-inteltdx.json");
-    DO_PARSE_TEST("usr/share/qemu/firmware/90-combined.json");
-    DO_PARSE_TEST("usr/share/qemu/firmware/91-bios.json");
-    DO_PARSE_FAILURE_TEST("usr/share/qemu/firmware/93-invalid.json");
+    DO_PARSE_TEST("usr/share/qemu/firmware/90-edk2-ovmf-qemuvars-x64-sb-enrolled.json");
+    DO_PARSE_TEST("usr/share/qemu/firmware/90-edk2-aarch64-qemuvars-sb-enrolled.json");
+    DO_PARSE_TEST("usr/share/qemu/firmware/90-libvirt-combined.json");
+    DO_PARSE_TEST("usr/share/qemu/firmware/91-edk2-ovmf-qemuvars-x64-sb.json");
+    DO_PARSE_TEST("usr/share/qemu/firmware/91-edk2-aarch64-qemuvars-sb.json");
+    DO_PARSE_TEST("usr/share/qemu/firmware/91-libvirt-bios.json");
+    DO_PARSE_FAILURE_TEST("usr/share/qemu/firmware/93-libvirt-invalid.json");
 
     if (virTestRun("QEMU FW precedence test", testFWPrecedence, NULL) < 0)
         ret = -1;
@@ -290,26 +314,26 @@ mymain(void)
     /* The @fwlist contains pairs of ${FW}:${NVRAM}. If there's
      * no NVRAM expected pass literal "NULL" and test fixes that
      * later. */
-#define DO_SUPPORTED_TEST(machine, arch, secure, fwlist, ...) \
+#define DO_SUPPORTED_TEST(machine, arch, secure, varstore, fwlist, ...) \
     do { \
         unsigned int interfaces[] = {__VA_ARGS__}; \
-        struct supportedData data = {machine, arch, secure, fwlist, \
+        struct supportedData data = {machine, arch, secure, varstore, fwlist, \
                                      interfaces, G_N_ELEMENTS(interfaces)}; \
         if (virTestRun("QEMU FW SUPPORTED " machine " " #arch, \
                        testSupportedFW, &data) < 0) \
             ret = -1; \
     } while (0)
 
-    DO_SUPPORTED_TEST("pc-i440fx-3.1", VIR_ARCH_X86_64, false,
+    DO_SUPPORTED_TEST("pc-i440fx-3.1", VIR_ARCH_X86_64, false, false,
                       "/usr/share/seabios/bios-256k.bin:NULL:"
                       "/usr/share/edk2/ovmf/OVMF_CODE_4M.qcow2:/usr/share/edk2/ovmf/OVMF_VARS_4M.qcow2:"
                       "/usr/share/edk2/ovmf/OVMF_CODE.fd:/usr/share/edk2/ovmf/OVMF_VARS.fd",
                       VIR_DOMAIN_OS_DEF_FIRMWARE_BIOS,
                       VIR_DOMAIN_OS_DEF_FIRMWARE_EFI);
-    DO_SUPPORTED_TEST("pc-i440fx-3.1", VIR_ARCH_I686, false,
+    DO_SUPPORTED_TEST("pc-i440fx-3.1", VIR_ARCH_I686, false, false,
                       "/usr/share/seabios/bios-256k.bin:NULL",
                       VIR_DOMAIN_OS_DEF_FIRMWARE_BIOS);
-    DO_SUPPORTED_TEST("pc-q35-3.1", VIR_ARCH_X86_64, true,
+    DO_SUPPORTED_TEST("pc-q35-3.1", VIR_ARCH_X86_64, true, true,
                       "/usr/share/seabios/bios-256k.bin:NULL:"
                       "/usr/share/edk2/ovmf/OVMF_CODE_4M.secboot.qcow2:/usr/share/edk2/ovmf/OVMF_VARS_4M.secboot.qcow2:"
                       "/usr/share/edk2/ovmf/OVMF_CODE.secboot.fd:/usr/share/edk2/ovmf/OVMF_VARS.secboot.fd:"
@@ -319,22 +343,26 @@ mymain(void)
                       "/usr/share/edk2/ovmf/OVMF_CODE.fd:/usr/share/edk2/ovmf/OVMF_VARS.fd:"
                       "/usr/share/edk2/ovmf/OVMF.combined.fd:NULL:"
                       "/usr/share/edk2/ovmf/OVMF.amdsev.fd:NULL:"
-                      "/usr/share/edk2/ovmf/OVMF.inteltdx.secboot.fd:NULL",
+                      "/usr/share/edk2/ovmf/OVMF.inteltdx.secboot.fd:NULL:"
+                      "/usr/share/edk2/ovmf/OVMF.qemuvars.fd:/usr/share/edk2/ovmf/vars.secboot.json:"
+                      "/usr/share/edk2/ovmf/OVMF.qemuvars.fd:/usr/share/edk2/ovmf/vars.blank.json",
                       VIR_DOMAIN_OS_DEF_FIRMWARE_BIOS,
                       VIR_DOMAIN_OS_DEF_FIRMWARE_EFI);
-    DO_SUPPORTED_TEST("pc-q35-3.1", VIR_ARCH_I686, false,
+    DO_SUPPORTED_TEST("pc-q35-3.1", VIR_ARCH_I686, false, false,
                       "/usr/share/seabios/bios-256k.bin:NULL",
                       VIR_DOMAIN_OS_DEF_FIRMWARE_BIOS);
-    DO_SUPPORTED_TEST("microvm", VIR_ARCH_X86_64, false,
+    DO_SUPPORTED_TEST("microvm", VIR_ARCH_X86_64, false, false,
                       "/usr/share/edk2/ovmf/MICROVM.fd:NULL",
                       VIR_DOMAIN_OS_DEF_FIRMWARE_EFI);
-    DO_SUPPORTED_TEST("virt-3.1", VIR_ARCH_AARCH64, false,
+    DO_SUPPORTED_TEST("virt-3.1", VIR_ARCH_AARCH64, false, true,
                       "/usr/share/edk2/aarch64/QEMU_EFI-silent-pflash.qcow2:/usr/share/edk2/aarch64/vars-template-pflash.qcow2:"
                       "/usr/share/edk2/aarch64/QEMU_EFI-silent-pflash.raw:/usr/share/edk2/aarch64/vars-template-pflash.raw:"
                       "/usr/share/edk2/aarch64/QEMU_EFI-pflash.qcow2:/usr/share/edk2/aarch64/vars-template-pflash.qcow2:"
-                      "/usr/share/edk2/aarch64/QEMU_EFI-pflash.raw:/usr/share/edk2/aarch64/vars-template-pflash.raw",
+                      "/usr/share/edk2/aarch64/QEMU_EFI-pflash.raw:/usr/share/edk2/aarch64/vars-template-pflash.raw:"
+                      "/usr/share/edk2/aarch64/QEMU_EFI.qemuvars.fd:/usr/share/edk2/aarch64/vars.secboot.json:"
+                      "/usr/share/edk2/aarch64/QEMU_EFI.qemuvars.fd:/usr/share/edk2/aarch64/vars.blank.json",
                       VIR_DOMAIN_OS_DEF_FIRMWARE_EFI);
-    DO_SUPPORTED_TEST("virt", VIR_ARCH_RISCV64, false,
+    DO_SUPPORTED_TEST("virt", VIR_ARCH_RISCV64, false, false,
                       "/usr/share/edk2/riscv/RISCV_VIRT_CODE.qcow2:/usr/share/edk2/riscv/RISCV_VIRT_VARS.qcow2",
                       VIR_DOMAIN_OS_DEF_FIRMWARE_EFI);
 

@@ -2423,6 +2423,7 @@ qemuSnapshotRevertWriteMetadata(virDomainObj *vm,
 typedef struct _qemuSnapshotRevertMemoryData {
     int fd;
     char *path;
+    virFileWrapperFd *wrapperFd;
     virQEMUSaveData *data;
 } qemuSnapshotRevertMemoryData;
 
@@ -2430,6 +2431,8 @@ static void
 qemuSnapshotClearRevertMemoryData(qemuSnapshotRevertMemoryData *memdata)
 {
     VIR_FORCE_CLOSE(memdata->fd);
+    ignore_value(virFileWrapperFdClose(memdata->wrapperFd));
+    virFileWrapperFdFree(memdata->wrapperFd);
     virQEMUSaveDataFree(memdata->data);
 }
 G_DEFINE_AUTO_CLEANUP_CLEAR_FUNC(qemuSnapshotRevertMemoryData, qemuSnapshotClearRevertMemoryData);
@@ -2506,8 +2509,13 @@ qemuSnapshotRevertExternalPrepare(virDomainObj *vm,
             return -1;
 
         memdata->fd = qemuSaveImageOpen(driver, memdata->path,
-                                        false, false, NULL, false);
+                                        false, &memdata->wrapperFd, false);
         if (memdata->fd < 0)
+            return -1;
+
+        /* If 'wrapperFd' is used the FD can't be seeked so we need to make
+         * it point to the actual data, thus seek across the header */
+        if (qemuSaveImageFDSkipHeader(memdata->fd) < 0)
             return -1;
 
         if (!virDomainDefCheckABIStability(savedef, domdef, driver->xmlopt))
@@ -2705,7 +2713,7 @@ qemuSnapshotRevertActive(virDomainObj *vm,
     bool defined = false;
     int rc;
     g_autoptr(virDomainSnapshotDef) tmpsnapdef = NULL;
-    g_auto(qemuSnapshotRevertMemoryData) memdata = { -1, NULL, NULL };
+    g_auto(qemuSnapshotRevertMemoryData) memdata = { .fd = -1 };
     bool started = false;
 
     start_flags |= VIR_QEMU_PROCESS_START_PAUSED;
@@ -3145,9 +3153,12 @@ qemuSnapshotDiskHasBackingDisk(void *payload,
                               NULL, &uid, &gid);
 
         if (!disk->src->backingStore)
-            ignore_value(virStorageSourceGetMetadata(disk->src, uid, gid, 1, false));
+            ignore_value(virStorageSourceGetMetadata(disk->src, uid, gid,
+                                                     QEMU_DOMAIN_STORAGE_SOURCE_CHAIN_MAX_DEPTH,
+                                                     false));
 
-        if (virStorageSourceIsSameLocation(disk->src->backingStore, iterdata->diskSrc)) {
+        if (disk->src->backingStore &&
+            virStorageSourceIsSameLocation(disk->src->backingStore, iterdata->diskSrc)) {
             struct _qemuSnapshotDisksWithBackingStoreData *data =
                 g_new0(struct _qemuSnapshotDisksWithBackingStoreData, 1);
 
@@ -3707,26 +3718,48 @@ qemuSnapshotUpdateBackingStore(qemuSnapshotDeleteExternalData *data)
 
     for (cur = data->disksWithBacking; cur; cur = g_slist_next(cur)) {
         struct _qemuSnapshotDisksWithBackingStoreData *backingData = cur->data;
-        g_autoptr(virCommand) cmd = NULL;
+        /* Try to run the command first as the appropriate user based on the
+         * domain definition and config. If error is returned retry as current
+         * (possibly privileged) user for cases where seclabels were reset
+         * to the default */
+        g_autoptr(virCommand) cmd_user_qemu = NULL;
+        g_autoptr(virCommand) cmd_user_curr = NULL;
 
-        /* creates cmd line args: qemu-img create -f qcow2 -o */
-        if (!(cmd = virCommandNewArgList("qemu-img",
-                                         "rebase",
-                                         "-u",
-                                         "-F",
-                                         virStorageFileFormatTypeToString(data->parentDiskSrc->format),
-                                         "-f",
-                                         virStorageFileFormatTypeToString(backingData->diskSrc->format),
-                                         "-b",
-                                         data->parentDiskSrc->path,
-                                         backingData->diskSrc->path,
-                                         NULL)))
+        if (!(cmd_user_qemu = virCommandNewArgList("qemu-img",
+                                                   "rebase",
+                                                   "-u",
+                                                   "-F",
+                                                   virStorageFileFormatTypeToString(data->parentDiskSrc->format),
+                                                   "-f",
+                                                   virStorageFileFormatTypeToString(backingData->diskSrc->format),
+                                                   "-b",
+                                                   data->parentDiskSrc->path,
+                                                   backingData->diskSrc->path,
+                                                   NULL)))
             continue;
 
-        virCommandSetUID(cmd, backingData->uid);
-        virCommandSetGID(cmd, backingData->gid);
+        virCommandSetUID(cmd_user_qemu, backingData->uid);
+        virCommandSetGID(cmd_user_qemu, backingData->gid);
 
-        ignore_value(virCommandRun(cmd, NULL));
+        /* done on success */
+        if (virCommandRun(cmd_user_qemu, NULL) == 0)
+            continue;
+
+        /* retry as current user */
+        if (!(cmd_user_curr = virCommandNewArgList("qemu-img",
+                                                   "rebase",
+                                                   "-u",
+                                                   "-F",
+                                                   virStorageFileFormatTypeToString(data->parentDiskSrc->format),
+                                                   "-f",
+                                                   virStorageFileFormatTypeToString(backingData->diskSrc->format),
+                                                   "-b",
+                                                   data->parentDiskSrc->path,
+                                                   backingData->diskSrc->path,
+                                                   NULL)))
+            continue;
+
+        ignore_value(virCommandRun(cmd_user_curr, NULL));
     }
 }
 

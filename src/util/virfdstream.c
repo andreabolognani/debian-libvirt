@@ -905,7 +905,11 @@ static int virFDStreamRead(virStreamPtr st, char *bytes, size_t nbytes)
 
     if (fdst->thread) {
         virFDStreamMsg *msg = NULL;
+        size_t got = 0;
+        size_t bsz = 0;
+        bool isEOF;
 
+    more:
         while (!(msg = fdst->msg)) {
             if (fdst->threadQuit || fdst->threadErr) {
                 if (nbytes) {
@@ -917,7 +921,7 @@ static int virFDStreamRead(virStreamPtr st, char *bytes, size_t nbytes)
                         virReportSystemError(EBADF, "%s",
                                              _("stream is not open"));
                 } else {
-                    ret = 0;
+                    ret = got;
                 }
                 goto cleanup;
             } else {
@@ -931,7 +935,7 @@ static int virFDStreamRead(virStreamPtr st, char *bytes, size_t nbytes)
          * return 0 immediately. */
         if (msg->type == VIR_FDSTREAM_MSG_TYPE_HOLE &&
             msg->stream.hole.len == 0) {
-            ret = 0;
+            ret = got;
             goto cleanup;
         }
 
@@ -942,21 +946,39 @@ static int virFDStreamRead(virStreamPtr st, char *bytes, size_t nbytes)
             goto cleanup;
         }
 
-        if (nbytes > msg->stream.data.len - msg->stream.data.offset)
-            nbytes = msg->stream.data.len - msg->stream.data.offset;
+        isEOF = msg->stream.data.len == 0;
+        bsz = msg->stream.data.len - msg->stream.data.offset;
+        if (nbytes < bsz)
+            bsz = nbytes;
 
-        memcpy(bytes,
+        memcpy(bytes + got,
                msg->stream.data.buf + msg->stream.data.offset,
-               nbytes);
+               bsz);
+        got += bsz;
+        nbytes -= bsz;
 
-        msg->stream.data.offset += nbytes;
-        if (msg->stream.data.offset == msg->stream.data.len) {
+        msg->stream.data.offset += bsz;
+        /* If the stream msg is fully consumed, then remove
+         * it from the queue.
+         *
+         * Exception: if this is the second time around the
+         * loop, and the msg indicated an EOF, we must leave
+         * it on the queue so a subsequent read sees the
+         * ret == 0 EOF condition
+         */
+        if (msg->stream.data.offset == msg->stream.data.len &&
+            (!isEOF || got == 0)) {
             virFDStreamMsgQueuePop(fdst, fdst->fd, "pipe");
             virFDStreamMsgFree(msg);
         }
 
-        ret = nbytes;
-
+        /* If we didn't just see EOF and can read more into
+         * 'bytes' then retry the loop
+         */
+        if (nbytes > 0 && !isEOF) {
+            goto more;
+        }
+        ret = got;
     } else {
      retry:
         ret = read(fdst->fd, bytes, nbytes);

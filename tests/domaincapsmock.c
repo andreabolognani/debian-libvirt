@@ -16,11 +16,14 @@
 
 #include <config.h>
 
+#include "virfile.h"
 #include "virhostcpu.h"
 #include "virhostmem.h"
+#include "viriommufd.h"
+#include "virmock.h"
+#include "virutil.h"
 
 #if WITH_QEMU
-# include "virmock.h"
 # include "qemu/qemu_capabilities.h"
 #endif
 
@@ -77,4 +80,30 @@ virHostMemGetTHPSize(unsigned long long *size)
     /* Pretend Transparent Huge Page size is 2MiB. */
     *size = 2048;
     return 0;
+}
+
+static bool (*real_virFileExists)(const char *path);
+
+bool
+virFileExists(const char *path)
+{
+    VIR_MOCK_REAL_INIT(virFileExists);
+
+    if (STREQ(path, VIR_IOMMU_DEV_PATH))
+        return true;
+
+    if (STREQ(path, "/dev/vfio/vfio"))
+        return true;
+
+    /* required by qemuhotplugtest */
+    if (STREQ(path, "/dev/mapper/virt"))
+        return true;
+
+    return real_virFileExists(path);
+}
+
+bool
+virHostHasIOMMU(void)
+{
+    return true;
 }

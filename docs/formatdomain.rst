@@ -103,12 +103,16 @@ Operating system booting
 There are a number of different ways to boot virtual machines each with their
 own pros and cons.
 
+Guest firmware
+~~~~~~~~~~~~~~
 
-BIOS bootloader
-~~~~~~~~~~~~~~~
+.. container::
+   :name: bios-bootloader
 
-Booting via the BIOS is available for hypervisors supporting full
-virtualization. In this case the BIOS has a boot order priority (floppy,
+   .. this container only exists to keep old links working
+
+Booting via a guest firmware is available for hypervisors supporting full
+virtualization. In this case the firmware has a boot order priority (floppy,
 harddisk, cdrom, network) determining where to obtain/find the boot image.
 
 ::
@@ -192,9 +196,9 @@ harddisk, cdrom, network) determining where to obtain/find the boot image.
 
 ``firmware``
    The ``firmware`` attribute allows management applications to automatically
-   fill ``<loader/>`` and ``<nvram/>`` elements and possibly enable some
-   features required by selected firmware. Accepted values are ``bios`` and
-   ``efi``.
+   fill ``<loader/>`` and ``<nvram/>`` or ``<varstore/>`` elements and possibly
+   enable some features required by selected firmware. Accepted values are
+   ``bios`` and ``efi``.
    The selection process scans for files describing installed firmware images in
    specified location and uses the most specific one which fulfills domain
    requirements. The locations in order of preference (from generic to most
@@ -307,6 +311,23 @@ harddisk, cdrom, network) determining where to obtain/find the boot image.
    It is not valid to provide this element if the loader is marked as
    stateless.
 
+``varstore``
+   This works much the same way as the ``<nvram/>`` element described above,
+   except that variable storage is handled by the ``uefi-vars`` QEMU device
+   instead of being backed by a pflash device. :since:`Since 12.1.0 (QEMU only)`
+
+   The ``path`` attribute contains the path of the domain-specific file where
+   variables are stored, while the ``template`` attribute points to a template
+   that the domain-specific file can be (re)generated from. Assuming that the
+   necessary JSON firmware descriptor files are present, both attributes will
+   be filled in automatically by libvirt.
+
+   Using ``<varstore/>`` instead of ``<nvram/>`` is particularly useful on
+   non-x86 architectures such as aarch64, where it represents the only way to
+   get Secure Boot working. It can be used on x86 too, and doing so will make
+   it possible to keep UEFI authenticated variables safe from tampering without
+   requiring the use of SMM emulation.
+
 ``boot``
    The ``dev`` attribute takes one of the values "fd", "hd", "cdrom" or
    "network" and is used to specify the next boot device to consider. The
@@ -411,10 +432,10 @@ and full virtualized guests.
 
 ``type``
    This element has the same semantics as described earlier in the
-   `BIOS bootloader`_ section.
+   `guest firmware`_ section.
 ``loader``
    This element has the same semantics as described earlier in the
-   `BIOS bootloader`_ section.
+   `guest firmware`_ section.
 ``kernel``
    The contents of this element specify the fully-qualified path to the kernel
    image in the host OS.
@@ -2197,6 +2218,9 @@ are:
       enlightenments are supported by hypervisor and expands them on domain
       startup into the live XML. In a sense, this is similar to ``host-model``
       CPU mode (See `CPU model and topology`_). :since:`Since 11.9.0`
+      It is also possible to set features, like in ``custom`` mode. These are
+      then left untouched and no expansion is done for them. :since:`Since
+      12.1.0`
 
    The ``mode`` attribute can be omitted and will default to ``custom``.
 
@@ -2378,6 +2402,10 @@ are:
    one IMSIC device present per core), or ``none`` (no support for AIA).
    If the attribute is not defined, the hypervisor default
    will be used. :since:`Since 11.1.0` (QEMU/KVM and RISC-V guests only)
+``virtualization``
+   Enable emulating a guest CPU which implements the Arm Virtualization Extensions.
+   If the attribute is not defined, the hypervisor default will be used.
+   :since:`Since 12.1.0` (QEMU/KVM and ARM virt guests only)
 
 Time keeping
 ------------
@@ -3182,6 +3210,9 @@ paravirtualized driver is specified via the ``disk`` element.
       the socket, and finally ``mode`` which accepts one value ``client``
       specifying the role of hypervisor. It's recommended to allow libvirt
       manage the persistent reservations.
+      :since:`Since 12.1.0` the ``migration`` (values ``yes``, ``no``) controls
+      whether the hypervisor should attempt to migrate persistent reservations
+      during migration.
    ``initiator``
       :since:`Since 4.7.0`, the ``initiator`` element is supported for
       a disk ``type`` "network" that is using a ``source`` element with the
@@ -3615,22 +3646,69 @@ paravirtualized driver is specified via the ``disk`` element.
           </iothreads>
         </driver>
 
-   - The optional ``statistics`` sub-element allows configuring statistics
-     collection in configurable intervals for the given disk. Intervals are
-     configured by ``<statistic>`` sub-elements with ``interval`` attribute
-     configuring the collection window duration in seconds. The statistics
-     are available via the bulk statistics API.
+   -  The optional ``statistics`` sub-element allows configuring various optional
+      statistics collection.
 
-     Example::
+      Statistic values returned under
+      `VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_PREFIX <html/libvirt-libvirt-domain.html#VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_PREFIX>`__
+      typed parameter prefix returned by the
+      `virConnectGetAllDomainStats <html/libvirt-libvirt-domain.html#virConnectGetAllDomainStats>`__
+      API are collected based on one or more configurable intervals. An interval
+      of collection is configured by ``<statistic>`` sub-elements with
+      ``interval`` attribute configuring the collection window duration in
+      seconds.
 
-       <driver name='qemu'>
-         <statistics>
-           <statistic interval='1'/>
-           <statistic interval='10'/>
-         </statistics>
-       </driver>
+      Example::
 
-    :since:`Since 11.9.0 (QEMU 10.2, virtio, ide, scsi disks only)`.
+        <driver name='qemu'>
+          <statistics>
+            <statistic interval='1'/>
+            <statistic interval='10'/>
+          </statistics>
+        </driver>
+
+      :since:`Since 11.9.0 (QEMU 10.2, virtio, ide, scsi disks only)`.
+
+      Block operation latency histogram collection can be configured using
+      ``<latency-histogram>`` sub-element. The histogram is collected for
+      the whole runtime of the VM, but can be re-started or reconfigured using
+      the `virDomainUpdateDeviceFlags <html/libvirt-libvirt-domain.html#virDomainUpdateDeviceFlags>`__
+      API. Using the same config re-starts histogram collection.
+
+      The optional ``type`` attribute configures specific operation to collect
+      the histogram for. Supported types are ``read``, ``write``, ``zone``, and
+      ``flush``. If the ``type`` attribute is omitted the histogram collection
+      bins bins apply to all of the aforementioned types, which can be overriden
+      with specific config.
+
+      The ``<latency-histogram>`` has multiple mandatory ``<bin>`` sub-elements
+      with mandatory ``start`` attribute configuring the starting boundary of
+      the histogram bin configured in nanosecods of the operation duration and
+      the intervals must be properly ordered and non-duplicate.
+
+      Example::
+
+        <driver name='qemu'>
+          <statistics>
+
+            <latency-histogram>
+              <bin start='0'/>
+              <bin start='1000'/>
+              <bin start='100000'/>
+            </latency-histogram>
+
+         [or for specific operation types]
+
+            <latency-histogram type='read'>
+              <bin start='0'/>
+              <bin start='1000'/>
+              <bin start='100000'/>
+            </latency-histogram>
+
+          </statistics>
+        </driver>
+
+      :since:`Since 12.1.0`.
 
    -  The optional ``queues`` attribute specifies the number of virt queues for
       virtio-blk ( :since:`Since 3.9.0` ) or vhost-user-blk
@@ -3695,7 +3773,7 @@ paravirtualized driver is specified via the ``disk`` element.
    attribute is an 8 character string which can be queried by guests on S390 via
    sclp or diag 308. Linux guests on S390 can use ``loadparm`` to select a boot
    entry. :since:`Since 3.5.0` The per-device ``boot`` elements cannot be used
-   together with general boot elements in `BIOS bootloader`_
+   together with general boot elements in `guest firmware`_
    section. :since:`Since 0.8.8`
 ``encryption``
    since:`Since 3.9.0` the ``encryption`` element is preferred
@@ -4860,7 +4938,7 @@ or:
    Specifies that the device is bootable. The ``order`` attribute determines the
    order in which devices will be tried during boot sequence. The per-device
    ``boot`` elements cannot be used together with general boot elements in
-   `BIOS bootloader`_ section. :since:`Since 0.8.8` for PCI
+   `guest firmware`_ section. :since:`Since 0.8.8` for PCI
    devices, :since:`Since 1.0.1` for USB devices.
 ``rom``
    The ``rom`` element is used to change how a PCI device's ROM is presented to
@@ -4881,19 +4959,22 @@ or:
    tweak the loading process further using the ``bar`` or ``file`` attributes
    will be rejected. :since:`Since 4.3.0 (QEMU and KVM only)`.
 ``address``
-   The ``address`` element for USB devices has a ``bus`` and ``device``
-   attribute to specify the USB bus and device number the device appears at on
-   the host. The values of these attributes can be given in decimal, hexadecimal
-   (starting with 0x) or octal (starting with 0) form. For PCI devices the
-   element carries 4 attributes allowing to designate the device as can be found
-   with the ``lspci`` or with ``virsh nodedev-list``. For SCSI devices a 'drive'
-   address type must be used. For mediated devices, which are software-only
-   devices defining an allocation of resources on the physical parent device,
-   the address type used must conform to the ``model`` attribute of element
-   ``hostdev``, e.g. any address type other than PCI for ``vfio-pci`` device API
-   or any address type other than CCW for ``vfio-ccw`` device API will result in
-   an error. See the `Device Addresses`_ section for more details on the address
-   element.
+   The ``address`` element for USB devices has a ``bus`` attribute to specify
+   the USB bus. In addition, either a ``device`` attribute or a ``port``
+   attribute is required to identify the device on the host. While the device
+   number is assigned upon connection of the device, the port number is a
+   stable identifier of the physical host port. Bus and device number can be
+   given in decimal, hexadecimal (starting with 0x) or octal (starting with 0)
+   form. The port number is a dotted path (examples: ``2``, ``1.2.5``). For PCI
+   devices the element carries 4 attributes allowing to designate the device as
+   can be found with the ``lspci`` or with ``virsh nodedev-list``. For SCSI
+   devices a 'drive' address type must be used. For mediated devices, which are
+   software-only devices defining an allocation of resources on the physical
+   parent device, the address type used must conform to the ``model`` attribute
+   of element ``hostdev``, e.g. any address type other than PCI for ``vfio-pci``
+   device API or any address type other than CCW for ``vfio-ccw`` device API
+   will result in an error. See the `Device Addresses`_ section for more details
+   on the address element.
 ``driver``
    PCI hostdev devices can have an optional ``driver`` subelement that
    specifies which host driver to bind to the device when preparing it
@@ -4919,6 +5000,12 @@ or:
    by setting driver name, or if the device-specific driver that is
    found is "problematic" in some way, the generic vfio-pci driver
    similarly be forced.
+
+   :since:`Since 12.1.0 (QEMU and KVM only)`, the ``iommufd`` element
+   can be used to enable IOMMUFD backend for VFIO device. This
+   provides an interface to propagate DMA mappings to kernel for
+   assigned devices. Libvirt will open the /dev/iommu and VFIO device
+   cdev and pass associated file descriptors to QEMU.
 
    (Note: :since:`Since 1.0.5`, the ``name`` attribute has been
    described to be used to select the type of PCI device assignment
@@ -5078,7 +5165,7 @@ USB device redirection through a character device is supported
    Specifies that the device is bootable. The ``order`` attribute determines the
    order in which devices will be tried during boot sequence. The per-device
    ``boot`` elements cannot be used together with general boot elements in
-   `BIOS bootloader`_ section. ( :since:`Since 1.0.1` )
+   `guest firmware`_ section. ( :since:`Since 1.0.1` )
 ``redirfilter``
    The\ ``redirfilter``\ element is used for creating the filter rule to filter
    out certain devices from redirection. It uses sub-element ``<usbdev>`` to
@@ -6334,7 +6421,7 @@ Specifying boot order
 For hypervisors which support this, you can set a specific NIC to be used for
 network boot. The ``order`` attribute determines the order in which devices will
 be tried during boot sequence. The per-device ``boot`` elements cannot be used
-together with general boot elements in `BIOS bootloader`_
+together with general boot elements in `guest firmware`_
 section. :since:`Since 0.8.8`
 
 Interface ROM BIOS configuration
@@ -9194,7 +9281,7 @@ IOMMU devices
 
 The ``iommu`` element can be used to add an IOMMU device. :since:`Since 2.1.0`
 
-Example:
+Examples:
 
 ::
 
@@ -9202,6 +9289,17 @@ Example:
    <devices>
      <iommu model='intel'>
        <driver intremap='on'/>
+     </iommu>
+   </devices>
+   ...
+
+
+   ...
+   <devices>
+     <iommu model='virtio'>
+       <driver aw_bits='48'>
+         <granule size='64' unit='KiB'/>
+       </driver>
      </iommu>
    </devices>
    ...
@@ -9243,7 +9341,7 @@ Example:
    ``aw_bits``
       The ``aw_bits`` attribute can be used to set the address width to allow
       mapping larger iova addresses in the guest. :since:`Since 6.5.0` (QEMU/KVM
-      and ``intel`` model only)
+      and ``intel`` or ``virtio`` models only)
 
    ``dma_translation``
       The ``dma_translation`` attribute with possible values ``on`` and ``off`` can
@@ -9263,6 +9361,31 @@ Example:
    ``pciBus``
       The ``pciBus`` attribute notes the index of the controller that an
       IOMMU device is attached to. (QEMU/KVM and ``smmuv3`` model only)
+
+In case of ``virtio`` IOMMU device, the ``driver`` element can optionally
+contain ``granule`` subelement that allows to choose which granule will be
+used by default. It is useful when running guests with different page size
+than the host. :since:`Since 12.1.0` (QEMU/KVM and ``virtio`` model only).
+There are two possible options:
+
+::
+
+  <iommu model='virtio'>
+    <driver>
+      <granule mode='host'/>
+    </driver>
+  </iommu>
+
+  <iommu model='virtio'>
+    <driver>
+      <granule size='64' unit='KiB'/>
+    </driver>
+  </iommu>
+
+The ``mode='host'`` case matches the host page size, the other sets desired
+granule size. Please note that hypervisor might support only some selected
+values. For instance, QEMU supports only 4KiB, 8KiB, 16KiB and 64KiB large
+granules.
 
 The ``virtio`` IOMMU devices can further have ``address`` element as described
 in `Device addresses`_ (address has to by type of ``pci``).

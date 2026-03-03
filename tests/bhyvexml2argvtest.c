@@ -151,6 +151,7 @@ mymain(void)
     g_autofree char *fakefirmwaredir = g_strdup("fakefirmwaredir");
     g_autofree char *fakenvramdir = g_strdup("fakenvramdir");
     g_autofree char *fakefirmwareemptydir = g_strdup("fakefirmwareemptydir");
+    g_autofree char *fakeubootpath = g_strdup("fakeubootpath/u-boot.bin");
 
     if ((driver.caps = virBhyveCapsBuild()) == NULL)
         return EXIT_FAILURE;
@@ -164,8 +165,12 @@ mymain(void)
     if (!(driver.config = virBhyveDriverConfigNew()))
         return EXIT_FAILURE;
 
-    driver.config->firmwareDir = fakefirmwaredir;
-    driver.config->nvramDir = fakenvramdir;
+    VIR_FREE(driver.config->firmwareDir);
+    VIR_FREE(driver.config->nvramDir);
+    VIR_FREE(driver.config->ubootPath);
+    driver.config->firmwareDir = g_steal_pointer(&fakefirmwaredir);
+    driver.config->nvramDir = g_steal_pointer(&fakenvramdir);
+    driver.config->ubootPath = g_steal_pointer(&fakeubootpath);
     driver.config->bhyveloadTimeout = 0;
     driver.config->bhyveloadTimeoutKill = 0;
 
@@ -202,6 +207,8 @@ mymain(void)
     DO_TEST("base");
     DO_TEST("wired");
     DO_TEST("acpiapic");
+    driver.bhyvecaps &= ~BHYVE_CAP_ACPI;
+    DO_TEST_FAILURE("acpiapic");
     DO_TEST("disk-cdrom");
     DO_TEST("disk-virtio");
     DO_TEST("macaddr");
@@ -247,7 +254,8 @@ mymain(void)
     DO_TEST("isa-controller");
     DO_TEST_FAILURE("isa-multiple-controllers");
     DO_TEST("firmware-efi");
-    driver.config->firmwareDir = fakefirmwareemptydir;
+    fakefirmwaredir = g_steal_pointer(&driver.config->firmwareDir);
+    driver.config->firmwareDir = g_steal_pointer(&fakefirmwareemptydir);
     DO_TEST_PREPARE_ERROR("firmware-efi");
     DO_TEST("fs-9p");
     DO_TEST("fs-9p-readonly");
@@ -275,6 +283,7 @@ mymain(void)
     DO_TEST("slirp-mac-addr");
     DO_TEST_FAILURE("slirp-ip");
     DO_TEST("virtio-scsi");
+    DO_TEST("vcpupin");
 
     /* Address allocation tests */
     DO_TEST("addr-single-sata-disk");
@@ -331,8 +340,11 @@ mymain(void)
     DO_TEST("bhyveload-timeout");
 
     /* arm64 tests */
+    virObjectUnref(driver.caps);
     virTestSetHostArch(VIR_ARCH_AARCH64);
     driver.caps = virBhyveCapsBuild();
+    /* bhyve does not support UTC clock on ARM */
+    driver.bhyvecaps ^= BHYVE_CAP_RTC_UTC;
 
     DO_TEST("base");
     DO_TEST("console");

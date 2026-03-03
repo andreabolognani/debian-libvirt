@@ -45,6 +45,7 @@
 #include "qemu_firmware.h"
 #include "virutil.h"
 #include "virtpm.h"
+#include "viriommufd.h"
 
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -755,6 +756,12 @@ VIR_ENUM_IMPL(virQEMUCaps,
               "disk-timed-stats", /* QEMU_CAPS_DISK_TIMED_STATS */
               "query-accelerators", /* QEMU_CAPS_QUERY_ACCELERATORS */
               "mshv", /* QEMU_CAPS_MSHV */
+              "virtio-iommu.aw-bits", /* QEMU_CAPS_VIRTIO_IOMMU_AW_BITS */
+
+              /* 490 */
+              "scsi-block.migrate-pr", /* QEMU_CAPS_DEVICE_SCSI_BLOCK_MIGRATE_PR */
+              "iommufd", /* QEMU_CAPS_OBJECT_IOMMUFD */
+              "uefi-vars", /* QEMU_CAPS_DEVICE_UEFI_VARS */
     );
 
 
@@ -1462,6 +1469,9 @@ struct virQEMUCapsStringFlags virQEMUCapsObjectTypes[] = {
     { "tpm-emulator", QEMU_CAPS_DEVICE_TPM_EMULATOR },
     { "tpm-passthrough", QEMU_CAPS_DEVICE_TPM_PASSTHROUGH },
     { "acpi-generic-initiator", QEMU_CAPS_ACPI_GENERIC_INITIATOR },
+    { "iommufd", QEMU_CAPS_OBJECT_IOMMUFD },
+    { "uefi-vars-x64", QEMU_CAPS_DEVICE_UEFI_VARS },
+    { "uefi-vars-sysbus", QEMU_CAPS_DEVICE_UEFI_VARS },
 };
 
 
@@ -1535,6 +1545,13 @@ static struct virQEMUCapsDevicePropsFlags virQEMUCapsDevicePropsSCSIDisk[] = {
     { "stats-intervals", QEMU_CAPS_DISK_TIMED_STATS, NULL },
 };
 
+static struct virQEMUCapsDevicePropsFlags virQEMUCapsDevicePropsSCSIBlock[] = {
+    { "migrate-pr", QEMU_CAPS_DEVICE_SCSI_BLOCK_MIGRATE_PR, NULL },
+};
+
+static struct virQEMUCapsDevicePropsFlags virQEMUCapsDevicePropsSCSIGeneric[] = {
+};
+
 static struct virQEMUCapsDevicePropsFlags virQEMUCapsDevicePropsIDEDrive[] = {
     { "stats-intervals", QEMU_CAPS_DISK_TIMED_STATS, NULL },
 };
@@ -1606,6 +1623,7 @@ static struct virQEMUCapsDevicePropsFlags virQEMUCapsDevicePropsVirtioMemPCI[] =
 
 static struct virQEMUCapsDevicePropsFlags virQEMUCapsDevicePropsVirtioIOMMU[] = {
     { "boot-bypass", QEMU_CAPS_VIRTIO_IOMMU_BOOT_BYPASS, NULL },
+    { "aw-bits", QEMU_CAPS_VIRTIO_IOMMU_AW_BITS, NULL },
 };
 
 static struct virQEMUCapsDevicePropsFlags virQEMUCapsDevicePropsVirtioBlkCCW[] = {
@@ -1779,6 +1797,12 @@ static virQEMUCapsDeviceTypeProps virQEMUCapsDeviceProps[] = {
     { "amd-iommu", virQEMUCapsDevicePropsAMDIOMMU,
       G_N_ELEMENTS(virQEMUCapsDevicePropsAMDIOMMU),
       QEMU_CAPS_AMD_IOMMU },
+    { "scsi-block", virQEMUCapsDevicePropsSCSIBlock,
+      G_N_ELEMENTS(virQEMUCapsDevicePropsSCSIBlock),
+      -1 },
+    { "scsi-generic", virQEMUCapsDevicePropsSCSIGeneric,
+      G_N_ELEMENTS(virQEMUCapsDevicePropsSCSIGeneric),
+      -1 },
 };
 
 static struct virQEMUCapsStringFlags virQEMUCapsObjectPropsMemoryBackendFile[] = {
@@ -3772,6 +3796,7 @@ const char *ignoredFeatures[] = {
     "vmx-ept-uc", "vmx-ept-wb",      /* never supported by QEMU */
     "vmx-invvpid-single-context",    /* never supported by QEMU */
     "ht",                            /* ignored by QEMU, set according to topology */
+    "cmp_legacy",                    /* ignored by QEMU, set according to topology */
 };
 
 bool
@@ -6494,16 +6519,39 @@ virQEMUCapsFillDomainLoaderCaps(virDomainCapsLoader *capsLoader,
 
 
 static int
+virQEMUCapsFillDomainVarstoreCaps(virDomainCapsVarstore *capsVarstore,
+                                  bool varstore,
+                                  virQEMUCaps *qemuCaps)
+{
+    /* varstore is advertised as supported only if firmware
+     * descriptors that use it exist and the QEMU binary has the
+     * necessary device compiled in */
+    if (varstore && virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_UEFI_VARS))
+        capsVarstore->supported = VIR_TRISTATE_BOOL_YES;
+    else
+        capsVarstore->supported = VIR_TRISTATE_BOOL_NO;
+
+    return 0;
+}
+
+
+static int
 virQEMUCapsFillDomainOSCaps(virDomainCapsOS *os,
+                            virQEMUCaps *qemuCaps,
                             const char *machine,
                             virArch arch,
                             bool privileged,
                             virFirmware **firmwares,
                             size_t nfirmwares)
 {
+    virDomainCapsFirmwareFeatures *firmwareFeatures = &os->firmwareFeatures;
     virDomainCapsLoader *capsLoader = &os->loader;
+    virDomainCapsVarstore *capsVarstore = &os->varstore;
     uint64_t autoFirmwares = 0;
+    uint64_t featureSecureBoot = 0;
+    uint64_t featureEnrolledKeys = 0;
     bool secure = false;
+    bool varstore = false;
     virFirmware **firmwaresAlt = NULL;
     size_t nfirmwaresAlt = 0;
     int ret = -1;
@@ -6511,8 +6559,9 @@ virQEMUCapsFillDomainOSCaps(virDomainCapsOS *os,
     os->supported = VIR_TRISTATE_BOOL_YES;
     os->firmware.report = true;
 
-    if (qemuFirmwareGetSupported(machine, arch, privileged,
-                                 &autoFirmwares, &secure,
+    if (qemuFirmwareGetSupported(machine, arch, privileged, &autoFirmwares,
+                                 &featureSecureBoot, &featureEnrolledKeys,
+                                 &secure, &varstore,
                                  &firmwaresAlt, &nfirmwaresAlt) < 0)
         return -1;
 
@@ -6521,9 +6570,25 @@ virQEMUCapsFillDomainOSCaps(virDomainCapsOS *os,
     if (autoFirmwares & (1ULL << VIR_DOMAIN_OS_DEF_FIRMWARE_EFI))
         VIR_DOMAIN_CAPS_ENUM_SET(os->firmware, VIR_DOMAIN_OS_DEF_FIRMWARE_EFI);
 
+    firmwareFeatures->supported = VIR_TRISTATE_BOOL_YES;
+    firmwareFeatures->secureBoot.report = true;
+    firmwareFeatures->enrolledKeys.report = true;
+
+    if (featureSecureBoot & (1ULL << VIR_TRISTATE_BOOL_YES))
+        VIR_DOMAIN_CAPS_ENUM_SET(firmwareFeatures->secureBoot, VIR_TRISTATE_BOOL_YES);
+    if (featureSecureBoot & (1ULL << VIR_TRISTATE_BOOL_NO))
+        VIR_DOMAIN_CAPS_ENUM_SET(firmwareFeatures->secureBoot, VIR_TRISTATE_BOOL_NO);
+    if (featureEnrolledKeys & (1ULL << VIR_TRISTATE_BOOL_YES))
+        VIR_DOMAIN_CAPS_ENUM_SET(firmwareFeatures->enrolledKeys, VIR_TRISTATE_BOOL_YES);
+    if (featureEnrolledKeys & (1ULL << VIR_TRISTATE_BOOL_NO))
+        VIR_DOMAIN_CAPS_ENUM_SET(firmwareFeatures->enrolledKeys, VIR_TRISTATE_BOOL_NO);
+
     if (virQEMUCapsFillDomainLoaderCaps(capsLoader, secure,
                                         firmwaresAlt ? firmwaresAlt : firmwares,
                                         firmwaresAlt ? nfirmwaresAlt : nfirmwares) < 0)
+        goto cleanup;
+
+    if (virQEMUCapsFillDomainVarstoreCaps(capsVarstore, varstore, qemuCaps) < 0)
         goto cleanup;
 
     ret = 0;
@@ -6758,6 +6823,7 @@ virQEMUCapsFillDomainDeviceHostdevCaps(virQEMUCaps *qemuCaps,
     hostdev->subsysType.report = true;
     hostdev->capsType.report = true;
     hostdev->pciBackend.report = true;
+    hostdev->iommufd.report = true;
 
     /* VIR_DOMAIN_HOSTDEV_MODE_CAPABILITIES is for containers only */
     VIR_DOMAIN_CAPS_ENUM_SET(hostdev->mode,
@@ -6789,11 +6855,20 @@ virQEMUCapsFillDomainDeviceHostdevCaps(virQEMUCaps *qemuCaps,
     virDomainCapsEnumClear(&hostdev->capsType);
 
     virDomainCapsEnumClear(&hostdev->pciBackend);
-    if (supportsPassthroughVFIO &&
-        virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_VFIO_PCI)) {
-        VIR_DOMAIN_CAPS_ENUM_SET(hostdev->pciBackend,
-                                 VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_DEFAULT,
-                                 VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_VFIO);
+
+    VIR_DOMAIN_CAPS_ENUM_SET(hostdev->iommufd, VIR_TRISTATE_BOOL_NO);
+
+    if (supportsPassthroughVFIO) {
+        if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_VFIO_PCI)) {
+            VIR_DOMAIN_CAPS_ENUM_SET(hostdev->pciBackend,
+                                     VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_DEFAULT,
+                                     VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_VFIO);
+        }
+
+        if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_OBJECT_IOMMUFD) &&
+            virIOMMUFDSupported()) {
+            VIR_DOMAIN_CAPS_ENUM_SET(hostdev->iommufd, VIR_TRISTATE_BOOL_YES);
+        }
     }
 }
 
@@ -7237,6 +7312,7 @@ virQEMUCapsFillDomainCaps(virQEMUDriverConfig *cfg,
     }
 
     if (virQEMUCapsFillDomainOSCaps(os,
+                                    qemuCaps,
                                     domCaps->machine,
                                     domCaps->arch,
                                     privileged,

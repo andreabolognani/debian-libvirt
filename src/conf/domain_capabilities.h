@@ -43,6 +43,13 @@ struct _virDomainCapsStringValues {
     size_t nvalues; /* number of strings */
 };
 
+typedef struct _virDomainCapsFirmwareFeatures virDomainCapsFirmwareFeatures;
+struct _virDomainCapsFirmwareFeatures {
+    virTristateBool supported;
+    virDomainCapsEnum secureBoot;
+    virDomainCapsEnum enrolledKeys;
+};
+
 STATIC_ASSERT_ENUM(VIR_DOMAIN_LOADER_TYPE_LAST);
 STATIC_ASSERT_ENUM(VIR_TRISTATE_BOOL_LAST);
 typedef struct _virDomainCapsLoader virDomainCapsLoader;
@@ -54,12 +61,19 @@ struct _virDomainCapsLoader {
     virDomainCapsEnum secure;   /* Info about secure:virTristateBool */
 };
 
+typedef struct _virDomainCapsVarstore virDomainCapsVarstore;
+struct _virDomainCapsVarstore {
+    virTristateBool supported;
+};
+
 STATIC_ASSERT_ENUM(VIR_DOMAIN_OS_DEF_FIRMWARE_LAST);
 typedef struct _virDomainCapsOS virDomainCapsOS;
 struct _virDomainCapsOS {
     virTristateBool supported;
     virDomainCapsEnum firmware;     /* Info about virDomainOsDefFirmware */
+    virDomainCapsFirmwareFeatures firmwareFeatures;
     virDomainCapsLoader loader;     /* Info about virDomainLoaderDef */
+    virDomainCapsVarstore varstore;
 };
 
 STATIC_ASSERT_ENUM(VIR_DOMAIN_MEMORY_SOURCE_LAST);
@@ -108,6 +122,7 @@ struct _virDomainCapsDeviceHostdev {
     virDomainCapsEnum subsysType;       /* Info about virDomainHostdevSubsysType */
     virDomainCapsEnum capsType;         /* Info about virDomainHostdevCapsType */
     virDomainCapsEnum pciBackend;       /* Info about virDomainHostdevSubsysPCIBackendType */
+    virDomainCapsEnum iommufd;          /* Info about iommufd:virTristateBool */
     /* add new fields here */
 };
 

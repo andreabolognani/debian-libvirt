@@ -105,6 +105,7 @@ Patches have also been contributed by:
 * Adrian Brzezinski <adrian.brzezinski@eo.pl>
 * Akarshan Biswas <akarshan.biswas@gmail.com>
 * Akihiko Odaki <akihiko.odaki@daynix.com>
+* Akihiko Odaki <odaki@rsg.ci.i.u-tokyo.ac.jp>
 * Alan Pevec <apevec@redhat.com>
 * Aleksandr Alekseev <alexander.alekseev@virtuozzo.com>
 * Aleksei Zakharov <zaharov@selectel.ru>
@@ -118,6 +119,7 @@ Patches have also been contributed by:
 * Alexander Todorov <atodorov@otb.bg>
 * Alexander Vasilenko <kaperang07@gmail.com>
 * Alexandra Diupina <adiupina@astralinux.ru>
+* Alexandr Semenikhin <alexandr2e78@gmail.com>
 * Alexey Dokuchaev <danfe@FreeBSD.org>
 * Alex Jia <ajia@redhat.com>
 * Alex Williamson <alex.williamson@redhat.com>
@@ -162,6 +164,7 @@ Patches have also been contributed by:
 * Aron Griffis <aron.griffis@hp.com>
 * Artem Chernyshev <artem.chernyshev@red-soft.ru>
 * Artur Puzio <contact@puzio.waw.pl>
+* Arun Menon <armenon@redhat.com>
 * Asad Saeed <asad.saeed@acidseed.com>
 * Ashish Mittal <Ashish.Mittal@veritas.com>
 * Ashish Mittal <ashmit602@gmail.com>
@@ -349,6 +352,7 @@ Patches have also been contributed by:
 * Eric Garver <eric@garver.life>
 * Eric van Blokland <mail@ericvanblokland.nl>
 * Eric W. Biederman <ebiederm@xmission.com>
+* Erik Huelsmann <ehuels@gmail.com>
 * Erik Skultety <eskultet@redhat.com>
 * Ersek Laszlo <lacos@caesar.elte.hu>
 * Ettore Atalan <atalanttore@googlemail.com>
@@ -419,6 +423,7 @@ Patches have also been contributed by:
 * Hao Liu <hliu@redhat.com>
 * Haonan Wang <hnwanga1@gmail.com>
 * Hao Peng <peng.hao2@zte.com.cn>
+* Haorong Xu <haorongxu09@gmail.com>
 * Hao Wang <wanghao232@huawei.com>
 * Harikumar Rajkumar <harirajkumar230@gmail.com>
 * Harry Wei <harryxiyou@gmail.com>
@@ -582,6 +587,7 @@ Patches have also been contributed by:
 * Lai Jiangshan <laijs@cn.fujitsu.com>
 * Laine Stump <laine@redhat.com>
 * LanceLiu <liu.lance.89@gmail.com>
+* Languages add-on <noreply-addon-languages@weblate.org>
 * Laszlo Ersek <lersek@redhat.com>
 * Laura Hild <lsh@jlab.org>
 * Laurent Bigonville <bigon@bigon.be>
@@ -614,12 +620,14 @@ Patches have also been contributed by:
 * Li Zhang <zhlcindy@linux.vnet.ibm.com>
 * Lorin Hochstein <lorin@isi.edu>
 * Lubomir Rintel <lkundrak@v3.sk>
+* Lucas Amaral <lucaaamaral@gmail.com>
 * Ludek Janda <ljanda@redhat.com>
 * Ludovic Beliveau <ludovic.beliveau@windriver.com>
 * Luiz Capitulino <lcapitulino@redhat.com>
 * Lukas Greve <please@refre.ch>
 * Lu Ke <nicelukas@hotmail.com>
 * Luke Yue <lukedyue@gmail.com>
+* Luna Jernberg <droidbittin@gmail.com>
 * Luyao Huang <lhuang@redhat.com>
 * Luyao Zhong <luyao.zhong@intel.com>
 * lu zhipeng <luzhipeng@cestc.cn>
@@ -671,6 +679,7 @@ Patches have also been contributed by:
 * Mauro S. M. Rodrigues <maurosr@linux.vnet.ibm.com>
 * Max Goodhart <c@chromakode.com>
 * Maxime Leroy <maxime.leroy@6wind.com>
+* Maximilian Martin <maximilian_martin@gmx.de>
 * Maximilian Wilhelm <max@rfc2324.org>
 * Maxim Kozin <kolomaxes@gmail.com>
 * Maxim Nestratov <mnestratov@virtuozzo.com>

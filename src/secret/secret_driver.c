@@ -42,6 +42,7 @@
 #include "secret_event.h"
 #include "virutil.h"
 #include "virinhibitor.h"
+#include "secret_config.h"
 
 #define VIR_FROM_THIS VIR_FROM_SECRET
 
@@ -70,6 +71,10 @@ struct _virSecretDriverState {
 
     /* Immutable pointer, self-locking APIs */
     virInhibitor *inhibitor;
+
+    /* Require lock to get reference on 'config',
+     * then lockless thereafter */
+    virSecretDaemonConfig *config;
 };
 
 static virSecretDriverState *driver;
@@ -224,7 +229,10 @@ secretDefineXML(virConnectPtr conn,
 
     if (!objDef->isephemeral) {
         if (backup && backup->isephemeral) {
-            if (virSecretObjSaveData(obj) < 0)
+            if (virSecretObjSaveData(obj,
+                                     driver->configDir,
+                                     driver->config->secretsEncryptionKey,
+                                     driver->config->secretsKeyLen) < 0)
                 goto restore_backup;
         }
 
@@ -328,7 +336,10 @@ secretSetValue(virSecretPtr secret,
     if (virSecretSetValueEnsureACL(secret->conn, def) < 0)
         goto cleanup;
 
-    if (virSecretObjSetValue(obj, value, value_size) < 0)
+    if (virSecretObjSetValue(obj, value, value_size,
+                             driver->configDir,
+                             driver->config->secretsEncryptionKey,
+                             driver->config->secretsKeyLen) < 0)
         goto cleanup;
 
     event = virSecretEventValueChangedNew(def->uuid,
@@ -454,6 +465,7 @@ secretStateCleanupLocked(void)
     VIR_FREE(driver->configDir);
 
     virObjectUnref(driver->secretEventState);
+    virObjectUnref(driver->config);
     virInhibitorFree(driver->inhibitor);
 
     if (driver->lockFD != -1)
@@ -518,6 +530,8 @@ secretStateInitialize(bool privileged,
                              driver->stateDir);
         goto error;
     }
+    if (!(driver->config = virSecretDaemonConfigNew(driver->privileged)))
+        goto error;
 
     driver->inhibitor = virInhibitorNew(
         VIR_INHIBITOR_WHAT_NONE,
@@ -534,7 +548,9 @@ secretStateInitialize(bool privileged,
     if (!(driver->secrets = virSecretObjListNew()))
         goto error;
 
-    if (virSecretLoadAllConfigs(driver->secrets, driver->configDir) < 0)
+    if (virSecretLoadAllConfigs(driver->secrets, driver->configDir,
+                                driver->config->secretsEncryptionKey,
+                                driver->config->secretsKeyLen) < 0)
         goto error;
 
     return VIR_DRV_STATE_INIT_COMPLETE;
@@ -553,7 +569,12 @@ secretStateReload(void)
     if (!driver)
         return -1;
 
-    ignore_value(virSecretLoadAllConfigs(driver->secrets, driver->configDir));
+    if (!(driver->config = virSecretDaemonConfigNew(driver->privileged)))
+        return -1;
+
+    ignore_value(virSecretLoadAllConfigs(driver->secrets, driver->configDir,
+                                         driver->config->secretsEncryptionKey,
+                                         driver->config->secretsKeyLen));
 
     return 0;
 }

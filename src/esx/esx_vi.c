@@ -231,6 +231,8 @@ esxVI_CURL_Perform(esxVI_CURL *curl, const char *url)
     long responseCode = 0;
     const char *redirectUrl = NULL;
 
+    VIR_DEBUG("URL: %s", url);
+
     errorCode = curl_easy_perform(curl->handle);
 
     if (errorCode != CURLE_OK) {
@@ -4951,6 +4953,8 @@ esxVI_LookupManagedObjectHelper(esxVI_Context *ctx,
                 goto cleanup;
             }
 
+            VIR_DEBUG("comparing path element '%s' with candidate name '%s'",
+                      name, name_candidate);
             if (STREQ(name_candidate, name)) {
                 /* Found item with matching name */
                 break;

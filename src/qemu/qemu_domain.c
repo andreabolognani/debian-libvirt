@@ -1238,6 +1238,45 @@ qemuDomainNetworkPrivateFormat(const virDomainNetDef *net,
 }
 
 
+static virClass *qemuDomainHostdevPrivateClass;
+
+static void
+qemuDomainHostdevPrivateDispose(void *obj)
+{
+    qemuDomainHostdevPrivate *priv = obj;
+
+    g_clear_pointer(&priv->vfioDeviceFd, qemuFDPassDirectFree);
+}
+
+
+static int
+qemuDomainHostdevPrivateOnceInit(void)
+{
+    if (!VIR_CLASS_NEW(qemuDomainHostdevPrivate, virClassForObject()))
+        return -1;
+
+    return 0;
+}
+
+VIR_ONCE_GLOBAL_INIT(qemuDomainHostdevPrivate);
+
+virObject *
+qemuDomainHostdevPrivateNew(void)
+{
+    qemuDomainHostdevPrivate *priv;
+
+    if (qemuDomainHostdevPrivateInitialize() < 0)
+        return NULL;
+
+    if (!(priv = virObjectNew(qemuDomainHostdevPrivateClass)))
+        return NULL;
+
+    priv->vfioDeviceFd = NULL;
+
+    return (virObject *) priv;
+}
+
+
 /* qemuDomainSecretInfoSetup:
  * @priv: pointer to domain private object
  * @alias: alias of the secret
@@ -1936,6 +1975,9 @@ qemuDomainObjPrivateDataClear(qemuDomainObjPrivate *priv)
 
     priv->migrationRecoverSetup = false;
 
+    g_clear_pointer(&priv->iommufd, qemuFDPassDirectFree);
+    priv->iommufdState = false;
+
     g_clear_pointer(&priv->memoryBackingDir, g_free);
 }
 
@@ -2003,6 +2045,7 @@ qemuDomainObjPrivateAlloc(void *opaque)
     priv->blockjobs = virHashNew(virObjectUnref);
     priv->fds = virHashNew(g_object_unref);
 
+    priv->iommufd = NULL;
     priv->pidMonitored = -1;
 
     /* agent commands block by default, user can choose different behavior */
@@ -2802,6 +2845,9 @@ qemuDomainObjPrivateXMLFormat(virBuffer *buf,
                           priv->preMigrationMemlock);
     }
 
+    if (priv->iommufdState)
+        virBufferAddLit(buf, "<iommufd/>\n");
+
     return 0;
 }
 
@@ -3540,6 +3586,8 @@ qemuDomainObjPrivateXMLParse(xmlXPathContextPtr ctxt,
         return -1;
     }
 
+    priv->iommufdState = virXPathBoolean("boolean(./iommufd)", ctxt) == 1;
+
     return 0;
 }
 
@@ -3563,6 +3611,7 @@ virDomainXMLPrivateDataCallbacks virQEMUDriverPrivateDataCallbacks = {
     .chrSourceNew = qemuDomainChrSourcePrivateNew,
     .vsockNew = qemuDomainVsockPrivateNew,
     .graphicsNew = qemuDomainGraphicsPrivateNew,
+    .hostdevNew = qemuDomainHostdevPrivateNew,
     .networkNew = qemuDomainNetworkPrivateNew,
     .networkParse = qemuDomainNetworkPrivateParse,
     .networkFormat = qemuDomainNetworkPrivateFormat,
@@ -6296,8 +6345,6 @@ qemuDomainStorageAlias(const char *device, int depth)
     return alias;
 }
 
-
-#define QEMU_DOMAIN_STORAGE_SOURCE_CHAIN_MAX_DEPTH 200
 
 /**
  * qemuDomainStorageSourceValidateDepth:
@@ -10421,6 +10468,23 @@ qemuDomainInitializePflashStorageSource(virDomainObj *vm,
     priv->pflash0 = g_steal_pointer(&pflash0);
 
     return 0;
+}
+
+
+/**
+ * qemuDomainDiskHasLatencyHistogram:
+ * @disk: disk definition
+ *
+ * Returns whether @disk has any latency histogram settings configured.
+ */
+bool
+qemuDomainDiskHasLatencyHistogram(virDomainDiskDef *disk)
+{
+    return disk->histogram_boundaries ||
+           disk->histogram_boundaries_read ||
+           disk->histogram_boundaries_write ||
+           disk->histogram_boundaries_zone ||
+           disk->histogram_boundaries_flush;
 }
 
 

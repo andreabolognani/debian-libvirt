@@ -177,21 +177,6 @@ VIR_ENUM_IMPL(qemuMonitorVMStatus,
               "guest-panicked",
 );
 
-typedef enum {
-    QEMU_MONITOR_BLOCK_IO_STATUS_OK,
-    QEMU_MONITOR_BLOCK_IO_STATUS_FAILED,
-    QEMU_MONITOR_BLOCK_IO_STATUS_NOSPACE,
-
-    QEMU_MONITOR_BLOCK_IO_STATUS_LAST
-} qemuMonitorBlockIOStatus;
-
-VIR_ENUM_DECL(qemuMonitorBlockIOStatus);
-
-VIR_ENUM_IMPL(qemuMonitorBlockIOStatus,
-              QEMU_MONITOR_BLOCK_IO_STATUS_LAST,
-              "ok", "failed", "nospace",
-);
-
 VIR_ENUM_IMPL(qemuMonitorDumpStatus,
               QEMU_MONITOR_DUMP_STATUS_LAST,
               "none", "active", "completed", "failed",
@@ -1915,39 +1900,11 @@ qemuMonitorSetMemoryStatsPeriod(qemuMonitor *mon,
 }
 
 
-int
-qemuMonitorBlockIOStatusToError(const char *status)
-{
-    int st = qemuMonitorBlockIOStatusTypeFromString(status);
-
-    if (st < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("unknown block IO status: %1$s"), status);
-        return -1;
-    }
-
-    switch ((qemuMonitorBlockIOStatus) st) {
-    case QEMU_MONITOR_BLOCK_IO_STATUS_OK:
-        return VIR_DOMAIN_DISK_ERROR_NONE;
-    case QEMU_MONITOR_BLOCK_IO_STATUS_FAILED:
-        return VIR_DOMAIN_DISK_ERROR_UNSPEC;
-    case QEMU_MONITOR_BLOCK_IO_STATUS_NOSPACE:
-        return VIR_DOMAIN_DISK_ERROR_NO_SPACE;
-
-    /* unreachable */
-    case QEMU_MONITOR_BLOCK_IO_STATUS_LAST:
-        break;
-    }
-    return -1;
-}
-
-
 static void
 qemuDomainDiskInfoFree(void *value)
 {
     struct qemuDomainDiskInfo *info = value;
 
-    g_free(info->nodename);
     g_free(info);
 }
 
@@ -1985,6 +1942,26 @@ qemuBlockStatsFinalize(GObject *object)
 
     g_free(stats->limits);
     g_free(stats->timed_stats);
+
+    if (stats->histogram_read) {
+        g_free(stats->histogram_read->bins);
+        g_free(stats->histogram_read);
+    }
+
+    if (stats->histogram_write) {
+        g_free(stats->histogram_write->bins);
+        g_free(stats->histogram_write);
+    }
+
+    if (stats->histogram_zone) {
+        g_free(stats->histogram_zone->bins);
+        g_free(stats->histogram_zone);
+    }
+
+    if (stats->histogram_flush) {
+        g_free(stats->histogram_flush->bins);
+        g_free(stats->histogram_flush);
+    }
 
     G_OBJECT_CLASS(qemu_block_stats_parent_class)->finalize(object);
 }
@@ -2298,7 +2275,6 @@ qemuMonitorMigrateToFd(qemuMonitor *mon,
 
 int
 qemuMonitorMigrateToFdSet(virDomainObj *vm,
-                          unsigned int flags,
                           int *fd,
                           int *directFd)
 {
@@ -2307,9 +2283,10 @@ qemuMonitorMigrateToFdSet(virDomainObj *vm,
     off_t offset;
     g_autoptr(qemuFDPass) fdPassMigrate = NULL;
     g_autofree char *uri = NULL;
+    unsigned int migrateFlags = 0; /* currently no flags are passed to the 'migrate' command */
     int ret;
 
-    VIR_DEBUG("fd=%d directFd=%d flags=0x%x", *fd, *directFd, flags);
+    VIR_DEBUG("fd=%d directFd=%d", *fd, *directFd);
 
     QEMU_CHECK_MONITOR(mon);
 
@@ -2327,7 +2304,7 @@ qemuMonitorMigrateToFdSet(virDomainObj *vm,
 
     uri = g_strdup_printf("file:%s,offset=%#jx",
                           qemuFDPassGetPath(fdPassMigrate), (uintmax_t)offset);
-    ret = qemuMonitorJSONMigrate(mon, flags, uri);
+    ret = qemuMonitorJSONMigrate(mon, migrateFlags, uri);
 
     return ret;
 }
@@ -4591,4 +4568,25 @@ qemuMonitorBlockdevSetActive(qemuMonitor *mon,
     VIR_DEBUG("nodename='%s', active='%d'", NULLSTR(nodename), active);
 
     return qemuMonitorJSONBlockdevSetActive(mon, nodename, active);
+}
+
+
+int
+qemuMonitorBlockLatencyHistogramSet(qemuMonitor *mon,
+                                    const char *id,
+                                    unsigned int *boundaries,
+                                    unsigned int *boundaries_read,
+                                    unsigned int *boundaries_write,
+                                    unsigned int *boundaries_zone,
+                                    unsigned int *boundaries_flush)
+{
+    QEMU_CHECK_MONITOR(mon);
+    VIR_DEBUG("id='%s'", id);
+
+    return qemuMonitorJSONBlockLatencyHistogramSet(mon, id,
+                                                   boundaries,
+                                                   boundaries_read,
+                                                   boundaries_write,
+                                                   boundaries_zone,
+                                                   boundaries_flush);
 }

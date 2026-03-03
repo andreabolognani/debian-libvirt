@@ -9,6 +9,14 @@
     <enum name='firmware'>
       <value>efi</value>
     </enum>
+    <firmwareFeatures supported='yes'>
+      <enum name='secureBoot'>
+        <value>no</value>
+      </enum>
+      <enum name='enrolledKeys'>
+        <value>no</value>
+      </enum>
+    </firmwareFeatures>
     <loader supported='yes'>
       <value>/obviously/fake/firmware1.fd</value>
       <value>/obviously/fake/firmware2.fd</value>
@@ -24,6 +32,7 @@
         <value>no</value>
       </enum>
     </loader>
+    <varstore supported='no'/>
   </os>
   <cpu>
     <mode name='host-passthrough' supported='yes'>
@@ -109,6 +118,9 @@
       <enum name='pciBackend'>
         <value>default</value>
         <value>vfio</value>
+      </enum>
+      <enum name='iommufd'>
+        <value>no</value>
       </enum>
     </hostdev>
     <rng supported='yes'>

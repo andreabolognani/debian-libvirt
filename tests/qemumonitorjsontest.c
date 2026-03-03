@@ -1130,6 +1130,14 @@ GEN_TEST_FUNC(qemuMonitorJSONSetAction,
 GEN_TEST_FUNC(qemuMonitorJSONSetLaunchSecurityState, "sev_secret_header",
               "sev_secret", 0, true)
 
+unsigned int testHistogramBoundaries[] = {10, 30, 50, 0};
+GEN_TEST_FUNC(qemuMonitorJSONBlockLatencyHistogramSet, "devid",
+              testHistogramBoundaries,
+              testHistogramBoundaries,
+              testHistogramBoundaries,
+              testHistogramBoundaries,
+              testHistogramBoundaries)
+
 static int
 testQemuMonitorJSONqemuMonitorJSONNBDServerStart(const void *opaque)
 {
@@ -1353,10 +1361,8 @@ testQemuMonitorJSONqemuMonitorJSONGetBalloonInfo(const void *opaque)
 static void
 testQemuMonitorJSONGetBlockInfoPrint(const struct qemuDomainDiskInfo *d)
 {
-    VIR_TEST_VERBOSE("removable: %d, tray: %d, tray_open: %d, empty: %d, "
-                     "io_status: %d, nodename: '%s'",
-                     d->removable, d->tray, d->tray_open, d->empty,
-                     d->io_status, NULLSTR(d->nodename));
+    VIR_TEST_VERBOSE("tray_status: %d, io_status: %d",
+                     d->tray_status, d->io_status);
 }
 
 
@@ -1405,8 +1411,7 @@ testQemuMonitorJSONqemuMonitorJSONGetBlockInfo(const void *opaque)
 
     info = g_new0(struct qemuDomainDiskInfo, 1);
 
-    info->removable = true;
-    info->tray = true;
+    info->tray_status = VIR_DOMAIN_DISK_TRAY_CLOSED;
 
     if (virHashAddEntry(expectedBlockDevices, "ide0-1-0", info) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
@@ -1416,9 +1421,7 @@ testQemuMonitorJSONqemuMonitorJSONGetBlockInfo(const void *opaque)
 
     info = g_new0(struct qemuDomainDiskInfo, 1);
 
-    info->removable = true;
-    info->tray = true;
-    info->empty = true;
+    info->tray_status = VIR_DOMAIN_DISK_TRAY_CLOSED;
 
     if (virHashAddEntry(expectedBlockDevices, "ide0-1-1", info) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
@@ -2831,6 +2834,20 @@ testQemuMonitorJSONGetGuestCPU(const void *opaque)
 
 
 static int
+testEventHandlersOrdering(const void *opaque G_GNUC_UNUSED)
+{
+    g_autofree char *errmsg = NULL;
+
+    if ((errmsg = qemuMonitorJSONValidateEventHandlers())) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s", errmsg);
+        return -1;
+    }
+
+    return 0;
+}
+
+
+static int
 mymain(void)
 {
     int ret = 0;
@@ -2852,6 +2869,10 @@ mymain(void)
     }
 
     qapiData.schema = qapischema_x86_64;
+
+    if (virTestRun("'eventHandlers' ordering check", testEventHandlersOrdering,
+                   NULL) < 0)
+        ret = -1;
 
 #define DO_TEST(name) \
     do { \
@@ -2958,6 +2979,7 @@ mymain(void)
     DO_TEST_GEN(qemuMonitorJSONBlockJobCancel);
     DO_TEST_GEN(qemuMonitorJSONSetAction);
     DO_TEST_GEN(qemuMonitorJSONSetLaunchSecurityState);
+    DO_TEST_GEN(qemuMonitorJSONBlockLatencyHistogramSet);
     DO_TEST(qemuMonitorJSONGetBalloonInfo);
     DO_TEST(qemuMonitorJSONGetBlockInfo);
     DO_TEST(qemuMonitorJSONGetAllBlockStatsInfo);

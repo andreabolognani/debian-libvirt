@@ -39,6 +39,8 @@
 #include "virerror.h"
 #include "datatypes.h"
 #include "bridge_driver.h"
+#define LIBVIRT_BRIDGE_DRIVER_PRIV_H_ALLOW
+#include "bridge_driver_priv.h"
 #include "bridge_driver_platform.h"
 #include "driver.h"
 #include "virbuffer.h"
@@ -1176,7 +1178,7 @@ networkDnsmasqConfContents(virNetworkObj *obj,
 
     /* create dnsmasq config file appropriate for this network */
 
-    /* Don't forget to update networkxml2conftest :-) */
+    /* Don't forget to update networkxmlconftest :-) */
     virBufferAsprintf(&configbuf,
                       "##WARNING:  THIS IS AN AUTO-GENERATED FILE. "
                       "CHANGES TO IT ARE LIKELY TO BE\n"
@@ -1514,34 +1516,44 @@ networkBuildDhcpDaemonCommandLine(virNetworkDriverState *driver,
 }
 
 
-static int
-networkStartDhcpDaemon(virNetworkDriverState *driver,
-                       virNetworkObj *obj)
+bool
+networkNeedsDnsmasq(const virNetworkDef* def)
 {
-    g_autoptr(virNetworkDriverConfig) cfg = virNetworkDriverGetConfig(driver);
-    virNetworkDef *def = virNetworkObjGetDef(obj);
     virNetworkIPDef *ipdef;
     size_t i;
-    bool needDnsmasq = false;
-    g_autoptr(virCommand) cmd = NULL;
-    g_autofree char *pidfile = NULL;
-    pid_t dnsmasqPid;
-    g_autoptr(dnsmasqContext) dctx = NULL;
 
     /* see if there are any IP addresses that need a dhcp server */
     i = 0;
     while ((ipdef = virNetworkDefGetIPByIndex(def, AF_UNSPEC, i))) {
         i++;
         if (ipdef->nranges || ipdef->nhosts || ipdef->tftproot)
-            needDnsmasq = true;
+            return true;
     }
 
     /* no IP addresses at all, so we don't need to run */
     if (i == 0)
-        return 0;
+        return false;
 
     /* no DHCP services needed, and user disabled DNS service */
-    if (!needDnsmasq && def->dns.enable == VIR_TRISTATE_BOOL_NO)
+    if (def->dns.enable == VIR_TRISTATE_BOOL_NO)
+        return false;
+
+    return true;
+}
+
+
+static int
+networkStartDhcpDaemon(virNetworkDriverState *driver,
+                       virNetworkObj *obj)
+{
+    g_autoptr(virNetworkDriverConfig) cfg = virNetworkDriverGetConfig(driver);
+    virNetworkDef *def = virNetworkObjGetDef(obj);
+    g_autoptr(virCommand) cmd = NULL;
+    g_autofree char *pidfile = NULL;
+    pid_t dnsmasqPid;
+    g_autoptr(dnsmasqContext) dctx = NULL;
+
+    if (!networkNeedsDnsmasq(def))
         return 0;
 
     if (g_mkdir_with_parents(cfg->pidDir, 0777) < 0) {
@@ -2815,6 +2827,17 @@ networkBridgeNameValidate(virNetworkObjList *nets,
 }
 
 
+/**
+ * networkValidate:
+ * @driver: network driver
+ * @def: network definition
+ *
+ * Validates network definition and fills up blanks.
+ * Callers, but tests, must provide valid @driver to ensure
+ * unique bridge name.
+ *
+ * Returns: 0 on success, -1 otherwise (with error reported).
+ */
 static int
 networkValidate(virNetworkDriverState *driver,
                 virNetworkDef *def)
@@ -2840,8 +2863,10 @@ networkValidate(virNetworkDriverState *driver,
     case VIR_NETWORK_FORWARD_OPEN:
         /* if no bridge name was given in the config, find a name
          * unused by any other libvirt networks and assign it.
+         * All callers MUST provide valid @driver, except for tests.
          */
-        if (networkBridgeNameValidate(driver->networks, def) < 0)
+        if (driver &&
+            networkBridgeNameValidate(driver->networks, def) < 0)
             return -1;
 
         virNetworkSetBridgeMacAddr(def);
@@ -3089,6 +3114,13 @@ networkValidate(virNetworkDriverState *driver,
         }
     }
     return 0;
+}
+
+
+int
+networkValidateTests(virNetworkDef *def)
+{
+    return networkValidate(NULL, def);
 }
 
 

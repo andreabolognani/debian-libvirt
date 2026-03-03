@@ -264,6 +264,9 @@ struct _qemuDomainObjPrivate {
     /* named file descriptor groups associated with the VM */
     GHashTable *fds;
 
+    qemuFDPassDirect *iommufd;
+    bool iommufdState; /* true if --object iommufd was added */
+
     char *memoryBackingDir;
 };
 
@@ -285,10 +288,6 @@ struct _qemuDomainDiskPrivate {
     bool migrating; /* the disk is being migrated */
     virStorageSource *migrSource; /* disk source object used for NBD migration */
     bool migrationslice; /* storage slice was added for migration purposes */
-
-    /* information about the device */
-    bool tray; /* device has tray */
-    bool removable; /* device media can be removed/changed */
 
     char *qomName; /* QOM path of the disk (also refers to the block backend) */
     char *nodeCopyOnRead; /* nodename of the disk-wide copy-on-read blockdev layer */
@@ -357,12 +356,8 @@ struct _qemuDomainVcpuPrivate {
 
 
 struct qemuDomainDiskInfo {
-    bool removable;
-    bool tray;
-    bool tray_open;
-    bool empty;
-    int io_status;
-    char *nodename;
+    virDomainDiskTray tray_status;
+    virDomainDiskErrorCode io_status;
 };
 
 #define QEMU_DOMAIN_CHR_SOURCE_PRIVATE(dev) \
@@ -458,6 +453,18 @@ struct _qemuDomainTPMPrivate {
     struct {
         bool can_migrate_shared_storage;
     } swtpm;
+};
+
+
+#define QEMU_DOMAIN_HOSTDEV_PRIVATE(hostdev) \
+    ((qemuDomainHostdevPrivate *) (hostdev)->privateData)
+
+typedef struct _qemuDomainHostdevPrivate qemuDomainHostdevPrivate;
+struct _qemuDomainHostdevPrivate {
+    virObject parent;
+
+    /* VFIO device file descriptor for iommufd passthrough */
+    qemuFDPassDirect *vfioDeviceFd;
 };
 
 
@@ -706,6 +713,7 @@ int qemuDomainCheckDiskStartupPolicy(virQEMUDriver *driver,
                                      size_t diskIndex,
                                      bool cold_boot);
 
+#define QEMU_DOMAIN_STORAGE_SOURCE_CHAIN_MAX_DEPTH 200
 int qemuDomainStorageSourceValidateDepth(virStorageSource *src,
                                          int add,
                                          const char *diskdst);
@@ -1064,6 +1072,9 @@ qemuDomainInitializePflashStorageSource(virDomainObj *vm,
                                         virQEMUDriverConfig *cfg);
 
 bool
+qemuDomainDiskHasLatencyHistogram(virDomainDiskDef *disk);
+
+bool
 qemuDomainDiskBlockJobIsSupported(virDomainDiskDef *disk);
 
 int
@@ -1174,3 +1185,6 @@ qemuDomainCheckCPU(virArch arch,
 bool
 qemuDomainMachineSupportsFloppy(const char *machine,
                                 virQEMUCaps *qemuCaps);
+
+virObject *
+qemuDomainHostdevPrivateNew(void);

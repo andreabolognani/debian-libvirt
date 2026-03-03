@@ -1722,8 +1722,8 @@ of open file descriptors which should be pass on into the guest. The
 file descriptors will be re-numbered in the guest, starting from 3. This
 is only supported with container based virtualization.
 
-If *--reset-nvram* is specified, any existing NVRAM file will be deleted
-and re-initialized from its pristine template.
+If *--reset-nvram* is specified, any existing NVRAM/varstore file will be
+deleted and re-initialized from its pristine template.
 
 **Example:**
 
@@ -2811,6 +2811,13 @@ Information listed includes:
   pending write operations in the defined interval
 * ``block.<num>.timed_group.<num>.zone_append_queue_depth_avg`` - average number
   of pending zone append operations in the defined interval
+* ``block.<num>.latency_histogram.<type>.bin.count`` - number of bins in
+  latency histogram. <type> is one of ``read``, ``write``, ``zone_append``, or
+  ``flush``
+* ``block.<num>.latency_histogram.<type>.bin.<num>.start`` start boundary of
+  a latency histogram bin in nanoseconds of given operation duration
+* ``block.<num>.latency_histogram.<type>.bin.<num>.value`` current number of
+  events corresponding to the given bin and type
 
 
 *--iothread* returns information about IOThreads on the running guest
@@ -4274,8 +4281,8 @@ save image to decide between running or paused; passing either the
 *--running* or *--paused* flag will allow overriding which state the
 domain should be started in.
 
-If *--reset-nvram* is specified, any existing NVRAM file will be deleted
-and re-initialized from its pristine template.
+If *--reset-nvram* is specified, any existing NVRAM/varstore file will be
+deleted and re-initialized from its pristine template.
 
 *--parallel-channels* option can specify number of parallel IO channels
 to be used when loading memory from file. Parallel save may significantly
@@ -4918,8 +4925,8 @@ of open file descriptors which should be pass on into the guest. The
 file descriptors will be re-numbered in the guest, starting from 3. This
 is only supported with container based virtualization.
 
-If *--reset-nvram* is specified, any existing NVRAM file will be deleted
-and re-initialized from its pristine template.
+If *--reset-nvram* is specified, any existing NVRAM/varstore file will be
+deleted and re-initialized from its pristine template.
 
 
 suspend
@@ -4981,9 +4988,10 @@ domain.  Without the flag, attempts to undefine an inactive domain with
 checkpoint metadata will fail.  If the domain is active, this flag is
 ignored.
 
-*--nvram* and *--keep-nvram* specify accordingly to delete or keep nvram
-(/domain/os/nvram/) file. If the domain has an nvram file and the flags are
-omitted, the undefine will fail.
+The *--nvram* and *--keep-nvram* flags specify whether to delete or keep the
+NVRAM (/domain/os/nvram/) or varstore (/domain/os/varstore) file respectively.
+If the domain has an NVRAM/varstore file and the flags are omitted, the
+undefine operation will fail.
 
 The *--storage* flag takes a parameter ``volumes``, which is a comma separated
 list of volume target names or source paths of storage volumes to be removed
@@ -8167,8 +8175,8 @@ requires the use of *--force* to proceed:
     likely cause extensive filesystem corruption or crashes due to swap content
     mismatches when run.
 
-If *--reset-nvram* is specified, any existing NVRAM file will be deleted
-and re-initialized from its pristine template.
+If *--reset-nvram* is specified, any existing NVRAM/varstore file will be
+deleted and re-initialized from its pristine template.
 
 
 snapshot-delete

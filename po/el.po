@@ -5,13 +5,14 @@
 # Translators:
 # Daniel  <veillard@redhat.com>, 2011
 # Pierros Papadeas <pierros@papadeas.gr>, 2009
-# Jim Spentzos <jimspentzos2000@gmail.com>, 2025.
+# Jim Spentzos <jimspentzos2000@gmail.com>, 2025, 2026.
+# Weblate <noreply-mt-weblate@weblate.org>, 2026.
 msgid ""
 msgstr ""
 "Project-Id-Version: libvirt 6.0.0\n"
 "Report-Msgid-Bugs-To: https://libvirt.org/bugs.html\n"
 "POT-Creation-Date: 2026-01-09 09:51+0000\n"
-"PO-Revision-Date: 2025-06-16 17:43+0000\n"
+"PO-Revision-Date: 2026-02-01 08:27+0000\n"
 "Last-Translator: Jim Spentzos <jimspentzos2000@gmail.com>\n"
 "Language-Team: Greek <https://translate.fedoraproject.org/projects/libvirt/"
 "libvirt/el/>\n"
@@ -20,7 +21,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=n != 1;\n"
-"X-Generator: Weblate 5.12.1\n"
+"X-Generator: Weblate 5.15.2\n"
 
 msgid ""
 "\n"
@@ -37,6 +38,8 @@ msgid ""
 "\n"
 "  DESCRIPTION\n"
 msgstr ""
+"\n"
+"  ΠΕΡΙΓΡΑΦΗ\n"
 
 msgid ""
 "\n"
@@ -104,11 +107,15 @@ msgid ""
 "\n"
 "  OPTIONS\n"
 msgstr ""
+"\n"
+"  ΕΠΙΛΟΓΕΣ\n"
 
 msgid ""
 "\n"
 "  SYNOPSIS\n"
 msgstr ""
+"\n"
+"  ΣΥΝΟΨΗ\n"
 
 #, c-format
 msgid ""
@@ -291,7 +298,7 @@ msgid "    Bandwidth limit: %1$llu bytes/s (%2$-.3lf %3$s/s)"
 msgstr ""
 
 msgid "  NAME\n"
-msgstr ""
+msgstr "  ΟΝΟΜΑ\n"
 
 #, c-format
 msgid " %1$s (help keyword '%2$s')\n"
@@ -342,11 +349,11 @@ msgstr ""
 
 #, c-format
 msgid "%1$s\n"
-msgstr ""
+msgstr "%1$s\n"
 
 #, c-format
 msgid "%1$s %2$s"
-msgstr ""
+msgstr "%1$s %2$s"
 
 #, fuzzy, c-format
 msgid "%1$s %2$s '%3$s' has an unsupported type '%4$s'"
@@ -800,9 +807,9 @@ msgstr "αδυναμία εγγραφής του αρχείου ρυθμίσεω
 msgid "%1$s: failure with %2$s: %3$s"
 msgstr ""
 
-#, fuzzy, c-format
+#, c-format
 msgid "%1$s: initialization failed"
-msgstr "αδύνατη η αρχικοποίηση υπο συνθήκη μεταβλητής (condition variable)"
+msgstr "%1$s: αποτυχία αρχικοποίησης"
 
 #, c-format
 msgid "%1$s: initialization failed\n"
@@ -2461,9 +2468,8 @@ msgstr ""
 msgid "Can't change domain configuration in managed save state"
 msgstr ""
 
-#, fuzzy
 msgid "Can't change domain state."
-msgstr "δεν ορίζεται η κατάσταση του τομέα (domain state)"
+msgstr "Δεν είναι δυνατή η αλλαγή της κατάστασης του τομέα."
 
 #, sh-format
 msgid "Can't connect to $uri. Skipping."
@@ -2585,9 +2591,9 @@ msgstr ""
 msgid "Cancelled"
 msgstr ""
 
-#, fuzzy, c-format
+#, c-format
 msgid "Cannot access '%1$s'"
-msgstr "αδυναμία ερμηνείας διαύλου %1$s"
+msgstr "Δεν είναι δυνατή η πρόσβαση στο «%1$s»"
 
 #, c-format
 msgid "Cannot access backing file '%1$s' of storage file '%2$s'"
@@ -2679,9 +2685,9 @@ msgstr ""
 msgid "Cannot convert wide character string back to multi-byte domain name"
 msgstr ""
 
-#, fuzzy, c-format
+#, c-format
 msgid "Cannot create %1$s"
-msgstr "αδυναμία ερμηνείας της συσκευής %1$s"
+msgstr "Δεν είναι δυνατή η δημιουργία του «%1$s»"
 
 #, fuzzy
 msgid "Cannot create /dev"
@@ -2974,9 +2980,9 @@ msgstr ""
 msgid "Cannot offline enough CPUs"
 msgstr ""
 
-#, fuzzy, c-format
+#, c-format
 msgid "Cannot open %1$s"
-msgstr "αδυναμία ερμηνείας διαύλου %1$s"
+msgstr "Δεν είναι δυνατό το άνοιγμα του «%1$s»"
 
 msgid "Cannot open /proc/cgroups"
 msgstr ""
@@ -9844,9 +9850,8 @@ msgid ""
 "Invalid address type '%1$s' for the disk '%2$s' with the bus type '%3$s'"
 msgstr ""
 
-#, fuzzy
 msgid "Invalid address."
-msgstr "απαράδεκτο πρόθεμα διεύθυνσης IP"
+msgstr "Μη έγκυρη διεύθυνση."
 
 msgid "Invalid argument"
 msgstr ""
@@ -14682,9 +14687,8 @@ msgstr ""
 msgid "Security driver model '%1$s' is not available"
 msgstr ""
 
-#, fuzzy
 msgid "Security label:"
-msgstr "λείπει η ετικέτα ασφαλείας"
+msgstr "Ετικέτα ασφαλείας:"
 
 #, c-format
 msgid "Security model %1$s cannot be entered"
@@ -39951,11 +39955,11 @@ msgid "wakeup a domain from pmsuspended state"
 msgstr ""
 
 msgid "warning"
-msgstr ""
+msgstr "προειδοποίηση"
 
 #, c-format
 msgid "warning: %1$s\n"
-msgstr ""
+msgstr "προειδοποίηση: %1$s\n"
 
 msgid "watchdog"
 msgstr ""
@@ -40104,7 +40108,7 @@ msgid "y - yes, start editor again"
 msgstr ""
 
 msgid "yes"
-msgstr ""
+msgstr "ναι"
 
 #, c-format
 msgid "zPCI %1$s %2$o is already reserved"

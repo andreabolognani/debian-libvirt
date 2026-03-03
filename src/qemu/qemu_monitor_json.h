@@ -27,6 +27,9 @@
 #include "cpu/cpu.h"
 #include "util/virgic.h"
 
+char *
+qemuMonitorJSONValidateEventHandlers(void);
+
 int
 qemuMonitorJSONIOProcessLine(qemuMonitor *mon,
                              const char *line,
@@ -815,3 +818,12 @@ int
 qemuMonitorJSONBlockdevSetActive(qemuMonitor *mon,
                                  const char *nodename,
                                  bool active);
+
+int
+qemuMonitorJSONBlockLatencyHistogramSet(qemuMonitor *mon,
+                                        const char *id,
+                                        unsigned int *boundaries,
+                                        unsigned int *boundaries_read,
+                                        unsigned int *boundaries_write,
+                                        unsigned int *boundaries_zone,
+                                        unsigned int *boundaries_flush);

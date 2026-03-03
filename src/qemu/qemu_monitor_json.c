@@ -143,6 +143,27 @@ qemuMonitorEventCompare(const void *key, const void *elt)
 }
 
 
+/**
+ * qemuMonitorJSONValidateEventHandlers:
+ *
+ * Used by 'qemumonitorjsontest' to validate that the 'eventHandlers' array
+ * is properly sorted to use 'bsearch'.
+ */
+char *
+qemuMonitorJSONValidateEventHandlers(void)
+{
+    size_t i;
+
+    for (i = 1; i < G_N_ELEMENTS(eventHandlers); i++) {
+        if (strcmp(eventHandlers[i-1].type, eventHandlers[i].type) > -1)
+            return g_strdup_printf("mis-ordered 'eventHandlers': '%s', '%s'",
+                                   eventHandlers[i-1].type, eventHandlers[i].type);
+    }
+
+    return NULL;
+}
+
+
 static int
 qemuMonitorJSONIOProcessEvent(qemuMonitor *mon,
                               virJSONValue *obj)
@@ -1222,41 +1243,29 @@ qemuMonitorJSONHandleMemoryFailure(qemuMonitor *mon,
     const char *str;
     int recipient;
     int action;
-    bool ar = false;
-    bool recursive = false;
     qemuMonitorEventMemoryFailure mf = {0};
 
-    if (!(str = virJSONValueObjectGetString(data, "recipient"))) {
-        VIR_WARN("missing recipient in memory failure event");
+    if (!(str = virJSONValueObjectGetString(data, "recipient")) ||
+       (recipient = qemuMonitorMemoryFailureRecipientTypeFromString(str)) < 0) {
+        VIR_WARN("missing or unknown value '%s' of 'recipient' field in 'MEMORY_FAILURE' event",
+                 NULLSTR(str));
         return;
     }
 
-    recipient = qemuMonitorMemoryFailureRecipientTypeFromString(str);
-    if (recipient < 0) {
-        VIR_WARN("unknown recipient '%s' in memory_failure event", str);
-        return;
-    }
-
-    if (!(str = virJSONValueObjectGetString(data, "action"))) {
-        VIR_WARN("missing action in memory failure event");
-        return;
-    }
-
-    action = qemuMonitorMemoryFailureActionTypeFromString(str);
-    if (action < 0) {
-        VIR_WARN("unknown action '%s' in memory_failure event", str);
+    if (!(str = virJSONValueObjectGetString(data, "action")) ||
+        (action = qemuMonitorMemoryFailureActionTypeFromString(str)) < 0) {
+        VIR_WARN("missing or unknown value '%s' of 'action' field in 'MEMORY_FAILURE' event",
+                 NULLSTR(str));
         return;
     }
 
     if (flagsjson) {
-        virJSONValueObjectGetBoolean(flagsjson, "action-required", &ar);
-        virJSONValueObjectGetBoolean(flagsjson, "recursive", &recursive);
+        virJSONValueObjectGetBoolean(flagsjson, "action-required", &mf.action_required);
+        virJSONValueObjectGetBoolean(flagsjson, "recursive", &mf.recursive);
     }
 
     mf.recipient = recipient;
     mf.action = action;
-    mf.action_required = ar;
-    mf.recursive = recursive;
     qemuMonitorEmitMemoryFailure(mon, &mf);
 }
 
@@ -1268,13 +1277,10 @@ qemuMonitorJSONHandleMigrationStatus(qemuMonitor *mon,
     const char *str;
     int status;
 
-    if (!(str = virJSONValueObjectGetString(data, "status"))) {
-        VIR_WARN("missing status in migration event");
-        return;
-    }
-
-    if ((status = qemuMonitorMigrationStatusTypeFromString(str)) == -1) {
-        VIR_WARN("unknown status '%s' in migration event", str);
+    if (!(str = virJSONValueObjectGetString(data, "status")) ||
+        (status = qemuMonitorMigrationStatusTypeFromString(str)) == -1) {
+        VIR_WARN("Missing or unknown value '%s' of 'status' in 'MIGRATION' event",
+                 NULLSTR(str));
         return;
     }
 
@@ -2304,12 +2310,29 @@ qemuMonitorJSONBlockInfoAdd(GHashTable *table,
     tmp = g_new0(struct qemuDomainDiskInfo, 1);
 
     *tmp = *info;
-    tmp->nodename = g_strdup(info->nodename);
 
     g_hash_table_insert(table, g_strdup(entryname), tmp);
 
     return 0;
 }
+
+
+typedef enum {
+    QEMU_MONITOR_BLOCK_IO_STATUS_OK,
+    QEMU_MONITOR_BLOCK_IO_STATUS_FAILED,
+    QEMU_MONITOR_BLOCK_IO_STATUS_NOSPACE,
+
+    QEMU_MONITOR_BLOCK_IO_STATUS_LAST
+} qemuMonitorBlockIOStatus;
+
+VIR_ENUM_DECL(qemuMonitorBlockIOStatus);
+
+VIR_ENUM_IMPL(qemuMonitorBlockIOStatus,
+              QEMU_MONITOR_BLOCK_IO_STATUS_LAST,
+              "ok",
+              "failed",
+              "nospace",
+);
 
 
 int
@@ -2324,11 +2347,14 @@ qemuMonitorJSONGetBlockInfo(qemuMonitor *mon,
 
     for (i = 0; i < virJSONValueArraySize(devices); i++) {
         virJSONValue *dev;
-        virJSONValue *image;
-        struct qemuDomainDiskInfo info = { false };
+        struct qemuDomainDiskInfo info = {
+            .tray_status = VIR_DOMAIN_DISK_TRAY_NONE,
+            .io_status = VIR_DOMAIN_DISK_ERROR_NONE
+        };
         const char *thisdev;
         const char *status;
         const char *qdev;
+        bool tray_open;
 
         if (!(dev = qemuMonitorJSONGetBlockDev(devices, i)))
             return -1;
@@ -2348,29 +2374,40 @@ qemuMonitorJSONGetBlockInfo(qemuMonitor *mon,
             return -1;
         }
 
-        if (virJSONValueObjectGetBoolean(dev, "removable", &info.removable) < 0) {
-            virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("cannot read %1$s value"),
-                           "removable");
-            return -1;
-        }
-
         /* 'tray_open' is present only if the device has a tray */
-        if (virJSONValueObjectGetBoolean(dev, "tray_open", &info.tray_open) == 0)
-            info.tray = true;
-
-        /* presence of 'inserted' notifies that a medium is in the device */
-        if ((image = virJSONValueObjectGetObject(dev, "inserted"))) {
-            info.nodename = (char *) virJSONValueObjectGetString(image, "node-name");
-        } else {
-            info.empty = true;
+        if (virJSONValueObjectGetBoolean(dev, "tray_open", &tray_open) == 0) {
+            if (tray_open)
+                info.tray_status = VIR_DOMAIN_DISK_TRAY_OPEN;
+            else
+                info.tray_status = VIR_DOMAIN_DISK_TRAY_CLOSED;
         }
 
         /* Missing io-status indicates no error */
         if ((status = virJSONValueObjectGetString(dev, "io-status"))) {
-            info.io_status = qemuMonitorBlockIOStatusToError(status);
-            if (info.io_status < 0)
-                return -1;
+            int st = qemuMonitorBlockIOStatusTypeFromString(status);
+
+            if (st < 0) {
+                VIR_WARN("Unhandled value '%s' of 'io-status' field in 'query-block' reply",
+                         status);
+                info.io_status = VIR_DOMAIN_DISK_ERROR_UNSPEC;
+            } else {
+                switch ((qemuMonitorBlockIOStatus) st) {
+                case QEMU_MONITOR_BLOCK_IO_STATUS_OK:
+                    info.io_status = VIR_DOMAIN_DISK_ERROR_NONE;
+                    break;
+
+                case QEMU_MONITOR_BLOCK_IO_STATUS_FAILED:
+                    info.io_status = VIR_DOMAIN_DISK_ERROR_UNSPEC;
+                    break;
+
+                case QEMU_MONITOR_BLOCK_IO_STATUS_NOSPACE:
+                    info.io_status = VIR_DOMAIN_DISK_ERROR_NO_SPACE;
+                    break;
+
+                case QEMU_MONITOR_BLOCK_IO_STATUS_LAST:
+                    break;
+                }
+            }
         }
 
         if (thisdev &&
@@ -2425,6 +2462,52 @@ qemuMonitorJSONBlockStatsCollectDataTimed(virJSONValue *timed_stats,
 }
 
 
+static void
+qemuMonitorJSONBlockStatsCollectDataLatencyHistogram(virJSONValue *stats,
+                                                     const char *histogram_field,
+                                                     struct qemuBlockStatsLatencyHistogram **histogram_data)
+{
+    virJSONValue *hist;
+    virJSONValue *hist_bins;
+    virJSONValue *hist_bounds;
+    g_autofree struct qemuBlockStatsLatencyHistogramBin *bins = NULL;
+    size_t nbins = 0;
+    size_t i;
+
+    if (!(hist = virJSONValueObjectGetObject(stats, histogram_field)))
+        return;
+
+    if (!(hist_bins = virJSONValueObjectGetArray(hist, "bins")) ||
+        !(hist_bounds = virJSONValueObjectGetArray(hist, "boundaries")) ||
+        virJSONValueArraySize(hist_bins) != (virJSONValueArraySize(hist_bounds) + 1)) {
+        VIR_DEBUG("malformed latency histogram container");
+        return;
+    }
+
+    nbins = virJSONValueArraySize(hist_bins);
+    bins = g_new0(struct qemuBlockStatsLatencyHistogramBin, nbins);
+
+    for (i = 0; i < nbins; i++) {
+        virJSONValue *bin = virJSONValueArrayGet(hist_bins, i);
+        virJSONValue *bound = NULL;
+
+        if (i > 0)
+            bound = virJSONValueArrayGet(hist_bounds, i - 1);
+
+        if (!bin ||
+            virJSONValueGetNumberUlong(bin, &(bins[i].value)) < 0 ||
+            (bound && virJSONValueGetNumberUlong(bound, &(bins[i].start)) < 0)) {
+            VIR_DEBUG("malformed latency histogram container");
+            return;
+        }
+    }
+
+    *histogram_data = g_new0(struct qemuBlockStatsLatencyHistogram, 1);
+    (*histogram_data)->bins = g_steal_pointer(&bins);
+    (*histogram_data)->nbins = nbins;
+}
+
+
 static qemuBlockStats *
 qemuMonitorJSONBlockStatsCollectData(virJSONValue *dev,
                                      int *nstats)
@@ -2468,6 +2551,15 @@ qemuMonitorJSONBlockStatsCollectData(virJSONValue *dev,
                                              &bstats->wr_highest_offset) == 0)
             bstats->wr_highest_offset_valid = true;
     }
+
+    qemuMonitorJSONBlockStatsCollectDataLatencyHistogram(stats, "rd_latency_histogram",
+                                                         &bstats->histogram_read);
+    qemuMonitorJSONBlockStatsCollectDataLatencyHistogram(stats, "wr_latency_histogram",
+                                                         &bstats->histogram_write);
+    qemuMonitorJSONBlockStatsCollectDataLatencyHistogram(stats, "zone_append_latency_histogram",
+                                                         &bstats->histogram_zone);
+    qemuMonitorJSONBlockStatsCollectDataLatencyHistogram(stats, "flush_latency_histogram",
+                                                         &bstats->histogram_flush);
 
     if ((timed_stats = virJSONValueObjectGetArray(stats, "timed_stats")) &&
         virJSONValueArraySize(timed_stats) > 0)
@@ -2730,6 +2822,7 @@ qemuMonitorJSONBlockNamedNodeDataFree(qemuBlockNamedNodeData *data)
         qemuMonitorJSONBlockNamedNodeDataBitmapFree(data->bitmaps[i]);
     g_clear_pointer(&data->snapshots, g_hash_table_unref);
     g_free(data->bitmaps);
+    g_strfreev(data->qcow2bitmaps);
     g_free(data);
 }
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(qemuBlockNamedNodeData, qemuMonitorJSONBlockNamedNodeDataFree);
@@ -2854,6 +2947,9 @@ qemuMonitorJSONBlockGetNamedNodeDataWorker(size_t pos G_GNUC_UNUSED,
         virJSONValue *qcow2props = virJSONValueObjectGetObject(format_specific, "data");
 
         if (qcow2props) {
+            virJSONValue *bmp;
+            size_t nbmp;
+
             if (STREQ_NULLABLE(virJSONValueObjectGetString(qcow2props, "compat"), "0.10"))
                 ent->qcow2v2 = true;
 
@@ -2862,6 +2958,19 @@ qemuMonitorJSONBlockGetNamedNodeDataWorker(size_t pos G_GNUC_UNUSED,
 
             ignore_value(virJSONValueObjectGetBoolean(qcow2props, "data-file-raw",
                                                       &ent->qcow2dataFileRaw));
+
+            if ((bmp = virJSONValueObjectGetArray(qcow2props, "bitmaps")) &&
+                ((nbmp = virJSONValueArraySize(bmp)) > 0)) {
+                size_t i;
+
+                ent->qcow2bitmaps = g_new0(char *, nbmp + 1);
+
+                for (i = 0; i < nbmp; i++) {
+                    virJSONValue *b = virJSONValueArrayGet(bmp, i);
+
+                    ent->qcow2bitmaps[i] = g_strdup(virJSONValueObjectGetString(b, "name"));
+                }
+            }
         }
     }
 
@@ -9050,6 +9159,66 @@ qemuMonitorJSONBlockdevSetActive(qemuMonitor *mon,
     if (!(cmd = qemuMonitorJSONMakeCommand("blockdev-set-active",
                                            "S:node-name", nodename,
                                            "b:active", active,
+                                           NULL)))
+        return -1;
+
+    if (qemuMonitorJSONCommand(mon, cmd, &reply) < 0)
+        return -1;
+
+    return qemuMonitorJSONCheckError(cmd, reply);
+}
+
+
+static virJSONValue *
+qemuMonitorJSONBlockLatencyHistogramBoundary(unsigned int *bound)
+{
+    g_autoptr(virJSONValue) ret = virJSONValueNewArray();
+
+    if (!bound)
+        return NULL;
+
+    for (; *bound > 0; bound++) {
+        g_autoptr(virJSONValue) val = virJSONValueNewNumberUint(*bound);
+
+        /* the only error is if the first argument is not an array */
+        ignore_value(virJSONValueArrayAppend(ret, &val));
+    }
+
+    return g_steal_pointer(&ret);
+}
+
+
+int
+qemuMonitorJSONBlockLatencyHistogramSet(qemuMonitor *mon,
+                                        const char *id,
+                                        unsigned int *boundaries,
+                                        unsigned int *boundaries_read,
+                                        unsigned int *boundaries_write,
+                                        unsigned int *boundaries_zone,
+                                        unsigned int *boundaries_flush)
+{
+    g_autoptr(virJSONValue) cmd = NULL;
+    g_autoptr(virJSONValue) reply = NULL;
+
+    g_autoptr(virJSONValue) bound = NULL;
+    g_autoptr(virJSONValue) bound_read = NULL;
+    g_autoptr(virJSONValue) bound_write = NULL;
+    g_autoptr(virJSONValue) bound_zone = NULL;
+    g_autoptr(virJSONValue) bound_flush = NULL;
+
+    bound = qemuMonitorJSONBlockLatencyHistogramBoundary(boundaries);
+    bound_read = qemuMonitorJSONBlockLatencyHistogramBoundary(boundaries_read);
+    bound_write = qemuMonitorJSONBlockLatencyHistogramBoundary(boundaries_write);
+    bound_zone = qemuMonitorJSONBlockLatencyHistogramBoundary(boundaries_zone);
+    bound_flush = qemuMonitorJSONBlockLatencyHistogramBoundary(boundaries_flush);
+
+    if (!(cmd = qemuMonitorJSONMakeCommand("block-latency-histogram-set",
+                                           "s:id", id,
+                                           "A:boundaries", &bound,
+                                           "A:boundaries-read", &bound_read,
+                                           "A:boundaries-write", &bound_write,
+                                           "A:boundaries-zap", &bound_zone,
+                                           "A:boundaries-flush", &bound_flush,
                                            NULL)))
         return -1;
 

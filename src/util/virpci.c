@@ -2870,6 +2870,9 @@ virPCIGetVirtualFunctionIndex(const char *pf_sysfs_device_link,
         }
     }
 
+    virReportError(VIR_ERR_INTERNAL_ERROR,
+                   _("No virtual function index found for '%1$s'"),
+                   pf_sysfs_device_link);
     return -1;
 }
 
@@ -3319,4 +3322,73 @@ void
 virPCIDeviceAddressFree(virPCIDeviceAddress *address)
 {
     g_free(address);
+}
+
+/**
+ * virPCIDeviceGetVfioPath:
+ * @addr: host device PCI address
+ * @vfioPath: returned VFIO device path
+ *
+ * Constructs the VFIO device path for a PCI hostdev.
+ *
+ * Returns: 0 on success, -1 on failure
+ */
+int
+virPCIDeviceGetVfioPath(virPCIDevice *pci,
+                        char **vfioPath)
+{
+    g_autofree char *sysfsPath = NULL;
+    g_autoptr(DIR) dir = NULL;
+    struct dirent *entry = NULL;
+
+    *vfioPath = NULL;
+
+    /* Look in device's vfio-dev subdirectory */
+    sysfsPath = virPCIFile(pci->name, "vfio-dev");
+
+    if (virDirOpen(&dir, sysfsPath) == 1) {
+        while (virDirRead(dir, &entry, sysfsPath) > 0) {
+            if (STRPREFIX(entry->d_name, "vfio")) {
+                *vfioPath = g_strdup_printf("/dev/vfio/devices/%s", entry->d_name);
+                return 0;
+            }
+        }
+    }
+
+    virReportError(VIR_ERR_INTERNAL_ERROR,
+                   _("cannot find VFIO device for PCI device %1$s"),
+                   pci->name);
+    return -1;
+}
+
+/**
+ * virPCIDeviceOpenVfioFd:
+ * @addr:
+ *
+ * Opens VFIO device and returns its FD.
+ *
+ * Returns: FD on success, -1 on failure
+ */
+int
+virPCIDeviceOpenVfioFd(virPCIDeviceAddress *addr)
+{
+    g_autoptr(virPCIDevice) pci = NULL;
+    g_autofree char *vfioPath = NULL;
+    int fd = -1;
+
+    if (!(pci = virPCIDeviceNew(addr)))
+        return -1;
+
+    if (virPCIDeviceGetVfioPath(pci, &vfioPath) < 0)
+        return -1;
+
+    VIR_DEBUG("Opening VFIO device %s", vfioPath);
+
+    if ((fd = open(vfioPath, O_RDWR | O_CLOEXEC)) < 0) {
+        virReportSystemError(errno, _("cannot open VFIO device %1$s"), vfioPath);
+        return -1;
+    }
+
+    VIR_DEBUG("Opened VFIO device FD %d for %s", fd, vfioPath);
+    return fd;
 }

@@ -296,6 +296,10 @@ void virPCIEDeviceInfoFree(virPCIEDeviceInfo *dev);
 
 void virPCIDeviceAddressFree(virPCIDeviceAddress *address);
 
+int virPCIDeviceGetVfioPath(virPCIDevice *pci, char **vfioPath);
+
+int virPCIDeviceOpenVfioFd(virPCIDeviceAddress *addr);
+
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(virPCIDevice, virPCIDeviceFree);
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(virPCIDeviceAddress, virPCIDeviceAddressFree);
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(virPCIEDeviceInfo, virPCIEDeviceInfoFree);

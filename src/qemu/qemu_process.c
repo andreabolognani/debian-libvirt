@@ -103,6 +103,8 @@
 #include "storage_source.h"
 #include "backup_conf.h"
 #include "storage_file_probe.h"
+#include "virpci.h"
+#include "viriommufd.h"
 
 #include "logging/log_manager.h"
 #include "logging/log_protocol.h"
@@ -3223,8 +3225,7 @@ qemuProcessCleanupChardevDevice(virDomainDef *def G_GNUC_UNUSED,
  * migration.
  */
 static int
-qemuProcessUpdateVideoRamSize(virQEMUDriver *driver,
-                              virDomainObj *vm,
+qemuProcessUpdateVideoRamSize(virDomainObj *vm,
                               int asyncJob)
 {
     int ret = -1;
@@ -3294,8 +3295,8 @@ qemuProcessUpdateVideoRamSize(virQEMUDriver *driver,
 
     qemuDomainObjExitMonitor(vm);
 
-    cfg = virQEMUDriverGetConfig(driver);
-    ret = virDomainObjSave(vm, driver->xmlopt, cfg->stateDir);
+    cfg = virQEMUDriverGetConfig(priv->driver);
+    ret = virDomainObjSave(vm, priv->driver->xmlopt, cfg->stateDir);
 
     return ret;
 
@@ -4917,51 +4918,69 @@ qemuPrepareNVRAMBlock(virDomainLoaderDef *loader,
 
 
 static int
-qemuPrepareNVRAMFile(virQEMUDriver *driver,
-                     virDomainLoaderDef *loader,
-                     bool reset_nvram)
+qemuPrepareNVRAMFileCommon(virQEMUDriver *driver,
+                           const char *path,
+                           const char *template,
+                           bool reset_nvram)
 {
     g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
     VIR_AUTOCLOSE srcFD = -1;
     struct qemuPrepareNVRAMHelperData data;
 
-    if (virFileExists(loader->nvram->path) && !reset_nvram)
+    if (!path)
         return 0;
 
-    if (!loader->nvramTemplate) {
+    if (virFileExists(path) && !reset_nvram)
+        return 0;
+
+    if (!template) {
         virReportError(VIR_ERR_OPERATION_FAILED,
                        _("unable to find any master var store for loader: %1$s"),
-                       loader->path);
+                       path);
         return -1;
     }
 
-    /* If 'nvramTemplateFormat' is empty it means that it's a user-provided
-     * template which we couldn't verify. Assume the user knows what they're doing */
-    if (loader->nvramTemplateFormat != VIR_STORAGE_FILE_NONE &&
-        loader->nvram->format != loader->nvramTemplateFormat) {
-        virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
-                       _("conversion of the nvram template to another target format is not supported"));
-        return -1;
-    }
-
-    if ((srcFD = virFileOpenAs(loader->nvramTemplate, O_RDONLY,
+    if ((srcFD = virFileOpenAs(template, O_RDONLY,
                                0, -1, -1, 0)) < 0) {
         virReportSystemError(-srcFD,
                              _("Failed to open file '%1$s'"),
-                             loader->nvramTemplate);
+                             template);
         return -1;
     }
 
     data.srcFD = srcFD;
-    data.srcPath = loader->nvramTemplate;
+    data.srcPath = template;
 
-    if (virFileRewrite(loader->nvram->path,
+    if (virFileRewrite(path,
                        S_IRUSR | S_IWUSR,
                        cfg->user, cfg->group,
                        qemuPrepareNVRAMHelper,
                        &data) < 0) {
         return -1;
     }
+
+    return 0;
+}
+
+
+static int
+qemuPrepareNVRAMFile(virQEMUDriver *driver,
+                     virDomainLoaderDef *loader,
+                     bool reset_nvram)
+{
+    /* If 'nvramTemplateFormat' is empty it means that it's a user-provided
+     * template which we couldn't verify. Assume the user knows what they're doing */
+    if (loader && loader->nvram &&
+        loader->nvramTemplateFormat != VIR_STORAGE_FILE_NONE &&
+        loader->nvram->format != loader->nvramTemplateFormat) {
+        virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
+                       _("conversion of the nvram template to another target format is not supported"));
+        return -1;
+    }
+
+    if (qemuPrepareNVRAMFileCommon(driver, loader->nvram->path,
+                                   loader->nvramTemplate, reset_nvram) < 0)
+        return -1;
 
     return 0;
 }
@@ -5005,6 +5024,27 @@ qemuPrepareNVRAM(virQEMUDriver *driver,
         /* otherwise we just assume that the user did set up stuff correctly */
         break;
     }
+
+    return 0;
+}
+
+
+static int
+qemuPrepareVarstore(virQEMUDriver *driver,
+                    virDomainDef *def,
+                    bool reset_nvram)
+{
+    virDomainLoaderDef *loader = def->os.loader;
+    virDomainVarstoreDef *varstore = def->os.varstore;
+
+    if (!loader || !varstore)
+        return 0;
+
+    VIR_DEBUG("varstore='%s'", NULLSTR(varstore->path));
+
+    if (qemuPrepareNVRAMFileCommon(driver, varstore->path,
+                                   varstore->template, reset_nvram) < 0)
+        return -1;
 
     return 0;
 }
@@ -6961,7 +7001,13 @@ qemuProcessEnableDomainFeatures(virDomainObj *vm)
         if (!VIR_DOMAIN_CAPS_ENUM_IS_SET(hv->features, i))
             continue;
 
-        vm->def->hyperv.features[i] = VIR_TRISTATE_SWITCH_ON;
+        if (vm->def->hyperv.features[i] == VIR_TRISTATE_SWITCH_ABSENT) {
+            vm->def->hyperv.features[i] = VIR_TRISTATE_SWITCH_ON;
+        } else {
+            /* if the user provided already config for this we skip the
+             * auto-population code */
+            continue;
+        }
 
         if (i == VIR_DOMAIN_HYPERV_SPINLOCKS) {
             if (hv->spinlocks != 0) {
@@ -7671,6 +7717,88 @@ qemuProcessPrepareHostBackendChardevHotplug(virDomainObj *vm,
 }
 
 /**
+ * qemuProcessOpenIommuFd:
+ * @vm: domain object
+ *
+ * Opens /dev/iommu file descriptor for the VM.
+ *
+ * Returns: 0 on success, -1 on failure
+ */
+int
+qemuProcessOpenIommuFd(virDomainObj *vm)
+{
+    qemuDomainObjPrivate *priv = vm->privateData;
+    int iommufd;
+
+    VIR_DEBUG("Opening IOMMU FD for domain %s", vm->def->name);
+
+    if ((iommufd = virIOMMUFDOpenDevice()) < 0)
+        return -1;
+
+    priv->iommufd = qemuFDPassDirectNew("iommufd", &iommufd);
+
+    return 0;
+}
+
+/**
+ * qemuProcessOpenVfioDeviceFd:
+ * @hostdev: host device definition
+ *
+ * Opens the VFIO device file descriptor for a hostdev.
+ *
+ * Returns: 0 on success, -1 on failure
+ */
+int
+qemuProcessOpenVfioDeviceFd(virDomainHostdevDef *hostdev)
+{
+    qemuDomainHostdevPrivate *hostdevPriv = QEMU_DOMAIN_HOSTDEV_PRIVATE(hostdev);
+    virDomainHostdevSubsysPCI *pci = &hostdev->source.subsys.u.pci;
+    g_autofree char *name = g_strdup_printf("hostdev-%s-fd", hostdev->info->alias);
+    int vfioDeviceFd;
+
+    if ((vfioDeviceFd = virPCIDeviceOpenVfioFd(&pci->addr)) < 0)
+        return -1;
+
+    hostdevPriv->vfioDeviceFd = qemuFDPassDirectNew(name, &vfioDeviceFd);
+
+    return 0;
+}
+
+static int
+qemuProcessPrepareHostHostdev(virDomainObj *vm)
+{
+    size_t i;
+
+    for (i = 0; i < vm->def->nhostdevs; i++) {
+        virDomainHostdevDef *hostdev = vm->def->hostdevs[i];
+
+        switch (hostdev->source.subsys.type) {
+        case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_PCI:
+            if (virHostdevIsPCIDeviceWithIOMMUFD(hostdev)) {
+                /* Open VFIO device FD */
+                if (qemuProcessOpenVfioDeviceFd(hostdev) < 0)
+                    return -1;
+            }
+            break;
+        case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_USB:
+        case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_SCSI:
+        case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_SCSI_HOST:
+        case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_MDEV:
+        case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_LAST:
+            break;
+        }
+    }
+
+    /* Open IOMMU FD */
+    if (virDomainDefHasPCIHostdevWithIOMMUFD(vm->def) &&
+        qemuProcessOpenIommuFd(vm) < 0) {
+        return -1;
+    }
+
+    return 0;
+}
+
+/**
  * qemuProcessPrepareHost:
  * @driver: qemu driver
  * @vm: domain object
@@ -7692,6 +7820,7 @@ qemuProcessPrepareHost(virQEMUDriver *driver,
     unsigned int hostdev_flags = 0;
     qemuDomainObjPrivate *priv = vm->privateData;
     g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
+    bool reset_nvram = !!(flags & VIR_QEMU_PROCESS_START_RESET_NVRAM);
 
     /*
      * Create all per-domain directories in order to make sure domain
@@ -7701,8 +7830,10 @@ qemuProcessPrepareHost(virQEMUDriver *driver,
         qemuProcessMakeDir(driver, vm, priv->channelTargetDir) < 0)
         return -1;
 
-    if (qemuPrepareNVRAM(driver, vm->def,
-                         !!(flags & VIR_QEMU_PROCESS_START_RESET_NVRAM)) < 0)
+    if (qemuPrepareNVRAM(driver, vm->def, reset_nvram) < 0)
+        return -1;
+
+    if (qemuPrepareVarstore(driver, vm->def, reset_nvram) < 0)
         return -1;
 
     if (vm->def->vsock) {
@@ -7724,6 +7855,8 @@ qemuProcessPrepareHost(virQEMUDriver *driver,
     if (flags & VIR_QEMU_PROCESS_START_NEW)
         hostdev_flags |= VIR_HOSTDEV_COLD_BOOT;
     if (qemuHostdevPrepareDomainDevices(driver, vm->def, hostdev_flags) < 0)
+        return -1;
+    if (qemuProcessPrepareHostHostdev(vm) < 0)
         return -1;
 
     VIR_DEBUG("Preparing chr device backends");
@@ -7816,21 +7949,55 @@ qemuProcessGenID(virDomainObj *vm,
 
 
 /**
- * qemuProcessSetupDiskThrottling:
+ * qemuProcessSetupDiskPropsRuntime:
+ * @mon: qemu monitor object
+ * @disk: disk definition
  *
- * Sets up disk trottling for -blockdev via block_set_io_throttle monitor
- * command. This hack should be replaced by proper use of the 'throttle'
- * blockdev driver in qemu once it will support changing of the throttle group.
- * Same hack is done in qemuDomainAttachDiskGeneric.
+ * This function expects that caller already entered 'monitor' context.
+ *
+ * Sets up disk properties which are only possible to be set in runtime.
+ */
+int
+qemuProcessSetupDiskPropsRuntime(qemuMonitor *mon,
+                                 virDomainDiskDef *disk)
+{
+    if (virStorageSourceIsEmpty(disk->src))
+        return 0;
+
+    if (qemuDiskConfigBlkdeviotuneEnabled(disk) &&
+        qemuMonitorSetBlockIoThrottle(mon,
+                                      QEMU_DOMAIN_DISK_PRIVATE(disk)->qomName,
+                                      &disk->blkdeviotune) < 0)
+        return -1;
+
+    if (qemuDomainDiskHasLatencyHistogram(disk) &&
+        qemuMonitorBlockLatencyHistogramSet(mon,
+                                            QEMU_DOMAIN_DISK_PRIVATE(disk)->qomName,
+                                            disk->histogram_boundaries,
+                                            disk->histogram_boundaries_read,
+                                            disk->histogram_boundaries_write,
+                                            disk->histogram_boundaries_zone,
+                                            disk->histogram_boundaries_flush) < 0)
+        return -1;
+
+    return 0;
+}
+
+
+/**
+ * qemuProcessSetupDisks:
+ *
+ * Sets up disk settings available only at runtime:
+ *  - trottling for -blockdev via block_set_io_throttle QMP command
  */
 static int
-qemuProcessSetupDiskThrottling(virDomainObj *vm,
-                               virDomainAsyncJob asyncJob)
+qemuProcessSetupDisks(virDomainObj *vm,
+                      virDomainAsyncJob asyncJob)
 {
     size_t i;
     int ret = -1;
 
-    VIR_DEBUG("Setting up disk throttling for -blockdev via block_set_io_throttle");
+    VIR_DEBUG("Setting up disk config via runtime commands");
 
     if (qemuDomainObjEnterMonitorAsync(vm, asyncJob) < 0)
         return -1;
@@ -7838,16 +8005,7 @@ qemuProcessSetupDiskThrottling(virDomainObj *vm,
     for (i = 0; i < vm->def->ndisks; i++) {
         virDomainDiskDef *disk = vm->def->disks[i];
 
-        /* Setting throttling for empty drives fails */
-        if (virStorageSourceIsEmpty(disk->src))
-            continue;
-
-        if (!qemuDiskConfigBlkdeviotuneEnabled(disk))
-            continue;
-
-        if (qemuMonitorSetBlockIoThrottle(qemuDomainGetMonitor(vm),
-                                          QEMU_DOMAIN_DISK_PRIVATE(disk)->qomName,
-                                          &disk->blkdeviotune) < 0)
+        if (qemuProcessSetupDiskPropsRuntime(qemuDomainGetMonitor(vm), disk) < 0)
             goto cleanup;
     }
 
@@ -8436,7 +8594,7 @@ qemuProcessLaunch(virConnectPtr conn,
     if (qemuProcessSetupBalloon(vm, asyncJob) < 0)
         goto cleanup;
 
-    if (qemuProcessSetupDiskThrottling(vm, asyncJob) < 0)
+    if (qemuProcessSetupDisks(vm, asyncJob) < 0)
         goto cleanup;
 
     /* Since CPUs were not started yet, the balloon could not return the memory
@@ -8518,20 +8676,79 @@ qemuProcessRefreshRxFilters(virDomainObj *vm,
 }
 
 
+static int
+qemuProcessRefreshDisks(virDomainObj *vm,
+                        bool cold_start,
+                        virDomainAsyncJob asyncJob)
+{
+    qemuDomainObjPrivate *priv = vm->privateData;
+    virQEMUDriver *driver = priv->driver;
+    g_autoptr(GHashTable) table = NULL;
+    size_t i;
+
+    if (!cold_start) {
+        if (qemuDomainObjEnterMonitorAsync(vm, asyncJob) == 0) {
+            table = qemuMonitorGetBlockInfo(priv->mon);
+            qemuDomainObjExitMonitor(vm);
+        }
+
+        if (!table)
+            return -1;
+    }
+
+    for (i = 0; i < vm->def->ndisks; i++) {
+        virDomainDiskDef *disk = vm->def->disks[i];
+        qemuDomainDiskPrivate *diskpriv = QEMU_DOMAIN_DISK_PRIVATE(disk);
+        struct qemuDomainDiskInfo *info;
+        const char *entryname = disk->info.alias;
+
+        /* At cold boot, assume cdroms have closed trays and skip the detection. */
+        if (disk->device == VIR_DOMAIN_DISK_DEVICE_CDROM)
+            disk->tray_status = VIR_DOMAIN_DISK_TRAY_CLOSED;
+
+        if (!table)
+            continue;
+
+        if (diskpriv->qomName)
+            entryname = diskpriv->qomName;
+
+        if (!(info = virHashLookup(table, entryname)))
+            continue;
+
+        if (disk->tray_status != VIR_DOMAIN_DISK_TRAY_NONE &&
+            info->tray_status != VIR_DOMAIN_DISK_TRAY_NONE &&
+            disk->tray_status != info->tray_status) {
+            virDomainEventTrayChangeReason reason = VIR_DOMAIN_EVENT_TRAY_CHANGE_OPEN;
+            virObjectEvent *event;
+
+            if (info->tray_status == VIR_DOMAIN_DISK_TRAY_CLOSED)
+                reason = VIR_DOMAIN_EVENT_TRAY_CHANGE_CLOSE;
+
+            event = virDomainEventTrayChangeNewFromObj(vm, disk->info.alias, reason);
+            virObjectEventStateQueue(driver->domainEventState, event);
+        }
+
+        disk->tray_status = info->tray_status;
+    }
+
+    return 0;
+}
+
+
 /**
  * qemuProcessRefreshState:
- * @driver: qemu driver data
  * @vm: domain to refresh
+ * @cold_boot: starting a fresh VM
  * @asyncJob: async job type
  *
  * This function gathers calls to refresh qemu state after startup. This
  * function is called after a deferred migration finishes so that we can update
  * state influenced by the migration stream.
  */
-int
-qemuProcessRefreshState(virQEMUDriver *driver,
-                        virDomainObj *vm,
-                        virDomainAsyncJob asyncJob)
+static int
+qemuProcessRefreshStateInternal(virDomainObj *vm,
+                                bool cold_boot,
+                                virDomainAsyncJob asyncJob)
 {
     VIR_DEBUG("Fetching list of active devices");
     if (qemuDomainUpdateDeviceList(vm, asyncJob) < 0)
@@ -8542,11 +8759,11 @@ qemuProcessRefreshState(virQEMUDriver *driver,
         return -1;
 
     VIR_DEBUG("Detecting actual memory size for video device");
-    if (qemuProcessUpdateVideoRamSize(driver, vm, asyncJob) < 0)
+    if (qemuProcessUpdateVideoRamSize(vm, asyncJob) < 0)
         return -1;
 
     VIR_DEBUG("Updating disk data");
-    if (qemuProcessRefreshDisks(vm, asyncJob) < 0)
+    if (qemuProcessRefreshDisks(vm, cold_boot, asyncJob) < 0)
         return -1;
 
     VIR_DEBUG("Updating rx-filter data");
@@ -8554,6 +8771,14 @@ qemuProcessRefreshState(virQEMUDriver *driver,
         return -1;
 
     return 0;
+}
+
+
+int
+qemuProcessRefreshState(virDomainObj *vm,
+                        virDomainAsyncJob asyncJob)
+{
+    return qemuProcessRefreshStateInternal(vm, false, asyncJob);
 }
 
 
@@ -8669,7 +8894,9 @@ qemuProcessStart(virConnectPtr conn,
         /* Refresh state of devices from QEMU. During migration this happens
          * in qemuMigrationDstFinish to ensure that state information is fully
          * transferred. */
-        if (qemuProcessRefreshState(driver, vm, asyncJob) < 0)
+        if (qemuProcessRefreshStateInternal(vm,
+                                            !!(flags & VIR_QEMU_PROCESS_START_COLD),
+                                            asyncJob) < 0)
             goto stop;
     }
 
@@ -9416,78 +9643,6 @@ qemuProcessAutoDestroy(virDomainObj *dom,
 }
 
 
-void
-qemuProcessRefreshDiskProps(virDomainDiskDef *disk,
-                            struct qemuDomainDiskInfo *info)
-{
-    qemuDomainDiskPrivate *diskpriv = QEMU_DOMAIN_DISK_PRIVATE(disk);
-
-    if (info->removable) {
-        if (info->empty)
-            virDomainDiskEmptySource(disk);
-
-        if (info->tray) {
-            if (info->tray_open)
-                disk->tray_status = VIR_DOMAIN_DISK_TRAY_OPEN;
-            else
-                disk->tray_status = VIR_DOMAIN_DISK_TRAY_CLOSED;
-        }
-    }
-
-    diskpriv->removable = info->removable;
-    diskpriv->tray = info->tray;
-}
-
-
-int
-qemuProcessRefreshDisks(virDomainObj *vm,
-                        virDomainAsyncJob asyncJob)
-{
-    qemuDomainObjPrivate *priv = vm->privateData;
-    virQEMUDriver *driver = priv->driver;
-    g_autoptr(GHashTable) table = NULL;
-    size_t i;
-
-    if (qemuDomainObjEnterMonitorAsync(vm, asyncJob) == 0) {
-        table = qemuMonitorGetBlockInfo(priv->mon);
-        qemuDomainObjExitMonitor(vm);
-    }
-
-    if (!table)
-        return -1;
-
-    for (i = 0; i < vm->def->ndisks; i++) {
-        virDomainDiskDef *disk = vm->def->disks[i];
-        qemuDomainDiskPrivate *diskpriv = QEMU_DOMAIN_DISK_PRIVATE(disk);
-        struct qemuDomainDiskInfo *info;
-        const char *entryname = disk->info.alias;
-        virDomainDiskTray old_tray_status = disk->tray_status;
-
-        if (diskpriv->qomName)
-            entryname = diskpriv->qomName;
-
-        if (!(info = virHashLookup(table, entryname)))
-            continue;
-
-        qemuProcessRefreshDiskProps(disk, info);
-
-        if (diskpriv->tray &&
-            old_tray_status != disk->tray_status) {
-            virDomainEventTrayChangeReason reason = VIR_DOMAIN_EVENT_TRAY_CHANGE_OPEN;
-            virObjectEvent *event;
-
-            if (disk->tray_status == VIR_DOMAIN_DISK_TRAY_CLOSED)
-                reason = VIR_DOMAIN_EVENT_TRAY_CHANGE_CLOSE;
-
-            event = virDomainEventTrayChangeNewFromObj(vm, disk->info.alias, reason);
-            virObjectEventStateQueue(driver->domainEventState, event);
-        }
-    }
-
-    return 0;
-}
-
-
 static int
 qemuProcessRefreshCPUMigratability(virDomainObj *vm,
                                    virDomainAsyncJob asyncJob)
@@ -9835,7 +9990,7 @@ qemuProcessReconnect(void *opaque)
 
     qemuProcessFiltersInstantiate(obj->def);
 
-    if (qemuProcessRefreshDisks(obj, VIR_ASYNC_JOB_NONE) < 0)
+    if (qemuProcessRefreshDisks(obj, false, VIR_ASYNC_JOB_NONE) < 0)
         goto error;
 
     /* At this point we've already checked that the startup of the VM was

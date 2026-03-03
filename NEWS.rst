@@ -8,6 +8,123 @@ the changes introduced by each of them.
 For a more fine-grained view, use the `git log`_.
 
 
+v12.1.0 (2026-03-02)
+====================
+
+* **New features**
+
+  * qemu: Advertise firmware features in domain capabilities XML
+
+    The contents of the ``<firmwareFeatures/>`` element can be used to determine
+    ahead of time whether a firmware matching certain characteristics, for
+    example Secure Boot support, is available for the selected architecture and
+    machine type.
+
+  * qemu: Add support for uefi-vars device and firmware builds using it
+
+    This is particularly noteworthy for people running aarch64 VMs with the
+    'virt' machine type, as it makes it finally possible to use Secure Boot
+    with that combination.
+
+    In most cases, no special steps are needed to take advantage of this:
+    assuming that you have installed a recent version of QEMU, as well as a
+    build of edk2 that includes the necessary binaries, you can just `enable
+    Secure Boot <kbase/secureboot.html>`__ as you normally would.
+
+    To explicitly request that the uefi-vars device is used even for scenarios
+    where that would normally not be the case, it's enough to add an empty
+    ``<varstore/>`` element in the domain XML. More details are available in
+    the `guest firmware configuration <formatdomain.html#guest-firmware>`__
+    section of the documentation.
+
+  * hyperv: improve API coverage for the hyperv driver
+
+    The `virDomainInterfaceAddresses()` and `virDomainGetBlockInfo()` APIs are
+    now supported by the hyperv driver. In addition, the domain xml for hyperv
+    domains will indicate via firmware features whether secure boot is enabled.
+    It also honors these firmware features when creating new domains.
+
+  * bhyve: Add support for vCPU pinning configuration
+
+    Bhyve guests can now have vCPU pinning configured::
+
+     <cputune>
+       <vcpupin vcpu="0" cpuset="1,2,3"/>
+     </cputune>
+
+    Additionally, the ``domainGetVcpuPinInfo`` API is implemented for
+    querying vCPU pinning information.
+
+  * qemu: Support block operation latency histograms
+
+    Libvirt now allows configuring qemu's block latency histogram collection
+    as well as returns them via the bulk stats API.
+
+* **Improvements**
+
+  * Introduce granule attribute for virtio-iommu
+
+    In case when guest page size doesn't match the host page size (typically
+    aarch64) the ``virtio-iommu`` needs to know the guest page size so it can
+    allocate memory aligned to guest page size.
+
+  * Parse hyperv features even for host-model
+
+    Two releases ago, in v11.9.0 new ``host-model`` mode for Hyper-V
+    enlightenments was introduced. Starting with this release, users can
+    additionally override the defaults that are picked when domain is started
+    and features are expanded.
+
+  * bhyve: Improve loader configuration for arm64 guests
+
+    If loader is not explicitly configured, use the loader
+    from the ``sysutils/u-boot-bhyve-arm64`` port/package for the
+    arm64 guests.
+
+* **Bug fixes**
+
+  * Fix build with remote driver disabled
+
+    Some parts of code were wrongly annotated as depended on remote driver.
+    But they were used even from client side drivers. This is now fixed and
+    libvirt builds properly even with remote driver disabled.
+
+  * Various fixes to libvirt-guests.sh
+
+    Firstly, the exit code of various commands was ignored (which may lead the
+    script to wrongly determine persistent/transient domain state, for
+    instance). Secondly, due to logical error, the script might have
+    incorrectly asses state a domain is in.
+
+  * AppArmor: Ask for no deny rule for readonly disk elements
+
+    For read only disks, libvirt created an AppArmor profile which disallowed
+    any future write rules. But when doing a blockcommit, libvirt needs to
+    allow hypervisor to write to even readonly disks. The rule in the profile
+    was changed so that future write rules can be added, temporarily.
+
+  * esx: Allow connecting to IPv6 server
+
+    Due to a bug in our code, if an IPv6 address was provided in connection
+    URI, libvirt would fail to connect to VMWare server. This is now fixed.
+
+  * qemu: Use device alias if interface has no name
+
+    The ``virDomainInterfaceAddresses()`` API (or ``virsh domifaddr``) returns
+    an array interfaces among with their addresses. But some interface names
+    might be unknown, for instance if the API is told to parse host's ARP table
+    then PCI assigned NICs or slirp/passt lack interface name. If that's the
+    case, let the API return domain's ``<interface/>`` alias.
+
+  * bhyve: hyperv: Various memory leak fixes
+
+  * qemu: Fix failures when restoring save/managed-save images with upcoming qemu versions
+
+    Current git version of qemu would return an error when attempting to load
+    an existing (managed) save image as we relied on deprecated features that
+    were now removed.
+
+
 v12.0.0 (2026-01-15)
 ====================
 

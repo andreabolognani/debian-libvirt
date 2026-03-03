@@ -263,7 +263,7 @@ static virNWFilterDriver fakeNWFilterDriver = {
 /* name of the fake network shall be constructed as:
  *  NETWORKXMLNAME;NETWORKPORTXMLNAME
  *  where:
- *  NETWORKXMLNAME resolves to abs_srcdir/networkxml2xmlin/NETWORKXMLNAME.xml
+ *  NETWORKXMLNAME resolves to abs_srcdir/networkxmlconfdata/NETWORKXMLNAME.xml
  *  NETWORKPORTXMLNAME resolves to abs_srcdir/virnetworkportxml2xmldata/NETWORKPORTXMLNAME.xml
  */
 static virNetworkPtr
@@ -286,7 +286,7 @@ fakeNetworkLookupByName(virConnectPtr conn,
         return NULL;
     }
 
-    path = g_strdup_printf(abs_srcdir "/networkxml2xmlin/%s.xml", netname);
+    path = g_strdup_printf(abs_srcdir "/networkxmlconfdata/%s.xml", netname);
 
     if (!virFileExists(path)) {
         virReportError(VIR_ERR_NO_NETWORK, "fake network '%s' not found", path);
@@ -307,7 +307,7 @@ fakeNetworkGetXMLDesc(virNetworkPtr network,
 
     *(strchr(netname, ';')) = '\0';
 
-    path = g_strdup_printf(abs_srcdir "/networkxml2xmlin/%s.xml", netname);
+    path = g_strdup_printf(abs_srcdir "/networkxmlconfdata/%s.xml", netname);
 
     if (virFileReadAll(path, 4 * 1024, &xml) < 0)
         return NULL;
@@ -348,6 +348,76 @@ fakeNetworkPortGetXMLDesc(virNetworkPortPtr port,
         return NULL;
 
     return xml;
+}
+
+
+static void
+testQemuPrepareHostdevPCI(virDomainHostdevDef *hostdev)
+{
+    qemuDomainHostdevPrivate *hostdevPriv = QEMU_DOMAIN_HOSTDEV_PRIVATE(hostdev);
+
+    if (virHostdevIsPCIDeviceWithIOMMUFD(hostdev)) {
+        g_autofree char *name = g_strdup_printf("hostdev-%s-fd", hostdev->info->alias);
+        /* Use a placeholder FD value for tests */
+        int vfioDeviceFD = 0;
+        hostdevPriv->vfioDeviceFd = qemuFDPassDirectNew(name, &vfioDeviceFD);
+    }
+}
+
+
+static void
+testQemuPrepareHostdevUSB(virDomainHostdevDef *hostdev)
+{
+    virDomainHostdevSubsysUSB *usb = &hostdev->source.subsys.u.usb;
+
+    if (!usb->device && !usb->bus) {
+        if (usb->vendor == 0x1234 && usb->product == 0x4321) {
+            usb->bus = 42;
+            usb->device = 0x1234;
+        } else {
+            g_assert_not_reached();
+        }
+    } else if (!usb->device && !usb->vendor && !usb->product) {
+        if (usb->bus == 2 && STREQ(usb->port, "3")) {
+            usb->device = 4;
+        } else {
+            g_assert_not_reached();
+        }
+    }
+}
+
+
+static void
+testQemuPrepareHostdev(virDomainObj *vm)
+{
+    qemuDomainObjPrivate *priv = QEMU_DOMAIN_PRIVATE(vm);
+    size_t i;
+
+    for (i = 0; i < vm->def->nhostdevs; i++) {
+        virDomainHostdevDef *hostdev = vm->def->hostdevs[i];
+
+        if (hostdev->mode != VIR_DOMAIN_HOSTDEV_MODE_SUBSYS)
+            continue;
+
+        switch (hostdev->source.subsys.type) {
+        case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_USB:
+            testQemuPrepareHostdevUSB(hostdev);
+            break;
+        case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_PCI:
+            testQemuPrepareHostdevPCI(hostdev);
+            break;
+        case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_SCSI:
+        case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_SCSI_HOST:
+        case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_MDEV:
+        case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_LAST:
+            break;
+        }
+    }
+
+    if (virDomainDefHasPCIHostdevWithIOMMUFD(vm->def)) {
+        int iommufd = 0;
+        priv->iommufd = qemuFDPassDirectNew("iommufd", &iommufd);
+    }
 }
 
 
@@ -495,22 +565,7 @@ testCompareXMLToArgvCreateArgs(virQEMUDriver *drv,
         }
     }
 
-    for (i = 0; i < vm->def->nhostdevs; i++) {
-        virDomainHostdevDef *hostdev = vm->def->hostdevs[i];
-
-        if (hostdev->mode == VIR_DOMAIN_HOSTDEV_MODE_SUBSYS &&
-            hostdev->source.subsys.type == VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_USB) {
-            virDomainHostdevSubsysUSB *usb = &hostdev->source.subsys.u.usb;
-            if (!usb->device && !usb->bus) {
-                if (usb->vendor == 0x1234 && usb->product == 0x4321) {
-                    usb->bus = 42;
-                    usb->device = 0x1234;
-                } else {
-                    g_assert_not_reached();
-                }
-            }
-        }
-    }
+    testQemuPrepareHostdev(vm);
 
     if (flags & FLAG_SLIRP_HELPER) {
         for (i = 0; i < vm->def->nnets; i++) {
@@ -1526,7 +1581,10 @@ mymain(void)
 
     DO_TEST_CAPS_LATEST("firmware-manual-bios");
     DO_TEST_CAPS_LATEST("firmware-manual-bios-stateless");
-    DO_TEST_CAPS_LATEST_PARSE_ERROR("firmware-manual-bios-not-stateless");
+    /* This combination doesn't make sense (BIOS is stateless by definition)
+     * but unfortunately there's no way for libvirt to report an error in this
+     * scenario. The stateless=no attribute will effectively be ignored */
+    DO_TEST_CAPS_LATEST("firmware-manual-bios-not-stateless");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("firmware-manual-bios-rw");
     DO_TEST_CAPS_LATEST("firmware-manual-efi");
     DO_TEST_CAPS_LATEST("firmware-manual-efi-features");
@@ -1560,6 +1618,11 @@ mymain(void)
                                   ARG_CAPS_VARIANT, "+inteltdx",
                                   ARG_END);
 
+    DO_TEST_CAPS_LATEST("firmware-manual-efi-varstore-q35");
+    DO_TEST_CAPS_VER_PARSE_ERROR("firmware-manual-efi-varstore-q35", "8.2.0");
+    DO_TEST_CAPS_ARCH_LATEST("firmware-manual-efi-varstore-aarch64", "aarch64");
+    DO_TEST_CAPS_ARCH_VER_PARSE_ERROR("firmware-manual-efi-varstore-aarch64", "aarch64", "8.2.0");
+
     /* Make sure all combinations of ACPI and UEFI behave as expected */
     DO_TEST_CAPS_ARCH_LATEST("firmware-manual-efi-acpi-aarch64", "aarch64");
     DO_TEST_CAPS_LATEST("firmware-manual-efi-acpi-q35");
@@ -1579,7 +1642,7 @@ mymain(void)
     DO_TEST_CAPS_LATEST("firmware-auto-bios");
     DO_TEST_CAPS_LATEST("firmware-auto-bios-stateless");
     DO_TEST_CAPS_LATEST_FAILURE("firmware-auto-bios-rw");
-    DO_TEST_CAPS_LATEST_PARSE_ERROR("firmware-auto-bios-not-stateless");
+    DO_TEST_CAPS_LATEST_FAILURE("firmware-auto-bios-not-stateless");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("firmware-auto-bios-nvram");
     DO_TEST_CAPS_LATEST("firmware-auto-efi");
     DO_TEST_CAPS_LATEST_ABI_UPDATE("firmware-auto-efi");
@@ -1594,6 +1657,8 @@ mymain(void)
     DO_TEST_CAPS_LATEST("firmware-auto-efi-secboot");
     DO_TEST_CAPS_LATEST("firmware-auto-efi-no-secboot");
     DO_TEST_CAPS_LATEST("firmware-auto-efi-enrolled-keys");
+    DO_TEST_CAPS_ARCH_LATEST("firmware-auto-efi-enrolled-keys-aarch64", "aarch64");
+    DO_TEST_CAPS_ARCH_VER_PARSE_ERROR("firmware-auto-efi-enrolled-keys-aarch64", "aarch64", "8.2.0");
     DO_TEST_CAPS_LATEST("firmware-auto-efi-no-enrolled-keys");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("firmware-auto-efi-enrolled-keys-no-secboot");
     DO_TEST_CAPS_LATEST("firmware-auto-efi-smm-off");
@@ -1608,6 +1673,8 @@ mymain(void)
     DO_TEST_CAPS_LATEST("firmware-auto-efi-nvram-file");
     DO_TEST_CAPS_LATEST("firmware-auto-efi-nvram-network-nbd");
     DO_TEST_CAPS_LATEST("firmware-auto-efi-nvram-network-iscsi");
+    DO_TEST_CAPS_LATEST("firmware-auto-efi-varstore-q35");
+    DO_TEST_CAPS_ARCH_LATEST("firmware-auto-efi-varstore-aarch64", "aarch64");
 
     DO_TEST_CAPS_LATEST("firmware-auto-efi-format-loader-qcow2");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("firmware-auto-efi-format-loader-qcow2-rom");
@@ -2363,6 +2430,7 @@ mymain(void)
     DO_TEST_CAPS_LATEST("hostdev-usb-address-device-boot");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("hostdev-usb-duplicate");
     DO_TEST_CAPS_LATEST("hostdev-usb-vendor-product");
+    DO_TEST_CAPS_LATEST("hostdev-usb-address-port");
     DO_TEST_CAPS_LATEST("hostdev-pci-address");
     DO_TEST_CAPS_LATEST("hostdev-pci-address-device");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("hostdev-pci-duplicate");
@@ -2452,7 +2520,7 @@ mymain(void)
     DO_TEST_CAPS_VER("cpu-fallback", "8.0.0");
 
     DO_TEST_CAPS_LATEST("cpu-numa1");
-    DO_TEST_CAPS_LATEST("cpu-numa-memory-oldstyle");
+    DO_TEST_CAPS_VER("cpu-numa-memory-oldstyle", "10.2.0");
     DO_TEST_CAPS_LATEST("cpu-numa2");
     DO_TEST_CAPS_LATEST("cpu-numa-no-memory-element");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("cpu-numa3");
@@ -3069,6 +3137,11 @@ mymain(void)
     DO_TEST_CAPS_LATEST_PARSE_ERROR("virtio-iommu-dma-translation");
     DO_TEST_CAPS_LATEST("acpi-generic-initiator");
 
+    DO_TEST_CAPS_LATEST("iommufd");
+    DO_TEST_CAPS_LATEST("iommufd-q35");
+    DO_TEST_CAPS_ARCH_LATEST("iommufd-virt", "aarch64");
+    DO_TEST_CAPS_ARCH_LATEST("iommufd-virt-pci-bus-single", "aarch64");
+
     DO_TEST_CAPS_LATEST("cpu-hotplug-startup");
     DO_TEST_CAPS_ARCH_LATEST_PARSE_ERROR("cpu-hotplug-granularity", "ppc64");
 
@@ -3104,6 +3177,10 @@ mymain(void)
     DO_TEST_CAPS_LATEST("fd-memory-numa-topology");
     DO_TEST_CAPS_LATEST("fd-memory-numa-topology2");
     DO_TEST_CAPS_LATEST("fd-memory-numa-topology3");
+    /* qemu-10.2 is the last one supporting pc-i440fx-5.0 machine which uses the
+     * old NUMA topology setup and thus the only way to test the old style of
+     * formatting --mem-prealloc */
+    DO_TEST_CAPS_VER("fd-memory-numa-topology4-old-machine", "10.2.0");
     DO_TEST_CAPS_LATEST("fd-memory-numa-topology4");
 
     DO_TEST_CAPS_LATEST("fd-memory-no-numa-topology");
@@ -3321,6 +3398,8 @@ mymain(void)
                                   ARG_CAPS_VARIANT, "+mshv", ARG_END);
     /* MSHV guests should not work on Linux with KVM */
     DO_TEST_CAPS_LATEST_PARSE_ERROR("mshv-x86_64-q35-headless");
+
+    DO_TEST_CAPS_ARCH_LATEST("aarch64-virt-virtualization", "aarch64");
 
     /* check that all input files were actually used here */
     if (testConfXMLCheck(existingTestCases) < 0)

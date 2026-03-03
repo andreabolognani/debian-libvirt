@@ -61,6 +61,10 @@ VIR_LOG_INIT("network.nftables");
 
 #define VIR_NFTABLES_PRIVATE_TABLE "libvirt_network"
 
+#define VIR_NFTABLES_COMMENT \
+    "{ comment \"Managed by libvirt for virtual networks: " \
+    "https://libvirt.org/firewall.html#the-virtual-network-driver\"; }"
+
 /* nftables backend uses the same binary (nft) for all layers, but
  * IPv4 and IPv6 have their rules in separate classes of tables,
  * either "ip" or "ip6". (there is also an "inet" class of tables that
@@ -165,7 +169,9 @@ nftablesPrivateChainCreate(virFirewall *fw,
 
     if (!tableMatch) {
         virFirewallAddCmd(fw, layer, "add", "table",
-                          layerStr, VIR_NFTABLES_PRIVATE_TABLE, NULL);
+                          layerStr, VIR_NFTABLES_PRIVATE_TABLE,
+                          VIR_NFTABLES_COMMENT,
+                          NULL);
     }
 
     for (i = 0; i < data->nchains; i++) {
@@ -354,7 +360,7 @@ nftablesAddForwardAllowOut(virFirewall *fw,
     const char *layerStr = nftablesLayerTypeToString(layer);
     virFirewallCmd *fwCmd;
 
-    if (!(networkstr = virSocketAddrFormatWithPrefix(netaddr, prefix, true)))
+    if (!(networkstr = virSocketAddrFormatWithPrefix(netaddr, prefix)))
         return -1;
 
     fwCmd = virFirewallAddCmd(fw, layer, "insert", "rule",
@@ -392,7 +398,7 @@ nftablesAddForwardAllowRelatedIn(virFirewall *fw,
     g_autofree char *networkstr = NULL;
     virFirewallCmd *fwCmd;
 
-    if (!(networkstr = virSocketAddrFormatWithPrefix(netaddr, prefix, true)))
+    if (!(networkstr = virSocketAddrFormatWithPrefix(netaddr, prefix)))
         return -1;
 
     fwCmd = virFirewallAddCmd(fw, layer, "insert", "rule",
@@ -430,7 +436,7 @@ nftablesAddForwardAllowIn(virFirewall *fw,
     g_autofree char *networkstr = NULL;
     virFirewallCmd *fwCmd;
 
-    if (!(networkstr = virSocketAddrFormatWithPrefix(netaddr, prefix, true)))
+    if (!(networkstr = virSocketAddrFormatWithPrefix(netaddr, prefix)))
         return -1;
 
     fwCmd = virFirewallAddCmd(fw, layer, "insert", "rule",
@@ -544,7 +550,7 @@ nftablesAddForwardMasquerade(virFirewall *fw,
         VIR_FIREWALL_LAYER_IPV4 : VIR_FIREWALL_LAYER_IPV6;
     const char *layerStr =  nftablesLayerTypeToString(layer);
 
-    if (!(networkstr = virSocketAddrFormatWithPrefix(netaddr, prefix, true)))
+    if (!(networkstr = virSocketAddrFormatWithPrefix(netaddr, prefix)))
         return -1;
 
     if (VIR_SOCKET_ADDR_IS_FAMILY(&addr->start, af)) {
@@ -628,7 +634,7 @@ nftablesAddDontMasquerade(virFirewall *fw,
     const char *layerStr =  nftablesLayerTypeToString(layer);
     virFirewallCmd *fwCmd;
 
-    if (!(networkstr = virSocketAddrFormatWithPrefix(netaddr, prefix, true)))
+    if (!(networkstr = virSocketAddrFormatWithPrefix(netaddr, prefix)))
         return -1;
 
     fwCmd = virFirewallAddCmd(fw, layer, "insert", "rule",

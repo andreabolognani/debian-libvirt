@@ -27,6 +27,7 @@
 #include "qemu_process.h"
 #include "domain_conf.h"
 #include "virbitmap.h"
+#include "viriommufd.h"
 #include "virlog.h"
 #include "virutil.h"
 
@@ -182,6 +183,7 @@ qemuValidateDomainDefFeatures(const virDomainDef *def,
             break;
 
         case VIR_DOMAIN_FEATURE_GIC:
+        case VIR_DOMAIN_FEATURE_VIRTUALIZATION:
             if (def->features[i] == VIR_TRISTATE_SWITCH_ON &&
                 !qemuDomainIsARMVirt(def)) {
                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
@@ -752,6 +754,23 @@ qemuValidateDomainDefNvram(const virDomainDef *def,
 
 
 static int
+qemuValidateDomainDefVarstore(const virDomainDef *def,
+                              virQEMUCaps *qemuCaps)
+{
+    if (!def->os.varstore)
+        return 0;
+
+    if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_UEFI_VARS)) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("The uefi-vars device is not supported by this QEMU binary"));
+        return -1;
+    }
+
+    return 0;
+}
+
+
+static int
 qemuValidateDomainDefBoot(const virDomainDef *def,
                           virQEMUCaps *qemuCaps)
 {
@@ -793,6 +812,9 @@ qemuValidateDomainDefBoot(const virDomainDef *def,
         }
 
         if (qemuValidateDomainDefNvram(def, qemuCaps) < 0)
+            return -1;
+
+        if (qemuValidateDomainDefVarstore(def, qemuCaps) < 0)
             return -1;
     }
 
@@ -2721,6 +2743,20 @@ qemuValidateDomainDeviceDefHostdev(const virDomainHostdevDef *hostdev,
                                    _("VFIO PCI device assignment is not supported by this version of qemu"));
                     return -1;
                 }
+
+                if (hostdev->source.subsys.u.pci.driver.iommufd == VIR_TRISTATE_BOOL_YES) {
+                    if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_OBJECT_IOMMUFD)) {
+                        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                                       _("IOMMUFD is not supported by this version of qemu"));
+                        return -1;
+                    }
+
+                    if (!virIOMMUFDSupported()) {
+                        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                                       _("IOMMUFD is not supported by host kernel"));
+                        return -1;
+                    }
+                }
             }
 
             if (hostdev->writeFiltering != VIR_TRISTATE_BOOL_ABSENT) {
@@ -3221,6 +3257,22 @@ qemuValidateDomainDeviceDefDiskFrontend(const virDomainDiskDef *disk,
         if (disk->vendor || disk->product) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                            _("Setting vendor or product is not supported for lun device"));
+            return -1;
+        }
+    }
+
+    if (disk->src->pr &&
+        disk->src->pr->migration != VIR_TRISTATE_BOOL_ABSENT) {
+        if (disk->device != VIR_DOMAIN_DISK_DEVICE_LUN ||
+            disk->bus != VIR_DOMAIN_DISK_BUS_SCSI) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("persistent reservation migration supported only with 'lun' disks on 'scsi' bus"));
+            return -1;
+        }
+
+        if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_SCSI_BLOCK_MIGRATE_PR)) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("persistent reservation migration not supported by this qemu"));
             return -1;
         }
     }
@@ -5551,6 +5603,8 @@ qemuValidateDomainDeviceDefIOMMU(const virDomainIOMMUDef *iommu,
                                  const virDomainDef *def,
                                  virQEMUCaps *qemuCaps)
 {
+    bool aw_bits_supported = false;
+
     switch (iommu->model) {
     case VIR_DOMAIN_IOMMU_MODEL_INTEL:
         if (!qemuDomainIsQ35(def)) {
@@ -5565,6 +5619,7 @@ qemuValidateDomainDeviceDefIOMMU(const virDomainIOMMUDef *iommu,
                            virDomainIOMMUModelTypeToString(iommu->model));
             return -1;
         }
+        aw_bits_supported = virQEMUCapsGet(qemuCaps, QEMU_CAPS_INTEL_IOMMU_AW_BITS);
         break;
 
     case VIR_DOMAIN_IOMMU_MODEL_SMMUV3:
@@ -5610,6 +5665,7 @@ qemuValidateDomainDeviceDefIOMMU(const virDomainIOMMUDef *iommu,
                            virDomainIOMMUModelTypeToString(iommu->model));
             return -1;
         }
+        aw_bits_supported = virQEMUCapsGet(qemuCaps, QEMU_CAPS_VIRTIO_IOMMU_AW_BITS);
         break;
 
     case VIR_DOMAIN_IOMMU_MODEL_AMD:
@@ -5669,8 +5725,7 @@ qemuValidateDomainDeviceDefIOMMU(const virDomainIOMMUDef *iommu,
                        _("iommu: device IOTLB is not supported with this QEMU binary"));
         return -1;
     }
-    if (iommu->aw_bits > 0 &&
-        !virQEMUCapsGet(qemuCaps, QEMU_CAPS_INTEL_IOMMU_AW_BITS)) {
+    if (iommu->aw_bits > 0 && !aw_bits_supported) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                        _("iommu: aw_bits is not supported with this QEMU binary"));
         return -1;
@@ -5680,6 +5735,29 @@ qemuValidateDomainDeviceDefIOMMU(const virDomainIOMMUDef *iommu,
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                        _("iommu: updating dma translation is not supported with this QEMU binary"));
         return -1;
+    }
+
+    if (iommu->granule > 0) {
+        /* QEMU supports only 4KiB, 8KiB, 16KiB and 64KiB granule size */
+        if (!(iommu->granule == 4 ||
+              iommu->granule == 8 ||
+              iommu->granule == 16 ||
+              iommu->granule == 64)) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("iommu: unsupported granule size. Supported values are 4, 8, 16 and 64 KiB"));
+            return -1;
+        }
+
+        /* While the QEMU_CAPS_VIRTIO_IOMMU_AW_BITS tracks .aw-bits attribute of
+         * virtio-iommu it is also a good indicator of .granule attribute as both
+         * attributes were introduced in neighboring commits, in the same release,
+         * neither can be disabled at compile time and backporting one without the
+         * other makes no sense. */
+        if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_VIRTIO_IOMMU_AW_BITS)) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("iommu: page granule is not supported with this QEMU binary"));
+            return -1;
+        }
     }
 
     return 0;

@@ -407,9 +407,8 @@ endif
 
 if conf.has('WITH_NETWORK')
   tests += [
-    { 'name': 'networkxml2conftest', 'link_with': [ network_driver_impl ] },
-    { 'name': 'networkxml2firewalltest', 'link_with': [ network_driver_impl ] },
-    { 'name': 'networkxml2xmltest', 'link_with': [ network_driver_impl ] },
+    { 'name': 'networkxml2firewalltest', 'include': [ network_inc_dir ], 'link_with': [ network_driver_impl ] },
+    { 'name': 'networkxmlconftest', 'include': [ network_inc_dir ], 'link_with': [ network_driver_impl ],  },
   ]
 endif
 
@@ -443,7 +442,7 @@ endif
 if conf.has('WITH_NWFILTER')
   tests += [
     { 'name': 'nwfilterebiptablestest', 'link_with': [ nwfilter_driver_impl ] },
-    { 'name': 'nwfilterxml2firewalltest', 'link_with': [ nwfilter_driver_impl ] },
+    { 'name': 'nwfilterxml2ebipfirewalltest', 'link_with': [ nwfilter_driver_impl ] },
   ]
 endif
 
