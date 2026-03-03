@@ -27,6 +27,7 @@
 #include "bhyve_domain.h"
 #include "bhyve_capabilities.h"
 #include "viralloc.h"
+#include "virfile.h"
 #include "virlog.h"
 #include "virutil.h"
 
@@ -104,6 +105,40 @@ bhyveDomainDefPostParse(virDomainDef *def,
     if (bhyveDomainDefNeedsISAController(def)) {
         virDomainDefMaybeAddController(def, VIR_DOMAIN_CONTROLLER_TYPE_ISA, 0,
                                        VIR_DOMAIN_CONTROLLER_MODEL_ISA_DEFAULT);
+    }
+
+    /* When not specified in the domain XML, clock.offset defaults to UTC which is
+     * not supported by bhyve on ARM64. So force it to LOCALTIME. */
+    if ((def->clock.offset == VIR_DOMAIN_CLOCK_OFFSET_UTC) &&
+        !(bhyveDriverGetBhyveCaps(driver) & BHYVE_CAP_RTC_UTC))
+        def->clock.offset = VIR_DOMAIN_CLOCK_OFFSET_LOCALTIME;
+
+    /* bhyve/arm64 does not provide the bhyveload(8) tool,
+     * so if the loader is not specified and we cannot fall back to the
+     * default one, then this results in an unusable configuration. */
+    if (ARCH_IS_ARM(def->os.arch)) {
+        if (def->os.loader == NULL) {
+            g_autoptr(virBhyveDriverConfig) cfg = virBhyveDriverGetConfig(driver);
+            char *uboot_path = cfg->ubootPath;
+
+            if (virFileExists(uboot_path)) {
+                def->os.loader = virDomainLoaderDefNew();
+                def->os.loader->path = g_strdup(uboot_path);
+                def->os.loader->readonly = true;
+                def->os.loader->type = VIR_DOMAIN_LOADER_TYPE_PFLASH;
+            } else {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                               _("loader is not specified and the default loader (%1$s) not found"),
+                               uboot_path);
+                return -1;
+            }
+        }
+    }
+
+    if (def->os.loader &&
+        def->os.loader->path &&
+        !def->os.loader->type) {
+        def->os.loader->type = VIR_DOMAIN_LOADER_TYPE_ROM;
     }
 
     return 0;

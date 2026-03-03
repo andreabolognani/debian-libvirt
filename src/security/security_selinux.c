@@ -41,6 +41,7 @@
 #include "virconf.h"
 #include "virtpm.h"
 #include "virstring.h"
+#include "viriommufd.h"
 
 #define VIR_FROM_THIS VIR_FROM_SECURITY
 
@@ -2256,14 +2257,27 @@ virSecuritySELinuxSetHostdevSubsysLabel(virSecurityManager *mgr,
             return -1;
 
         if (pcisrc->driver.name == VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_VFIO) {
-            g_autofree char *vfioGroupDev = virPCIDeviceGetIOMMUGroupDev(pci);
+            if (dev->source.subsys.u.pci.driver.iommufd != VIR_TRISTATE_BOOL_YES) {
+                g_autofree char *vfioGroupDev = virPCIDeviceGetIOMMUGroupDev(pci);
 
-            if (!vfioGroupDev)
-                return -1;
+                if (!vfioGroupDev)
+                    return -1;
 
-            ret = virSecuritySELinuxSetHostdevLabelHelper(vfioGroupDev,
-                                                          false,
-                                                          &data);
+                ret = virSecuritySELinuxSetHostdevLabelHelper(vfioGroupDev,
+                                                              false,
+                                                              &data);
+            } else {
+                g_autofree char *vfiofdDev = NULL;
+
+                if (virPCIDeviceGetVfioPath(pci, &vfiofdDev) < 0)
+                    return -1;
+
+                ret = virSecuritySELinuxSetHostdevLabelHelper(vfiofdDev, false, &data);
+                if (ret)
+                    break;
+
+                ret = virSecuritySELinuxSetHostdevLabelHelper(VIR_IOMMU_DEV_PATH, false, &data);
+            }
         } else {
             ret = virPCIDeviceFileIterate(pci, virSecuritySELinuxSetPCILabel, &data);
         }
@@ -2491,12 +2505,25 @@ virSecuritySELinuxRestoreHostdevSubsysLabel(virSecurityManager *mgr,
             return -1;
 
         if (pcisrc->driver.name == VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_VFIO) {
-            g_autofree char *vfioGroupDev = virPCIDeviceGetIOMMUGroupDev(pci);
+            if (dev->source.subsys.u.pci.driver.iommufd != VIR_TRISTATE_BOOL_YES) {
+                g_autofree char *vfioGroupDev = virPCIDeviceGetIOMMUGroupDev(pci);
 
-            if (!vfioGroupDev)
-                return -1;
+                if (!vfioGroupDev)
+                    return -1;
 
-            ret = virSecuritySELinuxRestoreFileLabel(mgr, vfioGroupDev, false, false);
+                ret = virSecuritySELinuxRestoreFileLabel(mgr, vfioGroupDev, false, false);
+            } else {
+                g_autofree char *vfiofdDev = NULL;
+
+                if (virPCIDeviceGetVfioPath(pci, &vfiofdDev) < 0)
+                    return -1;
+
+                ret = virSecuritySELinuxRestoreFileLabel(mgr, vfiofdDev, false, false);
+                if (ret < 0)
+                    break;
+
+                ret = virSecuritySELinuxRestoreFileLabel(mgr, VIR_IOMMU_DEV_PATH, false, false);
+            }
         } else {
             ret = virPCIDeviceFileIterate(pci, virSecuritySELinuxRestorePCILabel, mgr);
         }
@@ -2966,10 +2993,17 @@ virSecuritySELinuxRestoreAllLabel(virSecurityManager *mgr,
             rc = -1;
     }
 
-    if (def->os.loader && def->os.loader->nvram) {
-        if (virSecuritySELinuxRestoreImageLabelInt(mgr, sharedFilesystems,
+    if (def->os.loader) {
+        if (def->os.loader->nvram &&
+            virSecuritySELinuxRestoreImageLabelInt(mgr, sharedFilesystems,
                                                    def, def->os.loader->nvram,
                                                    migrated) < 0)
+            rc = -1;
+
+        if (def->os.varstore &&
+            def->os.varstore->path &&
+            virSecuritySELinuxRestoreFileLabel(mgr, def->os.varstore->path,
+                                               true, false) < 0)
             rc = -1;
     }
 
@@ -3315,6 +3349,22 @@ virSecuritySELinuxSetSysinfoLabel(virSecurityManager *mgr,
 
 
 static int
+virSecuritySELinuxDomainSetPathLabel(virSecurityManager *mgr,
+                                     virDomainDef *def,
+                                     const char *path,
+                                     bool allowSubtree G_GNUC_UNUSED)
+{
+    virSecurityLabelDef *seclabel;
+
+    seclabel = virDomainDefGetSecurityLabelDef(def, SECURITY_SELINUX_NAME);
+    if (!seclabel || !seclabel->relabel)
+        return 0;
+
+    return virSecuritySELinuxSetFilecon(mgr, path, seclabel->imagelabel, true);
+}
+
+
+static int
 virSecuritySELinuxSetAllLabel(virSecurityManager *mgr,
                               char *const *sharedFilesystems,
                               virDomainDef *def,
@@ -3394,11 +3444,18 @@ virSecuritySELinuxSetAllLabel(virSecurityManager *mgr,
             return -1;
     }
 
-    if (def->os.loader && def->os.loader->nvram) {
-        if (virSecuritySELinuxSetImageLabel(mgr, sharedFilesystems,
+    if (def->os.loader) {
+        if (def->os.loader->nvram &&
+            virSecuritySELinuxSetImageLabel(mgr, sharedFilesystems,
                                             def, def->os.loader->nvram,
                                             VIR_SECURITY_DOMAIN_IMAGE_LABEL_BACKING_CHAIN |
                                             VIR_SECURITY_DOMAIN_IMAGE_PARENT_CHAIN_TOP) < 0)
+            return -1;
+
+        if (def->os.varstore &&
+            def->os.varstore->path &&
+            virSecuritySELinuxDomainSetPathLabel(mgr, def,
+                                                 def->os.varstore->path, true) < 0)
             return -1;
     }
 
@@ -3564,21 +3621,6 @@ virSecuritySELinuxGetSecurityMountOptions(virSecurityManager *mgr,
 
     VIR_DEBUG("imageLabel=%s opts=%s", NULLSTR(imagelabel), opts);
     return opts;
-}
-
-static int
-virSecuritySELinuxDomainSetPathLabel(virSecurityManager *mgr,
-                                     virDomainDef *def,
-                                     const char *path,
-                                     bool allowSubtree G_GNUC_UNUSED)
-{
-    virSecurityLabelDef *seclabel;
-
-    seclabel = virDomainDefGetSecurityLabelDef(def, SECURITY_SELINUX_NAME);
-    if (!seclabel || !seclabel->relabel)
-        return 0;
-
-    return virSecuritySELinuxSetFilecon(mgr, path, seclabel->imagelabel, true);
 }
 
 static int

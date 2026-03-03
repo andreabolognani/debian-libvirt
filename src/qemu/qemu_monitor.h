@@ -783,9 +783,6 @@ qemuMonitorSetMemoryStatsPeriod(qemuMonitor *mon,
                                 virDomainMemballoonDef *balloon,
                                 int period);
 
-int
-qemuMonitorBlockIOStatusToError(const char *status);
-
 GHashTable *
 qemuMonitorGetBlockInfo(qemuMonitor *mon);
 
@@ -803,6 +800,18 @@ struct qemuBlockStatsLimits {
     unsigned long long iov_hw_max;
     unsigned long long memory_alignment_minimal;
     unsigned long long memory_alignment_optimal;
+};
+
+
+struct qemuBlockStatsLatencyHistogramBin {
+    unsigned long long start;
+    unsigned long long value;
+};
+
+
+struct qemuBlockStatsLatencyHistogram {
+    struct qemuBlockStatsLatencyHistogramBin *bins;
+    size_t nbins;
 };
 
 
@@ -858,6 +867,12 @@ struct _qemuBlockStats {
     /* block accounting/timed stats from qemu - one entry per interval configured */
     size_t n_timed_stats;
     struct qemuBlockStatsTimed *timed_stats;
+
+    /* latency histograms */
+    struct qemuBlockStatsLatencyHistogram *histogram_read;
+    struct qemuBlockStatsLatencyHistogram *histogram_write;
+    struct qemuBlockStatsLatencyHistogram *histogram_zone;
+    struct qemuBlockStatsLatencyHistogram *histogram_flush;
 };
 G_DECLARE_FINAL_TYPE(qemuBlockStats, qemu_block_stats, QEMU, BLOCK_STATS, GObject);
 
@@ -893,8 +908,12 @@ struct _qemuBlockNamedNodeData {
     unsigned long long capacity;
     unsigned long long physical;
 
+    /* Information about change block tracking bitmaps which are active and loaded */
     qemuBlockNamedNodeDataBitmap **bitmaps;
     size_t nbitmaps;
+    /* With qcow2 we have also a separate list of bitmaps present in the image
+     * but not yet activated, which happens when starting qemu during migration */
+    char **qcow2bitmaps;
 
     /* hash table indexed by snapshot name containing data about snapshots
      * (qemuBlockNamedNodeDataSnapshot) */
@@ -1071,7 +1090,6 @@ qemuMonitorMigrateToFd(qemuMonitor *mon,
 
 int
 qemuMonitorMigrateToFdSet(virDomainObj *vm,
-                          unsigned int flags,
                           int *fd,
                           int *directFd);
 
@@ -1966,3 +1984,12 @@ int
 qemuMonitorBlockdevSetActive(qemuMonitor *mon,
                              const char *nodename,
                              bool active);
+
+int
+qemuMonitorBlockLatencyHistogramSet(qemuMonitor *mon,
+                                    const char *id,
+                                    unsigned int *boundaries,
+                                    unsigned int *boundaries_read,
+                                    unsigned int *boundaries_write,
+                                    unsigned int *boundaries_zone,
+                                    unsigned int *boundaries_flush);

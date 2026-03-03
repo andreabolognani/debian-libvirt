@@ -626,6 +626,11 @@ qemuStateInitialize(bool privileged,
                              cfg->nvramDir);
         goto error;
     }
+    if (g_mkdir_with_parents(cfg->varstoreDir, 0777) < 0) {
+        virReportSystemError(errno, _("Failed to create varstore dir %1$s"),
+                             cfg->varstoreDir);
+        goto error;
+    }
     if (g_mkdir_with_parents(cfg->memoryBackingDir, 0777) < 0) {
         virReportSystemError(errno, _("Failed to create memory backing dir %1$s"),
                              cfg->memoryBackingDir);
@@ -781,6 +786,13 @@ qemuStateInitialize(bool privileged,
             virReportSystemError(errno,
                                  _("unable to set ownership of '%1$s' to %2$d:%3$d"),
                                  cfg->nvramDir, (int)cfg->user,
+                                 (int)cfg->group);
+            goto error;
+        }
+        if (chown(cfg->varstoreDir, cfg->user, cfg->group) < 0) {
+            virReportSystemError(errno,
+                                 _("unable to set ownership of '%1$s' to %2$d:%3$d"),
+                                 cfg->varstoreDir, (int)cfg->user,
                                  (int)cfg->group);
             goto error;
         }
@@ -1966,7 +1978,6 @@ qemuDomainReset(virDomainPtr dom, unsigned int flags)
     int ret = -1;
     qemuDomainObjPrivate *priv;
     virDomainState state;
-    virQEMUDriver *driver = dom->conn->privateData;
 
     virCheckFlags(0, -1);
 
@@ -2001,7 +2012,7 @@ qemuDomainReset(virDomainPtr dom, unsigned int flags)
     if (state == VIR_DOMAIN_CRASHED)
         virDomainObjSetState(vm, VIR_DOMAIN_PAUSED, VIR_DOMAIN_PAUSED_CRASHED);
 
-    qemuProcessRefreshState(driver, vm, VIR_ASYNC_JOB_NONE);
+    qemuProcessRefreshState(vm, VIR_ASYNC_JOB_NONE);
 
  endjob:
     virDomainObjEndJob(vm);
@@ -4035,13 +4046,12 @@ processMemoryDeviceSizeChange(virQEMUDriver *driver,
 
 
 static void
-processResetEvent(virQEMUDriver *driver,
-                  virDomainObj *vm)
+processResetEvent(virDomainObj *vm)
 {
     if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
         return;
 
-    qemuProcessRefreshState(driver, vm, VIR_ASYNC_JOB_NONE);
+    qemuProcessRefreshState(vm, VIR_ASYNC_JOB_NONE);
 
     virDomainObjEndJob(vm);
 }
@@ -4133,7 +4143,7 @@ static void qemuProcessEventHandler(void *data, void *opaque)
                                        processEvent->status);
         break;
     case QEMU_PROCESS_EVENT_RESET:
-        processResetEvent(driver, vm);
+        processResetEvent(vm);
         break;
     case QEMU_PROCESS_EVENT_NBDKIT_EXITED:
         processNbdkitExitedEvent(vm, processEvent->data);
@@ -5762,19 +5772,50 @@ static int qemuNodeGetSecurityModel(virConnectPtr conn,
     return 0;
 }
 
+
+/**
+ * qemuDomainRestoreInternal:
+ * @conn: connection object
+ * @vmRestore: Domain object (optional; see below)
+ * @path: path to the save image file
+ * @unlink_corrupt: remove corrupted save image file @path
+ * @dxml: XML to replace definition in the save image (optional)
+ * @params: restore parameters
+ * @nparams: number of @params
+ * @flags: binary-OR of virDomainSaveRestoreFlags
+ * @ensureACL: callback for function checking ACL access (optional)
+ * @asyncJob: async job type
+ *
+ * Restores VM from save image at @path.
+ *
+ * If @vmRestore is non-NULL the VM object is reused and also the name and UUID
+ * of the VM from the save image is checked against it.
+ *
+ * @dxml can be used to optionally override the XML from the save image.
+ *
+ * @ensureACL must be passed unless the access to the domain object was already
+ * verified.
+ *
+ * Returns 0 on success; -1 on error. If @unlink_corrupt is true and the
+ * corrupted image was removed 1 is returned.
+ */
 static int
 qemuDomainRestoreInternal(virConnectPtr conn,
+                          virDomainObj *vmRestore,
                           const char *path,
+                          bool unlink_corrupt,
                           const char *dxml,
                           virTypedParameterPtr params,
                           int nparams,
                           unsigned int flags,
-                          int (*ensureACL)(virConnectPtr, virDomainDef *))
+                          int (*ensureACL)(virConnectPtr, virDomainDef *),
+                          virDomainAsyncJob asyncJob)
 {
     virQEMUDriver *driver = conn->privateData;
     qemuDomainObjPrivate *priv = NULL;
     g_autoptr(virDomainDef) def = NULL;
     virDomainObj *vm = NULL;
+    virDomainObj *vmNew = NULL;
     g_autofree char *xmlout = NULL;
     const char *newxml = dxml;
     int fd = -1;
@@ -5784,6 +5825,7 @@ qemuDomainRestoreInternal(virConnectPtr conn,
     bool hook_taint = false;
     bool reset_nvram = false;
     bool sparse = false;
+    bool bypass_cache = (flags & VIR_DOMAIN_SAVE_BYPASS_CACHE) != 0;
     g_autoptr(qemuMigrationParams) restoreParams = NULL;
 
     virCheckFlags(VIR_DOMAIN_SAVE_BYPASS_CACHE |
@@ -5794,19 +5836,51 @@ qemuDomainRestoreInternal(virConnectPtr conn,
     if (flags & VIR_DOMAIN_SAVE_RESET_NVRAM)
         reset_nvram = true;
 
-    if (qemuSaveImageGetMetadata(driver, NULL, path, ensureACL, conn, &def, &data) < 0)
+    if (qemuSaveImageGetMetadata(driver, NULL, path, ensureACL, conn, &def, &data) < 0) {
+        if (unlink_corrupt &&
+            qemuSaveImageIsCorrupt(driver, path)) {
+            if (unlink(path) < 0) {
+                virReportSystemError(errno,
+                                     _("cannot remove corrupt file: %1$s"),
+                                     path);
+            } else {
+                virResetLastError();
+                ret = 1;
+            }
+        }
+
         goto cleanup;
+    }
 
     sparse = data->header.format == QEMU_SAVE_FORMAT_SPARSE;
     if (!(restoreParams = qemuMigrationParamsForSave(params, nparams, sparse,
                                                      (flags & VIR_DOMAIN_SAVE_BYPASS_CACHE))))
         goto cleanup;
 
-    fd = qemuSaveImageOpen(driver, path,
-                           (flags & VIR_DOMAIN_SAVE_BYPASS_CACHE) != 0,
-                           sparse, &wrapperFd, false);
-    if (fd < 0)
-        goto cleanup;
+    if (sparse) {
+        if ((fd = qemuSaveImageOpen(driver, path, bypass_cache, NULL, false)) < 0)
+            goto cleanup;
+
+        /* In sparse mode the FD needs to be a real file as qemu accesses it
+         * directly thus:
+         *  - ensure that we actualy got a file FD
+         *  - there's no need to seek it as qemu does it itself
+         */
+        if (!virFileFDIsRegular(fd)) {
+            virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
+                           _("path '%1$s' can't be opened directly (without the use of helper proces) which is incompatible with 'sparse' save image"),
+                           path);
+            goto cleanup;
+        }
+    } else {
+        if ((fd = qemuSaveImageOpen(driver, path, bypass_cache, &wrapperFd, false)) < 0)
+            goto cleanup;
+
+        /* When virFileWrapperFD is used 'fd' can't be seeked so to make it
+         * point to the data read the header */
+        if (qemuSaveImageFDSkipHeader(fd) < 0)
+            goto cleanup;
+    }
 
     if (virHookPresent(VIR_HOOK_DRIVER_QEMU)) {
         int hookret;
@@ -5835,12 +5909,36 @@ qemuDomainRestoreInternal(virConnectPtr conn,
         def = tmp;
     }
 
-    if (!(vm = virDomainObjListAdd(driver->domains, &def,
-                                   driver->xmlopt,
-                                   VIR_DOMAIN_OBJ_LIST_ADD_LIVE |
-                                   VIR_DOMAIN_OBJ_LIST_ADD_CHECK_LIVE,
-                                   NULL)))
-        goto cleanup;
+    if (vmRestore) {
+        vm = vmRestore;
+
+        if (STRNEQ(vm->def->name, def->name) ||
+            memcmp(vm->def->uuid, def->uuid, VIR_UUID_BUFLEN)) {
+            char vm_uuidstr[VIR_UUID_STRING_BUFLEN];
+            char def_uuidstr[VIR_UUID_STRING_BUFLEN];
+            virUUIDFormat(vm->def->uuid, vm_uuidstr);
+            virUUIDFormat(def->uuid, def_uuidstr);
+            virReportError(VIR_ERR_OPERATION_FAILED,
+                           _("cannot restore domain '%1$s' uuid %2$s from a file which belongs to domain '%3$s' uuid %4$s"),
+                           vm->def->name, vm_uuidstr,
+                           def->name, def_uuidstr);
+            goto cleanup;
+        }
+
+        virDomainObjAssignDef(vm, &def, true, NULL);
+    } else {
+        if (!(vmNew = virDomainObjListAdd(driver->domains, &def,
+                                          driver->xmlopt,
+                                          VIR_DOMAIN_OBJ_LIST_ADD_LIVE |
+                                          VIR_DOMAIN_OBJ_LIST_ADD_CHECK_LIVE,
+                                          NULL)))
+            goto cleanup;
+
+        vm = vmNew;
+
+        if (qemuProcessBeginJob(vm, VIR_DOMAIN_JOB_OPERATION_RESTORE, flags) < 0)
+            goto cleanup;
+    }
 
     if (flags & VIR_DOMAIN_SAVE_RUNNING)
         data->header.was_running = 1;
@@ -5852,13 +5950,11 @@ qemuDomainRestoreInternal(virConnectPtr conn,
         priv->hookRun = true;
     }
 
-    if (qemuProcessBeginJob(vm, VIR_DOMAIN_JOB_OPERATION_RESTORE, flags) < 0)
-        goto cleanup;
-
     ret = qemuSaveImageStartVM(conn, driver, vm, &fd, data, path, restoreParams,
-                               false, reset_nvram, VIR_ASYNC_JOB_START);
+                               false, reset_nvram, asyncJob);
 
-    qemuProcessEndJob(vm);
+    if (vmNew)
+        qemuProcessEndJob(vmNew);
 
  cleanup:
     VIR_FORCE_CLOSE(fd);
@@ -5866,9 +5962,9 @@ qemuDomainRestoreInternal(virConnectPtr conn,
         ret = -1;
     virFileWrapperFdFree(wrapperFd);
     virQEMUSaveDataFree(data);
-    if (vm && ret < 0)
-        qemuDomainRemoveInactive(vm, 0, false);
-    virDomainObjEndAPI(&vm);
+    if (vmNew && ret < 0)
+        qemuDomainRemoveInactive(vmNew, 0, false);
+    virDomainObjEndAPI(&vmNew);
     return ret;
 }
 
@@ -5878,16 +5974,18 @@ qemuDomainRestoreFlags(virConnectPtr conn,
                        const char *dxml,
                        unsigned int flags)
 {
-    return qemuDomainRestoreInternal(conn, path, dxml, NULL, 0, flags,
-                                     virDomainRestoreFlagsEnsureACL);
+    return qemuDomainRestoreInternal(conn, NULL, path, false, dxml, NULL, 0,
+                                     flags, virDomainRestoreFlagsEnsureACL,
+                                     VIR_ASYNC_JOB_START);
 }
 
 static int
 qemuDomainRestore(virConnectPtr conn,
                   const char *path)
 {
-    return qemuDomainRestoreInternal(conn, path, NULL, NULL, 0, 0,
-                                     virDomainRestoreEnsureACL);
+    return qemuDomainRestoreInternal(conn, NULL, path, false, NULL, NULL, 0,
+                                     0, virDomainRestoreEnsureACL,
+                                     VIR_ASYNC_JOB_START);
 }
 
 static int
@@ -5919,8 +6017,9 @@ qemuDomainRestoreParams(virConnectPtr conn,
         return -1;
     }
 
-    ret = qemuDomainRestoreInternal(conn, path, dxml, params, nparams, flags,
-                                    virDomainRestoreParamsEnsureACL);
+    ret = qemuDomainRestoreInternal(conn, NULL, path, false, dxml, params, nparams,
+                                    flags, virDomainRestoreParamsEnsureACL,
+                                    VIR_ASYNC_JOB_START);
     return ret;
 }
 
@@ -5972,7 +6071,7 @@ qemuDomainSaveImageDefineXML(virConnectPtr conn, const char *path,
                                  conn, &def, &data) < 0)
         goto cleanup;
 
-    fd = qemuSaveImageOpen(driver, path, false, false, NULL, true);
+    fd = qemuSaveImageOpen(driver, path, false, NULL, true);
 
     if (fd < 0)
         goto cleanup;
@@ -6088,103 +6187,6 @@ qemuDomainManagedSaveDefineXML(virDomainPtr dom, const char *dxml,
 
  cleanup:
     virDomainObjEndAPI(&vm);
-    return ret;
-}
-
-/* Return 0 on success, 1 if incomplete saved image was silently unlinked,
- * and -1 on failure with error raised.  */
-static int
-qemuDomainObjRestore(virConnectPtr conn,
-                     virQEMUDriver *driver,
-                     virDomainObj *vm,
-                     const char *path,
-                     bool start_paused,
-                     bool bypass_cache,
-                     bool reset_nvram,
-                     virDomainAsyncJob asyncJob)
-{
-    g_autoptr(virDomainDef) def = NULL;
-    qemuDomainObjPrivate *priv = vm->privateData;
-    int fd = -1;
-    int ret = -1;
-    g_autofree char *xmlout = NULL;
-    virQEMUSaveData *data = NULL;
-    virFileWrapperFd *wrapperFd = NULL;
-    bool sparse = false;
-    g_autoptr(qemuMigrationParams) restoreParams = NULL;
-
-    ret = qemuSaveImageGetMetadata(driver, NULL, path, NULL, NULL, &def, &data);
-    if (ret < 0) {
-        if (qemuSaveImageIsCorrupt(driver, path)) {
-            if (unlink(path) < 0) {
-                virReportSystemError(errno,
-                                     _("cannot remove corrupt file: %1$s"),
-                                     path);
-                ret = -1;
-            } else {
-                virResetLastError();
-                ret = 1;
-            }
-        }
-        goto cleanup;
-    }
-
-    sparse = data->header.format == QEMU_SAVE_FORMAT_SPARSE;
-    if (!(restoreParams = qemuMigrationParamsForSave(NULL, 0, sparse,
-                                                     bypass_cache)))
-        return -1;
-
-    fd = qemuSaveImageOpen(driver, path, bypass_cache, sparse, &wrapperFd, false);
-    if (fd < 0)
-        goto cleanup;
-
-    if (virHookPresent(VIR_HOOK_DRIVER_QEMU)) {
-        int hookret;
-
-        if ((hookret = virHookCall(VIR_HOOK_DRIVER_QEMU, def->name,
-                                   VIR_HOOK_QEMU_OP_RESTORE,
-                                   VIR_HOOK_SUBOP_BEGIN,
-                                   NULL, data->xml, &xmlout)) < 0)
-            goto cleanup;
-
-        if (hookret == 0 && !virStringIsEmpty(xmlout)) {
-            virDomainDef *tmp;
-
-            VIR_DEBUG("Using hook-filtered domain XML: %s", xmlout);
-
-            if (!(tmp = qemuSaveImageUpdateDef(driver, def, xmlout)))
-                goto cleanup;
-
-            virDomainDefFree(def);
-            def = tmp;
-            priv->hookRun = true;
-        }
-    }
-
-    if (STRNEQ(vm->def->name, def->name) ||
-        memcmp(vm->def->uuid, def->uuid, VIR_UUID_BUFLEN)) {
-        char vm_uuidstr[VIR_UUID_STRING_BUFLEN];
-        char def_uuidstr[VIR_UUID_STRING_BUFLEN];
-        virUUIDFormat(vm->def->uuid, vm_uuidstr);
-        virUUIDFormat(def->uuid, def_uuidstr);
-        virReportError(VIR_ERR_OPERATION_FAILED,
-                       _("cannot restore domain '%1$s' uuid %2$s from a file which belongs to domain '%3$s' uuid %4$s"),
-                       vm->def->name, vm_uuidstr,
-                       def->name, def_uuidstr);
-        goto cleanup;
-    }
-
-    virDomainObjAssignDef(vm, &def, true, NULL);
-
-    ret = qemuSaveImageStartVM(conn, driver, vm, &fd, data, path, restoreParams,
-                               start_paused, reset_nvram, asyncJob);
-
- cleanup:
-    virQEMUSaveDataFree(data);
-    VIR_FORCE_CLOSE(fd);
-    if (virFileWrapperFdClose(wrapperFd) < 0)
-        ret = -1;
-    virFileWrapperFdFree(wrapperFd);
     return ret;
 }
 
@@ -6360,11 +6362,17 @@ qemuDomainObjStart(virConnectPtr conn,
             vm->hasManagedSave = false;
         } else {
             virDomainJobOperation op = vm->job->current->operation;
+            unsigned int restore_flags = 0;
+
             vm->job->current->operation = VIR_DOMAIN_JOB_OPERATION_RESTORE;
 
-            ret = qemuDomainObjRestore(conn, driver, vm, managed_save,
-                                       start_paused, bypass_cache,
-                                       reset_nvram, asyncJob);
+            restore_flags |= start_paused ? VIR_DOMAIN_SAVE_PAUSED : 0;
+            restore_flags |= bypass_cache ? VIR_DOMAIN_SAVE_BYPASS_CACHE : 0;
+            restore_flags |= reset_nvram ? VIR_DOMAIN_SAVE_RESET_NVRAM : 0;
+
+            ret = qemuDomainRestoreInternal(conn, vm, managed_save, true, NULL, NULL, 0,
+                                            restore_flags, NULL,
+                                            asyncJob);
 
             if (ret == 0) {
                 if (unlink(managed_save) < 0)
@@ -6636,22 +6644,26 @@ qemuDomainUndefineFlags(virDomainPtr dom,
         }
     }
 
-    if (vm->def->os.loader && vm->def->os.loader->nvram &&
-        virStorageSourceIsLocalStorage(vm->def->os.loader->nvram)) {
-        nvram_path = g_strdup(vm->def->os.loader->nvram->path);
+    if (vm->def->os.loader) {
+        if (vm->def->os.loader->nvram &&
+            virStorageSourceIsLocalStorage(vm->def->os.loader->nvram)) {
+            nvram_path = g_strdup(vm->def->os.loader->nvram->path);
+        } else if (vm->def->os.varstore && vm->def->os.varstore->path) {
+            nvram_path = g_strdup(vm->def->os.varstore->path);
+        }
     }
 
     if (nvram_path && virFileExists(nvram_path)) {
         if ((flags & VIR_DOMAIN_UNDEFINE_NVRAM)) {
             if (unlink(nvram_path) < 0) {
                 virReportSystemError(errno,
-                                     _("failed to remove nvram: %1$s"),
+                                     _("Failed to remove NVRAM/varstore: %1$s"),
                                      nvram_path);
                 goto endjob;
             }
         } else if (!(flags & VIR_DOMAIN_UNDEFINE_KEEP_NVRAM)) {
             virReportError(VIR_ERR_OPERATION_INVALID, "%s",
-                           _("cannot undefine domain with nvram"));
+                           _("Cannot undefine domain with NVRAM/varstore"));
             goto endjob;
         }
     }
@@ -12320,6 +12332,12 @@ qemuDomainAbortJobPostcopy(virDomainObj *vm,
         return -1;
     }
 
+    if (virDomainObjIsFailedPostcopy(vm, vm->job)) {
+        virReportError(VIR_ERR_OPERATION_INVALID, "%s",
+                       _("post-copy migration already stopped"));
+        return -1;
+    }
+
     VIR_DEBUG("Suspending post-copy migration at client request");
 
     qemuDomainObjAbortAsyncJob(vm);
@@ -15177,11 +15195,13 @@ static int
 qemuDomainSetBlockIoTuneFields(virDomainBlockIoTuneInfo *info,
                                virTypedParameterPtr params,
                                int nparams,
+                               const char *group_name,
                                qemuBlockIoTuneSetFlags *set_fields,
                                virTypedParameterPtr *eventParams,
                                int *eventNparams,
                                int *eventMaxparams)
 {
+    const char *param_group_name = NULL;
     size_t i;
 
 #define SET_IOTUNE_FIELD(FIELD, BOOL, CONST) \
@@ -15227,15 +15247,8 @@ qemuDomainSetBlockIoTuneFields(virDomainBlockIoTuneInfo *info,
                          WRITE_IOPS_SEC_MAX);
         SET_IOTUNE_FIELD(size_iops_sec, SIZE_IOPS, SIZE_IOPS_SEC);
 
-        /* NB: Cannot use macro since this is a value.s not a value.ul */
         if (STREQ(param->field, VIR_DOMAIN_BLOCK_IOTUNE_GROUP_NAME)) {
-            info->group_name = g_strdup(param->value.s);
-            *set_fields |= QEMU_BLOCK_IOTUNE_SET_GROUP_NAME;
-            if (virTypedParamsAddString(eventParams, eventNparams,
-                                        eventMaxparams,
-                                        VIR_DOMAIN_TUNABLE_BLKDEV_GROUP_NAME,
-                                        param->value.s) < 0)
-                return -1;
+            param_group_name = param->value.s;
             continue;
         }
 
@@ -15251,6 +15264,20 @@ qemuDomainSetBlockIoTuneFields(virDomainBlockIoTuneInfo *info,
                          READ_IOPS_SEC_MAX_LENGTH);
         SET_IOTUNE_FIELD(write_iops_sec_max_length, IOPS_MAX_LENGTH,
                          WRITE_IOPS_SEC_MAX_LENGTH);
+    }
+
+    /* The name of the throttle group passed via API always takes precedence */
+    if (group_name)
+        param_group_name = group_name;
+
+    if (param_group_name) {
+        info->group_name = g_strdup(param_group_name);
+        *set_fields |= QEMU_BLOCK_IOTUNE_SET_GROUP_NAME;
+        if (virTypedParamsAddString(eventParams, eventNparams,
+                                    eventMaxparams,
+                                    VIR_DOMAIN_TUNABLE_BLKDEV_GROUP_NAME,
+                                    param_group_name) < 0)
+            return -1;
     }
 
 #undef SET_IOTUNE_FIELD
@@ -15390,6 +15417,7 @@ qemuDomainSetBlockIoTune(virDomainPtr dom,
     if (qemuDomainSetBlockIoTuneFields(&info,
                                        params,
                                        nparams,
+                                       NULL,
                                        &set_fields,
                                        &eventParams,
                                        &eventNparams,
@@ -17597,6 +17625,36 @@ qemuDomainGetStatsBlockExportBackendStorage(const char *entryname,
 
 
 static void
+qemuDomainGetStatsBlockExportFrontendLatencyHistogram(struct qemuBlockStatsLatencyHistogram *h,
+                                                      size_t disk_idx,
+                                                      const char *prefix_hist,
+                                                      virTypedParamList *par)
+{
+    size_t i;
+
+    if (!h)
+        return;
+
+    virTypedParamListAddULLong(par, h->nbins,
+                               VIR_DOMAIN_STATS_BLOCK_PREFIX "%zu%s" VIR_DOMAIN_STATS_BLOCK_SUFFIX_LATENCY_HISTOGRAM_SUFFIX_BIN_COUNT,
+                               disk_idx, prefix_hist);
+
+    for (i = 0; i < h->nbins; i++) {
+        virTypedParamListAddULLong(par, h->bins[i].start,
+                                   VIR_DOMAIN_STATS_BLOCK_PREFIX "%zu%s"
+                                   VIR_DOMAIN_STATS_BLOCK_SUFFIX_LATENCY_HISTOGRAM_SUFFIX_BIN_PREFIX "%zu"
+                                   VIR_DOMAIN_STATS_BLOCK_SUFFIX_LATENCY_HISTOGRAM_SUFFIX_BIN_SUFFIX_START,
+                                   disk_idx, prefix_hist, i);
+        virTypedParamListAddULLong(par, h->bins[i].value,
+                                   VIR_DOMAIN_STATS_BLOCK_PREFIX "%zu%s"
+                                   VIR_DOMAIN_STATS_BLOCK_SUFFIX_LATENCY_HISTOGRAM_SUFFIX_BIN_PREFIX "%zu"
+                                   VIR_DOMAIN_STATS_BLOCK_SUFFIX_LATENCY_HISTOGRAM_SUFFIX_BIN_SUFFIX_VALUE,
+                                   disk_idx, prefix_hist, i);
+    }
+}
+
+
+static void
 qemuDomainGetStatsBlockExportFrontend(const char *frontendname,
                                       GHashTable *stats,
                                       size_t idx,
@@ -17720,6 +17778,19 @@ qemuDomainGetStatsBlockExportFrontend(const char *frontendname,
                                        idx, i);
         }
     }
+
+    qemuDomainGetStatsBlockExportFrontendLatencyHistogram(en->histogram_read, idx,
+                                                          VIR_DOMAIN_STATS_BLOCK_SUFFIX_LATENCY_HISTOGRAM_READ_PREFIX,
+                                                          par);
+    qemuDomainGetStatsBlockExportFrontendLatencyHistogram(en->histogram_write, idx,
+                                                          VIR_DOMAIN_STATS_BLOCK_SUFFIX_LATENCY_HISTOGRAM_WRITE_PREFIX,
+                                                          par);
+    qemuDomainGetStatsBlockExportFrontendLatencyHistogram(en->histogram_zone, idx,
+                                                          VIR_DOMAIN_STATS_BLOCK_SUFFIX_LATENCY_HISTOGRAM_ZONE_APPEND_PREFIX,
+                                                          par);
+    qemuDomainGetStatsBlockExportFrontendLatencyHistogram(en->histogram_flush, idx,
+                                                          VIR_DOMAIN_STATS_BLOCK_SUFFIX_LATENCY_HISTOGRAM_FLUSH_PREFIX,
+                                                          par);
 }
 
 
@@ -20354,6 +20425,12 @@ qemuDomainSetThrottleGroup(virDomainPtr dom,
     virCheckFlags(VIR_DOMAIN_AFFECT_LIVE |
                   VIR_DOMAIN_AFFECT_CONFIG, -1);
 
+    if (strlen(groupname) == 0) {
+        virReportError(VIR_ERR_INVALID_ARG, "%s",
+                       _("'groupname' parameter string must have non-zero length"));
+        return -1;
+    }
+
     if (qemuDomainValidateBlockIoTune(params, nparams) < 0)
         return -1;
 
@@ -20371,13 +20448,10 @@ qemuDomainSetThrottleGroup(virDomainPtr dom,
     if (virDomainObjGetDefs(vm, flags, &def, &persistentDef) < 0)
         goto endjob;
 
-    if (virTypedParamsAddString(&eventParams, &eventNparams, &eventMaxparams,
-                                VIR_DOMAIN_TUNABLE_BLKDEV_GROUP_NAME, groupname) < 0)
-        goto endjob;
-
     if (qemuDomainSetBlockIoTuneFields(&info,
                                        params,
                                        nparams,
+                                       groupname,
                                        &set_fields,
                                        &eventParams,
                                        &eventNparams,

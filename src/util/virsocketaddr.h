@@ -89,8 +89,7 @@ char *virSocketAddrFormatFull(const virSocketAddr *addr,
                               bool withService,
                               const char *separator);
 char *virSocketAddrFormatWithPrefix(virSocketAddr *addr,
-                                    unsigned int prefix,
-                                    bool masked);
+                                    unsigned int prefix);
 
 char *virSocketAddrGetPath(virSocketAddr *addr);
 
@@ -135,6 +134,8 @@ bool virSocketAddrIsPrivate(const virSocketAddr *addr);
 bool virSocketAddrIsWildcard(const virSocketAddr *addr);
 
 int virSocketAddrNumericFamily(const char *address);
+
+int virSocketAddrSubnetToPrefix(const char *subnet);
 
 bool virSocketAddrIsNumericLocalhost(const char *addr);
 

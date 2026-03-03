@@ -423,6 +423,19 @@ virDomainCapsFeatureFormatSimple(virBuffer *buf,
 
 
 static void
+virDomainCapsFirmwareFeaturesFormat(virBuffer *buf,
+                                    const virDomainCapsFirmwareFeatures *firmwareFeatures)
+{
+    FORMAT_PROLOGUE(firmwareFeatures);
+
+    ENUM_PROCESS(firmwareFeatures, secureBoot, virTristateBoolTypeToString);
+    ENUM_PROCESS(firmwareFeatures, enrolledKeys, virTristateBoolTypeToString);
+
+    FORMAT_EPILOGUE(firmwareFeatures);
+}
+
+
+static void
 virDomainCapsLoaderFormat(virBuffer *buf,
                           const virDomainCapsLoader *loader)
 {
@@ -437,16 +450,28 @@ virDomainCapsLoaderFormat(virBuffer *buf,
 }
 
 static void
+virDomainCapsVarstoreFormat(virBuffer *buf,
+                            const virDomainCapsVarstore *varstore)
+{
+    FORMAT_PROLOGUE(varstore);
+    FORMAT_EPILOGUE(varstore);
+}
+
+static void
 virDomainCapsOSFormat(virBuffer *buf,
                       const virDomainCapsOS *os)
 {
+    const virDomainCapsFirmwareFeatures *firmwareFeatures = &os->firmwareFeatures;
     const virDomainCapsLoader *loader = &os->loader;
+    const virDomainCapsVarstore *varstore = &os->varstore;
 
     FORMAT_PROLOGUE(os);
 
     ENUM_PROCESS(os, firmware, virDomainOsDefFirmwareTypeToString);
 
+    virDomainCapsFirmwareFeaturesFormat(&childBuf, firmwareFeatures);
     virDomainCapsLoaderFormat(&childBuf, loader);
+    virDomainCapsVarstoreFormat(&childBuf, varstore);
 
     FORMAT_EPILOGUE(os);
 }
@@ -620,6 +645,7 @@ virDomainCapsDeviceHostdevFormat(virBuffer *buf,
     ENUM_PROCESS(hostdev, subsysType, virDomainHostdevSubsysTypeToString);
     ENUM_PROCESS(hostdev, capsType, virDomainHostdevCapsTypeToString);
     ENUM_PROCESS(hostdev, pciBackend, virDeviceHostdevPCIDriverNameTypeToString);
+    ENUM_PROCESS(hostdev, iommufd, virTristateBoolTypeToString);
 
     FORMAT_EPILOGUE(hostdev);
 }

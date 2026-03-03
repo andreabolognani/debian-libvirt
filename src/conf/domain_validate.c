@@ -1723,100 +1723,78 @@ virDomainDefOSValidate(const virDomainDef *def,
                        virDomainXMLOption *xmlopt)
 {
     virDomainLoaderDef *loader = def->os.loader;
+    virDomainVarstoreDef *varstore = def->os.varstore;
+    virDomainOsDefFirmware firmware = def->os.firmware;
+    int *firmwareFeatures = def->os.firmwareFeatures;
+    bool usesNvram = loader && (loader->nvram || loader->nvramTemplate || loader->nvramTemplateFormat);
 
-    if (def->os.firmware) {
+    if (firmware) {
         if (xmlopt && !(xmlopt->config.features & VIR_DOMAIN_DEF_FEATURE_FW_AUTOSELECT)) {
             virReportError(VIR_ERR_XML_DETAIL, "%s",
                            _("firmware auto selection not implemented for this driver"));
             return -1;
         }
 
-        if (def->os.firmwareFeatures &&
-            def->os.firmwareFeatures[VIR_DOMAIN_OS_DEF_FIRMWARE_FEATURE_ENROLLED_KEYS] == VIR_TRISTATE_BOOL_YES &&
-            def->os.firmwareFeatures[VIR_DOMAIN_OS_DEF_FIRMWARE_FEATURE_SECURE_BOOT] == VIR_TRISTATE_BOOL_NO) {
+        if (firmwareFeatures &&
+            firmwareFeatures[VIR_DOMAIN_OS_DEF_FIRMWARE_FEATURE_ENROLLED_KEYS] == VIR_TRISTATE_BOOL_YES &&
+            firmwareFeatures[VIR_DOMAIN_OS_DEF_FIRMWARE_FEATURE_SECURE_BOOT] == VIR_TRISTATE_BOOL_NO) {
             virReportError(VIR_ERR_XML_DETAIL, "%s",
                            _("firmware feature 'enrolled-keys' cannot be enabled when firmware feature 'secure-boot' is disabled"));
             return -1;
         }
-
-        if (!loader)
-            return 0;
-
-        if (loader->nvram && def->os.firmware != VIR_DOMAIN_OS_DEF_FIRMWARE_EFI) {
-            virReportError(VIR_ERR_XML_DETAIL,
-                           _("firmware type '%1$s' does not support nvram"),
-                           virDomainOsDefFirmwareTypeToString(def->os.firmware));
-            return -1;
-        }
     } else {
-        if (def->os.firmwareFeatures) {
+        if (firmwareFeatures) {
             virReportError(VIR_ERR_XML_DETAIL, "%s",
                            _("cannot use feature-based firmware autoselection when firmware autoselection is disabled"));
             return -1;
         }
 
-        if (!loader)
-            return 0;
-
-        if (!loader->path) {
+        if (loader && !loader->path) {
             virReportError(VIR_ERR_XML_DETAIL, "%s",
                            _("no loader path specified and firmware auto selection disabled"));
             return -1;
         }
     }
 
-    if (loader->readonly == VIR_TRISTATE_BOOL_NO) {
-        if (loader->type == VIR_DOMAIN_LOADER_TYPE_ROM) {
+    if (loader && loader->type == VIR_DOMAIN_LOADER_TYPE_ROM) {
+        if (loader->readonly == VIR_TRISTATE_BOOL_NO) {
             virReportError(VIR_ERR_XML_DETAIL, "%s",
                            _("ROM loader type cannot be used as read/write"));
             return -1;
         }
 
-        if (loader->nvramTemplate) {
-            virReportError(VIR_ERR_XML_DETAIL, "%s",
-                           _("NVRAM template is not permitted when loader is read/write"));
-            return -1;
-        }
-
-        if (loader->nvram) {
-            virReportError(VIR_ERR_XML_DETAIL, "%s",
-                           _("NVRAM is not permitted when loader is read/write"));
-            return -1;
-        }
-    }
-
-    if (loader->stateless == VIR_TRISTATE_BOOL_YES) {
-        if (loader->nvramTemplate) {
-            virReportError(VIR_ERR_XML_DETAIL, "%s",
-                           _("NVRAM template is not permitted when loader is stateless"));
-            return -1;
-        }
-
-        if (loader->nvram) {
-            virReportError(VIR_ERR_XML_DETAIL, "%s",
-                           _("NVRAM is not permitted when loader is stateless"));
-            return -1;
-        }
-    } else if (loader->stateless == VIR_TRISTATE_BOOL_NO) {
-        if (def->os.firmware == VIR_DOMAIN_OS_DEF_FIRMWARE_NONE) {
-            if (def->os.loader->type != VIR_DOMAIN_LOADER_TYPE_PFLASH) {
-                virReportError(VIR_ERR_XML_DETAIL, "%s",
-                               _("Only pflash loader type permits NVRAM"));
-                return -1;
-            }
-        } else if (def->os.firmware != VIR_DOMAIN_OS_DEF_FIRMWARE_EFI) {
-            virReportError(VIR_ERR_XML_DETAIL, "%s",
-                           _("Only EFI firmware permits NVRAM"));
-            return -1;
-        }
-    }
-
-    if (loader->type == VIR_DOMAIN_LOADER_TYPE_ROM) {
         if (loader->format &&
             loader->format != VIR_STORAGE_FILE_RAW) {
             virReportError(VIR_ERR_XML_DETAIL,
                            _("Invalid format '%1$s' for ROM loader type"),
                            virStorageFileFormatTypeToString(loader->format));
+            return -1;
+        }
+    }
+
+    if (usesNvram && varstore) {
+            virReportError(VIR_ERR_XML_DETAIL, "%s",
+                           _("Only one of NVRAM/varstore can be used"));
+            return -1;
+    }
+
+    if (usesNvram || varstore) {
+        if (firmware && firmware != VIR_DOMAIN_OS_DEF_FIRMWARE_EFI) {
+            virReportError(VIR_ERR_XML_DETAIL,
+                           _("Firmware type '%1$s' does not support variable storage (NVRAM/varstore)"),
+                           virDomainOsDefFirmwareTypeToString(firmware));
+            return -1;
+        }
+
+        if (loader && loader->stateless == VIR_TRISTATE_BOOL_YES) {
+            virReportError(VIR_ERR_XML_DETAIL, "%s",
+                           _("Variable storage (NVRAM/varstore) is not permitted when loader is stateless"));
+            return -1;
+        }
+
+        if (loader && loader->readonly == VIR_TRISTATE_BOOL_NO) {
+            virReportError(VIR_ERR_XML_DETAIL, "%s",
+                           _("Variable storage (NVRAM/varstore) is not permitted when loader is read/write"));
             return -1;
         }
     }
@@ -2229,15 +2207,12 @@ virDomainActualNetDefValidate(const virDomainNetDef *net)
     if (virDomainNetGetActualVlan(net)) {
         /* vlan configuration via libvirt is only supported for PCI
          * Passthrough SR-IOV devices (hostdev or macvtap passthru
-         * mode) and openvswitch bridges. Otherwise log an error and
-         * fail
+         * mode) and openvswitch/linux host bridges.
          */
-        if (!(actualType == VIR_DOMAIN_NET_TYPE_HOSTDEV ||
+        if (!(virDomainNetGetActualBridgeName(net) ||
+              actualType == VIR_DOMAIN_NET_TYPE_HOSTDEV ||
               (actualType == VIR_DOMAIN_NET_TYPE_DIRECT &&
-               virDomainNetGetActualDirectMode(net) == VIR_NETDEV_MACVLAN_MODE_PASSTHRU) ||
-              (actualType == VIR_DOMAIN_NET_TYPE_BRIDGE &&
-               vport && vport->virtPortType == VIR_NETDEV_VPORT_PROFILE_OPENVSWITCH) ||
-              (actualType == VIR_DOMAIN_NET_TYPE_BRIDGE && !vport))) {
+               virDomainNetGetActualDirectMode(net) == VIR_NETDEV_MACVLAN_MODE_PASSTHRU))) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                            _("interface %1$s - vlan tag not supported for this connection type"),
                            macstr);
@@ -2375,6 +2350,47 @@ virDomainNetDefValidate(const virDomainNetDef *net)
 
     if (!virNetDevBandwidthValidate(net->bandwidth)) {
         return -1;
+    }
+
+    if (net->vlan.nTags > 0) {
+        /* vlan configuration via libvirt is only supported for PCI
+         * Passthrough SR-IOV devices (hostdev or macvtap passthru
+         * mode) and openvswitch/linux host bridges. (Also allow it in
+         * the case where we don't yet know what the exact connection
+         * type will be, i.e. NET_TYPE_NETWORK).
+         */
+        bool vlanAllowed = false;
+
+        switch (net->type) {
+        case VIR_DOMAIN_NET_TYPE_HOSTDEV:
+        case VIR_DOMAIN_NET_TYPE_NETWORK:
+        case VIR_DOMAIN_NET_TYPE_BRIDGE:
+            vlanAllowed = true;
+            break;
+        case VIR_DOMAIN_NET_TYPE_DIRECT:
+            if (net->data.direct.mode == VIR_NETDEV_MACVLAN_MODE_PASSTHRU)
+                vlanAllowed = true;
+            break;
+        case VIR_DOMAIN_NET_TYPE_ETHERNET:
+        case VIR_DOMAIN_NET_TYPE_USER:
+        case VIR_DOMAIN_NET_TYPE_VHOSTUSER:
+        case VIR_DOMAIN_NET_TYPE_SERVER:
+        case VIR_DOMAIN_NET_TYPE_CLIENT:
+        case VIR_DOMAIN_NET_TYPE_MCAST:
+        case VIR_DOMAIN_NET_TYPE_INTERNAL:
+        case VIR_DOMAIN_NET_TYPE_UDP:
+        case VIR_DOMAIN_NET_TYPE_VDPA:
+        case VIR_DOMAIN_NET_TYPE_NULL:
+        case VIR_DOMAIN_NET_TYPE_VDS:
+        case VIR_DOMAIN_NET_TYPE_LAST:
+            break;
+        }
+        if (!vlanAllowed) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                           _("interface %1$s - vlan tag not supported for this connection type"),
+                           macstr);
+            return -1;
+        }
     }
 
     return 0;
@@ -3156,7 +3172,8 @@ virDomainIOMMUDefValidate(const virDomainIOMMUDef *iommu)
             iommu->aw_bits != 0 ||
             iommu->dma_translation != VIR_TRISTATE_SWITCH_ABSENT ||
             iommu->xtsup != VIR_TRISTATE_SWITCH_ABSENT ||
-            iommu->pt != VIR_TRISTATE_SWITCH_ABSENT) {
+            iommu->pt != VIR_TRISTATE_SWITCH_ABSENT ||
+            iommu->granule != 0) {
             virReportError(VIR_ERR_XML_ERROR,
                            _("iommu model '%1$s' doesn't support some additional attributes"),
                            virDomainIOMMUModelTypeToString(iommu->model));
@@ -3168,12 +3185,20 @@ virDomainIOMMUDefValidate(const virDomainIOMMUDef *iommu)
             iommu->caching_mode != VIR_TRISTATE_SWITCH_ABSENT ||
             iommu->eim != VIR_TRISTATE_SWITCH_ABSENT ||
             iommu->iotlb != VIR_TRISTATE_SWITCH_ABSENT ||
-            iommu->aw_bits != 0 ||
             iommu->dma_translation != VIR_TRISTATE_SWITCH_ABSENT ||
             iommu->pci_bus >= 0) {
             virReportError(VIR_ERR_XML_ERROR,
-                           _("iommu model '%1$s' doesn't support additional attributes"),
+                           _("iommu model '%1$s' doesn't support some additional attributes"),
                            virDomainIOMMUModelTypeToString(iommu->model));
+            return -1;
+        }
+
+        /* QEMU mandates address width of the IOVA address space to be inside
+         * [32,64] range, but since it stems from virtio specification it can
+         * be assumed to be hypervisor agnostic and thus can live here. */
+        if (iommu->aw_bits != 0 && (iommu->aw_bits < 32 || iommu->aw_bits > 64)) {
+            virReportError(VIR_ERR_XML_ERROR, "%s",
+                           _("aw-bits must be within [32,64]"));
             return -1;
         }
         break;
@@ -3183,7 +3208,8 @@ virDomainIOMMUDefValidate(const virDomainIOMMUDef *iommu)
             iommu->eim != VIR_TRISTATE_SWITCH_ABSENT ||
             iommu->aw_bits != 0 ||
             iommu->dma_translation != VIR_TRISTATE_SWITCH_ABSENT ||
-            iommu->pci_bus >= 0) {
+            iommu->pci_bus >= 0 ||
+            iommu->granule != 0) {
             virReportError(VIR_ERR_XML_ERROR,
                            _("iommu model '%1$s' doesn't support some additional attributes"),
                            virDomainIOMMUModelTypeToString(iommu->model));
@@ -3194,7 +3220,8 @@ virDomainIOMMUDefValidate(const virDomainIOMMUDef *iommu)
     case VIR_DOMAIN_IOMMU_MODEL_INTEL:
         if (iommu->pt != VIR_TRISTATE_SWITCH_ABSENT ||
             iommu->xtsup != VIR_TRISTATE_SWITCH_ABSENT ||
-            iommu->pci_bus >= 0) {
+            iommu->pci_bus >= 0 ||
+            iommu->granule != 0) {
             virReportError(VIR_ERR_XML_ERROR,
                            _("iommu model '%1$s' doesn't support some additional attributes"),
                            virDomainIOMMUModelTypeToString(iommu->model));

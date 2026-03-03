@@ -539,7 +539,7 @@ qemuDomainChangeMediaBlockdev(virDomainObj *vm,
             return -1;
     }
 
-    if (diskPriv->tray && disk->tray_status != VIR_DOMAIN_DISK_TRAY_OPEN) {
+    if (disk->tray_status == VIR_DOMAIN_DISK_TRAY_CLOSED) {
         qemuDomainObjEnterMonitor(vm);
         rc = qemuMonitorBlockdevTrayOpen(priv->mon, diskPriv->qomName, force);
         qemuDomainObjExitMonitor(vm);
@@ -567,15 +567,12 @@ qemuDomainChangeMediaBlockdev(virDomainObj *vm,
     }
 
     /* set throttling for the new image */
-    if (rc == 0 &&
-        !virStorageSourceIsEmpty(newsrc) &&
-        qemuDiskConfigBlkdeviotuneEnabled(disk)) {
-        rc = qemuMonitorSetBlockIoThrottle(priv->mon,
-                                           diskPriv->qomName,
-                                           &disk->blkdeviotune);
-    }
-
     if (rc == 0)
+        rc = qemuProcessSetupDiskPropsRuntime(priv->mon, disk);
+
+    /* Close any device with a tray since we've opened it before (regardless
+     * of the current state if it e.g. wasn't updated) */
+    if (rc == 0 && disk->tray_status != VIR_DOMAIN_DISK_TRAY_NONE)
         rc = qemuMonitorBlockdevTrayClose(priv->mon, diskPriv->qomName);
 
     if (rc < 0 && newbackend)
@@ -709,6 +706,9 @@ qemuDomainAttachDiskGeneric(virDomainObj *vm,
     g_autoptr(qemuSnapshotDiskContext) transientDiskSnapshotCtxt = NULL;
     bool origReadonly = disk->src->readonly;
 
+    if (disk->device == VIR_DOMAIN_DISK_DEVICE_CDROM)
+        disk->tray_status = VIR_DOMAIN_DISK_TRAY_CLOSED;
+
     if (!virStorageSourceIsEmpty(disk->src)) {
         if (disk->transient)
             disk->src->readonly = true;
@@ -793,29 +793,10 @@ qemuDomainAttachDiskGeneric(virDomainObj *vm,
     if (rc == 0)
         rc = qemuMonitorAddDeviceProps(priv->mon, &devprops);
 
-    /* Setup throttling of disk via block_set_io_throttle QMP command. This
-     * is a hack until the 'throttle' blockdev driver will support modification
-     * of the trhottle group. See also qemuProcessSetupDiskThrottlingBlockdev.
-     * As there isn't anything sane to do if this fails, let's just return
-     * success.
-     */
     if (rc == 0) {
-        qemuDomainDiskPrivate *diskPriv = QEMU_DOMAIN_DISK_PRIVATE(disk);
-        g_autoptr(GHashTable) blockinfo = NULL;
-
-        if (qemuDiskConfigBlkdeviotuneEnabled(disk)) {
-            if (qemuMonitorSetBlockIoThrottle(priv->mon, diskPriv->qomName,
-                                              &disk->blkdeviotune) < 0)
-                VIR_WARN("failed to set blkdeviotune for '%s' of '%s'", disk->dst, vm->def->name);
-        }
-
-        if ((blockinfo = qemuMonitorGetBlockInfo(priv->mon))) {
-            struct qemuDomainDiskInfo *diskinfo;
-
-            if ((diskinfo = virHashLookup(blockinfo, diskPriv->qomName))) {
-                qemuProcessRefreshDiskProps(disk, diskinfo);
-            }
-        }
+        /* There isn't anything sane to do if this fails (rollback would
+         * require hot-unplug), let's just return success. */
+        ignore_value(qemuProcessSetupDiskPropsRuntime(priv->mon, disk));
     }
 
     if (rc == 0 &&
@@ -1572,13 +1553,16 @@ qemuDomainAttachHostPCIDevice(virQEMUDriver *driver,
     virDomainDeviceDef dev = { VIR_DOMAIN_DEVICE_HOSTDEV,
                                { .hostdev = hostdev } };
     virDomainDeviceInfo *info = hostdev->info;
+    qemuDomainHostdevPrivate *hostdevPriv = QEMU_DOMAIN_HOSTDEV_PRIVATE(hostdev);
     int ret;
     g_autoptr(virJSONValue) devprops = NULL;
+    g_autoptr(virJSONValue) objprops = NULL;
     bool releaseaddr = false;
     bool teardowncgroup = false;
     bool teardownlabel = false;
     bool teardowndevice = false;
     bool teardownmemlock = false;
+    bool removeiommufd = false;
     g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
     unsigned int flags = 0;
 
@@ -1628,10 +1612,37 @@ qemuDomainAttachHostPCIDevice(virQEMUDriver *driver,
         goto error;
     }
 
+    if (virHostdevIsPCIDeviceWithIOMMUFD(hostdev)) {
+        if (qemuProcessOpenVfioDeviceFd(hostdev) < 0)
+            goto error;
+
+        if (!priv->iommufdState) {
+            if (qemuProcessOpenIommuFd(vm) < 0)
+                goto error;
+
+            if (!(objprops = qemuBuildIOMMUFDProps(priv->iommufd)))
+                goto error;
+        }
+    }
+
     if (!(devprops = qemuBuildPCIHostdevDevProps(vm->def, hostdev)))
         goto error;
 
     qemuDomainObjEnterMonitor(vm);
+
+    if (objprops) {
+        if ((ret = qemuFDPassDirectTransferMonitor(priv->iommufd, priv->mon)) < 0)
+            goto exit_monitor;
+
+        if ((ret = qemuMonitorAddObject(priv->mon, &objprops, NULL)) < 0)
+            goto exit_monitor;
+
+        priv->iommufdState = true;
+        removeiommufd = true;
+    }
+
+    if ((ret = qemuFDPassDirectTransferMonitor(hostdevPriv->vfioDeviceFd, priv->mon)) < 0)
+        goto exit_monitor;
 
     if ((ret = qemuDomainAttachExtensionDevice(priv->mon, hostdev->info)) < 0)
         goto exit_monitor;
@@ -1662,6 +1673,16 @@ qemuDomainAttachHostPCIDevice(virQEMUDriver *driver,
         VIR_WARN("Unable to remove host device from /dev");
     if (teardownmemlock && qemuDomainAdjustMaxMemLock(vm) < 0)
         VIR_WARN("Unable to reset maximum locked memory on hotplug fail");
+
+    qemuDomainObjEnterMonitor(vm);
+
+    if (removeiommufd)
+        ignore_value(qemuMonitorDelObject(priv->mon, "iommufd0", false));
+
+    qemuFDPassDirectTransferMonitorRollback(hostdevPriv->vfioDeviceFd, priv->mon);
+    qemuFDPassDirectTransferMonitorRollback(priv->iommufd, priv->mon);
+
+    qemuDomainObjExitMonitor(vm);
 
     if (releaseaddr)
         qemuDomainReleaseDeviceAddress(vm, info);
@@ -3966,6 +3987,15 @@ qemuDomainChangeNet(virQEMUDriver *driver,
         goto cleanup;
     }
 
+    if (olddev->nPortForwards != newdev->nPortForwards ||
+        !virDomainNetPortForwardsIsEqual(olddev->portForwards,
+                                         newdev->portForwards,
+                                         olddev->nPortForwards)) {
+        virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
+                       _("cannot modify network device portForward settings"));
+        goto cleanup;
+    }
+
     /* allocate new actual device to compare to old - we will need to
      * free it if we fail for any reason
      */
@@ -4263,13 +4293,23 @@ qemuDomainChangeNet(virQEMUDriver *driver,
              * will redo vlan setup without needing to re-attach the
              * tap device to the bridge
              */
-            if (virNetDevOpenvswitchUpdateVlan(newdev->ifname, &newdev->vlan) < 0)
+            if (virNetDevOpenvswitchUpdateVlan(newdev->ifname, virDomainNetGetActualVlan(newdev)) < 0)
                 goto cleanup;
-        } else {
+        } else if (newType == VIR_DOMAIN_NET_TYPE_DIRECT &&
+                   virDomainNetGetActualDirectMode(newdev) == VIR_NETDEV_MACVLAN_MODE_PASSTHRU) {
+            if (virNetDevSetNetConfig(virDomainNetGetActualDirectDev(newdev),
+                                      -1, NULL, virDomainNetGetActualVlan(newdev), NULL, true) < 0) {
+                goto cleanup;
+            }
+        } else if (newBridgeName) {
              /* vlan setup is done as a part of reconnecting the tap
               * device to a new bridge (either OVS or Linux host bridge).
               */
             needBridgeChange = true;
+        } else {
+            virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
+                           _("unable to change vlan on '%1$s' network type"),
+                           virDomainNetTypeToString(newType));
         }
         needReplaceDevDef = true;
     }
@@ -4995,6 +5035,14 @@ qemuDomainRemoveHostDevice(virQEMUDriver *driver,
             virDomainHostdevRemove(vm->def, i);
             break;
         }
+    }
+
+    if (priv->iommufdState &&
+        !virDomainDefHasPCIHostdevWithIOMMUFD(vm->def)) {
+        qemuDomainObjEnterMonitor(vm);
+        ignore_value(qemuMonitorDelObject(priv->mon, "iommufd0", false));
+        qemuDomainObjExitMonitor(vm);
+        priv->iommufdState = false;
     }
 
     virDomainAuditHostdev(vm, hostdev, "detach", true);
@@ -7319,6 +7367,35 @@ qemuDomainChangeDiskLive(virDomainObj *vm,
         }
 
         dev->data.disk->src = NULL;
+    }
+
+    if (qemuDomainDiskHasLatencyHistogram(disk) ||
+        qemuDomainDiskHasLatencyHistogram(orig_disk)) {
+        int rc;
+
+        qemuDomainObjEnterMonitor(vm);
+        rc = qemuMonitorBlockLatencyHistogramSet(qemuDomainGetMonitor(vm),
+                                                 QEMU_DOMAIN_DISK_PRIVATE(orig_disk)->qomName,
+                                                 disk->histogram_boundaries,
+                                                 disk->histogram_boundaries_read,
+                                                 disk->histogram_boundaries_write,
+                                                 disk->histogram_boundaries_zone,
+                                                 disk->histogram_boundaries_flush);
+        qemuDomainObjExitMonitor(vm);
+
+        if (rc < 0)
+            return -1;
+
+        g_clear_pointer(&orig_disk->histogram_boundaries, g_free);
+        g_clear_pointer(&orig_disk->histogram_boundaries_read, g_free);
+        g_clear_pointer(&orig_disk->histogram_boundaries_write, g_free);
+        g_clear_pointer(&orig_disk->histogram_boundaries_zone, g_free);
+        g_clear_pointer(&orig_disk->histogram_boundaries_flush, g_free);
+        orig_disk->histogram_boundaries = g_steal_pointer(&disk->histogram_boundaries);
+        orig_disk->histogram_boundaries_read = g_steal_pointer(&disk->histogram_boundaries_read);
+        orig_disk->histogram_boundaries_write = g_steal_pointer(&disk->histogram_boundaries_write);
+        orig_disk->histogram_boundaries_zone = g_steal_pointer(&disk->histogram_boundaries_zone);
+        orig_disk->histogram_boundaries_flush = g_steal_pointer(&disk->histogram_boundaries_flush);
     }
 
     /* in case when we aren't updating disk source we update startup policy here */

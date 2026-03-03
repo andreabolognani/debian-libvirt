@@ -5,6 +5,7 @@
 #ifdef WITH_BHYVE
 
 # include "bhyve/bhyve_capabilities.h"
+# include "bhyve/bhyve_conf.h"
 # include "bhyve/bhyve_domain.h"
 # include "bhyve/bhyve_utils.h"
 
@@ -55,6 +56,7 @@ testCompareXMLToXMLHelper(const void *data)
 static int
 mymain(void)
 {
+    g_autofree char *fakeubootpath = g_strdup("fakeubootpath/u-boot.bin");
     int ret = 0;
 
     if ((driver.caps = virBhyveCapsBuild()) == NULL)
@@ -62,6 +64,11 @@ mymain(void)
 
     if ((driver.xmlopt = virBhyveDriverCreateXMLConf(&driver)) == NULL)
         return EXIT_FAILURE;
+
+    if (!(driver.config = virBhyveDriverConfigNew()))
+        return EXIT_FAILURE;
+
+    driver.config->ubootPath = fakeubootpath;
 
 # define DO_TEST_FULL(name, flags) \
     do { \
@@ -77,7 +84,7 @@ mymain(void)
 # define DO_TEST_FAILURE(name) \
     DO_TEST_FULL(name, FLAG_EXPECT_FAILURE)
 
-    driver.bhyvecaps = BHYVE_CAP_AHCI32SLOT;
+    driver.bhyvecaps = BHYVE_CAP_AHCI32SLOT | BHYVE_CAP_RTC_UTC;
 
     DO_TEST_DIFFERENT("acpiapic");
     DO_TEST_DIFFERENT("base");
@@ -144,8 +151,11 @@ mymain(void)
     /* USB xhci tablet */
     DO_TEST_DIFFERENT("input-xhci-tablet");
 
+    virObjectUnref(driver.caps);
     virTestSetHostArch(VIR_ARCH_AARCH64);
     driver.caps = virBhyveCapsBuild();
+    /* bhyve does not support UTC clock on ARM */
+    driver.bhyvecaps ^= BHYVE_CAP_RTC_UTC;
 
     DO_TEST_DIFFERENT("base");
     DO_TEST_DIFFERENT("console");

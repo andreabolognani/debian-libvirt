@@ -41,6 +41,7 @@
 #include "virscsivhost.h"
 #include "virstring.h"
 #include "virutil.h"
+#include "viriommufd.h"
 
 #define VIR_FROM_THIS VIR_FROM_SECURITY
 
@@ -1282,14 +1283,27 @@ virSecurityDACSetHostdevLabel(virSecurityManager *mgr,
             return -1;
 
         if (pcisrc->driver.name == VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_VFIO) {
-            g_autofree char *vfioGroupDev = virPCIDeviceGetIOMMUGroupDev(pci);
+            if (dev->source.subsys.u.pci.driver.iommufd != VIR_TRISTATE_BOOL_YES) {
+                g_autofree char *vfioGroupDev = virPCIDeviceGetIOMMUGroupDev(pci);
 
-            if (!vfioGroupDev)
-                return -1;
+                if (!vfioGroupDev)
+                    return -1;
 
-            ret = virSecurityDACSetHostdevLabelHelper(vfioGroupDev,
-                                                      false,
-                                                      &cbdata);
+                ret = virSecurityDACSetHostdevLabelHelper(vfioGroupDev,
+                                                          false,
+                                                          &cbdata);
+            } else {
+                g_autofree char *vfiofdDev = NULL;
+
+                if (virPCIDeviceGetVfioPath(pci, &vfiofdDev) < 0)
+                    return -1;
+
+                ret = virSecurityDACSetHostdevLabelHelper(vfiofdDev, false, &cbdata);
+                if (ret < 0)
+                    break;
+
+                ret = virSecurityDACSetHostdevLabelHelper(VIR_IOMMU_DEV_PATH, false, &cbdata);
+            }
         } else {
             ret = virPCIDeviceFileIterate(pci,
                                           virSecurityDACSetPCILabel,
@@ -1443,13 +1457,28 @@ virSecurityDACRestoreHostdevLabel(virSecurityManager *mgr,
             return -1;
 
         if (pcisrc->driver.name == VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_VFIO) {
-            g_autofree char *vfioGroupDev = virPCIDeviceGetIOMMUGroupDev(pci);
+            if (dev->source.subsys.u.pci.driver.iommufd != VIR_TRISTATE_BOOL_YES) {
+                g_autofree char *vfioGroupDev = virPCIDeviceGetIOMMUGroupDev(pci);
 
-            if (!vfioGroupDev)
-                return -1;
+                if (!vfioGroupDev)
+                    return -1;
 
-            ret = virSecurityDACRestoreFileLabelInternal(mgr, NULL,
+                ret = virSecurityDACRestoreFileLabelInternal(mgr, NULL,
                                                          vfioGroupDev, false);
+            } else {
+                g_autofree char *vfiofdDev = NULL;
+
+                if (virPCIDeviceGetVfioPath(pci, &vfiofdDev) < 0)
+                    return -1;
+
+                ret = virSecurityDACRestoreFileLabelInternal(mgr, NULL,
+                                                             vfiofdDev, false);
+                if (ret < 0)
+                    break;
+
+                ret = virSecurityDACRestoreFileLabelInternal(mgr, NULL,
+                                                             VIR_IOMMU_DEV_PATH, false);
+            }
         } else {
             ret = virPCIDeviceFileIterate(pci, virSecurityDACRestorePCILabel, mgr);
         }
@@ -2032,10 +2061,16 @@ virSecurityDACRestoreAllLabel(virSecurityManager *mgr,
             rc = -1;
     }
 
-    if (def->os.loader && def->os.loader->nvram) {
-        if (virSecurityDACRestoreImageLabelInt(mgr, sharedFilesystems,
+    if (def->os.loader) {
+        if (def->os.loader->nvram &&
+            virSecurityDACRestoreImageLabelInt(mgr, sharedFilesystems,
                                                def, def->os.loader->nvram,
                                                migrated) < 0)
+            rc = -1;
+
+        if (def->os.varstore &&
+            def->os.varstore->path &&
+            virSecurityDACRestoreFileLabel(mgr, def->os.varstore->path) < 0)
             rc = -1;
     }
 
@@ -2281,11 +2316,19 @@ virSecurityDACSetAllLabel(virSecurityManager *mgr,
             return -1;
     }
 
-    if (def->os.loader && def->os.loader->nvram) {
-        if (virSecurityDACSetImageLabel(mgr, sharedFilesystems,
+    if (def->os.loader) {
+        if (def->os.loader->nvram &&
+            virSecurityDACSetImageLabel(mgr, sharedFilesystems,
                                         def, def->os.loader->nvram,
                                         VIR_SECURITY_DOMAIN_IMAGE_LABEL_BACKING_CHAIN |
                                         VIR_SECURITY_DOMAIN_IMAGE_PARENT_CHAIN_TOP) < 0)
+            return -1;
+
+        if (def->os.varstore &&
+            def->os.varstore->path &&
+            virSecurityDACSetOwnership(mgr, NULL,
+                                       def->os.varstore->path,
+                                       user, group, true) < 0)
             return -1;
     }
 

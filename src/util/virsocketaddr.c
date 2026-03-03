@@ -21,6 +21,7 @@
 #include "virsocketaddr.h"
 #include "virerror.h"
 #include "virbuffer.h"
+#include "virstring.h"
 
 #define VIR_FROM_THIS VIR_FROM_NONE
 
@@ -369,6 +370,8 @@ virSocketAddrEqual(const virSocketAddr *s1, const virSocketAddr *s2)
         return false;
 
     switch (s1->data.stor.ss_family) {
+    case AF_UNSPEC:
+        return true;
     case AF_INET:
         return (memcmp(&s1->data.inet4.sin_addr.s_addr,
                        &s2->data.inet4.sin_addr.s_addr,
@@ -527,17 +530,15 @@ virSocketAddrFormatFull(const virSocketAddr *addr,
  * @masked: true to mask off the host bits of the address
  *
  * Returns a string representation of the IP network described by
- * @netaddr/@prefix. If @masked is true, the address is masked to
- * remove the host bits according to prefix. So, for example, sending
- * f(1.2.3.4, 24, true) would return "1.2.3.0/24", but f(1.2.3.4, 24,
- * false) would return "1.2.3.4/24".
+ * @addr/@prefix. The address is masked to remove the host bits
+ * according to prefix. So, for example, sending
+ * f(1.2.3.4, 24) would return "1.2.3.0/24".
  *
- * returns false on failure (and logs an error message)
+ * Returns NULL on failure (and logs an error message)
  */
 char *
 virSocketAddrFormatWithPrefix(virSocketAddr *addr,
-                              unsigned int prefix,
-                              bool masked)
+                              unsigned int prefix)
 {
     virSocketAddr network;
     g_autofree char *netstr = NULL;
@@ -549,7 +550,7 @@ virSocketAddrFormatWithPrefix(virSocketAddr *addr,
         return NULL;
     }
 
-    if (masked && virSocketAddrMaskByPrefix(addr, prefix, &network) < 0) {
+    if (virSocketAddrMaskByPrefix(addr, prefix, &network) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        _("Failure to mask address"));
         return NULL;
@@ -1261,6 +1262,58 @@ virSocketAddrNumericFamily(const char *address)
     family = res->ai_addr->sa_family;
     freeaddrinfo(res);
     return family;
+}
+
+/**
+ * virSocketAddrSubnetToPrefix:
+ * @subnet: address to convert
+ *
+ * Converts subnet mask to prefix. If @subnet is of an IPv4
+ * format (NNN.NNN.NNN.NNN) then corresponding prefix length is
+ * returned (i.e. number of leading bits.). If @subnet is just a
+ * number (optionally prefixed with '/') then the number is
+ * parsed and returned. There is a corner case: if @subnet is
+ * valid IPv4 address but not valid subnet mask then a positive
+ * value is returned, but obviously it is not valid prefix.
+ *
+ * Returns: prefix corresponding to @subnet,
+ *          -1 otherwise.
+ */
+int
+virSocketAddrSubnetToPrefix(const char *subnet)
+{
+    struct addrinfo *ai = NULL;
+    unsigned int prefix = 0;
+    struct sockaddr_in in;
+    int ret = -1;
+
+    if (*subnet == '/') {
+        /* /NN format */
+        if (virStrToLong_ui(subnet + 1, NULL, 10, &prefix) < 0)
+            return -1;
+        return prefix;
+    }
+
+    if (virStrToLong_ui(subnet, NULL, 10, &prefix) >= 0) {
+        /* plain NN format */
+        return prefix;
+    }
+
+    if (virSocketAddrParseInternal(&ai, subnet, AF_INET, AI_NUMERICHOST, false) < 0)
+        return -1;
+
+    if (ai->ai_family != AF_INET) {
+        /* huh? */
+        goto cleanup;
+    }
+
+    memcpy(&in, ai->ai_addr, sizeof(in));
+    prefix = __builtin_popcount(in.sin_addr.s_addr);
+
+    ret = prefix;
+ cleanup:
+    freeaddrinfo(ai);
+    return ret;
 }
 
 /**

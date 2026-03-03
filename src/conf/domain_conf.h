@@ -229,6 +229,7 @@ struct _virDomainHostdevSubsysUSB {
                          on vendor/product */
     unsigned bus;
     unsigned device;
+    char *port;
 
     unsigned vendor;
     unsigned product;
@@ -364,6 +365,8 @@ struct _virDomainHostdevDef {
      */
     virDomainNetDef *parentnet;
 
+    virObject *privateData;
+
     virDomainHostdevMode mode;
     virDomainStartupPolicy startupPolicy;
     bool managed;
@@ -419,7 +422,8 @@ typedef enum {
 
 
 typedef enum {
-    VIR_DOMAIN_DISK_TRAY_CLOSED = 0,
+    VIR_DOMAIN_DISK_TRAY_NONE = 0,
+    VIR_DOMAIN_DISK_TRAY_CLOSED,
     VIR_DOMAIN_DISK_TRAY_OPEN,
 
     VIR_DOMAIN_DISK_TRAY_LAST
@@ -594,6 +598,13 @@ struct _virDomainDiskDef {
     GSList *iothreads; /* List of virDomainIothreadMappingDef */
     unsigned int *statistics; /* Optional, zero terminated list of intervals to
                                 collect statistics for */
+    /* optional zero terminated lists of bin boundaries for latency histograms */
+    unsigned int *histogram_boundaries;
+    unsigned int *histogram_boundaries_read;
+    unsigned int *histogram_boundaries_write;
+    unsigned int *histogram_boundaries_zone;
+    unsigned int *histogram_boundaries_flush;
+
     virDomainDiskDetectZeroes detect_zeroes;
     virTristateSwitch discard_no_unref;
     char *domain_name; /* backend domain name */
@@ -2243,6 +2254,7 @@ typedef enum {
     VIR_DOMAIN_FEATURE_RAS,
     VIR_DOMAIN_FEATURE_PS2,
     VIR_DOMAIN_FEATURE_AIA,
+    VIR_DOMAIN_FEATURE_VIRTUALIZATION,
 
     VIR_DOMAIN_FEATURE_LAST
 } virDomainFeature;
@@ -2411,6 +2423,14 @@ struct _virDomainLoaderDef {
 virDomainLoaderDef *virDomainLoaderDefNew(void);
 void virDomainLoaderDefFree(virDomainLoaderDef *loader);
 
+struct _virDomainVarstoreDef {
+    char *path;
+    char *template;
+};
+
+virDomainVarstoreDef *virDomainVarstoreDefNew(void);
+void virDomainVarstoreDefFree(virDomainVarstoreDef *varstore);
+
 typedef enum {
     VIR_DOMAIN_IOAPIC_NONE = 0,
     VIR_DOMAIN_IOAPIC_QEMU,
@@ -2564,6 +2584,7 @@ struct _virDomainOSDef {
     size_t nacpiTables;
     virDomainOSACPITableDef **acpiTables;
     virDomainLoaderDef *loader;
+    virDomainVarstoreDef *varstore;
     char *bootloader;
     char *bootloaderArgs;
     int smbios_mode;
@@ -3062,6 +3083,7 @@ struct _virDomainIOMMUDef {
     virTristateSwitch dma_translation;
     virTristateSwitch xtsup;
     virTristateSwitch pt;
+    int granule; /* -1 means 'host', 0 unset, page size in KiB otherwise */
 };
 
 typedef enum {
@@ -3588,6 +3610,7 @@ struct _virDomainXMLPrivateDataCallbacks {
     virDomainXMLPrivateDataNewFunc    vsockNew;
     virDomainXMLPrivateDataNewFunc    cryptoNew;
     virDomainXMLPrivateDataNewFunc    graphicsNew;
+    virDomainXMLPrivateDataNewFunc    hostdevNew;
     virDomainXMLPrivateDataNewFunc    networkNew;
     virDomainXMLPrivateDataNetParseFunc networkParse;
     virDomainXMLPrivateDataNetFormatFunc networkFormat;
@@ -3797,7 +3820,7 @@ virDomainVideoDef *virDomainVideoDefNew(virDomainXMLOption *xmlopt);
 void virDomainVideoDefFree(virDomainVideoDef *def);
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(virDomainVideoDef, virDomainVideoDefFree);
 void virDomainVideoDefClear(virDomainVideoDef *def);
-virDomainHostdevDef *virDomainHostdevDefNew(void);
+virDomainHostdevDef *virDomainHostdevDefNew(virDomainXMLOption *xmlopt);
 void virDomainHostdevDefFree(virDomainHostdevDef *def);
 void virDomainHubDefFree(virDomainHubDef *def);
 void virDomainRedirdevDefFree(virDomainRedirdevDef *def);
@@ -4099,6 +4122,9 @@ void virDomainNetInsert(virDomainDef *def, virDomainNetDef *net);
 void virDomainNetUpdate(virDomainDef *def, size_t netidx, virDomainNetDef *newnet);
 bool virDomainNetBackendIsEqual(virDomainNetBackend *src,
                                 virDomainNetBackend *dst);
+bool virDomainNetPortForwardsIsEqual(virDomainNetPortForward **pfs1,
+                                     virDomainNetPortForward **pfs2,
+                                     size_t npfs);
 int virDomainNetDHCPInterfaces(virDomainDef *def, virDomainInterfacePtr **ifaces);
 int virDomainNetARPInterfaces(virDomainDef *def, virDomainInterfacePtr **ifaces);
 virDomainNetDef *virDomainNetRemove(virDomainDef *def, size_t i);
@@ -4646,6 +4672,9 @@ bool
 virDomainDefHasPCIHostdev(const virDomainDef *def);
 
 bool
+virDomainDefHasPCIHostdevWithIOMMUFD(const virDomainDef *def);
+
+bool
 virDomainDefHasMdevHostdev(const virDomainDef *def);
 
 bool
@@ -4702,6 +4731,9 @@ virHostdevIsMdevDevice(const virDomainHostdevDef *hostdev)
     ATTRIBUTE_NONNULL(1);
 bool
 virHostdevIsPCIDevice(const virDomainHostdevDef *hostdev)
+    ATTRIBUTE_NONNULL(1);
+bool
+virHostdevIsPCIDeviceWithIOMMUFD(const virDomainHostdevDef *hostdev)
     ATTRIBUTE_NONNULL(1);
 
 void

@@ -2583,16 +2583,13 @@ qemuMigrationAnyConnectionClosed(virDomainObj *vm,
  * qemuMigrationSrcBeginPhaseBlockDirtyBitmaps:
  * @mig: migration cookie struct
  * @vm: domain object
- * @migrate_disks: disks which are being migrated
- * @nmigrage_disks: number of @migrate_disks
  *
  * Enumerates block dirty bitmaps on disks which will undergo storage migration
  * and fills them into @mig to be offered to the destination.
  */
 static int
 qemuMigrationSrcBeginPhaseBlockDirtyBitmaps(qemuMigrationCookie *mig,
-                                            virDomainObj *vm,
-                                            const char **migrate_disks)
+                                            virDomainObj *vm)
 
 {
     GSList *disks = NULL;
@@ -2612,9 +2609,6 @@ qemuMigrationSrcBeginPhaseBlockDirtyBitmaps(qemuMigrationCookie *mig,
         size_t j;
 
         if (!nodedata)
-            continue;
-
-        if (!qemuMigrationAnyCopyDisk(diskdef, migrate_disks))
             continue;
 
         for (j = 0; j < nodedata->nbitmaps; j++) {
@@ -2683,7 +2677,6 @@ qemuMigrationSrcBeginXML(virDomainObj *vm,
                          char **cookieout,
                          int *cookieoutlen,
                          unsigned int cookieFlags,
-                         const char **migrate_disks,
                          unsigned int flags)
 {
     qemuDomainObjPrivate *priv = vm->privateData;
@@ -2699,8 +2692,7 @@ qemuMigrationSrcBeginXML(virDomainObj *vm,
     if (!(mig = qemuMigrationCookieNew(vm->def, priv->origname)))
         return NULL;
 
-    if (cookieFlags & QEMU_MIGRATION_COOKIE_NBD &&
-        qemuMigrationSrcBeginPhaseBlockDirtyBitmaps(mig, vm, migrate_disks) < 0)
+    if (qemuMigrationSrcBeginPhaseBlockDirtyBitmaps(mig, vm) < 0)
         return NULL;
 
     if (qemuMigrationCookieFormat(mig, driver, vm,
@@ -2882,8 +2874,7 @@ qemuMigrationSrcBeginPhase(virQEMUDriver *driver,
         return NULL;
 
     return qemuMigrationSrcBeginXML(vm, xmlin,
-                                    cookieout, cookieoutlen, cookieFlags,
-                                    migrate_disks, flags);
+                                    cookieout, cookieoutlen, cookieFlags, flags);
 }
 
 
@@ -2972,8 +2963,7 @@ qemuMigrationSrcBeginResume(virDomainObj *vm,
         return NULL;
     }
 
-    return qemuMigrationSrcBeginXML(vm, xmlin,
-                                    cookieout, cookieoutlen, 0, NULL, flags);
+    return qemuMigrationSrcBeginXML(vm, xmlin, cookieout, cookieoutlen, 0, flags);
 }
 
 
@@ -3026,7 +3016,6 @@ qemuMigrationSrcBegin(virConnectPtr conn,
     g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
     g_autofree char *xml = NULL;
     char *ret = NULL;
-    virDomainAsyncJob asyncJob;
 
     if (cfg->migrateTLSForce &&
         !(flags & VIR_MIGRATE_TUNNELLED) &&
@@ -3045,26 +3034,17 @@ qemuMigrationSrcBegin(virConnectPtr conn,
     if ((flags & VIR_MIGRATE_CHANGE_PROTECTION)) {
         if (qemuMigrationJobStart(vm, VIR_ASYNC_JOB_MIGRATION_OUT, flags) < 0)
             goto cleanup;
-        asyncJob = VIR_ASYNC_JOB_MIGRATION_OUT;
     } else {
         if (!qemuMigrationJobIsAllowed(vm))
             goto cleanup;
 
         if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
             goto cleanup;
-        asyncJob = VIR_ASYNC_JOB_NONE;
     }
 
     qemuMigrationSrcStoreDomainState(vm);
 
     if (!(flags & VIR_MIGRATE_OFFLINE) && virDomainObjCheckActive(vm) < 0)
-        goto endjob;
-
-    /* Check if there is any ejected media.
-     * We don't want to require them on the destination.
-     */
-    if (!(flags & VIR_MIGRATE_OFFLINE) &&
-        qemuProcessRefreshDisks(vm, asyncJob) < 0)
         goto endjob;
 
     if (!(xml = qemuMigrationSrcBeginPhase(driver, vm, xmlin, dname,
@@ -3196,7 +3176,6 @@ qemuMigrationDstPrepare(virQEMUDriver *driver,
  * @vm: domain object
  * @mig: migration cookie
  * @migParams: migration parameters
- * @flags: migration flags
  *
  * Checks whether block dirty bitmaps offered by the migration source are
  * to be migrated (e.g. they don't exist, the destination is compatible etc)
@@ -3207,16 +3186,13 @@ qemuMigrationDstPrepare(virQEMUDriver *driver,
 static int
 qemuMigrationDstPrepareAnyBlockDirtyBitmaps(virDomainObj *vm,
                                             qemuMigrationCookie *mig,
-                                            qemuMigrationParams *migParams,
-                                            unsigned int flags)
+                                            qemuMigrationParams *migParams)
 {
     g_autoptr(virJSONValue) mapping = NULL;
     g_autoptr(GHashTable) blockNamedNodeData = NULL;
     GSList *nextdisk;
 
-    if (!mig->nbd ||
-        !mig->blockDirtyBitmaps ||
-        !(flags & (VIR_MIGRATE_NON_SHARED_DISK | VIR_MIGRATE_NON_SHARED_INC)))
+    if (!mig->blockDirtyBitmaps)
         return 0;
 
     if (qemuMigrationCookieBlockDirtyBitmapsMatchDisks(vm->def, mig->blockDirtyBitmaps) < 0)
@@ -3229,6 +3205,8 @@ qemuMigrationDstPrepareAnyBlockDirtyBitmaps(virDomainObj *vm,
         qemuMigrationBlockDirtyBitmapsDisk *disk = nextdisk->data;
         qemuBlockNamedNodeData *nodedata;
         GSList *nextbitmap;
+
+        VIR_DEBUG("offer migrate bitmaps for '%s'", disk->target);
 
         if (!(nodedata = virHashLookup(blockNamedNodeData, disk->nodename))) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
@@ -3246,18 +3224,14 @@ qemuMigrationDstPrepareAnyBlockDirtyBitmaps(virDomainObj *vm,
 
         for (nextbitmap = disk->bitmaps; nextbitmap; nextbitmap = nextbitmap->next) {
             qemuMigrationBlockDirtyBitmapsDiskBitmap *bitmap = nextbitmap->data;
-            size_t k;
 
             /* don't migrate into existing bitmaps */
-            for (k = 0; k < nodedata->nbitmaps; k++) {
-                if (STREQ(bitmap->bitmapname, nodedata->bitmaps[k]->name)) {
-                    bitmap->skip = true;
-                    break;
-                }
-            }
+            if (nodedata->qcow2bitmaps)
+                bitmap->skip = g_strv_contains((const char **) nodedata->qcow2bitmaps, bitmap->bitmapname);
 
-            if (bitmap->skip)
-                continue;
+            VIR_DEBUG("offer migrate bitmap '%s' disk '%s' -> skip: '%d'",
+                      bitmap->bitmapname, disk->target, bitmap->skip);
+
         }
     }
 
@@ -3365,7 +3339,7 @@ qemuMigrationDstPrepareActive(virQEMUDriver *driver,
         goto error;
     }
 
-    if (qemuMigrationDstPrepareAnyBlockDirtyBitmaps(vm, mig, migParams, flags) < 0)
+    if (qemuMigrationDstPrepareAnyBlockDirtyBitmaps(vm, mig, migParams) < 0)
         goto error;
 
     if (qemuMigrationParamsCheck(vm, VIR_ASYNC_JOB_MIGRATION_IN, migParams,
@@ -4756,7 +4730,6 @@ qemuMigrationSrcRunPrepareBlockDirtyBitmaps(virDomainObj *vm,
 
     /* For VIR_MIGRATE_NON_SHARED_INC we can migrate the bitmaps directly,
      * otherwise we must create merged bitmaps from the whole chain */
-
     if (!(flags & VIR_MIGRATE_NON_SHARED_INC) &&
         qemuMigrationSrcRunPrepareBlockDirtyBitmapsMerge(vm, mig) < 0)
         return -1;
@@ -4947,7 +4920,7 @@ qemuMigrationSrcRun(virQEMUDriver *driver,
     VIR_AUTOCLOSE fd = -1;
     unsigned long restore_max_bandwidth = priv->migMaxBandwidth;
     virErrorPtr orig_err = NULL;
-    unsigned int cookieFlags = 0;
+    unsigned int cookieFlags = QEMU_MIGRATION_COOKIE_BLOCK_DIRTY_BITMAPS;
     bool abort_on_error = !!(flags & VIR_MIGRATE_ABORT_ON_ERROR);
     bool storageMigration = flags & (VIR_MIGRATE_NON_SHARED_DISK | VIR_MIGRATE_NON_SHARED_INC);
     bool cancel = false;
@@ -4971,10 +4944,8 @@ qemuMigrationSrcRun(virQEMUDriver *driver,
         storageMigration = qemuMigrationHasAnyStorageMigrationDisks(vm->def,
                                                                     migrate_disks);
 
-    if (storageMigration) {
+    if (storageMigration)
         cookieFlags |= QEMU_MIGRATION_COOKIE_NBD;
-        cookieFlags |= QEMU_MIGRATION_COOKIE_BLOCK_DIRTY_BITMAPS;
-    }
 
     if (virLockManagerPluginUsesState(driver->lockManager) &&
         !cookieout) {
@@ -5008,8 +4979,7 @@ qemuMigrationSrcRun(virQEMUDriver *driver,
                                    cookiein, cookieinlen,
                                    cookieFlags |
                                    QEMU_MIGRATION_COOKIE_GRAPHICS |
-                                   QEMU_MIGRATION_COOKIE_CAPS |
-                                   QEMU_MIGRATION_COOKIE_BLOCK_DIRTY_BITMAPS);
+                                   QEMU_MIGRATION_COOKIE_CAPS);
     if (!mig)
         goto error;
 
@@ -6835,7 +6805,7 @@ qemuMigrationDstFinishFresh(virQEMUDriver *driver,
 
     /* Now that the state data was transferred we can refresh the actual state
      * of the devices */
-    if (qemuProcessRefreshState(driver, vm, VIR_ASYNC_JOB_MIGRATION_IN) < 0) {
+    if (qemuProcessRefreshState(vm, VIR_ASYNC_JOB_MIGRATION_IN) < 0) {
         /* Similarly to the case above v2 protocol will not be able to recover
          * from this. Let's ignore this and perhaps stuff will not break. */
         if (v3proto)
@@ -7249,7 +7219,7 @@ qemuMigrationSrcToSparseFile(virDomainObj *vm,
     if (qemuDomainObjEnterMonitorAsync(vm, asyncJob) < 0)
         return -1;
 
-    ret = qemuMonitorMigrateToFdSet(vm, 0, fd, &directFd);
+    ret = qemuMonitorMigrateToFdSet(vm, fd, &directFd);
     qemuDomainObjExitMonitor(vm);
     return ret;
 }

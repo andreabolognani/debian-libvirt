@@ -26,6 +26,7 @@
 
 #include "internal.h"
 #include "datatypes.h"
+#include "virbuffer.h"
 #include "virdomainobjlist.h"
 #include "virauth.h"
 #include "viralloc.h"
@@ -447,7 +448,7 @@ hypervDomainCreateSCSIController(virDomainPtr domain, virDomainControllerDef *de
         return -1;
 
     if (hypervSetEmbeddedProperty(scsiResource, "ResourceSubType",
-                                  "Microsoft:Hyper-V:Synthetic SCSI Controller") < 0)
+                                  HYPERV_RESOURCE_SUBTYPE_SCSI_CONTROLLER) < 0)
         return -1;
 
     /* perform the settings change */
@@ -493,7 +494,7 @@ hypervDomainAddVirtualDiskParent(virDomainPtr domain,
         return -1;
 
     if (hypervSetEmbeddedProperty(controllerResource, "ResourceSubType",
-                                  "Microsoft:Hyper-V:Synthetic Disk Drive") < 0)
+                                  HYPERV_RESOURCE_SUBTYPE_DISK_DRIVE) < 0)
         return -1;
 
     if (hypervMsvmVSMSAddResourceSettings(domain, &controllerResource,
@@ -537,7 +538,7 @@ hypervDomainAddVirtualHardDisk(virDomainPtr domain,
         return -1;
 
     if (hypervSetEmbeddedProperty(volumeResource, "ResourceSubType",
-                                  "Microsoft:Hyper-V:Virtual Hard Disk") < 0)
+                                  HYPERV_RESOURCE_SUBTYPE_VIRTUAL_HARD_DISK) < 0)
         return -1;
 
     if (hypervMsvmVSMSAddResourceSettings(domain, &volumeResource,
@@ -615,10 +616,11 @@ hypervDomainAttachPhysicalDisk(virDomainPtr domain,
     /* prepare HostResource */
 
     /* get Msvm_DiskDrive root device ID */
-    virBufferAddLit(&query,
-                    MSVM_RESOURCEALLOCATIONSETTINGDATA_WQL_SELECT
-                    "WHERE ResourceSubType = 'Microsoft:Hyper-V:Physical Disk Drive' "
-                    "AND InstanceID LIKE '%%Default%%'");
+    virBufferEscapeSQL(&query,
+                       MSVM_RESOURCEALLOCATIONSETTINGDATA_WQL_SELECT
+                       "WHERE ResourceSubType = '%s' "
+                       "AND InstanceID LIKE '%%Default%%'",
+                       HYPERV_RESOURCE_SUBTYPE_PHYSICAL_DISK_DRIVE);
 
     if (hypervGetWmiClass(Msvm_ResourceAllocationSettingData, &diskdefault) < 0)
         return -1;
@@ -666,7 +668,7 @@ hypervDomainAttachPhysicalDisk(virDomainPtr domain,
         return -1;
 
     if (hypervSetEmbeddedProperty(diskResource, "ResourceSubType",
-                                  "Microsoft:Hyper-V:Physical Disk Drive") < 0)
+                                  HYPERV_RESOURCE_SUBTYPE_PHYSICAL_DISK_DRIVE) < 0)
         return -1;
 
     if (hypervSetEmbeddedProperty(diskResource, "HostResource", hostResource) < 0)
@@ -715,7 +717,7 @@ hypervDomainAddOpticalDrive(virDomainPtr domain,
         return -1;
 
     if (hypervSetEmbeddedProperty(driveResource, "ResourceSubType",
-                                  "Microsoft:Hyper-V:Synthetic DVD Drive") < 0)
+                                  HYPERV_RESOURCE_SUBTYPE_DVD_DRIVE) < 0)
         return -1;
 
     if (hypervMsvmVSMSAddResourceSettings(domain, &driveResource,
@@ -758,7 +760,7 @@ hypervDomainAddOpticalDisk(virDomainPtr domain,
         return -1;
 
     if (hypervSetEmbeddedProperty(volumeResource, "ResourceSubType",
-                                  "Microsoft:Hyper-V:Virtual CD/DVD Disk") < 0)
+                                  HYPERV_RESOURCE_SUBTYPE_VIRTUAL_DVD_DISK) < 0)
         return -1;
 
     if (hypervMsvmVSMSAddResourceSettings(domain, &volumeResource,
@@ -828,7 +830,7 @@ hypervDomainAttachFloppy(virDomainPtr domain,
         return -1;
 
     if (hypervSetEmbeddedProperty(volumeResource, "ResourceSubType",
-                                  "Microsoft:Hyper-V:Virtual Floppy Disk") < 0)
+                                  HYPERV_RESOURCE_SUBTYPE_VIRTUAL_FLOPPY_DISK) < 0)
         return -1;
 
     if (hypervMsvmVSMSAddResourceSettings(domain, &volumeResource,
@@ -974,7 +976,7 @@ hypervDomainAttachSerial(virDomainPtr domain, virDomainChrDef *serial)
     Msvm_ResourceAllocationSettingData *entry = NULL;
     g_autoptr(GHashTable) serialResource = NULL;
     const char *connectionValue = NULL;
-    g_autofree const char *resourceType = NULL;
+    g_autofree char *resourceType = NULL;
 
     virUUIDFormat(domain->uuid, uuid_string);
 
@@ -1087,7 +1089,7 @@ hypervDomainAttachSyntheticEthernetAdapter(virDomainPtr domain,
         return -1;
 
     if (hypervSetEmbeddedProperty(portResource, "ResourceSubType",
-                                  "Microsoft:Hyper-V:Synthetic Ethernet Port") < 0)
+                                  HYPERV_RESOURCE_SUBTYPE_ETHERNET_PORT) < 0)
         return -1;
 
     if (hypervSetEmbeddedProperty(portResource,
@@ -1156,7 +1158,7 @@ hypervDomainAttachSyntheticEthernetAdapter(virDomainPtr domain,
         return -1;
 
     if (hypervSetEmbeddedProperty(connectionResource,
-                                  "ResourceSubType", "Microsoft:Hyper-V:Ethernet Connection") < 0)
+                                  "ResourceSubType", HYPERV_RESOURCE_SUBTYPE_ETHERNET_CONNECTION) < 0)
         return -1;
 
     if (hypervMsvmVSMSAddResourceSettings(domain, &connectionResource,
@@ -1294,7 +1296,7 @@ hypervDomainDefParseVirtualExtent(hypervPrivate *priv,
     disk->info.type = VIR_DOMAIN_DEVICE_ADDRESS_TYPE_DRIVE;
 
     /* note if it's a CDROM disk */
-    if (STREQ(disk_entry->data->ResourceSubType, "Microsoft:Hyper-V:Virtual CD/DVD Disk"))
+    if (STREQ(disk_entry->data->ResourceSubType, HYPERV_RESOURCE_SUBTYPE_VIRTUAL_DVD_DISK))
         disk->device = VIR_DOMAIN_DISK_DEVICE_CDROM;
     else
         disk->device = VIR_DOMAIN_DISK_DEVICE_DISK;
@@ -1351,6 +1353,7 @@ hypervDomainDefParsePhysicalDisk(hypervPrivate *priv,
     virDomainDiskDef *disk = NULL;
     char **hostResource = entry->data->HostResource.data;
     g_autofree char *hostEscaped = NULL;
+    g_autofree char *hostEscapedTwice = NULL;
     g_autofree char *driveNumberStr = NULL;
     g_auto(virBuffer) query = VIR_BUFFER_INITIALIZER;
     int addr = -1, ctrlr_idx = -1;
@@ -1373,12 +1376,12 @@ hypervDomainDefParsePhysicalDisk(hypervPrivate *priv,
 
     /* Query Msvm_DiskDrive for the DriveNumber */
     hostEscaped = virStringReplace(*hostResource, "\\\"", "\"");
-    hostEscaped = virStringReplace(hostEscaped, "\\", "\\\\");
+    hostEscapedTwice = virStringReplace(hostEscaped, "\\", "\\\\");
 
     /* quotes must be preserved, so virBufferEscapeSQL can't be used */
     virBufferAsprintf(&query,
                       MSVM_DISKDRIVE_WQL_SELECT "WHERE __PATH='%s'",
-                      hostEscaped);
+                      hostEscapedTwice);
 
     if (hypervGetWmiClass(Msvm_DiskDrive, &diskdrive) < 0)
         goto cleanup;
@@ -1551,17 +1554,47 @@ hypervDomainDefParseSerial(virDomainDef *def, Msvm_ResourceAllocationSettingData
 
 
 static int
+hypervDomainDefParseEthernetAdapterMAC(hypervPrivate *priv,
+                                       Msvm_EthernetPortAllocationSettingData *net,
+                                       virMacAddr *mac)
+{
+    g_autoptr(Msvm_SyntheticEthernetPortSettingData) sepsd = NULL;
+    char *sepsdPATH = NULL;
+    g_autofree char *sepsdEscaped = NULL;
+    g_auto(virBuffer) query = VIR_BUFFER_INITIALIZER;
+
+    sepsdPATH = net->data->Parent;
+    sepsdEscaped = virStringReplace(sepsdPATH, "\\", "\\\\");
+    virBufferAsprintf(&query,
+                      MSVM_SYNTHETICETHERNETPORTSETTINGDATA_WQL_SELECT "WHERE __PATH = '%s'",
+                      sepsdEscaped);
+
+    if (hypervGetWmiClass(Msvm_SyntheticEthernetPortSettingData, &sepsd) < 0)
+        return -1;
+
+    if (!sepsd) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s", _("Could not retrieve NIC settings"));
+        return -1;
+    }
+
+    /* set mac address */
+    if (virMacAddrParseHex(sepsd->data->Address, mac) < 0)
+        return -1;
+
+    return 0;
+}
+
+
+static int
 hypervDomainDefParseEthernetAdapter(virDomainDef *def,
                                     Msvm_EthernetPortAllocationSettingData *net,
                                     hypervPrivate *priv)
 {
     g_autoptr(virDomainNetDef) ndef = g_new0(virDomainNetDef, 1);
-    g_autoptr(Msvm_SyntheticEthernetPortSettingData) sepsd = NULL;
     g_autoptr(Msvm_VirtualEthernetSwitch) vSwitch = NULL;
     char **switchConnection = NULL;
     g_autofree char *switchConnectionEscaped = NULL;
-    char *sepsdPATH = NULL;
-    g_autofree char *sepsdEscaped = NULL;
+    g_autofree char *sepsdInstanceIDEscaped = NULL;
     g_auto(virBuffer) query = VIR_BUFFER_INITIALIZER;
 
     VIR_DEBUG("Parsing ethernet adapter '%s'", net->data->InstanceID);
@@ -1580,28 +1613,7 @@ hypervDomainDefParseEthernetAdapter(virDomainDef *def,
         return 0;
     }
 
-    /*
-     * Now we retrieve the associated Msvm_SyntheticEthernetPortSettingData and
-     * Msvm_VirtualEthernetSwitch objects and use them to build the XML definition.
-     */
-
-    /* begin by getting the Msvm_SyntheticEthernetPortSettingData object */
-    sepsdPATH = net->data->Parent;
-    sepsdEscaped = virStringReplace(sepsdPATH, "\\", "\\\\");
-    virBufferAsprintf(&query,
-                      MSVM_SYNTHETICETHERNETPORTSETTINGDATA_WQL_SELECT "WHERE __PATH = '%s'",
-                      sepsdEscaped);
-
-    if (hypervGetWmiClass(Msvm_SyntheticEthernetPortSettingData, &sepsd) < 0)
-        return -1;
-
-    if (!sepsd) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s", _("Could not retrieve NIC settings"));
-        return -1;
-    }
-
-    /* set mac address */
-    if (virMacAddrParseHex(sepsd->data->Address, &ndef->mac) < 0)
+    if (hypervDomainDefParseEthernetAdapterMAC(priv, net, &ndef->mac) < 0)
         return -1;
 
     /* now we get the Msvm_VirtualEthernetSwitch */
@@ -2733,6 +2745,22 @@ hypervDomainGetXMLDesc(virDomainPtr domain, unsigned int flags)
 
     def->os.type = VIR_DOMAIN_OSTYPE_HVM;
 
+    /* Generation 2 VMs use UEFI firmware */
+    if (STREQ_NULLABLE(virtualSystemSettingData->data->VirtualSystemSubType, HYPERV_VM_GEN2)) {
+        def->os.firmware = VIR_DOMAIN_OS_DEF_FIRMWARE_EFI;
+
+        if (virtualSystemSettingData->data->SecureBootEnabled) {
+            int *features = g_new0(int, VIR_DOMAIN_OS_DEF_FIRMWARE_FEATURE_LAST);
+
+            /* Hyper-V doesn't distinguish between secure-boot and enrolled-keys,
+             * so set both when SecureBootEnabled is true */
+            features[VIR_DOMAIN_OS_DEF_FIRMWARE_FEATURE_SECURE_BOOT] = VIR_TRISTATE_BOOL_YES;
+            features[VIR_DOMAIN_OS_DEF_FIRMWARE_FEATURE_ENROLLED_KEYS] = VIR_TRISTATE_BOOL_YES;
+
+            def->os.firmwareFeatures = features;
+        }
+    }
+
     /* Allocate space for all potential devices */
 
     /* 256 scsi drives + 4 ide drives */
@@ -2937,6 +2965,20 @@ hypervDomainDefineXML(virConnectPtr conn, const char *xml)
 
     if (hypervSetEmbeddedProperty(defineSystemParam, "ElementName", def->name) < 0)
         goto error;
+
+    /* Set firmware settings */
+    if (def->os.firmware == VIR_DOMAIN_OS_DEF_FIRMWARE_EFI) {
+        /* Generation 2 VM (UEFI) */
+        if (hypervSetEmbeddedProperty(defineSystemParam, "VirtualSystemSubType", HYPERV_VM_GEN2) < 0)
+            goto error;
+
+        if (def->os.firmwareFeatures &&
+            (def->os.firmwareFeatures[VIR_DOMAIN_OS_DEF_FIRMWARE_FEATURE_SECURE_BOOT] == VIR_TRISTATE_BOOL_YES ||
+             def->os.firmwareFeatures[VIR_DOMAIN_OS_DEF_FIRMWARE_FEATURE_ENROLLED_KEYS] == VIR_TRISTATE_BOOL_YES)) {
+            if (hypervSetEmbeddedProperty(defineSystemParam, "SecureBootEnabled", "true") < 0)
+                goto error;
+        }
+    }
 
     if (hypervAddEmbeddedParam(params, "SystemSettings",
                                &defineSystemParam, Msvm_VirtualSystemSettingData_WmiInfo) < 0)
@@ -3645,6 +3687,375 @@ hypervDomainSendKey(virDomainPtr domain, unsigned int codeset,
 }
 
 
+static int
+hypervDomainInterfaceAddressesParseOne(hypervPrivate *priv,
+                                       Msvm_EthernetPortAllocationSettingData *net,
+                                       virDomainInterfacePtr *oneIfaceRet)
+{
+    g_autoptr(virDomainInterface) iface = NULL;
+    g_autoptr(Msvm_SyntheticEthernetPortSettingData) sepsd = NULL;
+    g_autoptr(Msvm_GuestNetworkAdapterConfiguration) aConfig = NULL;
+    g_auto(virBuffer) query = VIR_BUFFER_INITIALIZER;
+    virMacAddr macAddr = { 0 };
+    char macAddrStr[VIR_MAC_STRING_BUFLEN] = { 0 };
+
+    VIR_DEBUG("Parsing ethernet adapter '%s'", net->data->InstanceID);
+
+    iface = g_new0(virDomainInterface, 1);
+    iface->name = g_strdup(net->data->InstanceID);
+
+    if (hypervDomainDefParseEthernetAdapterMAC(priv, net, &macAddr) < 0)
+        return -1;
+
+    iface->hwaddr = g_strdup(virMacAddrFormat(&macAddr, macAddrStr));
+
+    virBufferAsprintf(&query,
+                      "ASSOCIATORS OF {%s} "
+                      "WHERE AssocClass=Msvm_SettingDataComponent "
+                      "ResultClass=Msvm_GuestNetworkAdapterConfiguration",
+                      net->data->Parent);
+
+    if (hypervGetWmiClass(Msvm_GuestNetworkAdapterConfiguration, &aConfig) < 0)
+        return -1;
+
+    if (aConfig) {
+        size_t nAddr = aConfig->data->IPAddresses.count;
+        size_t i;
+
+        if (aConfig->data->Subnets.count != nAddr) {
+            virReportError(VIR_ERR_INTERNAL_ERROR,
+                           _("the number of IP addresses (%1$zu) does not match the number of subnets (%2$d)"),
+                           nAddr, aConfig->data->Subnets.count);
+            return -1;
+        }
+
+        iface->addrs = g_new0(virDomainIPAddress, nAddr);
+        iface->naddrs = nAddr;
+        for (i = 0; i < nAddr; i++) {
+            const char *ipAddrStr = ((const char **) aConfig->data->IPAddresses.data)[i];
+            const char *subnetAddrStr = ((const char **) aConfig->data->Subnets.data)[i];
+            virDomainIPAddressPtr ip = &iface->addrs[i];
+            int family;
+            int prefix;
+
+            VIR_DEBUG("ipAddrStr='%s' subnetAddrStr='%s'",
+                      ipAddrStr, subnetAddrStr);
+
+            ip->addr = g_strdup(ipAddrStr);
+            family = virSocketAddrNumericFamily(ipAddrStr);
+            if (family == AF_INET6) {
+                ip->type = VIR_IP_ADDR_TYPE_IPV6;
+            } else if (family == AF_INET) {
+                ip->type = VIR_IP_ADDR_TYPE_IPV4;
+            } else {
+                virReportError(VIR_ERR_INTERNAL_ERROR,
+                               _("unknown IP address family of '%1$s'"),
+                               ipAddrStr);
+                return -1;
+            }
+
+            prefix = virSocketAddrSubnetToPrefix(subnetAddrStr);
+            if (prefix < 0) {
+                virReportError(VIR_ERR_INTERNAL_ERROR,
+                               _("unexpected subnet mask '%1$s'"),
+                               subnetAddrStr);
+                return -1;
+            }
+            ip->prefix = prefix;
+        }
+    }
+
+    *oneIfaceRet = g_steal_pointer(&iface);
+    return 0;
+}
+
+
+static ssize_t
+hypervDomainInterfaceAddressesParseList(hypervPrivate *priv,
+                                        Msvm_EthernetPortAllocationSettingData *nets,
+                                        virDomainInterfacePtr **ifacesRet)
+{
+    Msvm_EthernetPortAllocationSettingData *entry = nets;
+    virDomainInterfacePtr *ifaces = NULL;
+    size_t nifaces = 0;
+
+    while (entry) {
+        virDomainInterfacePtr oneIface = NULL;
+
+        if (hypervDomainInterfaceAddressesParseOne(priv, entry, &oneIface) < 0)
+            goto error;
+
+        if (oneIface)
+            VIR_APPEND_ELEMENT(ifaces, nifaces, oneIface);
+
+        entry = entry->next;
+    }
+
+    *ifacesRet = g_steal_pointer(&ifaces);
+    return nifaces;
+
+ error:
+    while (nifaces > 0) {
+        virDomainInterfaceFree(ifaces[--nifaces]);
+    }
+    VIR_FREE(ifaces);
+    return -1;
+}
+
+
+static int
+hypervDomainInterfaceAddresses(virDomainPtr dom,
+                               virDomainInterfacePtr **ifaces,
+                               unsigned int source,
+                               unsigned int flags)
+{
+    hypervPrivate *priv = NULL;
+    char uuid_string[VIR_UUID_STRING_BUFLEN];
+    g_autoptr(Msvm_ComputerSystem) computerSystem = NULL;
+    g_autoptr(Msvm_VirtualSystemSettingData) virtualSystemSettingData = NULL;
+    g_autoptr(Msvm_EthernetPortAllocationSettingData) nets = NULL;
+    virDomainInterfacePtr *ifacesRet = NULL;
+    ssize_t ifacesRetCount = 0;
+
+    virCheckFlags(0, -1);
+
+    if (source != VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_AGENT) {
+        virReportError(VIR_ERR_ARGUMENT_UNSUPPORTED,
+                       _("Unknown IP address data source %1$d"),
+                       source);
+        return -1;
+    }
+
+    if (hypervMsvmComputerSystemFromDomain(dom, &computerSystem) < 0)
+        return -1;
+
+    priv = dom->conn->privateData;
+    virUUIDFormat(dom->uuid, uuid_string);
+
+    if (hypervGetMsvmVirtualSystemSettingDataFromUUID(priv,
+                                                      uuid_string,
+                                                      &virtualSystemSettingData) < 0) {
+        return -1;
+    }
+
+    if (hypervGetEthernetPortAllocationSD(priv,
+                                          virtualSystemSettingData->data->InstanceID,
+                                          &nets) < 0) {
+        return -1;
+    }
+
+    ifacesRetCount = hypervDomainInterfaceAddressesParseList(priv, nets, &ifacesRet);
+    if (ifacesRetCount < 0)
+        return -1;
+
+    *ifaces = g_steal_pointer(&ifacesRet);
+    return ifacesRetCount;
+}
+
+
+static int
+hypervGetFileSize(hypervPrivate *priv,
+                  const char *filePath,
+                  unsigned long long *fileSize)
+{
+    g_autoptr(CIM_DataFile) dataFile = NULL;
+    g_auto(virBuffer) query = VIR_BUFFER_INITIALIZER;
+    g_autofree char *escapedPath = NULL;
+
+    virBufferAddLit(&query, CIM_DATAFILE_WQL_SELECT);
+    virBufferEscapeSQL(&query, "WHERE Name='%s'", filePath);
+
+    if (hypervGetWmiClass(CIM_DataFile, &dataFile) < 0 || !dataFile) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("Could not query file size for '%1$s'"), filePath);
+        return -1;
+    }
+
+    *fileSize = dataFile->data->FileSize;
+    return 0;
+}
+
+
+static int
+hypervGetPhysicalDiskBlockInfo(hypervPrivate *priv,
+                               unsigned int driveNumber,
+                               virDomainBlockInfoPtr info)
+{
+    g_autoptr(Win32_DiskDrive) diskDrive = NULL;
+    g_auto(virBuffer) query = VIR_BUFFER_INITIALIZER;
+
+    virBufferAsprintf(&query, WIN32_DISKDRIVE_WQL_SELECT "WHERE Index=%u", driveNumber);
+
+    if (hypervGetWmiClass(Win32_DiskDrive, &diskDrive) < 0 || !diskDrive) {
+        virReportError(VIR_ERR_INVALID_ARG,
+                       _("Could not find physical disk with drive number %1$u"), driveNumber);
+        return -1;
+    }
+
+    info->capacity = info->allocation = info->physical = diskDrive->data->Size;
+    return 0;
+}
+
+
+static int
+hypervGetVHDCapacity(hypervPrivate *priv,
+                     const char *path,
+                     unsigned long long *capacity)
+{
+    g_auto(WsXmlDocH) settingDataDoc = NULL;
+    g_autofree char *maxInternalSizeStr = NULL;
+
+    if (hypervImageManagementServiceGetVHDSD(priv, path, &settingDataDoc) < 0)
+        return -1;
+
+    maxInternalSizeStr = ws_xml_get_xpath_value(settingDataDoc,
+        (char *)"//PROPERTY[@NAME='MaxInternalSize']/VALUE");
+
+    if (!maxInternalSizeStr) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("Could not find MaxInternalSize in VHD SettingData for '%1$s'"), path);
+        return -1;
+    }
+
+    if (virStrToLong_ull(maxInternalSizeStr, NULL, 10, capacity) < 0) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("Failed to parse MaxInternalSize '%1$s' for '%2$s'"),
+                       maxInternalSizeStr, path);
+        return -1;
+    }
+
+    return 0;
+}
+
+
+static int
+hypervGetVirtualDiskBlockInfo(hypervPrivate *priv,
+                              const char *diskpath,
+                              virDomainBlockInfoPtr info)
+{
+    unsigned long long capacity = 0;
+    unsigned long long allocation = 0;
+    /* This might fail if diskpath is not a vhd file, but continue anyway as it
+     * might be e.g. an ISO that is not supported by the ImageManagementService */
+    int rcapacity = hypervGetVHDCapacity(priv, diskpath, &capacity);
+
+    /* querying actual file allocation only works for local files, so may fail
+     * for files on network shares */
+    int rallocation = hypervGetFileSize(priv, diskpath, &allocation);
+
+    /* if both queries were unsuccessful, just return an error */
+    if (rcapacity < 0 && rallocation < 0) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("Unable to get info for disk '%1$s'"),
+                       diskpath);
+        return -1;
+    }
+
+    /* if we failed to get the capacity from the ImageManagementService (i.e.
+     * the disk path wasn't a vhd file), just use the file size */
+    if (capacity == 0)
+        capacity = allocation;
+
+    info->capacity = capacity;
+    info->physical = info->allocation = allocation;
+    return 0;
+}
+
+static int
+hypervDomainGetBlockInfo(virDomainPtr domain,
+                         const char *path,
+                         virDomainBlockInfoPtr info,
+                         unsigned int flags)
+{
+    hypervPrivate *priv = domain->conn->privateData;
+    char uuid_string[VIR_UUID_STRING_BUFLEN];
+    g_autoptr(Msvm_ResourceAllocationSettingData) resource_settings = NULL;
+    g_autoptr(Msvm_StorageAllocationSettingData) storage_settings = NULL;
+    g_autoptr(Msvm_VirtualSystemSettingData) system_settings = NULL;
+    g_autoptr(virDomainDef) def = NULL;
+    virDomainDiskDef *disk = NULL;
+    const char *diskpath = NULL;
+
+    virCheckFlags(0, -1);
+
+    virUUIDFormat(domain->uuid, uuid_string);
+
+    if (hypervGetMsvmVirtualSystemSettingDataFromUUID(priv, uuid_string, &system_settings) < 0) {
+        virReportError(VIR_ERR_NO_DOMAIN, _("No domain with UUID %1$s"), uuid_string);
+        return -1;
+    }
+
+    if (hypervGetResourceAllocationSD(priv,
+                                      system_settings->data->InstanceID,
+                                      &resource_settings) < 0) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       _("Unable to get resource allocation settings data"));
+        return -1;
+    }
+
+    if (hypervGetStorageAllocationSD(priv,
+                                     system_settings->data->InstanceID,
+                                     &storage_settings) < 0) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       _("Unable to get storage allocation settings data"));
+        return -1;
+    }
+
+    if (!(def = virDomainDefNew(priv->xmlopt))) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       _("Failed to create a new virDomainDef"));
+        return -1;
+    }
+
+    /* Process storage and resources to get disk names */
+    if (hypervDomainDefParseStorage(priv, def, resource_settings, storage_settings) < 0) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       _("Failed to parse storage"));
+        return -1;
+    }
+
+    disk = virDomainDiskByName(def, path, false);
+    if (!disk) {
+        virReportError(VIR_ERR_INVALID_ARG,
+                       _("invalid path %1$s not assigned to domain"), path);
+        return -1;
+    }
+
+    diskpath = virDomainDiskGetSource(disk);
+    if (!diskpath) {
+        virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
+                       _("disk '%1$s' has no source path"), path);
+        return -1;
+    }
+
+    if (virDomainDiskGetType(disk) == VIR_STORAGE_TYPE_BLOCK) {
+        unsigned int driveNumber = 0;
+        g_autoptr(Msvm_DiskDrive) diskdrive = NULL;
+
+        /* BLOCK type disks have their source path set to the windows drive number */
+        if (virStrToLong_ui(diskpath, NULL, 10, &driveNumber) < 0) {
+            virReportError(VIR_ERR_INTERNAL_ERROR,
+                           _("Invalid drive number '%1$s' for physical disk"), diskpath);
+            return -1;
+        }
+
+        if (hypervGetPhysicalDiskBlockInfo(priv, driveNumber, info) < 0)
+            return -1;
+    } else if (virDomainDiskGetType(disk) == VIR_STORAGE_TYPE_FILE) {
+        /* first try querying the disk via the image management service which supports .vhd(x) files */
+        if (hypervGetVirtualDiskBlockInfo(priv, diskpath, info) < 0)
+            return -1;
+    } else {
+        virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
+                       _("Unsupported disk type %1$d for disk '%2$s'"),
+                       virDomainDiskGetType(disk), path);
+        return -1;
+    }
+
+    return 0;
+}
+
+
 static virHypervisorDriver hypervHypervisorDriver = {
     .name = "Hyper-V",
     .connectOpen = hypervConnectOpen, /* 0.9.5 */
@@ -3708,11 +4119,14 @@ static virHypervisorDriver hypervHypervisorDriver = {
     .domainManagedSaveRemove = hypervDomainManagedSaveRemove, /* 0.9.5 */
     .domainSendKey = hypervDomainSendKey, /* 3.6.0 */
     .connectIsAlive = hypervConnectIsAlive, /* 0.9.8 */
+    .domainInterfaceAddresses = hypervDomainInterfaceAddresses, /* 12.1.0 */
+    .domainGetBlockInfo = hypervDomainGetBlockInfo, /* 12.1.0 */
 };
 
 
 virDomainDefParserConfig hypervDomainDefParserConfig = {
-    .features = VIR_DOMAIN_DEF_FEATURE_MEMORY_HOTPLUG,
+    .features = VIR_DOMAIN_DEF_FEATURE_MEMORY_HOTPLUG |
+                VIR_DOMAIN_DEF_FEATURE_FW_AUTOSELECT,
 };
 
 

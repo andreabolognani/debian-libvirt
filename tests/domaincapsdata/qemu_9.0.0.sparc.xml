@@ -6,6 +6,10 @@
   <iothreads supported='yes'/>
   <os supported='yes'>
     <enum name='firmware'/>
+    <firmwareFeatures supported='yes'>
+      <enum name='secureBoot'/>
+      <enum name='enrolledKeys'/>
+    </firmwareFeatures>
     <loader supported='yes'>
       <value>/obviously/fake/firmware1.fd</value>
       <value>/obviously/fake/firmware2.fd</value>
@@ -21,6 +25,7 @@
         <value>no</value>
       </enum>
     </loader>
+    <varstore supported='no'/>
   </os>
   <cpu>
     <mode name='host-passthrough' supported='yes'>
@@ -86,9 +91,9 @@
         <value>scsi</value>
       </enum>
       <enum name='capsType'/>
-      <enum name='pciBackend'>
-        <value>default</value>
-        <value>vfio</value>
+      <enum name='pciBackend'/>
+      <enum name='iommufd'>
+        <value>no</value>
       </enum>
     </hostdev>
     <rng supported='yes'>

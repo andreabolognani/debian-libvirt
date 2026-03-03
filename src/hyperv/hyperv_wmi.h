@@ -26,7 +26,6 @@
 #include "virbuffer.h"
 #include "hyperv_private.h"
 #include "hyperv_wmi_classes.h"
-#include "virhash.h"
 
 
 #define HYPERV_WQL_QUERY_INITIALIZER { NULL, NULL }
@@ -35,6 +34,9 @@
 
 #define MSVM_VIRTUALSYSTEMMANAGEMENTSERVICE_SELECTOR \
     "CreationClassName=Msvm_VirtualSystemManagementService"
+
+#define MSVM_IMAGEMANAGEMENTSERVICE_SELECTOR \
+    "CreationClassName=Msvm_ImageManagementService"
 
 int hypervVerifyResponse(WsManClient *client, WsXmlDocH response,
                          const char *detail);
@@ -262,6 +264,10 @@ int hypervGetSyntheticEthernetPortSD(hypervPrivate *priv,
 int hypervGetEthernetPortAllocationSD(hypervPrivate *priv,
                                       const char *id,
                                       Msvm_EthernetPortAllocationSettingData **data);
+
+int hypervImageManagementServiceGetVHDSD(hypervPrivate *priv,
+                                         const char *vhdPath,
+                                         WsXmlDocH *settingDataDoc);
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Msvm_VirtualSystemManagementService

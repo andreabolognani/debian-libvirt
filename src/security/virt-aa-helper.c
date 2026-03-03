@@ -50,6 +50,7 @@
 #include "virstring.h"
 #include "virgettext.h"
 #include "virhostdev.h"
+#include "viriommufd.h"
 
 #define VIR_FROM_THIS VIR_FROM_SECURITY
 
@@ -105,7 +106,7 @@ vah_usage(void)
             "    -R | --remove                  unload profile\n"
             "  Options:\n"
             "    -d | --dryrun                  dry run\n"
-            "    -u | --uuid <uuid>             uuid (profile name)\n"
+            "    -u | --uuid libvirt-<uuid>     AppArmor profile name\n"
             "    -h | --help                    this help\n"
             "  Extra File:\n"
             "    -f | --add-file <file>         add file to a profile generated from XML\n"
@@ -835,11 +836,11 @@ add_file_path(virStorageSource *src,
 
     if (depth == 0) {
         if (src->readonly)
-            ret = vah_add_file(buf, src->path, "rk");
+            ret = vah_add_file(buf, src->path, "Rk");
         else
             ret = vah_add_file(buf, src->path, "rwk");
     } else {
-        ret = vah_add_file(buf, src->path, "rk");
+        ret = vah_add_file(buf, src->path, "Rk");
     }
 
     if (ret != 0)
@@ -1018,19 +1019,35 @@ get_files(vahControl * ctl)
         return -1;
     }
 
-    if (ctl->def->os.loader && ctl->def->os.loader->path) {
-        bool readonly = false;
-        virTristateBoolToBool(ctl->def->os.loader->readonly, &readonly);
-        if (vah_add_file(&buf,
-                         ctl->def->os.loader->path,
-                         readonly ? "rk" : "rwk") != 0) {
+    if (ctl->def->os.loader) {
+        if (ctl->def->os.loader->path) {
+            bool readonly = false;
+
+            /* Look at the readonly attribute, but also keep in mind that ROMs
+             * are always loaded read-only regardless of whether the attribute
+             * is present. Validation ensures that nonsensical configurations
+             * (type=rom readonly=no) are rejected long before we get here */
+            virTristateBoolToBool(ctl->def->os.loader->readonly, &readonly);
+            if (ctl->def->os.loader->type == VIR_DOMAIN_LOADER_TYPE_ROM)
+                readonly = true;
+
+            if (vah_add_file(&buf,
+                             ctl->def->os.loader->path,
+                             readonly ? "rk" : "rwk") != 0) {
+                return -1;
+            }
+        }
+
+        if (ctl->def->os.loader->nvram &&
+            storage_source_add_files(ctl->def->os.loader->nvram, &buf, 0) < 0) {
             return -1;
         }
-    }
 
-    if (ctl->def->os.loader && ctl->def->os.loader->nvram &&
-        storage_source_add_files(ctl->def->os.loader->nvram, &buf, 0) < 0) {
-        return -1;
+        if (ctl->def->os.varstore &&
+            ctl->def->os.varstore->path &&
+            vah_add_file(&buf, ctl->def->os.varstore->path, "rw") != 0) {
+            return -1;
+        }
     }
 
     for (i = 0; i < ctl->def->ngraphics; i++) {
@@ -1114,8 +1131,9 @@ get_files(vahControl * ctl)
 
             virDeviceHostdevPCIDriverName driverName = dev->source.subsys.u.pci.driver.name;
 
-            if (driverName == VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_VFIO ||
-                driverName == VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_DEFAULT) {
+            if ((driverName == VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_VFIO ||
+                driverName == VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_DEFAULT) &&
+                dev->source.subsys.u.pci.driver.iommufd != VIR_TRISTATE_BOOL_YES) {
                 needsVfio = true;
             }
 
@@ -1385,9 +1403,18 @@ get_files(vahControl * ctl)
         }
     }
 
-    if (ctl->newfile &&
-        vah_add_file(&buf, ctl->newfile, "rwk") != 0) {
-        return -1;
+    if (ctl->newfile) {
+        const char *perms = "rwk";
+
+        /* VFIO and iommufd devices need mmap permission */
+        if (STRPREFIX(ctl->newfile, "/dev/vfio/devices/vfio") ||
+            STREQ(ctl->newfile, VIR_IOMMU_DEV_PATH)) {
+            perms = "rwm";
+        }
+
+        if (vah_add_file(&buf, ctl->newfile, perms) != 0) {
+            return -1;
+        }
     }
 
     ctl->files = virBufferContentAndReset(&buf);
@@ -1561,8 +1588,15 @@ main(int argc, char **argv)
                 }
         }
         if (ctl->append && ctl->newfile) {
-            if (vah_add_file(&buf, ctl->newfile, "rwk") != 0)
-                goto cleanup;
+            const char *perms = "rwk";
+
+            if (STRPREFIX(ctl->newfile, "/dev/vfio/devices/vfio") ||
+                STREQ(ctl->newfile, VIR_IOMMU_DEV_PATH)) {
+                perms = "rwm";
+            }
+
+            if (vah_add_file(&buf, ctl->newfile, perms) != 0)
+                return -1;
         } else {
             if (ctl->def->virtType == VIR_DOMAIN_VIRT_QEMU ||
                 ctl->def->virtType == VIR_DOMAIN_VIRT_KQEMU ||

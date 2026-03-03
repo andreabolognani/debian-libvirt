@@ -348,6 +348,7 @@ virDomainDefHasNVMeDisk;
 virDomainDefHasOldStyleROUEFI;
 virDomainDefHasOldStyleUEFI;
 virDomainDefHasPCIHostdev;
+virDomainDefHasPCIHostdevWithIOMMUFD;
 virDomainDefHasTimer;
 virDomainDefHasUSB;
 virDomainDefHasVcpusOffline;
@@ -577,6 +578,7 @@ virDomainNetModelTypeFromString;
 virDomainNetModelTypeToString;
 virDomainNetNotifyActualDevice;
 virDomainNetPortForwardFree;
+virDomainNetPortForwardsIsEqual;
 virDomainNetReleaseActualDevice;
 virDomainNetRemove;
 virDomainNetRemoveByObj;
@@ -717,6 +719,8 @@ virDomainTPMProfileRemoveDisabledTypeToString;
 virDomainTPMVersionTypeFromString;
 virDomainTPMVersionTypeToString;
 virDomainUSBDeviceDefForeach;
+virDomainVarstoreDefFree;
+virDomainVarstoreDefNew;
 virDomainVideoDefaultRAM;
 virDomainVideoDefClear;
 virDomainVideoDefFree;
@@ -812,6 +816,7 @@ virDomainQemuMonitorEventNew;
 virDomainQemuMonitorEventStateRegisterID;
 virHostdevIsMdevDevice;
 virHostdevIsPCIDevice;
+virHostdevIsPCIDeviceWithIOMMUFD;
 virHostdevIsSCSIDevice;
 
 
@@ -1695,13 +1700,6 @@ virDomainInterfaceStopDevice;
 virDomainInterfaceStopDevices;
 virDomainInterfaceVportRemove;
 
-# hypervisor/domain_logcontext.h
-domainLogContextGetWriteFD;
-domainLogContextMarkPosition;
-domainLogContextNew;
-domainLogContextReadFiltered;
-domainLogContextWrite;
-
 # hypervisor/virclosecallbacks.h
 virCloseCallbacksDomainAdd;
 virCloseCallbacksDomainAlloc;
@@ -2254,6 +2252,7 @@ virConfWriteMem;
 
 
 # util/vircrypto.h
+virCryptoDecryptData;
 virCryptoEncryptData;
 virCryptoHashBuf;
 virCryptoHashString;
@@ -2378,6 +2377,7 @@ virFileDeleteTree;
 virFileDirectFdFlag;
 virFileExists;
 virFileFclose;
+virFileFDIsRegular;
 virFileFdopen;
 virFileFindHugeTLBFS;
 virFileFindMountPoint;
@@ -2651,6 +2651,10 @@ virInhibitorRelease;
 # util/virinitctl.h
 virInitctlFifos;
 virInitctlSetRunLevel;
+
+# util/viriommufd.h
+virIOMMUFDOpenDevice;
+virIOMMUFDSupported;
 
 # util/viriscsi.h
 virISCSIConnectionLogin;
@@ -3159,6 +3163,7 @@ virPCIDeviceGetStubDriverName;
 virPCIDeviceGetStubDriverType;
 virPCIDeviceGetUnbindFromStub;
 virPCIDeviceGetUsedBy;
+virPCIDeviceGetVfioPath;
 virPCIDeviceGetVPD;
 virPCIDeviceHasPCIExpressLink;
 virPCIDeviceIsAssignable;
@@ -3175,6 +3180,7 @@ virPCIDeviceListNew;
 virPCIDeviceListSteal;
 virPCIDeviceListStealIndex;
 virPCIDeviceNew;
+virPCIDeviceOpenVfioFd;
 virPCIDeviceReattach;
 virPCIDeviceRebind;
 virPCIDeviceReset;
@@ -3463,6 +3469,7 @@ virSocketAddrSetIPv4AddrNetOrder;
 virSocketAddrSetIPv6Addr;
 virSocketAddrSetIPv6AddrNetOrder;
 virSocketAddrSetPort;
+virSocketAddrSubnetToPrefix;
 
 
 # util/virstoragefile.h
@@ -3683,8 +3690,6 @@ virURIResolveAlias;
 # util/virusb.h
 virUSBDeviceFileIterate;
 virUSBDeviceFind;
-virUSBDeviceFindByBus;
-virUSBDeviceFindByVendor;
 virUSBDeviceFree;
 virUSBDeviceGetBus;
 virUSBDeviceGetDevno;

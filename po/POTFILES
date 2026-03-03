@@ -162,6 +162,7 @@ src/nwfilter/nwfilter_driver.c
 src/nwfilter/nwfilter_ebiptables_driver.c
 src/nwfilter/nwfilter_gentech_driver.c
 src/nwfilter/nwfilter_learnipaddr.c
+src/nwfilter/nwfilter_tech_driver.c
 src/openvz/openvz_conf.c
 src/openvz/openvz_driver.c
 src/openvz/openvz_util.c
@@ -232,6 +233,7 @@ src/rpc/virnetsshsession.c
 src/rpc/virnettlscert.c
 src/rpc/virnettlsconfig.c
 src/rpc/virnettlscontext.c
+src/secret/secret_config.c
 src/secret/secret_driver.c
 src/security/security_apparmor.c
 src/security/security_dac.c
@@ -303,6 +305,7 @@ src/util/virhostuptime.c
 src/util/viridentity.c
 src/util/virinhibitor.c
 src/util/virinitctl.c
+src/util/viriommufd.c
 src/util/viriscsi.c
 src/util/virjson.c
 src/util/virlease.c

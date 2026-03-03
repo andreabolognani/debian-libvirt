@@ -2,21 +2,30 @@
 
 #include <dirent.h>
 
+#include "configmake.h"
 #include "viralloc.h"
+#include "virfile.h"
 #include "virstring.h"
 #include "virnetdev.h"
 #include "virnetdevtap.h"
 #include "virmock.h"
 #include "internal.h"
+#include "cpu/cpu.h"
+#include "testutilshostcpus.h"
 
 #define VIR_FROM_THIS VIR_FROM_BHYVE
 
 static DIR * (*real_opendir)(const char *name);
+static bool (*real_virFileExists)(const char *path);
 
 static void
 init_syms(void)
 {
-    VIR_MOCK_REAL_INIT(opendir);
+    if (!real_opendir)
+        VIR_MOCK_REAL_INIT(opendir);
+
+    if (!real_virFileExists)
+        VIR_MOCK_REAL_INIT(virFileExists);
 }
 
 #define FAKEFIRMWAREDIR abs_srcdir "/bhyvefirmwaredata/three_firmwares"
@@ -88,4 +97,21 @@ int bind(int sockfd G_GNUC_UNUSED,
          socklen_t addrlen G_GNUC_UNUSED)
 {
     return 0;
+}
+
+virCPUDef *
+virCPUProbeHost(virArch arch)
+{
+    return testUtilsHostCpusGetDefForArch(arch);
+}
+
+bool
+virFileExists(const char *path)
+{
+    init_syms();
+
+    if (STREQ(path, "fakeubootpath/u-boot.bin"))
+        return true;
+
+    return real_virFileExists(path);
 }

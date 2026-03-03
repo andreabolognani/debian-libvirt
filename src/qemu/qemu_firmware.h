@@ -52,7 +52,10 @@ qemuFirmwareGetSupported(const char *machine,
                          virArch arch,
                          bool privileged,
                          uint64_t *supported,
+                         uint64_t *featureSecureBoot,
+                         uint64_t *featureEnrolledKeys,
                          bool *secure,
+                         bool *varstore,
                          virFirmware ***fws,
                          size_t *nfws);
 

@@ -715,7 +715,7 @@ cmdNetworkInfo(vshControl *ctl, const vshCmd *cmd)
         vshPrint(ctl, "%-15s %s\n", _("Persistent:"), persistent ? _("yes") : _("no"));
 
     if (virNetworkGetAutostart(network, &autostart) < 0)
-        vshPrint(ctl, "%-15s %s\n", _("Autostart:"), _("no autostart"));
+        vshPrint(ctl, "%-15s %s\n", _("Autostart:"), _("unknown"));
     else
         vshPrint(ctl, "%-15s %s\n", _("Autostart:"), autostart ? _("yes") : _("no"));
 
@@ -1055,7 +1055,7 @@ cmdNetworkList(vshControl *ctl, const vshCmd *cmd G_GNUC_UNUSED)
 
         if (optTable) {
             if (virNetworkGetAutostart(network, &is_autostart) < 0)
-                autostartStr = _("no autostart");
+                autostartStr = _("unknown");
             else
                 autostartStr = is_autostart ? _("yes") : _("no");
 
@@ -1389,11 +1389,12 @@ cmdNetworkUuid(vshControl *ctl, const vshCmd *cmd)
                                              VIRSH_BYNAME)))
         return false;
 
-    if (virNetworkGetUUIDString(network, uuid) != -1)
-        vshPrint(ctl, "%s\n", uuid);
-    else
+    if (virNetworkGetUUIDString(network, uuid) == -1) {
         vshError(ctl, "%s", _("failed to get network UUID"));
+        return false;
+    }
 
+    vshPrint(ctl, "%s\n", uuid);
     return true;
 }
 

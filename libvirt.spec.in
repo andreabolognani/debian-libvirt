@@ -263,8 +263,9 @@
 
 # RHEL releases provide stable tool chains and so it is safe to turn
 # compiler warning into errors without being worried about frequent
-# changes in reported warnings
-%if 0%{?rhel}
+# changes in reported warnings. ELN is a rebuild of Rawhide so should
+# be treated as unstable for this flag
+%if 0%{?rhel} && !0%{?eln}
     %define enable_werror -Dwerror=true
 %else
     %define enable_werror -Dwerror=false -Dgit_werror=disabled
@@ -1890,13 +1891,16 @@ exit 0
 %pre daemon-driver-secret
 %libvirt_sysconfig_pre virtsecretd
 %libvirt_systemd_unix_pre virtsecretd
+%libvirt_systemd_oneshot_pre virt-secret-init-encryption
 
 %posttrans daemon-driver-secret
 %libvirt_sysconfig_posttrans virtsecretd
 %libvirt_systemd_unix_posttrans virtsecretd
+%libvirt_systemd_unix_posttrans virt-secret-init-encryption
 
 %preun daemon-driver-secret
 %libvirt_systemd_unix_preun virtsecretd
+%libvirt_systemd_unix_preun virt-secret-init-encryption
 
 %pre daemon-driver-storage-core
 %libvirt_sysconfig_pre virtstoraged
@@ -2247,12 +2251,17 @@ exit 0
 %config(noreplace) %{_sysconfdir}/libvirt/virtsecretd.conf
 %{_datadir}/augeas/lenses/virtsecretd.aug
 %{_datadir}/augeas/lenses/tests/test_virtsecretd.aug
+%{_datadir}/augeas/lenses/libvirt_secrets.aug
+%{_datadir}/augeas/lenses/tests/test_libvirt_secrets.aug
+%config(noreplace) %{_sysconfdir}/libvirt/secret.conf
 %{_unitdir}/virtsecretd.service
+%{_unitdir}/virt-secret-init-encryption.service
 %{_unitdir}/virtsecretd.socket
 %{_unitdir}/virtsecretd-ro.socket
 %{_unitdir}/virtsecretd-admin.socket
 %attr(0755, root, root) %{_sbindir}/virtsecretd
 %dir %attr(0700, root, root) %{_sysconfdir}/libvirt/secrets/
+%dir %attr(0700, root, root) %{_localstatedir}/lib/libvirt/secrets/
 %ghost %dir %attr(0700, root, root) %{_rundir}/libvirt/secrets/
 %{_libdir}/libvirt/connection-driver/libvirt_driver_secret.so
 %{_mandir}/man8/virtsecretd.8*
@@ -2340,6 +2349,7 @@ exit 0
 %dir %attr(0751, %{qemu_user}, %{qemu_group}) %{_localstatedir}/lib/libvirt/qemu/ram/
 %dir %attr(0751, %{qemu_user}, %{qemu_group}) %{_localstatedir}/lib/libvirt/qemu/save/
 %dir %attr(0751, %{qemu_user}, %{qemu_group}) %{_localstatedir}/lib/libvirt/qemu/snapshot/
+%dir %attr(0751, %{qemu_user}, %{qemu_group}) %{_localstatedir}/lib/libvirt/qemu/varstore/
 %dir %attr(0750, root, root) %{_localstatedir}/cache/libvirt/qemu/
 %{_datadir}/augeas/lenses/libvirtd_qemu.aug
 %{_datadir}/augeas/lenses/tests/test_libvirtd_qemu.aug

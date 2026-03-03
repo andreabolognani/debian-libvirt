@@ -349,31 +349,10 @@
             </element>
           </optional>
           <optional>
-            <element name="nvram">
-              <optional>
-                <attribute name="template">
-                  <ref name="absFilePath"/>
-                </attribute>
-              </optional>
-              <optional>
-                <attribute name="templateFormat">
-                  <ref name="pflashFormatTypes"/>
-                </attribute>
-              </optional>
-              <optional>
-                <ref name="pflashFormat"/>
-              </optional>
-              <optional>
-                <choice>
-                  <group>
-                    <ref name="absFilePath"/>
-                  </group>
-                  <group>
-                    <ref name="diskSource"/>
-                  </group>
-                </choice>
-              </optional>
-            </element>
+            <choice>
+              <ref name="osnvram"/>
+              <ref name="osvarstore"/>
+            </choice>
           </optional>
           <optional>
             <ref name="osbootkernel"/>
@@ -449,6 +428,51 @@
         </attribute>
       </optional>
       <value>hvm</value>
+    </element>
+  </define>
+
+  <define name="osnvram">
+    <element name="nvram">
+      <optional>
+        <attribute name="template">
+          <ref name="absFilePath"/>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="templateFormat">
+          <ref name="pflashFormatTypes"/>
+        </attribute>
+      </optional>
+      <optional>
+        <ref name="pflashFormat"/>
+      </optional>
+      <optional>
+        <choice>
+          <group>
+            <ref name="absFilePath"/>
+          </group>
+          <group>
+            <ref name="diskSource"/>
+          </group>
+        </choice>
+      </optional>
+    </element>
+  </define>
+
+  <define name="osvarstore">
+    <element name="varstore">
+      <interleave>
+        <optional>
+          <attribute name="template">
+            <ref name="absFilePath"/>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="path">
+            <ref name="absFilePath"/>
+          </attribute>
+        </optional>
+      </interleave>
     </element>
   </define>
 
@@ -2741,13 +2765,36 @@
         </optional>
         <optional>
           <element name="statistics">
-            <zeroOrMore>
-              <element name="statistic">
-                <attribute name="interval">
-                  <ref name="unsignedInt"/>
-                </attribute>
-              </element>
-            </zeroOrMore>
+            <interleave>
+              <zeroOrMore>
+                <element name="statistic">
+                  <attribute name="interval">
+                    <ref name="unsignedInt"/>
+                  </attribute>
+                </element>
+              </zeroOrMore>
+              <zeroOrMore>
+                <element name="latency-histogram">
+                  <optional>
+                    <attribute name='type'>
+                      <choice>
+                        <value>read</value>
+                        <value>write</value>
+                        <value>zone</value>
+                        <value>flush</value>
+                      </choice>
+                    </attribute>
+                  </optional>
+                  <oneOrMore>
+                    <element name='bin'>
+                      <attribute name='start'>
+                        <ref name="unsignedInt"/>
+                      </attribute>
+                    </element>
+                  </oneOrMore>
+                </element>
+              </zeroOrMore>
+            </interleave>
           </element>
         </optional>
       </interleave>
@@ -6329,6 +6376,28 @@
                 <data type="unsignedInt"/>
               </attribute>
             </optional>
+            <optional>
+              <element name="granule">
+                <choice>
+                  <group>
+                    <attribute name="mode">
+                      <value>host</value>
+                    </attribute>
+                  </group>
+                  <group>
+                    <attribute name="size">
+                      <ref name="unsignedInt"/>
+                    </attribute>
+                    <optional>
+                      <attribute name="unit">
+                        <ref name="unit"/>
+                      </attribute>
+                    </optional>
+                  </group>
+                </choice>
+                <empty/>
+              </element>
+            </optional>
           </element>
         </optional>
         <optional>
@@ -6813,9 +6882,14 @@
       <attribute name="bus">
         <ref name="usbAddr"/>
       </attribute>
-      <attribute name="device">
-        <ref name="usbAddr"/>
-      </attribute>
+      <choice>
+        <attribute name="device">
+          <ref name="usbAddr"/>
+        </attribute>
+        <attribute name="port">
+          <ref name="usbPort"/>
+        </attribute>
+      </choice>
     </element>
   </define>
   <define name="scsiaddress">
@@ -7179,6 +7253,11 @@
           </optional>
           <optional>
             <ref name="aia"/>
+          </optional>
+          <optional>
+            <element name="virtualization">
+              <empty/>
+            </element>
           </optional>
         </interleave>
       </element>
@@ -8053,13 +8132,13 @@
         <attribute name="mode">
           <value>passthrough</value>
         </attribute>
-        <attribute name="mode">
-          <value>host-model</value>
-        </attribute>
         <group>
           <optional>
             <attribute name="mode">
-              <value>custom</value>
+              <choice>
+                <value>custom</value>
+                <value>host-model</value>
+              </choice>
             </attribute>
           </optional>
           <interleave>
@@ -8721,36 +8800,6 @@
       <ref name="ipAddr"/>
       <ref name="dnsName"/>
     </choice>
-  </define>
-  <define name="usbIdDefault">
-    <data type="string">
-      <param name="pattern">-1</param>
-    </data>
-  </define>
-  <define name="usbId">
-    <data type="string">
-      <param name="pattern">(0x)?[0-9a-fA-F]{1,4}</param>
-    </data>
-  </define>
-  <define name="usbVersion">
-    <data type="string">
-      <param name="pattern">[0-9]{1,2}.[0-9]{1,2}</param>
-    </data>
-  </define>
-  <define name="usbAddr">
-    <data type="string">
-      <param name="pattern">(0x)?[0-9a-fA-F]{1,3}</param>
-    </data>
-  </define>
-  <define name="usbClass">
-    <data type="string">
-      <param name="pattern">(0x)?[0-9a-fA-F]{1,2}</param>
-    </data>
-  </define>
-  <define name="usbPort">
-    <data type="string">
-      <param name="pattern">((0x)?[0-9a-fA-F]{1,3}\.){0,3}(0x)?[0-9a-fA-F]{1,3}</param>
-    </data>
   </define>
   <define name="driveController">
     <data type="string">

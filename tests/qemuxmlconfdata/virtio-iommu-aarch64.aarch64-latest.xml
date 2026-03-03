@@ -18,9 +18,6 @@
     <acpi/>
     <gic version='2'/>
   </features>
-  <cpu mode='custom' match='exact' check='none'>
-    <model fallback='forbid'>cortex-a15</model>
-  </cpu>
   <clock offset='utc'/>
   <on_poweroff>destroy</on_poweroff>
   <on_reboot>restart</on_reboot>
@@ -32,6 +29,9 @@
     <audio id='1' type='none'/>
     <memballoon model='none'/>
     <iommu model='virtio'>
+      <driver aw_bits='48'>
+        <granule size='64' unit='KiB'/>
+      </driver>
       <address type='pci' domain='0x0000' bus='0x00' slot='0x01' function='0x0'/>
     </iommu>
   </devices>

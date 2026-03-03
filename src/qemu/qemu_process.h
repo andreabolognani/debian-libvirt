@@ -134,6 +134,9 @@ int qemuProcessPrepareHostBackendChardevHotplug(virDomainObj *vm,
                                                 virDomainDeviceDef *dev)
     ATTRIBUTE_MOCKABLE;
 
+int qemuProcessOpenIommuFd(virDomainObj *vm);
+
+int qemuProcessOpenVfioDeviceFd(virDomainHostdevDef *hostdev);
 
 int qemuProcessPrepareHost(virQEMUDriver *driver,
                            virDomainObj *vm,
@@ -145,6 +148,9 @@ int qemuProcessPrepareHostStorageSourceChain(virDomainObj *vm,
                                              virStorageSource *chain);
 int qemuProcessPrepareHostStorageDisk(virDomainObj *vm,
                                   virDomainDiskDef *disk);
+
+int qemuProcessSetupDiskPropsRuntime(qemuMonitor *mon,
+                                     virDomainDiskDef *disk);
 
 int qemuProcessDeleteThreadContext(virDomainObj *vm);
 
@@ -163,8 +169,7 @@ int qemuProcessFinishStartup(virQEMUDriver *driver,
                              bool startCPUs,
                              virDomainPausedReason pausedReason);
 
-int qemuProcessRefreshState(virQEMUDriver *driver,
-                            virDomainObj *vm,
+int qemuProcessRefreshState(virDomainObj *vm,
                             virDomainAsyncJob asyncJob);
 
 typedef enum {
@@ -218,9 +223,6 @@ int qemuRefreshVirtioChannelState(virQEMUDriver *driver,
 int qemuProcessRefreshBalloonState(virDomainObj *vm,
                                    int asyncJob);
 
-int qemuProcessRefreshDisks(virDomainObj *vm,
-                            virDomainAsyncJob asyncJob);
-
 int qemuProcessStartManagedPRDaemon(virDomainObj *vm) ATTRIBUTE_MOCKABLE;
 
 void qemuProcessKillManagedPRDaemon(virDomainObj *vm) ATTRIBUTE_MOCKABLE;
@@ -259,9 +261,6 @@ bool qemuProcessRebootAllowed(const virDomainDef *def);
 
 void qemuProcessCleanupMigrationJob(virQEMUDriver *driver,
                                     virDomainObj *vm);
-
-void qemuProcessRefreshDiskProps(virDomainDiskDef *disk,
-                                 struct qemuDomainDiskInfo *info);
 
 int qemuProcessSetupEmulator(virDomainObj *vm);
 

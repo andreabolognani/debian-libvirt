@@ -1692,6 +1692,7 @@ qemuBuildDiskDeviceProps(const virDomainDef *def,
     g_autofree char *usbdiskalias = NULL;
     const virDomainDeviceInfo *deviceinfo = &disk->info;
     g_autoptr(virJSONValue) statistics = NULL;
+    virTristateBool migrate_pr = VIR_TRISTATE_BOOL_ABSENT;
     virDomainDeviceInfo usbSCSIinfo = {
         .type = VIR_DOMAIN_DEVICE_ADDRESS_TYPE_DRIVE,
         .addr.drive = { .diskbus = VIR_DOMAIN_DISK_BUS_USB },
@@ -1717,6 +1718,8 @@ qemuBuildDiskDeviceProps(const virDomainDef *def,
     case VIR_DOMAIN_DISK_BUS_SCSI:
         if (disk->device == VIR_DOMAIN_DISK_DEVICE_LUN) {
             driver = "scsi-block";
+            if (disk->src->pr)
+                migrate_pr = disk->src->pr->migration;
         } else {
             if (disk->device == VIR_DOMAIN_DISK_DEVICE_CDROM) {
                 driver = "scsi-cd";
@@ -1938,6 +1941,7 @@ qemuBuildDiskDeviceProps(const virDomainDef *def,
                               "S:rerror", rpolicy,
                               "A:stats-intervals", &statistics,
                               "T:dpofua", disk->dpofua, /* SCSI-only, ensured by validation */
+                              "T:migrate-pr", migrate_pr, /* 'scsi-block' only, ensured by validation */
                               NULL) < 0)
         return NULL;
 
@@ -4758,9 +4762,11 @@ qemuBuildPCIHostdevDevProps(const virDomainDef *def,
     g_autoptr(virJSONValue) props = NULL;
     virDomainHostdevSubsysPCI *pcisrc = &dev->source.subsys.u.pci;
     virDomainNetTeamingInfo *teaming;
-    g_autofree char *host = virPCIDeviceAddressAsString(&pcisrc->addr);
+    g_autofree char *host = NULL;
     const char *failover_pair_id = NULL;
     const char *driver = NULL;
+    const char *iommufdId = NULL;
+    const char *fdstr = NULL;
     /* 'ramfb' property must be omitted unless it's to be enabled */
     bool ramfb = pcisrc->ramfb == VIR_TRISTATE_SWITCH_ON;
 
@@ -4794,14 +4800,25 @@ qemuBuildPCIHostdevDevProps(const virDomainDef *def,
         teaming->persistent)
         failover_pair_id = teaming->persistent;
 
+    if (virHostdevIsPCIDeviceWithIOMMUFD(dev)) {
+        qemuDomainHostdevPrivate *hostdevPriv = QEMU_DOMAIN_HOSTDEV_PRIVATE(dev);
+
+        fdstr = qemuFDPassDirectGetPath(hostdevPriv->vfioDeviceFd);
+        iommufdId = "iommufd0";
+    } else {
+        host = virPCIDeviceAddressAsString(&pcisrc->addr);
+    }
+
     if (virJSONValueObjectAdd(&props,
                               "s:driver", driver,
-                              "s:host", host,
+                              "S:host", host,
                               "s:id", dev->info->alias,
                               "p:bootindex", dev->info->effectiveBootIndex,
                               "S:failover_pair_id", failover_pair_id,
                               "S:display", qemuOnOffAuto(pcisrc->display),
                               "B:ramfb", ramfb,
+                              "S:iommufd", iommufdId,
+                              "S:fd", fdstr,
                               NULL) < 0)
         return NULL;
 
@@ -5249,6 +5266,12 @@ qemuBuildHostdevCommandLine(virCommand *cmd,
             if (qemuCommandAddExtDevice(cmd, hostdev->info, def, qemuCaps) < 0)
                 return -1;
 
+            if (subsys->u.pci.driver.iommufd == VIR_TRISTATE_BOOL_YES) {
+                qemuDomainHostdevPrivate *hostdevPriv = QEMU_DOMAIN_HOSTDEV_PRIVATE(hostdev);
+
+                qemuFDPassDirectTransferCommand(hostdevPriv->vfioDeviceFd, cmd);
+            }
+
             if (!(devprops = qemuBuildPCIHostdevDevProps(def, hostdev)))
                 return -1;
 
@@ -5316,6 +5339,46 @@ qemuBuildHostdevCommandLine(virCommand *cmd,
             break;
         }
     }
+
+    return 0;
+}
+
+
+virJSONValue *
+qemuBuildIOMMUFDProps(qemuFDPassDirect *iommufd)
+{
+    g_autoptr(virJSONValue) props = NULL;
+
+    if (qemuMonitorCreateObjectProps(&props, "iommufd",
+                                     "iommufd0",
+                                     "S:fd", qemuFDPassDirectGetPath(iommufd),
+                                     NULL) < 0)
+        return NULL;
+
+    return g_steal_pointer(&props);
+}
+
+
+static int
+qemuBuildIOMMUFDCommandLine(virCommand *cmd,
+                            const virDomainDef *def,
+                            virDomainObj *vm)
+{
+    qemuDomainObjPrivate *priv = vm->privateData;
+    g_autoptr(virJSONValue) props = NULL;
+
+    if (!virDomainDefHasPCIHostdevWithIOMMUFD(def))
+        return 0;
+
+    qemuFDPassDirectTransferCommand(priv->iommufd, cmd);
+
+    if (!(props = qemuBuildIOMMUFDProps(priv->iommufd)))
+        return -1;
+
+    if (qemuBuildObjectCommandlineFromJSON(cmd, props) < 0)
+        return -1;
+
+    priv->iommufdState = true;
 
     return 0;
 }
@@ -6285,6 +6348,7 @@ qemuBuildIOMMUCommandLine(virCommand *cmd,
         virDomainIOMMUDef *iommu = def->iommus[i];
         g_autoptr(virJSONValue) props = NULL;
         g_autoptr(virJSONValue) wrapperProps = NULL;
+        g_autofree char *granule_mode = NULL;
 
         switch (iommu->model) {
         case VIR_DOMAIN_IOMMU_MODEL_INTEL:
@@ -6295,7 +6359,7 @@ qemuBuildIOMMUCommandLine(virCommand *cmd,
                                       "T:caching-mode", iommu->caching_mode,
                                       "S:eim", qemuOnOffAuto(iommu->eim),
                                       "T:device-iotlb", iommu->iotlb,
-                                      "z:aw-bits", iommu->aw_bits,
+                                      "p:aw-bits", iommu->aw_bits,
                                       "T:dma-translation", iommu->dma_translation,
                                       NULL) < 0)
                 return -1;
@@ -6306,9 +6370,19 @@ qemuBuildIOMMUCommandLine(virCommand *cmd,
             break;
 
         case VIR_DOMAIN_IOMMU_MODEL_VIRTIO:
+            if (iommu->granule != 0) {
+                if (iommu->granule == -1) {
+                    granule_mode = g_strdup("host");
+                } else {
+                    granule_mode = g_strdup_printf("%dk", iommu->granule);
+                }
+            }
+
             if (virJSONValueObjectAdd(&props,
                                       "s:driver", "virtio-iommu",
                                       "s:id", iommu->info.alias,
+                                      "p:aw-bits", iommu->aw_bits,
+                                      "S:granule", granule_mode,
                                       NULL) < 0) {
                 return -1;
             }
@@ -7009,6 +7083,15 @@ qemuAppendDomainFeaturesMachineParam(virBuffer *buf,
             virBufferAsprintf(buf, ",cap-hpt-max-page-size=%lluk",
                               def->hpt_maxpagesize);
         }
+    }
+
+    if (def->features[VIR_DOMAIN_FEATURE_VIRTUALIZATION] == VIR_TRISTATE_SWITCH_ON) {
+        if (virQEMUCapsGetArch(qemuCaps) != VIR_ARCH_AARCH64) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("virtualization option is not available with this QEMU binary"));
+            return -1;
+        }
+        virBufferAddLit(buf, ",virtualization=on");
     }
 
     if (def->features[VIR_DOMAIN_FEATURE_HTM] != VIR_TRISTATE_SWITCH_ABSENT) {
@@ -9733,6 +9816,37 @@ qemuBuildDomainLoaderCommandLine(virCommand *cmd,
 
 
 static int
+qemuBuildUefiVarsCommandLine(virCommand *cmd,
+                             const virDomainDef *def,
+                             virQEMUCaps *qemuCaps)
+{
+    virDomainLoaderDef *loader = def->os.loader;
+    virDomainVarstoreDef *varstore = def->os.varstore;
+    g_autoptr(virJSONValue) props = NULL;
+    const char *model = NULL;
+
+    if (!loader || !varstore || !varstore->path)
+        return 0;
+
+    if (ARCH_IS_X86(def->os.arch))
+        model = "uefi-vars-x64";
+    else
+        model = "uefi-vars-sysbus";
+
+    if (virJSONValueObjectAdd(&props,
+                              "s:driver", model,
+                              "s:jsonfile", varstore->path,
+                              NULL) < 0)
+        return -1;
+
+    if (qemuBuildDeviceCommandlineFromJSON(cmd, props, def, qemuCaps) < 0)
+        return -1;
+
+    return 0;
+}
+
+
+static int
 qemuBuildTPMDevCmd(virCommand *cmd,
                    const virDomainDef *def,
                    virDomainTPMDef *tpm,
@@ -10806,6 +10920,9 @@ qemuBuildCommandLine(virDomainObj *vm,
 
     qemuBuildDomainLoaderCommandLine(cmd, def);
 
+    if (qemuBuildUefiVarsCommandLine(cmd, def, qemuCaps) < 0)
+        return NULL;
+
     if (qemuBuildMemCommandLine(cmd, def, qemuCaps, priv) < 0)
         return NULL;
 
@@ -10931,6 +11048,9 @@ qemuBuildCommandLine(virDomainObj *vm,
         return NULL;
 
     if (qemuBuildRedirdevCommandLine(cmd, def, qemuCaps) < 0)
+        return NULL;
+
+    if (qemuBuildIOMMUFDCommandLine(cmd, def, vm) < 0)
         return NULL;
 
     if (qemuBuildHostdevCommandLine(cmd, def, qemuCaps) < 0)
