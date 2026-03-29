@@ -1,8 +1,17 @@
-libvirt (12.1.0-1) UNRELEASED; urgency=medium
+libvirt (12.1.0-1) experimental; urgency=medium
 
   * [6b2d3ee] New upstream version 12.1.0
+    - Addresses various issues related to the interactions between
+      AppArmor and snapshot handling
+    - Closes: #932456
+    - Closes: #1061725
+    - Closes: #1093955
+  * [8e9b871] patches: Add debian/Drop-handling-of-secret-encryption-[...]
+    - The feature is implemented in a way that makes libvirtd
+      completely unusable if the secret driver is not installed, so
+      we're going to keep it disabled for the time being
 
- -- Andrea Bolognani <eof@kiyuko.org>  Tue, 03 Mar 2026 22:06:00 +0100
+ -- Andrea Bolognani <eof@kiyuko.org>  Sun, 29 Mar 2026 22:33:37 +0200
 
 libvirt (12.0.0-1) unstable; urgency=medium
 
