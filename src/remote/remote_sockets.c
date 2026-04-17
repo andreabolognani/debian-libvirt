@@ -55,7 +55,7 @@ remoteGetDaemonPathEnv(void)
      * but if it is not set we will fallback to LIBVIRTD_PATH
      * for previous behaviour
      */
-    if (getenv("VIRTD_PATH") != NULL) {
+    if (g_getenv("VIRTD_PATH") != NULL) {
         return "VIRTD_PATH";
     } else {
         return "LIBVIRTD_PATH";
@@ -126,10 +126,9 @@ remoteGetUNIXSocketHelper(remoteDriverTransport transport,
                           unsigned int flags)
 {
     char *sockname = NULL;
-    g_autofree char *userdir = NULL;
 
     if (flags & REMOTE_DRIVER_OPEN_USER) {
-        userdir = virGetUserRuntimeDirectory();
+        g_autofree char *userdir = virGetUserRuntimeDirectory();
 
         sockname = g_strdup_printf("%s/%s-sock", userdir, sock_prefix);
     } else {
@@ -441,7 +440,7 @@ remoteGetURIDaemonInfo(virURI *uri,
                        remoteDriverTransport transport,
                        unsigned int *flags)
 {
-    const char *autostart_str = getenv("LIBVIRT_AUTOSTART");
+    const char *autostart_str = g_getenv("LIBVIRT_AUTOSTART");
 
     *flags = 0;
 

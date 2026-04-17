@@ -45,7 +45,6 @@
 #include "virstring.h"
 #include "virscsi.h"
 #include "virmdev.h"
-#include "viriommufd.h"
 
 #define VIR_FROM_THIS VIR_FROM_SECURITY
 
@@ -799,8 +798,7 @@ AppArmorSetSecurityHostdevLabel(virSecurityManager *mgr,
                                 virDomainHostdevDef *dev,
                                 const char *vroot)
 {
-    struct SDPDOP *ptr;
-    int ret = -1;
+    g_autofree struct SDPDOP *ptr = NULL;
     virSecurityLabelDef *secdef =
         virDomainDefGetSecurityLabelDef(def, SECURITY_APPARMOR_NAME);
     virDomainHostdevSubsysUSB *usbsrc = &dev->source.subsys.u.usb;
@@ -831,13 +829,13 @@ AppArmorSetSecurityHostdevLabel(virSecurityManager *mgr,
 
     switch (dev->source.subsys.type) {
     case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_USB: {
-        virUSBDevice *usb =
+        g_autoptr(virUSBDevice) usb =
             virUSBDeviceNew(usbsrc->bus, usbsrc->device, vroot);
         if (!usb)
-            goto done;
+            return -1;
 
-        ret = virUSBDeviceFileIterate(usb, AppArmorSetSecurityUSBLabel, ptr);
-        virUSBDeviceFree(usb);
+        if (virUSBDeviceFileIterate(usb, AppArmorSetSecurityUSBLabel, ptr) < 0)
+            return -1;
         break;
     }
 
@@ -846,85 +844,71 @@ AppArmorSetSecurityHostdevLabel(virSecurityManager *mgr,
             virPCIDeviceNew(&pcisrc->addr);
 
         if (!pci)
-            goto done;
+            return -1;
 
         if (pcisrc->driver.name == VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_VFIO) {
-            if (dev->source.subsys.u.pci.driver.iommufd != VIR_TRISTATE_BOOL_YES) {
-                char *vfioGroupDev = virPCIDeviceGetIOMMUGroupDev(pci);
+            if (virHostdevIsPCIDeviceWithoutIOMMUFD(dev)) {
+                g_autofree char *vfioGroupDev = virPCIDeviceGetIOMMUGroupDev(pci);
 
-                if (!vfioGroupDev) {
-                    goto done;
-                }
-                ret = AppArmorSetSecurityPCILabel(pci, vfioGroupDev, ptr);
-                VIR_FREE(vfioGroupDev);
-            } else {
-                g_autofree char *vfiofdDev = NULL;
+                if (!vfioGroupDev)
+                    return -1;
 
-                if (virPCIDeviceGetVfioPath(pci, &vfiofdDev) < 0)
-                    goto done;
-
-                ret = AppArmorSetSecurityPCILabel(pci, vfiofdDev, ptr);
-                if (ret < 0)
-                    goto done;
-
-                ret = AppArmorSetSecurityPCILabel(pci, VIR_IOMMU_DEV_PATH, ptr);
+                if (AppArmorSetSecurityPCILabel(pci, vfioGroupDev, ptr) < 0)
+                    return -1;
             }
         } else {
-            ret = virPCIDeviceFileIterate(pci, AppArmorSetSecurityPCILabel, ptr);
+            if (virPCIDeviceFileIterate(pci, AppArmorSetSecurityPCILabel, ptr) < 0)
+                return -1;
         }
         break;
     }
 
     case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_SCSI: {
         virDomainHostdevSubsysSCSIHost *scsihostsrc = &scsisrc->u.host;
-        virSCSIDevice *scsi =
+        g_autoptr(virSCSIDevice) scsi =
             virSCSIDeviceNew(NULL,
                              scsihostsrc->adapter, scsihostsrc->bus,
                              scsihostsrc->target, scsihostsrc->unit,
                              dev->readonly, dev->shareable);
 
-         if (!scsi)
-             goto done;
+        if (!scsi)
+            return -1;
 
-        ret = virSCSIDeviceFileIterate(scsi, AppArmorSetSecuritySCSILabel, ptr);
-        virSCSIDeviceFree(scsi);
-
+        if (virSCSIDeviceFileIterate(scsi, AppArmorSetSecuritySCSILabel, ptr) < 0)
+            return -1;
         break;
     }
 
     case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_SCSI_HOST: {
-        virSCSIVHostDevice *host = virSCSIVHostDeviceNew(hostsrc->wwpn);
+        g_autoptr(virSCSIVHostDevice) host = virSCSIVHostDeviceNew(hostsrc->wwpn);
 
         if (!host)
-            goto done;
+            return -1;
 
-        ret = virSCSIVHostDeviceFileIterate(host,
-                                            AppArmorSetSecurityHostLabel,
-                                            ptr);
-        virSCSIVHostDeviceFree(host);
+        if (virSCSIVHostDeviceFileIterate(host,
+                                          AppArmorSetSecurityHostLabel,
+                                          ptr) < 0) {
+            return -1;
+        }
         break;
     }
 
     case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_MDEV: {
-        char *vfiodev = NULL;
+        g_autofree char *vfiodev = NULL;
 
         if (!(vfiodev = virMediatedDeviceGetIOMMUGroupDev(mdevsrc->uuidstr)))
-            goto done;
+            return -1;
 
-        ret = AppArmorSetSecurityHostdevLabelHelper(vfiodev, ptr);
-
-        VIR_FREE(vfiodev);
+        if (AppArmorSetSecurityHostdevLabelHelper(vfiodev, ptr) < 0)
+            return -1;
         break;
     }
 
     case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_LAST:
-        ret = 0;
         break;
     }
 
- done:
-    VIR_FREE(ptr);
-    return ret;
+    return 0;
 }
 
 

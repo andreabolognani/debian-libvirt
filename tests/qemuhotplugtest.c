@@ -28,6 +28,7 @@
 #include "testutilsqemuschema.h"
 #include "virhostdev.h"
 #include "virfile.h"
+#include "qemufakedrivers.h"
 
 #define LIBVIRT_QEMU_CAPSPRIV_H_ALLOW
 #include "qemu/qemu_capspriv.h"
@@ -483,6 +484,7 @@ static int
 mymain(void)
 {
     int ret = 0;
+    g_autoptr(virConnect) conn = NULL;
     g_autoptr(virQEMUDriverConfig) cfg = NULL;
     g_autoptr(GHashTable) capsLatestFiles = testQemuGetLatestCaps();
     g_autoptr(GHashTable) capsCache = virHashNew(virObjectUnref);
@@ -499,6 +501,20 @@ mymain(void)
 
     cfg = virQEMUDriverGetConfig(&driver);
 
+    if (!(conn = virGetConnect()))
+        return EXIT_FAILURE;
+
+    conn->secretDriver = testQemuGetFakeSecretDriver();
+    conn->storageDriver = testQemuGetFakeStorageDriver();
+    conn->nwfilterDriver = testQemuGetFakeNWFilterDriver();
+    conn->networkDriver = testQemuGetFakeNetworkDriver();
+
+    virSetConnectInterface(conn);
+    virSetConnectNetwork(conn);
+    virSetConnectNWFilter(conn);
+    virSetConnectNodeDev(conn);
+    virSetConnectSecret(conn);
+    virSetConnectStorage(conn);
     virEventRegisterDefaultImpl();
 
     driver.lockManager = virLockManagerPluginNew("nop", "qemu",
@@ -697,6 +713,22 @@ mymain(void)
     DO_TEST_DETACH("ppc64", "pseries-base-live", "hostdev-pci", false, false,
                    "device_del", QMP_DEVICE_DELETED("hostdev0") QMP_OK);
 
+#ifdef __linux__
+    /* While <interface type='hostdev'/> is nearly the same as <hostdev/>,
+     * there are subtle differences, e.g. checking that PCI device specified in
+     * <interface/> is a VF. Checks like these are done by walking sysfs which
+     * is limited to Linux, obviously. And while our virpcimock creates
+     * necessary structure, on non-Linux the virpci.c is compiled with stubs
+     * that do nothing but report an error. */
+    DO_TEST_ATTACH("x86_64", "base-live", "interface-hostdev", false, true,
+                   "device_add", QMP_OK);
+    DO_TEST_DETACH("x86_64", "base-live", "interface-hostdev", false, false,
+                   "device_del", QMP_DEVICE_DELETED("hostdev0") QMP_OK);
+    DO_TEST_ATTACH("x86_64", "base-live", "interface-network-hostdev", false, true,
+                   "device_add", QMP_OK);
+    DO_TEST_DETACH("x86_64", "base-live", "interface-network-hostdev", false, false,
+                   "device_del", QMP_DEVICE_DELETED("hostdev0") QMP_OK);
+#endif
     DO_TEST_ATTACH("x86_64", "base-live", "interface-vdpa", false, true,
                    "query-fdsets", "{\"return\":[{\"fdset-id\":99999}]}",
                    "add-fd", "{ \"return\": { \"fdset-id\": 1, \"fd\": 95 }}",
@@ -799,8 +831,8 @@ mymain(void)
 }
 
 VIR_TEST_MAIN_PRELOAD(mymain,
-                      VIR_TEST_MOCK("virhostdev"),
                       VIR_TEST_MOCK("virpci"),
                       VIR_TEST_MOCK("domaincaps"),
                       VIR_TEST_MOCK("virprocess"),
-                      VIR_TEST_MOCK("qemuhotplug"));
+                      VIR_TEST_MOCK("qemuhotplug"),
+                      VIR_TEST_MOCK("virnetdev"));

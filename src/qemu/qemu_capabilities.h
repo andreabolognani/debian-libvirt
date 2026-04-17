@@ -736,6 +736,11 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     QEMU_CAPS_DEVICE_SCSI_BLOCK_MIGRATE_PR, /* persistent reservation migration support */
     QEMU_CAPS_OBJECT_IOMMUFD, /* -object iommufd */
     QEMU_CAPS_DEVICE_UEFI_VARS, /* -device uefi-vars-{x64,sysbus} */
+    QEMU_CAPS_QUERY_BLOCK_FLAT, /* 'query-block' command supports 'flat' */
+    QEMU_CAPS_AMD_IOMMU_XTSUP, /* amd-iommu.xtsup */
+
+    /* 495 */
+    QEMU_CAPS_BLOCKDEV_MIRROR_TARGET_IS_ZERO, /* 'blockdev-mirror' supports 'target-is-zero' */
 
     QEMU_CAPS_LAST /* this must always be the last item */
 } virQEMUCapsFlags;

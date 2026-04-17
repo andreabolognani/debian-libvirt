@@ -2714,6 +2714,10 @@ static const vshCmdOptDef opts_blockcopy[] = {
      .type = VSH_OT_BOOL,
      .help = N_("print the XML used to start the copy job instead of starting the job")
     },
+    {.name = "dest-is-zero",
+     .type = VSH_OT_BOOL,
+     .help = N_("the destination image is already zeroed; hypervisor may skip pre-zeroing")
+    },
     {.name = NULL}
 };
 
@@ -2737,6 +2741,7 @@ cmdBlockcopy(vshControl *ctl, const vshCmd *cmd)
     bool bytes = vshCommandOptBool(cmd, "bytes");
     bool transientjob = vshCommandOptBool(cmd, "transient-job");
     bool syncWrites = vshCommandOptBool(cmd, "synchronous-writes");
+    bool destIsZero = vshCommandOptBool(cmd, "dest-is-zero");
     int timeout = 0;
     const char *path = NULL;
     int abort_flags = 0;
@@ -2773,6 +2778,8 @@ cmdBlockcopy(vshControl *ctl, const vshCmd *cmd)
         flags |= VIR_DOMAIN_BLOCK_COPY_SYNCHRONOUS_WRITES;
     if (vshCommandOptTimeoutToMs(ctl, cmd, &timeout) < 0)
         return false;
+    if (destIsZero)
+        flags |= VIR_DOMAIN_BLOCK_COPY_TARGET_ZEROED;
 
     if (timeout)
         blocking = true;
@@ -2818,7 +2825,7 @@ cmdBlockcopy(vshControl *ctl, const vshCmd *cmd)
     }
 
     if (granularity || buf_size || (format && STRNEQ(format, "raw")) || xml ||
-        transientjob || syncWrites || print_xml) {
+        transientjob || syncWrites || destIsZero || print_xml) {
         /* New API */
         if (bandwidth || granularity || buf_size) {
             params = g_new0(virTypedParameter, 3);
@@ -11211,6 +11218,11 @@ static const vshCmdOptDef opts_migrate[] = {
      .completer = virshDomainMigrateDisksCompleter,
      .help = N_("comma separated list of disks to be migrated with zero detection enabled")
     },
+    {.name = "migrate-disks-target-zero",
+     .type = VSH_OT_STRING,
+     .completer = virshDomainMigrateDisksCompleter,
+     .help = N_("comma separated list of disks to be migrated with assumption that target image is zeroed")
+    },
     {.name = "disks-port",
      .type = VSH_OT_INT,
      .unwanted_positional = true,
@@ -11449,6 +11461,27 @@ doMigrate(void *opaque)
                                         &nparams,
                                         &maxparams,
                                         VIR_MIGRATE_PARAM_MIGRATE_DISKS_DETECT_ZEROES,
+                                        (const char **)val) < 0) {
+            goto save_error;
+        }
+    }
+
+    if (vshCommandOptString(ctl, cmd, "migrate-disks-target-zero", &opt) < 0)
+        goto out;
+    if (opt) {
+        g_autofree char **val = NULL;
+
+        if (!(flags & (VIR_MIGRATE_NON_SHARED_DISK | VIR_MIGRATE_NON_SHARED_INC))) {
+            vshError(ctl, "%s", _("'--migrate-disks-target-zero' requires one of '--copy-storage-all', '--copy-storage-inc'"));
+            goto out;
+        }
+
+        val = g_strsplit(opt, ",", 0);
+
+        if (virTypedParamsAddStringList(&params,
+                                        &nparams,
+                                        &maxparams,
+                                        VIR_MIGRATE_PARAM_MIGRATE_DISKS_TARGET_ZERO,
                                         (const char **)val) < 0) {
             goto save_error;
         }

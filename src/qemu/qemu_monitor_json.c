@@ -2243,7 +2243,9 @@ qemuMonitorJSONQueryNamedBlockNodes(qemuMonitor *mon)
  * @mon: Monitor pointer
  *
  * This helper will attempt to make a "query-block" call and check for
- * errors before returning with the reply.
+ * errors before returning with the reply. If qemu supports 'flat' mode
+ * (which ommits 'backing-image' field in the reply objects) we will enable
+ * it as no callers need that information.
  *
  * Returns: NULL on error, reply on success
  */
@@ -2252,8 +2254,14 @@ qemuMonitorJSONQueryBlock(qemuMonitor *mon)
 {
     g_autoptr(virJSONValue) cmd = NULL;
     g_autoptr(virJSONValue) reply = NULL;
+    virTristateBool flat = VIR_TRISTATE_BOOL_ABSENT;
 
-    if (!(cmd = qemuMonitorJSONMakeCommand("query-block", NULL)))
+    if (mon->queryBlockFlat)
+        flat = VIR_TRISTATE_BOOL_YES;
+
+    if (!(cmd = qemuMonitorJSONMakeCommand("query-block",
+                                           "T:flat", flat,
+                                           NULL)))
         return NULL;
 
     if (qemuMonitorJSONCommand(mon, cmd, &reply) < 0 ||
@@ -4293,7 +4301,8 @@ qemuMonitorJSONBlockdevMirror(qemuMonitor *mon,
                               unsigned int granularity,
                               unsigned long long buf_size,
                               bool shallow,
-                              bool syncWrite)
+                              bool syncWrite,
+                              bool targetIsZero)
 {
     g_autoptr(virJSONValue) cmd = NULL;
     g_autoptr(virJSONValue) reply = NULL;
@@ -4325,6 +4334,7 @@ qemuMonitorJSONBlockdevMirror(qemuMonitor *mon,
                                      "S:copy-mode", copymode,
                                      "T:auto-finalize", autofinalize,
                                      "T:auto-dismiss", autodismiss,
+                                     "B:target-is-zero", targetIsZero,
                                      NULL);
     if (!cmd)
         return -1;

@@ -197,6 +197,42 @@ This is an example to boot into Fedora 25 installation:
 Please refer to the `Using UEFI bootrom, VNC, and USB tablet`_ section for a
 more detailed explanation.
 
+Example config (FreeBSD/arm64 guest)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+:since:`Since 12.0.0`, it is possible to run arm64 guests on arm64 hosts.
+
+::
+
+  <domain type='bhyve'>
+    <name>freebsd-15.0R</name>
+    <memory unit='G'>2</memory>
+    <vcpu>2</vcpu>
+    <os>
+      <type>hvm</type>
+      <loader readonly="yes" type="pflash">/usr/local/share/u-boot/u-boot-bhyve-arm64/u-boot.bin</loader>
+    </os>
+    <on_poweroff>destroy</on_poweroff>
+    <on_reboot>restart</on_reboot>
+    <on_crash>destroy</on_crash>
+    <devices>
+      <disk type='file' device='disk'>
+        <driver name='file' type='raw'/>
+        <source file='/home/novel/FreeBSD-15.0-RELEASE-arm64-aarch64-ufs.raw'/>
+        <target dev='vda' bus='virtio'/>
+      </disk>
+      <interface type='network'>
+        <source network='default'/>
+        <model type='virtio'/>
+      </interface>
+      <serial type="nmdm">
+        <source master="/dev/nmdmFreeBSDA" slave="/dev/nmdmFreeBSDB"/>
+      </serial>
+    </devices>
+  </domain>
+
+This example uses the bhyve u-boot loader which can be installed
+from the ``u-boot-bhyve-arm64`` package or the ``sysutils/u-boot-bhyve-arm64`` port.
+
 Guest usage / management
 ------------------------
 
@@ -720,7 +756,7 @@ any configuration on the host.
 
 virtio-scsi
 ~~~~~~~~~~~
-:since:`Since 12:0.0`, it is possible to use ``virtio-scsi`` devices.
+:since:`Since 12.0.0`, it is possible to use ``virtio-scsi`` devices.
 It uses CAM Target layer (CTL) as a source.
 
 Example:
@@ -756,6 +792,32 @@ Example:
     </cputune>
     ...
   </domain>
+
+NUMA domains configuration
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:since:`Since 12.2.0`, it is possible to configure NUMA domains
+for the guest.
+
+Example:
+
+::
+
+  <domain type='bhyve'>
+    ...
+    <memory unit='KiB'>4194304</memory>
+    <vcpu>8</vcpu>
+    ...
+    <cpu>
+      <numa>
+        <cell id='0' cpus='0-3' memory='2097152' unit='KiB'/>
+        <cell id='1' cpus='4-7' memory='2097152' unit='KiB'/>
+      </numa>
+    </cpu>
+  </domain>
+
+Every NUMA domain must have `memory` and `cpus` specified.
+Bhyve allows configuring up to 8 NUMA domains.
 
 Guest-specific considerations
 -----------------------------

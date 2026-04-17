@@ -32,6 +32,7 @@
 #include "storage_source.h"
 #include "storage_source_conf.h"
 #include "virerror.h"
+#include "virportallocator.h"
 #include "virlog.h"
 #include "virbuffer.h"
 #include "backup_conf.h"
@@ -58,7 +59,9 @@ qemuDomainGetBackup(virDomainObj *vm)
 
 
 static int
-qemuBackupPrepare(virDomainBackupDef *def)
+qemuBackupPrepare(qemuDomainObjPrivate *priv,
+                  virDomainBackupDef *def,
+                  qemuFDPassDirect **fdpass)
 {
 
     if (def->type == VIR_DOMAIN_BACKUP_TYPE_PULL) {
@@ -71,15 +74,12 @@ qemuBackupPrepare(virDomainBackupDef *def)
 
         switch (def->server->transport) {
         case VIR_STORAGE_NET_HOST_TRANS_TCP:
-            /* TODO: Update qemu.conf to provide a port range,
-             * probably starting at 10809, for obtaining automatic
-             * port via virPortAllocatorAcquire, as well as store
-             * somewhere if we need to call virPortAllocatorRelease
-             * during BackupEnd. Until then, user must provide port */
             if (!def->server->port) {
-                virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
-                               _("<domainbackup> must specify TCP port for now"));
-                return -1;
+                if (virPortAllocatorAcquire(priv->driver->backupPorts,
+                                            &priv->backupNBDPort) < 0)
+                    return -1;
+
+                def->server->port = priv->backupNBDPort;
             }
             break;
 
@@ -87,7 +87,29 @@ qemuBackupPrepare(virDomainBackupDef *def)
             /* TODO: Do we need to mess with selinux? */
             break;
 
-        case VIR_STORAGE_NET_HOST_TRANS_FD:
+        case VIR_STORAGE_NET_HOST_TRANS_FD: {
+            virDomainFDTuple *fdt = NULL;
+            VIR_AUTOCLOSE fdcopy = -1;
+
+            if (!(fdt = virHashLookup(priv->fds, def->server->fdgroup))) {
+                virReportError(VIR_ERR_INVALID_ARG,
+                               _("file descriptor group '%1$s' was not associated with the domain"),
+                               def->server->fdgroup);
+                return -1;
+            }
+
+            if (fdt->nfds != 1) {
+                virReportError(VIR_ERR_INVALID_ARG,
+                               _("file descriptor group '%1$s' must contain only 1 file descriptor for NBD server"),
+                               def->server->fdgroup);
+                return -1;
+            }
+
+            def->server->qemu_fdname = g_strdup("libvirt-backup-nbd");
+            fdcopy = dup(fdt->fds[0]);
+            *fdpass = qemuFDPassDirectNew(def->server->qemu_fdname, &fdcopy);
+        }
+
             break;
 
         case VIR_STORAGE_NET_HOST_TRANS_RDMA:
@@ -838,7 +860,7 @@ qemuBackupBegin(virDomainObj *vm,
         goto endjob;
     }
 
-    if (qemuBackupPrepare(def) < 0)
+    if (qemuBackupPrepare(priv, def, &fdpass) < 0)
         goto endjob;
 
     if (qemuBackupBeginPrepareTLS(vm, cfg, def, &tlsProps, &tlsSecretProps) < 0)
@@ -874,29 +896,6 @@ qemuBackupBegin(virDomainObj *vm,
         goto endjob;
 
     priv->backup = g_steal_pointer(&def);
-
-    if (pull && priv->backup->server->fdgroup) {
-        virStorageSourceFDTuple *fdt = NULL;
-        VIR_AUTOCLOSE fdcopy = -1;
-
-        if (!(fdt = virHashLookup(priv->fds, priv->backup->server->fdgroup))) {
-            virReportError(VIR_ERR_INVALID_ARG,
-                           _("file descriptor group '%1$s' was not associated with the domain"),
-                           priv->backup->server->fdgroup);
-            goto endjob;
-        }
-
-        if (fdt->nfds != 1) {
-            virReportError(VIR_ERR_INVALID_ARG,
-                           _("file descriptor group '%1$s' must contain only 1 file descriptor for NBD server"),
-                           priv->backup->server->fdgroup);
-            goto endjob;
-        }
-
-        priv->backup->server->qemu_fdname = g_strdup("libvirt-backup-nbd");
-        fdcopy = dup(fdt->fds[0]);
-        fdpass = qemuFDPassDirectNew(priv->backup->server->qemu_fdname, &fdcopy);
-    }
 
     if (qemuDomainObjEnterMonitorAsync(vm, VIR_ASYNC_JOB_BACKUP) < 0)
         goto endjob;
@@ -969,6 +968,11 @@ qemuBackupBegin(virDomainObj *vm,
         qemuDomainObjExitMonitor(vm);
     }
 
+    if (ret < 0 && priv->backupNBDPort) {
+        virPortAllocatorRelease(priv->backupNBDPort);
+        priv->backupNBDPort = 0;
+    }
+
     if (ret < 0 && !job_started && priv->backup)
         def = g_steal_pointer(&priv->backup);
 
@@ -1026,6 +1030,12 @@ qemuBackupNotifyBlockjobEndStopNBD(virDomainObj *vm,
     qemuDomainObjExitMonitor(vm);
 
     backup->nbdStopped = true;
+
+    if (priv->backupNBDPort) {
+        virPortAllocatorRelease(priv->backupNBDPort);
+        priv->backupNBDPort = 0;
+        backup->server->port = 0;
+    }
 }
 
 

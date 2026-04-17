@@ -241,6 +241,9 @@ struct _virQEMUDriverConfig {
     unsigned int migrationPortMin;
     unsigned int migrationPortMax;
 
+    unsigned int backupPortMin;
+    unsigned int backupPortMax;
+
     bool logTimestamp;
     bool stdioLogD;
 
@@ -338,6 +341,9 @@ struct _virQEMUDriver {
 
     /* Immutable pointer, immutable object */
     virPortAllocatorRange *migrationPorts;
+
+    /* Immutable pointer, immutable object */
+    virPortAllocatorRange *backupPorts;
 
     /* Immutable pointer, lockless APIs */
     virSysinfoDef *hostsysinfo;

@@ -1286,6 +1286,18 @@ typedef enum {
 # define VIR_MIGRATE_PARAM_MIGRATE_DISKS_DETECT_ZEROES    "migrate_disks_detect_zeroes"
 
 /**
+ * VIR_MIGRATE_PARAM_MIGRATE_DISKS_TARGET_ZERO:
+ *
+ * virDomainMigrate* params multiple field: The multiple values that list
+ * the block devices for which the hypervisor is allowed to assume that the
+ * destination image was zeroed out and thus may skip zeroing it beforehand.
+ * At the moment this is only supported by the QEMU driver.
+ *
+ * Since: 12.2.0
+ */
+# define VIR_MIGRATE_PARAM_MIGRATE_DISKS_TARGET_ZERO "migrate_disks_target_zero"
+
+/**
  * VIR_MIGRATE_PARAM_DISKS_PORT:
  *
  * virDomainMigrate* params field: port that destination server should use
@@ -1517,6 +1529,8 @@ int virDomainMigrateStartPostCopy(virDomainPtr domain,
 typedef enum {
     /* Report host model with deprecated features disabled. (Since: 11.0.0) */
     VIR_CONNECT_GET_DOMAIN_CAPABILITIES_DISABLE_DEPRECATED_FEATURES = (1 << 0),
+    /* Report all host model CPU features. (Since: 12.2.0) */
+    VIR_CONNECT_GET_DOMAIN_CAPABILITIES_EXPAND_CPU_FEATURES = (1 << 1),
 } virConnectGetDomainCapabilitiesFlags;
 
 char * virConnectGetDomainCapabilities(virConnectPtr conn,
@@ -5002,6 +5016,13 @@ typedef enum {
      * Since: 8.0.0
      */
     VIR_DOMAIN_BLOCK_COPY_SYNCHRONOUS_WRITES = 1 << 3,
+
+    /* Destination of the copy is zeroed (any read returns only 0x00 bytes) so
+     * the hypervisor may optimize out clearing of the target image.
+     *
+     * Since: 12.2.0 */
+    VIR_DOMAIN_BLOCK_COPY_TARGET_ZEROED = 1 << 4,
+
 } virDomainBlockCopyFlags;
 
 /**

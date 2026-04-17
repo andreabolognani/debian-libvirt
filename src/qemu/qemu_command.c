@@ -2468,9 +2468,6 @@ qemuBuildFSStr(virDomainFSDef *fs)
         if (fs->dmode) {
             virBufferAsprintf(&opt, ",dmode=%04o", fs->dmode);
         }
-    } else if (fs->fsdriver == VIR_DOMAIN_FS_DRIVER_TYPE_HANDLE) {
-        /* removed since qemu 4.0.0 see v3.1.0-29-g93aee84f57 */
-        virBufferAddLit(&opt, "handle");
     }
 
     if (fs->wrpolicy)
@@ -2481,7 +2478,7 @@ qemuBuildFSStr(virDomainFSDef *fs)
     virQEMUBuildBufferEscapeComma(&opt, fs->src->path);
 
     if (fs->readonly)
-        virBufferAddLit(&opt, ",readonly");
+        virBufferAddLit(&opt, ",readonly=on");
 
     return virBufferContentAndReset(&opt);
 }
@@ -5266,7 +5263,7 @@ qemuBuildHostdevCommandLine(virCommand *cmd,
             if (qemuCommandAddExtDevice(cmd, hostdev->info, def, qemuCaps) < 0)
                 return -1;
 
-            if (subsys->u.pci.driver.iommufd == VIR_TRISTATE_BOOL_YES) {
+            if (virHostdevIsPCIDeviceWithIOMMUFD(hostdev)) {
                 qemuDomainHostdevPrivate *hostdevPriv = QEMU_DOMAIN_HOSTDEV_PRIVATE(hostdev);
 
                 qemuFDPassDirectTransferCommand(hostdevPriv->vfioDeviceFd, cmd);
@@ -5367,8 +5364,10 @@ qemuBuildIOMMUFDCommandLine(virCommand *cmd,
     qemuDomainObjPrivate *priv = vm->privateData;
     g_autoptr(virJSONValue) props = NULL;
 
-    if (!virDomainDefHasPCIHostdevWithIOMMUFD(def))
+    if (!virDomainDefHasPCIHostdevWithIOMMUFD(def) &&
+        !def->iommufd_fdgroup) {
         return 0;
+    }
 
     qemuFDPassDirectTransferCommand(priv->iommufd, cmd);
 
@@ -8229,7 +8228,7 @@ qemuBuildAudioPipewireAudioEnv(virCommand *cmd,
         virCommandAddEnvPair(cmd, "PIPEWIRE_RUNTIME_DIR", runtimeDir);
     } else {
         for (i = 0; i < G_N_ELEMENTS(envVars); i++) {
-            const char *value = getenv(envVars[i]);
+            const char *value = g_getenv(envVars[i]);
 
             if (!value)
                 continue;

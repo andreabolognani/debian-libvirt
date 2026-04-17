@@ -588,41 +588,62 @@ virGetHostnameQuiet(void)
 }
 
 
+
+#ifdef WIN32
+
+
 char *
-virGetUserDirectory(void)
+virGetUserHomeDirectory(void)
 {
     return g_strdup(g_get_home_dir());
 }
 
-
 char *virGetUserConfigDirectory(void)
 {
-#ifdef WIN32
     return g_strdup(g_get_user_config_dir());
-#else
-    return g_build_filename(g_get_user_config_dir(), "libvirt", NULL);
-#endif
 }
 
 
 char *virGetUserCacheDirectory(void)
 {
-#ifdef WIN32
     return g_strdup(g_get_user_cache_dir());
-#else
-    return g_build_filename(g_get_user_cache_dir(), "libvirt", NULL);
-#endif
 }
 
 
 char *virGetUserRuntimeDirectory(void)
 {
-#ifdef WIN32
     return g_strdup(g_get_user_runtime_dir());
-#else
-    return g_build_filename(g_get_user_runtime_dir(), "libvirt", NULL);
-#endif
 }
+
+
+#else /* !WIN32 */
+
+
+char *
+virGetUserHomeDirectory(void)
+{
+    return g_strdup(g_get_home_dir());
+}
+
+char *virGetUserConfigDirectory(void)
+{
+    return g_build_filename(g_get_user_config_dir(), "libvirt", NULL);
+}
+
+
+char *virGetUserCacheDirectory(void)
+{
+    return g_build_filename(g_get_user_cache_dir(), "libvirt", NULL);
+}
+
+
+char *virGetUserRuntimeDirectory(void)
+{
+    return g_build_filename(g_get_user_runtime_dir(), "libvirt", NULL);
+}
+
+
+#endif /* !WIN32 */
 
 
 #ifdef WITH_GETPWUID_R
@@ -753,7 +774,7 @@ static char *virGetGroupEnt(gid_t gid)
 
 
 char *
-virGetUserDirectoryByUID(uid_t uid)
+virGetUserHomeDirectoryByUID(uid_t uid)
 {
     char *ret;
     virGetUserEnt(uid, NULL, NULL, &ret, NULL, false);
@@ -1091,7 +1112,7 @@ virDoesGroupExist(const char *name G_GNUC_UNUSED)
 
 # ifdef WIN32
 char *
-virGetUserDirectoryByUID(uid_t uid G_GNUC_UNUSED)
+virGetUserHomeDirectoryByUID(uid_t uid G_GNUC_UNUSED)
 {
     /* Since Windows lacks setuid binaries, and since we already fake
      * geteuid(), we can safely assume that this is only called when
@@ -1111,10 +1132,10 @@ virGetUserShell(uid_t uid G_GNUC_UNUSED)
 
 # else /* !WITH_GETPWUID_R && !WIN32 */
 char *
-virGetUserDirectoryByUID(uid_t uid G_GNUC_UNUSED)
+virGetUserHomeDirectoryByUID(uid_t uid G_GNUC_UNUSED)
 {
     virReportError(VIR_ERR_INTERNAL_ERROR,
-                   "%s", _("virGetUserDirectory is not available"));
+                   "%s", _("virGetUserHomeDirectoryByUID is not available"));
 
     return NULL;
 }

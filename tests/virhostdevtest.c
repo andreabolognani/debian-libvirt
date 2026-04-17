@@ -104,7 +104,7 @@ myCleanup(void)
         virDomainDiskDefFree(disks[i]);
 
     if (mgr) {
-        if (!getenv("LIBVIRT_SKIP_CLEANUP"))
+        if (!g_getenv("LIBVIRT_SKIP_CLEANUP"))
             virFileDeleteTree(mgr->stateDir);
 
         virObjectUnref(mgr->activePCIHostdevs);
@@ -613,7 +613,6 @@ mymain(void)
 }
 
 VIR_TEST_MAIN_PRELOAD(mymain,
-                      VIR_TEST_MOCK("virhostdev"),
                       VIR_TEST_MOCK("virpci"))
 #else
 int

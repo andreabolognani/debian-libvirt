@@ -74,6 +74,9 @@ VIR_LOG_INIT("qemu.qemu_conf");
 #define QEMU_MIGRATION_PORT_MIN 49152
 #define QEMU_MIGRATION_PORT_MAX 49215
 
+#define QEMU_BACKUP_PORT_MIN 10809
+#define QEMU_BACKUP_PORT_MAX 10872
+
 VIR_ENUM_IMPL(virQEMUSchedCore,
               QEMU_SCHED_CORE_LAST,
               "none",
@@ -267,6 +270,9 @@ virQEMUDriverConfig *virQEMUDriverConfigNew(bool privileged,
 
     cfg->migrationPortMin = QEMU_MIGRATION_PORT_MIN;
     cfg->migrationPortMax = QEMU_MIGRATION_PORT_MAX;
+
+    cfg->backupPortMin = QEMU_BACKUP_PORT_MIN;
+    cfg->backupPortMax = QEMU_BACKUP_PORT_MAX;
 
     /* For privileged driver, try and find hugetlbfs mounts automatically.
      * Non-privileged driver requires admin to create a dir for the
@@ -620,7 +626,7 @@ virQEMUDriverConfigLoadRemoteDisplayEntry(virQEMUDriverConfig *cfg,
         /* if the port is too low, we can't get the display name
          * to tell to vnc (usually subtract 5700, e.g. localhost:1
          * for port 5701) */
-        virReportError(VIR_ERR_INTERNAL_ERROR,
+        virReportError(VIR_ERR_CONF_SYNTAX,
                        _("%1$s: remote_websocket_port_min: port must be greater than or equal to %2$d"),
                         filename, QEMU_WEBSOCKET_PORT_MIN);
         return -1;
@@ -630,14 +636,14 @@ virQEMUDriverConfigLoadRemoteDisplayEntry(virQEMUDriverConfig *cfg,
         return -1;
     if (cfg->webSocketPortMax > QEMU_WEBSOCKET_PORT_MAX ||
         cfg->webSocketPortMax < cfg->webSocketPortMin) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
+        virReportError(VIR_ERR_CONF_SYNTAX,
                         _("%1$s: remote_websocket_port_max: port must be between the minimal port and %2$d"),
                        filename, QEMU_WEBSOCKET_PORT_MAX);
         return -1;
     }
 
     if (cfg->webSocketPortMin > cfg->webSocketPortMax) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
+        virReportError(VIR_ERR_CONF_SYNTAX,
                         _("%1$s: remote_websocket_port_min: min port must not be greater than max port"),
                         filename);
         return -1;
@@ -649,7 +655,7 @@ virQEMUDriverConfigLoadRemoteDisplayEntry(virQEMUDriverConfig *cfg,
         /* if the port is too low, we can't get the display name
          * to tell to vnc (usually subtract 5900, e.g. localhost:1
          * for port 5901) */
-        virReportError(VIR_ERR_INTERNAL_ERROR,
+        virReportError(VIR_ERR_CONF_SYNTAX,
                        _("%1$s: remote_display_port_min: port must be greater than or equal to %2$d"),
                         filename, QEMU_REMOTE_PORT_MIN);
         return -1;
@@ -659,14 +665,14 @@ virQEMUDriverConfigLoadRemoteDisplayEntry(virQEMUDriverConfig *cfg,
         return -1;
     if (cfg->remotePortMax > QEMU_REMOTE_PORT_MAX ||
         cfg->remotePortMax < cfg->remotePortMin) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
+        virReportError(VIR_ERR_CONF_SYNTAX,
                         _("%1$s: remote_display_port_max: port must be between the minimal port and %2$d"),
                        filename, QEMU_REMOTE_PORT_MAX);
         return -1;
     }
 
     if (cfg->remotePortMin > cfg->remotePortMax) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
+        virReportError(VIR_ERR_CONF_SYNTAX,
                         _("%1$s: remote_display_port_min: min port must not be greater than max port"),
                         filename);
         return -1;
@@ -973,7 +979,7 @@ virQEMUDriverConfigLoadNetworkEntry(virQEMUDriverConfig *cfg,
     if (virConfGetValueUInt(conf, "migration_port_min", &cfg->migrationPortMin) < 0)
         return -1;
     if (cfg->migrationPortMin <= 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
+        virReportError(VIR_ERR_CONF_SYNTAX,
                        _("%1$s: migration_port_min: port must be greater than 0"),
                         filename);
         return -1;
@@ -983,9 +989,28 @@ virQEMUDriverConfigLoadNetworkEntry(virQEMUDriverConfig *cfg,
         return -1;
     if (cfg->migrationPortMax > 65535 ||
         cfg->migrationPortMax < cfg->migrationPortMin) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
+        virReportError(VIR_ERR_CONF_SYNTAX,
                         _("%1$s: migration_port_max: port must be between the minimal port %2$d and 65535"),
                        filename, cfg->migrationPortMin);
+        return -1;
+    }
+
+    if (virConfGetValueUInt(conf, "backup_port_min", &cfg->backupPortMin) < 0)
+        return -1;
+    if (cfg->backupPortMin <= 0) {
+        virReportError(VIR_ERR_CONF_SYNTAX,
+                       _("%1$s: backup_port_min: port must be greater than 0"),
+                        filename);
+        return -1;
+    }
+
+    if (virConfGetValueUInt(conf, "backup_port_max", &cfg->backupPortMax) < 0)
+        return -1;
+    if (cfg->backupPortMax > 65535 ||
+        cfg->backupPortMax < cfg->backupPortMin) {
+        virReportError(VIR_ERR_CONF_SYNTAX,
+                        _("%1$s: backup_port_max: port must be between the minimal port %2$d and 65535"),
+                       filename, cfg->backupPortMin);
         return -1;
     }
 
@@ -1783,7 +1808,7 @@ qemuTranslateSnapshotDiskSourcePool(virDomainSnapshotDiskDef *def)
     if (def->src->type != VIR_STORAGE_TYPE_VOLUME)
         return 0;
 
-    virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+    virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
                    _("Snapshots are not yet supported with 'pool' volumes"));
     return -1;
 }

@@ -851,6 +851,7 @@ struct _qemuBlockStats {
     unsigned long long wr_total_times;
     unsigned long long flush_req;
     unsigned long long flush_total_times;
+
     unsigned long long capacity;
     unsigned long long physical;
 
@@ -1245,7 +1246,8 @@ qemuMonitorBlockdevMirror(qemuMonitor *mon,
                           unsigned int granularity,
                           unsigned long long buf_size,
                           bool shallow,
-                          bool syncWrite)
+                          bool syncWrite,
+                          bool targetIsZero)
     ATTRIBUTE_NONNULL(4) ATTRIBUTE_NONNULL(5);
 
 int

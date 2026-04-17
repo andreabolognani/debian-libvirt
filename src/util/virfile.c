@@ -1503,10 +1503,13 @@ saferead_lim(int fd, size_t max_len, size_t *length)
         int count;
         int requested;
 
-        if (size + BUFSIZ + 1 > alloc) {
+        if (alloc < max_len + 1 &&
+            size + BUFSIZ + 1 > alloc) {
             alloc += alloc / 2;
             if (alloc < size + BUFSIZ + 1)
                 alloc = size + BUFSIZ + 1;
+
+            alloc = MIN(alloc, max_len + 1);
 
             VIR_REALLOC_N(buf, alloc);
         }
@@ -1523,6 +1526,7 @@ saferead_lim(int fd, size_t max_len, size_t *length)
                 break;
             buf[size] = '\0';
             *length = size;
+            VIR_REALLOC_N(buf, size + 1);
             return buf;
         }
     }
@@ -1533,10 +1537,27 @@ saferead_lim(int fd, size_t max_len, size_t *length)
 }
 
 
-/* A wrapper around saferead_lim that merely stops reading at the
- * specified maximum size.  */
+/**
+ * virFileReadHeaderFD:
+ * @fd: file descriptor to read
+ * @maxlen: maximum amount of bytes to read
+ * @buf: filled with allocated buffer containing read data
+ *
+ * Reads up to @maxlen bytes from @fd and fills @buf with pointer to the
+ * read contents.
+ *
+ * The buffer @buf is guaranteed to be terminated with a NUL ('\0') byte one
+ * byte beyond the read contents of the file. The NUL byte is not included in
+ * the returned amount of bytes read. Caller is responsible for freeing the
+ * buffer.
+ *
+ * Returns number of bytes actually read from the fd on success, -1 on error
+ * and doesn't raise a libvirt error.
+ */
 int
-virFileReadHeaderFD(int fd, int maxlen, char **buf)
+virFileReadHeaderFD(int fd,
+                    int maxlen,
+                    char **buf)
 {
     size_t len;
     char *s;
@@ -1553,6 +1574,26 @@ virFileReadHeaderFD(int fd, int maxlen, char **buf)
 }
 
 
+/**
+ * virFileReadHeaderQuiet:
+ * @path: file to read
+ * @maxlen: maximum length of file to read
+ * @buf: filled with allocated buffer containing read data
+ *
+ * Reads up to @maxlen bytes from file @path and fills @buf with pointer to the
+ * read contents.
+ *
+ * If file @path is longer than @maxlen the buffer contains only first @maxlen
+ * bytes read from the file.
+ *
+ * The buffer @buf is guaranteed to be terminated with a NUL ('\0') byte one
+ * byte beyond the read contents of the file. The NUL byte is not included in
+ * the returned amount of bytes read. Caller is responsible for freeing the
+ * buffer.
+ *
+ * Returns number of bytes actually read from file on success, -1 on error
+ * and doesn't raise a libvirt error.
+ */
 int
 virFileReadHeaderQuiet(const char *path,
                        int maxlen,
@@ -1572,10 +1613,29 @@ virFileReadHeaderQuiet(const char *path,
 }
 
 
-/* A wrapper around saferead_lim that maps a failure due to
-   exceeding the maximum size limitation to EOVERFLOW.  */
+/**
+ * virFileReadLimFD:
+ * @fd: file descriptor to read
+ * @maxlen: maximum amount of bytes to read
+ * @buf: filled with allocated buffer containing read data
+ *
+ * Reads the whole contents from @fd and fills @buf with pointer to the read
+ * contents.
+ *
+ * If @fd allowed reading more than @maxlen bytes an error is returned.
+ *
+ * The buffer @buf is guaranteed to be terminated with a NUL ('\0') byte one
+ * byte beyond the read contents of the file. The NUL byte is not included in
+ * the returned amount of bytes read. Caller is responsible for freeing the
+ * buffer.
+ *
+ * Returns number of bytes actually read from @fd on success, -1 on error and
+ * doesn't raise a libvirt error.
+ */
 int
-virFileReadLimFD(int fd, int maxlen, char **buf)
+virFileReadLimFD(int fd,
+                 int maxlen,
+                 char **buf)
 {
     size_t len;
     char *s;
@@ -1598,8 +1658,29 @@ virFileReadLimFD(int fd, int maxlen, char **buf)
     return len;
 }
 
+
+/**
+ * virFileReadAll:
+ * @path: file to read
+ * @maxlen: maximum length of file to read
+ * @buf: filled with allocated buffer containing read data
+ *
+ * Reads the whole file @path and fills @buf with pointer to the read contents.
+ *
+ * If file @path is longer than @maxlen error is returned.
+ *
+ * The buffer @buf is guaranteed to be terminated with a NUL ('\0') byte one
+ * byte beyond the read contents of the file. The NUL byte is not included in
+ * the returned amount of bytes read. Caller is responsible for freeing the
+ * buffer.
+ *
+ * Returns number of bytes actually read from file on success, -1 on error and
+ * raises a libvirt error.
+ */
 int
-virFileReadAll(const char *path, int maxlen, char **buf)
+virFileReadAll(const char *path,
+               int maxlen,
+               char **buf)
 {
     int fd;
     int len;
@@ -1620,8 +1701,29 @@ virFileReadAll(const char *path, int maxlen, char **buf)
     return len;
 }
 
+
+/**
+ * virFileReadAllQuiet:
+ * @path: file to read
+ * @maxlen: maximum length of file to read
+ * @buf: filled with allocated buffer containing read data
+ *
+ * Reads the whole file @path and fills @buf with pointer to the read contents.
+ *
+ * If file @path is longer than @maxlen error is returned.
+ *
+ * The buffer @buf is guaranteed to be terminated with a NUL ('\0') byte one
+ * byte beyond the read contents of the file. The NUL byte is not included in
+ * the returned amount of bytes read. Caller is responsible for freeing the
+ * buffer.
+ *
+ * Returns number of bytes actually read from file on success, -errno on error
+ * and doesn't raise a libvirt error.
+ */
 int
-virFileReadAllQuiet(const char *path, int maxlen, char **buf)
+virFileReadAllQuiet(const char *path,
+                    int maxlen,
+                    char **buf)
 {
     int fd;
     int len;
@@ -1638,13 +1740,26 @@ virFileReadAllQuiet(const char *path, int maxlen, char **buf)
     return len;
 }
 
-/* Read @file into preallocated buffer @buf of size @len.
- * Return value is -errno in case of errors and size
- * of data read (no trailing zero) in case of success.
- * If there is more data then @len - 1 then data will be
- * truncated. */
+
+/**
+ * virFileReadBufQuiet:
+ * @file: file to read
+ * @buf: buffer to read files into
+ * @len: size of @buf
+ *
+ * Reads up to @len - 1 bytes of @file into @buf.
+ *
+ * The buffer @buf is guaranteed to be terminated with a NUL ('\0') byte one
+ * byte beyond the read contents of the file. The NUL byte is not included in
+ * the returned amount of bytes read.
+ *
+ * Returns number of bytes actually read from file on success, -errno on error
+ * and doesn't raise a libvirt error.
+ */
 int
-virFileReadBufQuiet(const char *file, char *buf, int len)
+virFileReadBufQuiet(const char *file,
+                    char *buf,
+                    int len)
 {
     int fd;
     ssize_t sz;
@@ -1661,6 +1776,7 @@ virFileReadBufQuiet(const char *file, char *buf, int len)
     buf[sz] = '\0';
     return sz;
 }
+
 
 /* Truncate @path and write @str to it.  If @mode is 0, ensure that
    @path exists; otherwise, use @mode if @path must be created.
@@ -1912,7 +2028,7 @@ virFileFindResourceFull(const char *filename,
                         const char *envname)
 {
     char *ret = NULL;
-    const char *envval = envname ? getenv(envname) : NULL;
+    const char *envval = envname ? g_getenv(envname) : NULL;
     const char *path;
     g_autofree char *fullFilename = NULL;
 
@@ -1977,7 +2093,7 @@ virFileActivateDirOverrideForProg(const char *argv0)
 void
 virFileActivateDirOverrideForLib(void)
 {
-    if (getenv("LIBVIRT_DIR_OVERRIDE") != NULL)
+    if (g_getenv("LIBVIRT_DIR_OVERRIDE") != NULL)
         useDirOverride = true;
 }
 

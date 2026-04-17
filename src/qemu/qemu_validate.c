@@ -920,17 +920,18 @@ qemuValidateDomainVCpuTopology(const virDomainDef *def, virQEMUCaps *qemuCaps)
     }
 
     if (ARCH_IS_X86(def->os.arch) &&
-        virDomainDefGetVcpusMax(def) > QEMU_MAX_VCPUS_WITHOUT_EIM) {
+        virDomainDefGetVcpusMax(def) > QEMU_MAX_VCPUS_WITHOUT_X2APIC) {
         if (!qemuDomainIsQ35(def)) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                            _("more than %1$d vCPUs are only supported on q35-based machine types"),
-                           QEMU_MAX_VCPUS_WITHOUT_EIM);
+                           QEMU_MAX_VCPUS_WITHOUT_X2APIC);
             return -1;
         }
-        if (!def->iommus || def->iommus[0]->eim != VIR_TRISTATE_SWITCH_ON) {
+        if (!def->iommus || (def->iommus[0]->eim != VIR_TRISTATE_SWITCH_ON &&
+            def->iommus[0]->xtsup != VIR_TRISTATE_SWITCH_ON)) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("more than %1$d vCPUs require extended interrupt mode enabled on the iommu device"),
-                           QEMU_MAX_VCPUS_WITHOUT_EIM);
+                           _("more than %1$d vCPUs require EIM or XTSup mode enabled on the iommu device"),
+                           QEMU_MAX_VCPUS_WITHOUT_X2APIC);
             return -1;
         }
     }
@@ -1902,15 +1903,11 @@ qemuValidateDomainDeviceDefNetwork(const virDomainNetDef *net,
                                    const virDomainDef *def,
                                    virQEMUCaps *qemuCaps)
 {
-    bool hasIPv4 = false;
-    bool hasIPv6 = false;
+    bool hasV4Addr = false;
+    bool hasV6Addr = false;
+    bool hasV4Route = false;
+    bool hasV6Route = false;
     size_t i;
-
-    if (net->guestIP.nroutes) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("Invalid attempt to set network interface guest-side IP route, not supported by QEMU"));
-        return -1;
-    }
 
     if (net->type == VIR_DOMAIN_NET_TYPE_USER ||
         (net->type == VIR_DOMAIN_NET_TYPE_VHOSTUSER &&
@@ -1926,58 +1923,108 @@ qemuValidateDomainDeviceDefNetwork(const virDomainNetDef *net,
                            virDomainNetBackendTypeToString(net->backend.type));
             return -1;
         }
+    }
 
-        for (i = 0; i < net->guestIP.nips; i++) {
-            const virNetDevIPAddr *ip = net->guestIP.ips[i];
+    for (i = 0; i < net->guestIP.nips; i++) {
+        const virNetDevIPAddr *ip = net->guestIP.ips[i];
 
-            if (VIR_SOCKET_ADDR_VALID(&net->guestIP.ips[i]->peer)) {
+        if (net->type != VIR_DOMAIN_NET_TYPE_USER &&
+            net->backend.type != VIR_DOMAIN_NET_BACKEND_PASST) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("Invalid attempt to set network interface guest-side IP address info, not supported for this interface type/backend"));
+            return -1;
+        }
+
+        if (VIR_SOCKET_ADDR_VALID(&net->guestIP.ips[i]->peer)) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("Invalid attempt to set peer IP for guest"));
+            return -1;
+        }
+
+        if (VIR_SOCKET_ADDR_IS_FAMILY(&ip->address, AF_INET)) {
+            if (hasV4Addr) {
                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                               _("Invalid attempt to set peer IP for guest"));
+                               _("Only one IPv4 address per interface is allowed"));
+                return -1;
+            }
+            hasV4Addr = true;
+
+            if (net->backend.type != VIR_DOMAIN_NET_BACKEND_PASST &&
+                (ip->prefix > 0 &&
+                 (ip->prefix < 4 || ip->prefix > 27))) {
+                virReportError(VIR_ERR_XML_ERROR, "%s",
+                               _("invalid prefix, must be in range of 4-27"));
+                return -1;
+            }
+        }
+
+        if (VIR_SOCKET_ADDR_IS_FAMILY(&ip->address, AF_INET6)) {
+            if (hasV6Addr) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                               _("Only one IPv6 address per interface is allowed"));
+                return -1;
+            }
+            hasV6Addr = true;
+
+            if (ip->prefix && ip->prefix != 64) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                               _("unsupported IPv6 address prefix='%1$u' - must be 64"),
+                               ip->prefix);
                 return -1;
             }
 
-            if (VIR_SOCKET_ADDR_IS_FAMILY(&ip->address, AF_INET)) {
-                if (hasIPv4) {
-                    virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                                   _("Only one IPv4 address per interface is allowed"));
-                    return -1;
-                }
-                hasIPv4 = true;
-
-                if (ip->prefix > 0 &&
-                    (ip->prefix < 4 || ip->prefix > 27)) {
-                    virReportError(VIR_ERR_XML_ERROR, "%s",
-                                   _("invalid prefix, must be in range of 4-27"));
-                    return -1;
-                }
-            }
-
-            if (VIR_SOCKET_ADDR_IS_FAMILY(&ip->address, AF_INET6)) {
-                if (hasIPv6) {
-                    virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                                   _("Only one IPv6 address per interface is allowed"));
-                    return -1;
-                }
-                hasIPv6 = true;
-
-                if (ip->prefix && ip->prefix != 64) {
-                    virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                                   _("unsupported IPv6 address prefix='%1$u' - must be 64"),
-                                   ip->prefix);
-                    return -1;
-                }
-
-                if (ip->prefix > 120) {
-                    virReportError(VIR_ERR_XML_ERROR, "%s",
-                                   _("prefix too long"));
-                    return -1;
-                }
+            if (ip->prefix > 120) {
+                virReportError(VIR_ERR_XML_ERROR, "%s",
+                               _("prefix too long"));
+                return -1;
             }
         }
-    } else if (net->guestIP.nips) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("Invalid attempt to set network interface guest-side IP address info, not supported by QEMU"));
-        return -1;
+    }
+
+
+    for (i = 0; i < net->guestIP.nroutes; i++) {
+        const virNetDevIPRoute *route = net->guestIP.routes[i];
+
+        if (net->backend.type != VIR_DOMAIN_NET_BACKEND_PASST) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("Invalid attempt to set network interface guest-side IP route, not supported for this interface type/backend"));
+            return -1;
+        }
+
+        switch (VIR_SOCKET_ADDR_FAMILY(&route->gateway)) {
+        case AF_INET:
+            if (hasV4Route) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                               _("only one IPv4 default route can be specified for an interface using the passt backend"));
+                return -1;
+            }
+            hasV4Route = true;
+            break;
+        case AF_INET6:
+            if (hasV6Route) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                               _("only one IPv6 default route can be specified for an interface using the passt backend"));
+                return -1;
+            }
+            hasV6Route = true;
+            break;
+        default:
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("All <route> elements of an interface using the passt backend must be default routes, with an IPv4 or IPv6 gateway specified"));
+            return -1;
+        }
+
+        /* the only type of route that can be specified for passt is
+         * the default route, so none of the parameters except gateway
+         * are acceptable
+         */
+        if (VIR_SOCKET_ADDR_VALID(&route->address) ||
+            virNetDevIPRouteGetPrefix(route) != 0 ||
+            route->has_metric) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("<route> elements of an interface using the passt backend must be default routes, with only a gateway specified"));
+            return -1;
+        }
     }
 
     if (net->type == VIR_DOMAIN_NET_TYPE_VDPA) {
@@ -2744,7 +2791,7 @@ qemuValidateDomainDeviceDefHostdev(const virDomainHostdevDef *hostdev,
                     return -1;
                 }
 
-                if (hostdev->source.subsys.u.pci.driver.iommufd == VIR_TRISTATE_BOOL_YES) {
+                if (virHostdevIsPCIDeviceWithIOMMUFD(hostdev)) {
                     if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_OBJECT_IOMMUFD)) {
                         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                                        _("IOMMUFD is not supported by this version of qemu"));
@@ -5089,13 +5136,7 @@ qemuValidateDomainDeviceDefFS(virDomainFSDef *fs,
         break;
 
     case VIR_DOMAIN_FS_DRIVER_TYPE_HANDLE:
-        if (fs->accessmode != VIR_DOMAIN_FS_ACCESSMODE_PASSTHROUGH) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("only supports passthrough accessmode"));
-            return -1;
-        }
-        break;
-
+        /* removed since qemu 4.0.0 see v3.1.0-29-g93aee84f57 */
     case VIR_DOMAIN_FS_DRIVER_TYPE_LOOP:
     case VIR_DOMAIN_FS_DRIVER_TYPE_NBD:
     case VIR_DOMAIN_FS_DRIVER_TYPE_PLOOP:

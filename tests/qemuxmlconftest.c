@@ -6,349 +6,36 @@
 #include <fcntl.h>
 
 #include "testutils.h"
+#include "internal.h"
+#include "viralloc.h"
+#include "viridentity.h"
+#include "qemu/qemu_block.h"
+#include "qemu/qemu_capabilities.h"
+#include "qemu/qemu_domain.h"
+#include "qemu/qemu_migration.h"
+#include "qemu/qemu_passt.h"
+#include "qemu/qemu_process.h"
+#include "qemu/qemu_slirp.h"
+#include "qemu/qemu_virtiofs.h"
+#include "qemu/qemu_vhost_user.h"
+#include "datatypes.h"
+#include "conf/storage_conf.h"
+#include "virfilewrapper.h"
+#include "configmake.h"
+#include "testutilsqemuschema.h"
+#include "qemufakedrivers.h"
 
-#ifdef WITH_QEMU
+#define LIBVIRT_QEMU_CAPSPRIV_H_ALLOW
+#include "qemu/qemu_capspriv.h"
 
-# include "internal.h"
-# include "viralloc.h"
-# include "viridentity.h"
-# include "qemu/qemu_block.h"
-# include "qemu/qemu_capabilities.h"
-# include "qemu/qemu_domain.h"
-# include "qemu/qemu_migration.h"
-# include "qemu/qemu_passt.h"
-# include "qemu/qemu_process.h"
-# include "qemu/qemu_slirp.h"
-# include "qemu/qemu_virtiofs.h"
-# include "qemu/qemu_vhost_user.h"
-# include "datatypes.h"
-# include "conf/storage_conf.h"
-# include "virfilewrapper.h"
-# include "configmake.h"
-# include "testutilsqemuschema.h"
+#define LIBVIRT_QEMU_PROCESSPRIV_H_ALLOW
+#include "qemu/qemu_processpriv.h"
 
-# define LIBVIRT_QEMU_CAPSPRIV_H_ALLOW
-# include "qemu/qemu_capspriv.h"
+#include "testutilsqemu.h"
 
-# include "testutilsqemu.h"
-
-# define VIR_FROM_THIS VIR_FROM_QEMU
+#define VIR_FROM_THIS VIR_FROM_QEMU
 
 static virQEMUDriver driver;
-
-static unsigned char *
-fakeSecretGetValue(virSecretPtr obj G_GNUC_UNUSED,
-                   size_t *value_size,
-                   unsigned int fakeflags G_GNUC_UNUSED)
-{
-    char *secret;
-    secret = g_strdup("AQCVn5hO6HzFAhAAq0NCv8jtJcIcE+HOBlMQ1A");
-    *value_size = strlen(secret);
-    return (unsigned char *) secret;
-}
-
-static virSecretPtr
-fakeSecretLookupByUsage(virConnectPtr conn,
-                        int usageType,
-                        const char *usageID)
-{
-    unsigned char uuid[VIR_UUID_BUFLEN];
-    if (usageType == VIR_SECRET_USAGE_TYPE_VOLUME) {
-        if (!STRPREFIX(usageID, "/storage/guest_disks/")) {
-            virReportError(VIR_ERR_INTERNAL_ERROR,
-                           "test provided invalid volume storage prefix '%s'",
-                           usageID);
-            return NULL;
-        }
-    } else if (STRNEQ(usageID, "mycluster_myname") &&
-               STRNEQ(usageID, "client.admin secret")) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       "test provided incorrect usage '%s'", usageID);
-        return NULL;
-    }
-
-    if (virUUIDGenerate(uuid) < 0)
-        return NULL;
-
-    return virGetSecret(conn, uuid, usageType, usageID);
-}
-
-static virSecretPtr
-fakeSecretLookupByUUID(virConnectPtr conn,
-                       const unsigned char *uuid)
-{
-    /* NB: This mocked value could be "tls" or "volume" depending on
-     * which test is being run, we'll leave at NONE (or 0) */
-    return virGetSecret(conn, uuid, VIR_SECRET_USAGE_TYPE_NONE, "");
-}
-
-static virSecretDriver fakeSecretDriver = {
-    .connectNumOfSecrets = NULL,
-    .connectListSecrets = NULL,
-    .secretLookupByUUID = fakeSecretLookupByUUID,
-    .secretLookupByUsage = fakeSecretLookupByUsage,
-    .secretDefineXML = NULL,
-    .secretGetXMLDesc = NULL,
-    .secretSetValue = NULL,
-    .secretGetValue = fakeSecretGetValue,
-    .secretUndefine = NULL,
-};
-
-
-# define STORAGE_POOL_XML_PATH "storagepoolxml2xmlout/"
-static const unsigned char fakeUUID[VIR_UUID_BUFLEN] = "fakeuuid";
-
-static virStoragePoolPtr
-fakeStoragePoolLookupByName(virConnectPtr conn,
-                            const char *name)
-{
-    g_autofree char *xmlpath = NULL;
-
-    if (STRNEQ(name, "inactive")) {
-        xmlpath = g_strdup_printf("%s/%s%s.xml", abs_srcdir,
-                                  STORAGE_POOL_XML_PATH, name);
-
-        if (!virFileExists(xmlpath)) {
-            virReportError(VIR_ERR_NO_STORAGE_POOL,
-                           "File '%s' not found", xmlpath);
-            return NULL;
-        }
-    }
-
-    return virGetStoragePool(conn, name, fakeUUID, NULL, NULL);
-}
-
-
-static virStorageVolPtr
-fakeStorageVolLookupByName(virStoragePoolPtr pool,
-                           const char *name)
-{
-    g_auto(GStrv) volinfo = NULL;
-
-    if (STREQ(pool->name, "inactive")) {
-        virReportError(VIR_ERR_OPERATION_INVALID,
-                       "storage pool '%s' is not active", pool->name);
-        return NULL;
-    }
-
-    if (STREQ(name, "nonexistent")) {
-        virReportError(VIR_ERR_NO_STORAGE_VOL,
-                       "no storage vol with matching name '%s'", name);
-        return NULL;
-    }
-
-    if (!(volinfo = g_strsplit(name, "+", 2)))
-        return NULL;
-
-    if (!volinfo[1]) {
-        return virGetStorageVol(pool->conn, pool->name, name, "block", NULL, NULL);
-    }
-
-    return virGetStorageVol(pool->conn, pool->name, volinfo[1], volinfo[0],
-                           NULL, NULL);
-}
-
-static int
-fakeStorageVolGetInfo(virStorageVolPtr vol,
-                      virStorageVolInfoPtr info)
-{
-    memset(info, 0, sizeof(*info));
-
-    info->type = virStorageVolTypeFromString(vol->key);
-
-    if (info->type < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       "Invalid volume type '%s'", vol->key);
-        return -1;
-    }
-
-    return 0;
-}
-
-
-static char *
-fakeStorageVolGetPath(virStorageVolPtr vol)
-{
-    return g_strdup_printf("/some/%s/device/%s", vol->key, vol->name);
-}
-
-
-static char *
-fakeStoragePoolGetXMLDesc(virStoragePoolPtr pool,
-                          unsigned int flags_unused G_GNUC_UNUSED)
-{
-    g_autofree char *xmlpath = NULL;
-    char *xmlbuf = NULL;
-
-    if (STREQ(pool->name, "inactive")) {
-        virReportError(VIR_ERR_NO_STORAGE_POOL, NULL);
-        return NULL;
-    }
-
-    xmlpath = g_strdup_printf("%s/%s%s.xml", abs_srcdir, STORAGE_POOL_XML_PATH,
-                              pool->name);
-
-    if (virTestLoadFile(xmlpath, &xmlbuf) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       "failed to load XML file '%s'",
-                       xmlpath);
-        return NULL;
-    }
-
-    return xmlbuf;
-}
-
-static int
-fakeStoragePoolIsActive(virStoragePoolPtr pool)
-{
-    if (STREQ(pool->name, "inactive"))
-        return 0;
-
-    return 1;
-}
-
-/* Test storage pool implementation
- *
- * These functions aid testing of storage pool related stuff when creating a
- * qemu command line.
- *
- * There are a few "magic" values to pass to these functions:
- *
- * 1) "inactive" as a pool name to create an inactive pool. All other names are
- * interpreted as file names in storagepoolxml2xmlout/ and are used as the
- * definition for the pool. If the file doesn't exist the pool doesn't exist.
- *
- * 2) "nonexistent" returns an error while looking up a volume. Otherwise
- * pattern VOLUME_TYPE+VOLUME_PATH can be used to simulate a volume in a pool.
- * This creates a fake path for this volume. If the '+' sign is omitted, block
- * type is assumed.
- */
-static virStorageDriver fakeStorageDriver = {
-    .storagePoolLookupByName = fakeStoragePoolLookupByName,
-    .storageVolLookupByName = fakeStorageVolLookupByName,
-    .storagePoolGetXMLDesc = fakeStoragePoolGetXMLDesc,
-    .storageVolGetPath = fakeStorageVolGetPath,
-    .storageVolGetInfo = fakeStorageVolGetInfo,
-    .storagePoolIsActive = fakeStoragePoolIsActive,
-};
-
-
-/* virNetDevOpenvswitchGetVhostuserIfname mocks a portdev name - handle that */
-static virNWFilterBindingPtr
-fakeNWFilterBindingLookupByPortDev(virConnectPtr conn,
-                                   const char *portdev)
-{
-    if (STREQ(portdev, "vhost-user0"))
-        return virGetNWFilterBinding(conn, "fake_vnet0", "fakeFilterName");
-
-    virReportError(VIR_ERR_NO_NWFILTER_BINDING,
-                   "no nwfilter binding for port dev '%s'", portdev);
-    return NULL;
-}
-
-
-static int
-fakeNWFilterBindingDelete(virNWFilterBindingPtr binding G_GNUC_UNUSED)
-{
-    return 0;
-}
-
-
-static virNWFilterDriver fakeNWFilterDriver = {
-    .nwfilterBindingLookupByPortDev = fakeNWFilterBindingLookupByPortDev,
-    .nwfilterBindingDelete = fakeNWFilterBindingDelete,
-};
-
-
-/* name of the fake network shall be constructed as:
- *  NETWORKXMLNAME;NETWORKPORTXMLNAME
- *  where:
- *  NETWORKXMLNAME resolves to abs_srcdir/networkxmlconfdata/NETWORKXMLNAME.xml
- *  NETWORKPORTXMLNAME resolves to abs_srcdir/virnetworkportxml2xmldata/NETWORKPORTXMLNAME.xml
- */
-static virNetworkPtr
-fakeNetworkLookupByName(virConnectPtr conn,
-                        const char *name)
-{
-    unsigned char uuid[VIR_UUID_BUFLEN];
-    g_autofree char *netname = g_strdup(name);
-    g_autofree char *path = NULL;
-    char *tmp;
-
-    memset(uuid, 0, VIR_UUID_BUFLEN);
-
-    if ((tmp = strchr(netname, ';'))) {
-        *tmp = '\0';
-    } else {
-        virReportError(VIR_ERR_NO_NETWORK,
-                       "Malformed fake network name '%s'. See fakeNetworkLookupByName.",
-                       name);
-        return NULL;
-    }
-
-    path = g_strdup_printf(abs_srcdir "/networkxmlconfdata/%s.xml", netname);
-
-    if (!virFileExists(path)) {
-        virReportError(VIR_ERR_NO_NETWORK, "fake network '%s' not found", path);
-        return NULL;
-    }
-
-    return virGetNetwork(conn, name, uuid);
-}
-
-
-static char *
-fakeNetworkGetXMLDesc(virNetworkPtr network,
-                      unsigned int noflags G_GNUC_UNUSED)
-{
-    g_autofree char *netname = g_strdup(network->name);
-    g_autofree char *path = NULL;
-    char *xml = NULL;
-
-    *(strchr(netname, ';')) = '\0';
-
-    path = g_strdup_printf(abs_srcdir "/networkxmlconfdata/%s.xml", netname);
-
-    if (virFileReadAll(path, 4 * 1024, &xml) < 0)
-        return NULL;
-
-    return xml;
-}
-
-
-static virNetworkPortPtr
-fakeNetworkPortCreateXML(virNetworkPtr net,
-                         const char *xmldesc G_GNUC_UNUSED,
-                         unsigned int noflags G_GNUC_UNUSED)
-{
-    unsigned char uuid[VIR_UUID_BUFLEN];
-    g_autofree char *portname = g_strdup(strchr(net->name, ';') + 1);
-    g_autofree char *path = g_strdup_printf(abs_srcdir "/virnetworkportxml2xmldata/%s.xml", portname);
-
-    memset(uuid, 0, VIR_UUID_BUFLEN);
-
-    if (!virFileExists(path)) {
-        virReportError(VIR_ERR_NO_NETWORK_PORT, "fake network port '%s' not found", path);
-        return NULL;
-    }
-
-    return virGetNetworkPort(net, uuid);
-}
-
-
-static char *
-fakeNetworkPortGetXMLDesc(virNetworkPortPtr port,
-                          unsigned int noflags G_GNUC_UNUSED)
-{
-    g_autofree char *portname = g_strdup(strchr(port->net->name, ';') + 1);
-    g_autofree char *path = g_strdup_printf(abs_srcdir "/virnetworkportxml2xmldata/%s.xml", portname);
-    char *xml = NULL;
-
-    if (virFileReadAll(path, 4 * 1024, &xml) < 0)
-        return NULL;
-
-    return xml;
-}
 
 
 static void
@@ -414,19 +101,13 @@ testQemuPrepareHostdev(virDomainObj *vm)
         }
     }
 
-    if (virDomainDefHasPCIHostdevWithIOMMUFD(vm->def)) {
+    if (vm->def->iommufd_fdgroup) {
+        ignore_value(qemuProcessGetPassedIommuFd(vm));
+    } else if (virDomainDefHasPCIHostdevWithIOMMUFD(vm->def)) {
         int iommufd = 0;
         priv->iommufd = qemuFDPassDirectNew("iommufd", &iommufd);
     }
 }
-
-
-static virNetworkDriver fakeNetworkDriver = {
-    .networkLookupByName = fakeNetworkLookupByName,
-    .networkGetXMLDesc = fakeNetworkGetXMLDesc,
-    .networkPortCreateXML = fakeNetworkPortCreateXML,
-    .networkPortGetXMLDesc = fakeNetworkPortGetXMLDesc,
-};
 
 
 static void
@@ -743,7 +424,7 @@ testQemuConfXMLCommon(testQemuInfo *info,
     if (testInfoCheckDuplicate(info) < 0)
         goto cleanup;
 
-# if !WITH_NBDKIT
+#if !WITH_NBDKIT
     /* when compiled without nbdkit support we want to skip the test after
      * marking it as used */
     if (info->args.fakeNbdkitCaps) {
@@ -751,7 +432,7 @@ testQemuConfXMLCommon(testQemuInfo *info,
         info->prepared = true;
         goto cleanup;
     }
-# endif /* !WITH_NBDKIT */
+#endif /* !WITH_NBDKIT */
 
     if (info->arch != VIR_ARCH_NONE && info->arch != VIR_ARCH_X86_64)
         qemuTestSetHostArch(&driver, info->arch);
@@ -1276,10 +957,10 @@ mymain(void)
     if (!(conn = virGetConnect()))
         return EXIT_FAILURE;
 
-    conn->secretDriver = &fakeSecretDriver;
-    conn->storageDriver = &fakeStorageDriver;
-    conn->nwfilterDriver = &fakeNWFilterDriver;
-    conn->networkDriver = &fakeNetworkDriver;
+    conn->secretDriver = testQemuGetFakeSecretDriver();
+    conn->storageDriver = testQemuGetFakeStorageDriver();
+    conn->nwfilterDriver = testQemuGetFakeNWFilterDriver();
+    conn->networkDriver = testQemuGetFakeNetworkDriver();
 
     virSetConnectInterface(conn);
     virSetConnectNetwork(conn);
@@ -1302,64 +983,64 @@ mymain(void)
  * the test cases should be forked using DO_TEST_CAPS_VER with the appropriate
  * version.
  */
-# define DO_TEST_FULL(_name, _suffix, ...) \
+#define DO_TEST_FULL(_name, _suffix, ...) \
     testRun(_name, _suffix, &ret, &testConf, __VA_ARGS__);
 
-# define DO_TEST_CAPS_INTERNAL(name, arch, ver, ...) \
+#define DO_TEST_CAPS_INTERNAL(name, arch, ver, ...) \
     DO_TEST_FULL(name, "." arch "-" ver, \
                  ARG_CAPS_ARCH, arch, \
                  ARG_CAPS_VER, ver, \
                  __VA_ARGS__, \
                  ARG_END)
 
-# define DO_TEST_CAPS_ARCH_LATEST_FULL(name, arch, ...) \
+#define DO_TEST_CAPS_ARCH_LATEST_FULL(name, arch, ...) \
     DO_TEST_CAPS_INTERNAL(name, arch, "latest", __VA_ARGS__)
 
-# define DO_TEST_CAPS_ARCH_VER_FULL(name, arch, ver, ...) \
+#define DO_TEST_CAPS_ARCH_VER_FULL(name, arch, ver, ...) \
     DO_TEST_CAPS_INTERNAL(name, arch, ver, __VA_ARGS__)
 
-# define DO_TEST_CAPS_ARCH_LATEST(name, arch) \
+#define DO_TEST_CAPS_ARCH_LATEST(name, arch) \
     DO_TEST_CAPS_ARCH_LATEST_FULL(name, arch, ARG_END)
 
-# define DO_TEST_CAPS_ARCH_LATEST_ABI_UPDATE(name, arch) \
+#define DO_TEST_CAPS_ARCH_LATEST_ABI_UPDATE(name, arch) \
     DO_TEST_FULL(name, "." arch "-latest.abi-update", \
                  ARG_CAPS_ARCH, arch, \
                  ARG_CAPS_VER, "latest", \
                  ARG_PARSEFLAGS, VIR_DOMAIN_DEF_PARSE_ABI_UPDATE, \
                  ARG_END)
 
-# define DO_TEST_CAPS_ARCH_VER(name, arch, ver) \
+#define DO_TEST_CAPS_ARCH_VER(name, arch, ver) \
     DO_TEST_CAPS_ARCH_VER_FULL(name, arch, ver, ARG_END)
 
-# define DO_TEST_CAPS_LATEST_NBDKIT(name, ...) \
+#define DO_TEST_CAPS_LATEST_NBDKIT(name, ...) \
     DO_TEST_CAPS_ARCH_LATEST_FULL(name, "x86_64", ARG_NBDKIT_CAPS, __VA_ARGS__, QEMU_NBDKIT_CAPS_LAST, ARG_END)
 
-# define DO_TEST_CAPS_LATEST(name) \
+#define DO_TEST_CAPS_LATEST(name) \
     DO_TEST_CAPS_ARCH_LATEST(name, "x86_64")
 
-# define DO_TEST_CAPS_LATEST_ABI_UPDATE(name) \
+#define DO_TEST_CAPS_LATEST_ABI_UPDATE(name) \
     DO_TEST_CAPS_ARCH_LATEST_ABI_UPDATE(name, "x86_64")
 
-# define DO_TEST_CAPS_VER(name, ver) \
+#define DO_TEST_CAPS_VER(name, ver) \
     DO_TEST_CAPS_ARCH_VER(name, "x86_64", ver)
 
-# define DO_TEST_CAPS_LATEST_PPC64(name) \
+#define DO_TEST_CAPS_LATEST_PPC64(name) \
     DO_TEST_CAPS_ARCH_LATEST(name, "ppc64")
 
-# define DO_TEST_CAPS_LATEST_PPC64_HOSTCPU(name, hostcpu) \
+#define DO_TEST_CAPS_LATEST_PPC64_HOSTCPU(name, hostcpu) \
     DO_TEST_CAPS_ARCH_LATEST_FULL(name, "ppc64", \
                                   ARG_CAPS_HOST_CPU_MODEL, hostcpu)
 
-# define DO_TEST_CAPS_LATEST_PPC64_HOSTCPU_FAILURE(name, hostcpu) \
+#define DO_TEST_CAPS_LATEST_PPC64_HOSTCPU_FAILURE(name, hostcpu) \
     DO_TEST_CAPS_ARCH_LATEST_FULL(name, "ppc64", \
                                   ARG_CAPS_HOST_CPU_MODEL, hostcpu, \
                                   ARG_FLAGS, FLAG_EXPECT_FAILURE)
 
-# define DO_TEST_CAPS_ARCH_LATEST_FAILURE(name, arch) \
+#define DO_TEST_CAPS_ARCH_LATEST_FAILURE(name, arch) \
     DO_TEST_CAPS_ARCH_LATEST_FULL(name, arch, \
                                   ARG_FLAGS, FLAG_EXPECT_FAILURE)
 
-# define DO_TEST_CAPS_ARCH_LATEST_ABI_UPDATE_FAILURE(name, arch) \
+#define DO_TEST_CAPS_ARCH_LATEST_ABI_UPDATE_FAILURE(name, arch) \
     DO_TEST_FULL(name, "." arch "-latest.abi-update", \
                  ARG_CAPS_ARCH, arch, \
                  ARG_CAPS_VER, "latest", \
@@ -1367,24 +1048,24 @@ mymain(void)
                  ARG_FLAGS, FLAG_EXPECT_FAILURE, \
                  ARG_END)
 
-# define DO_TEST_CAPS_ARCH_VER_FAILURE(name, arch, ver) \
+#define DO_TEST_CAPS_ARCH_VER_FAILURE(name, arch, ver) \
     DO_TEST_CAPS_ARCH_VER_FULL(name, arch, ver, \
                                ARG_FLAGS, FLAG_EXPECT_FAILURE)
 
-# define DO_TEST_CAPS_LATEST_FAILURE(name) \
+#define DO_TEST_CAPS_LATEST_FAILURE(name) \
     DO_TEST_CAPS_ARCH_LATEST_FAILURE(name, "x86_64")
 
-# define DO_TEST_CAPS_LATEST_ABI_UPDATE_FAILURE(name) \
+#define DO_TEST_CAPS_LATEST_ABI_UPDATE_FAILURE(name) \
     DO_TEST_CAPS_ARCH_LATEST_ABI_UPDATE_FAILURE(name, "x86_64")
 
-# define DO_TEST_CAPS_VER_FAILURE(name, ver) \
+#define DO_TEST_CAPS_VER_FAILURE(name, ver) \
     DO_TEST_CAPS_ARCH_VER_FAILURE(name, "x86_64", ver)
 
-# define DO_TEST_CAPS_ARCH_LATEST_PARSE_ERROR(name, arch) \
+#define DO_TEST_CAPS_ARCH_LATEST_PARSE_ERROR(name, arch) \
     DO_TEST_CAPS_ARCH_LATEST_FULL(name, arch, \
                                   ARG_FLAGS, FLAG_EXPECT_PARSE_ERROR)
 
-# define DO_TEST_CAPS_ARCH_LATEST_ABI_UPDATE_PARSE_ERROR(name, arch) \
+#define DO_TEST_CAPS_ARCH_LATEST_ABI_UPDATE_PARSE_ERROR(name, arch) \
     DO_TEST_FULL(name, "." arch "-latest.abi-update", \
                  ARG_CAPS_ARCH, arch, \
                  ARG_CAPS_VER, "latest", \
@@ -1392,20 +1073,20 @@ mymain(void)
                  ARG_FLAGS, FLAG_EXPECT_PARSE_ERROR, \
                  ARG_END)
 
-# define DO_TEST_CAPS_ARCH_VER_PARSE_ERROR(name, arch, ver) \
+#define DO_TEST_CAPS_ARCH_VER_PARSE_ERROR(name, arch, ver) \
     DO_TEST_CAPS_ARCH_VER_FULL(name, arch, ver, \
                                ARG_FLAGS, FLAG_EXPECT_PARSE_ERROR)
 
-# define DO_TEST_CAPS_LATEST_PARSE_ERROR(name) \
+#define DO_TEST_CAPS_LATEST_PARSE_ERROR(name) \
     DO_TEST_CAPS_ARCH_LATEST_PARSE_ERROR(name, "x86_64")
 
-# define DO_TEST_CAPS_LATEST_ABI_UPDATE_PARSE_ERROR(name) \
+#define DO_TEST_CAPS_LATEST_ABI_UPDATE_PARSE_ERROR(name) \
     DO_TEST_CAPS_ARCH_LATEST_ABI_UPDATE_PARSE_ERROR(name, "x86_64")
 
-# define DO_TEST_CAPS_VER_PARSE_ERROR(name, ver) \
+#define DO_TEST_CAPS_VER_PARSE_ERROR(name, ver) \
     DO_TEST_CAPS_ARCH_VER_PARSE_ERROR(name, "x86_64", ver)
 
-# define DO_TEST_GIC(name, ver, gic) \
+#define DO_TEST_GIC(name, ver, gic) \
     DO_TEST_CAPS_ARCH_VER_FULL(name, "aarch64", ver, ARG_GIC, gic, ARG_FLAGS, FLAG_ALLOW_DUPLICATE_OUTPUT, ARG_END)
 
     /* Unset or set all envvars here that are copied in qemudBuildCommandLine
@@ -3139,6 +2820,8 @@ mymain(void)
 
     DO_TEST_CAPS_LATEST("iommufd");
     DO_TEST_CAPS_LATEST("iommufd-q35");
+    DO_TEST_CAPS_ARCH_LATEST_FULL("iommufd-q35-fd", "x86_64",
+                                  ARG_FD_GROUP, "iommu", false, 1, 20);
     DO_TEST_CAPS_ARCH_LATEST("iommufd-virt", "aarch64");
     DO_TEST_CAPS_ARCH_LATEST("iommufd-virt-pci-bus-single", "aarch64");
 
@@ -3294,8 +2977,10 @@ mymain(void)
     DO_TEST_CAPS_ARCH_LATEST("ppc64-default-cpu-tcg-pseries-3.1", "ppc64");
     DO_TEST_CAPS_ARCH_LATEST("ppc64-default-cpu-kvm-pseries-4.2", "ppc64");
     DO_TEST_CAPS_ARCH_LATEST("ppc64-default-cpu-tcg-pseries-4.2", "ppc64");
-    DO_TEST_CAPS_ARCH_LATEST("s390-default-cpu-kvm-ccw-virtio-4.2", "s390x");
-    DO_TEST_CAPS_ARCH_LATEST("s390-default-cpu-tcg-ccw-virtio-4.2", "s390x");
+    DO_TEST_CAPS_ARCH_VER("s390-default-cpu-kvm-ccw-virtio-4.2", "s390x", "10.0.0");
+    DO_TEST_CAPS_ARCH_VER("s390-default-cpu-tcg-ccw-virtio-4.2", "s390x", "10.0.0");
+    DO_TEST_CAPS_ARCH_LATEST("s390-default-cpu-kvm-ccw-virtio-10.0", "s390x");
+    DO_TEST_CAPS_ARCH_LATEST("s390-default-cpu-tcg-ccw-virtio-10.0", "s390x");
     DO_TEST_CAPS_ARCH_LATEST("x86_64-default-cpu-kvm-pc", "x86_64");
     DO_TEST_CAPS_ARCH_LATEST("x86_64-default-cpu-tcg-pc", "x86_64");
     DO_TEST_CAPS_ARCH_LATEST("x86_64-default-cpu-kvm-q35", "x86_64");
@@ -3418,12 +3103,3 @@ VIR_TEST_MAIN_PRELOAD(mymain,
                       VIR_TEST_MOCK("virrandom"),
                       VIR_TEST_MOCK("qemucpu"),
                       VIR_TEST_MOCK("virnuma"))
-
-#else
-
-int main(void)
-{
-    return EXIT_AM_SKIP;
-}
-
-#endif /* WITH_QEMU */

@@ -762,6 +762,11 @@ VIR_ENUM_IMPL(virQEMUCaps,
               "scsi-block.migrate-pr", /* QEMU_CAPS_DEVICE_SCSI_BLOCK_MIGRATE_PR */
               "iommufd", /* QEMU_CAPS_OBJECT_IOMMUFD */
               "uefi-vars", /* QEMU_CAPS_DEVICE_UEFI_VARS */
+              "query-block-flat", /* QEMU_CAPS_QUERY_BLOCK_FLAT */
+              "amd-iommu.xtsup", /* QEMU_CAPS_AMD_IOMMU_XTSUP */
+
+              /* 495 */
+              "blockdev-mirror.target-is-zero", /* QEMU_CAPS_BLOCKDEV_MIRROR_TARGET_IS_ZERO */
     );
 
 
@@ -1632,6 +1637,7 @@ static struct virQEMUCapsDevicePropsFlags virQEMUCapsDevicePropsVirtioBlkCCW[] =
 
 static struct virQEMUCapsDevicePropsFlags virQEMUCapsDevicePropsAMDIOMMU[] = {
     { "pci-id", QEMU_CAPS_AMD_IOMMU_PCI_ID, NULL },
+    { "xtsup", QEMU_CAPS_AMD_IOMMU_XTSUP, NULL },
 };
 
 /* see documentation for virQEMUQAPISchemaPathGet for the query format */
@@ -1645,6 +1651,7 @@ static struct virQEMUCapsStringFlags virQEMUCapsQMPSchemaQueries[] = {
     { "blockdev-add/arg-type/+nbd/tls-hostname", QEMU_CAPS_BLOCKDEV_NBD_TLS_HOSTNAME },
     { "blockdev-add/arg-type/+qcow2/discard-no-unref", QEMU_CAPS_QCOW2_DISCARD_NO_UNREF },
     { "blockdev-add/arg-type/+virtio-blk-vhost-vdpa/$fdset", QEMU_CAPS_DEVICE_VIRTIO_BLK_VHOST_VDPA},
+    { "blockdev-mirror/arg-type/target-is-zero", QEMU_CAPS_BLOCKDEV_MIRROR_TARGET_IS_ZERO },
     { "calc-dirty-rate/arg-type/mode", QEMU_CAPS_DIRTYRATE_MODE },
     { "chardev-add/arg-type/backend/+socket/data/reconnect-ms", QEMU_CAPS_CHARDEV_RECONNECT_MILISECONDS },
     { "chardev-add/arg-type/backend/+qemu-vdagent", QEMU_CAPS_CHARDEV_QEMU_VDAGENT },
@@ -1659,6 +1666,7 @@ static struct virQEMUCapsStringFlags virQEMUCapsQMPSchemaQueries[] = {
     { "netdev_add/arg-type/+stream/reconnect-ms", QEMU_CAPS_NETDEV_STREAM_RECONNECT_MILISECONDS },
     { "object-add/arg-type/+sev-guest/kernel-hashes", QEMU_CAPS_SEV_GUEST_KERNEL_HASHES },
     { "object-add/arg-type/+iothread/thread-pool-max", QEMU_CAPS_IOTHREAD_THREAD_POOL_MAX },
+    { "query-block/arg-type/flat", QEMU_CAPS_QUERY_BLOCK_FLAT },
     { "query-display-options/ret-type/+egl-headless/rendernode", QEMU_CAPS_EGL_HEADLESS_RENDERNODE },
     { "query-display-options/ret-type/+sdl", QEMU_CAPS_SDL },
     { "query-display-options/ret-type/+egl-headless", QEMU_CAPS_EGL_HEADLESS },
@@ -6912,8 +6920,7 @@ virQEMUCapsFillDomainDeviceFSCaps(virQEMUCaps *qemuCaps,
                                  VIR_DOMAIN_FS_DRIVER_TYPE_VIRTIOFS);
 
     VIR_DOMAIN_CAPS_ENUM_SET(filesystem->driverType,
-                             VIR_DOMAIN_FS_DRIVER_TYPE_PATH,
-                             VIR_DOMAIN_FS_DRIVER_TYPE_HANDLE);
+                             VIR_DOMAIN_FS_DRIVER_TYPE_PATH);
 }
 
 

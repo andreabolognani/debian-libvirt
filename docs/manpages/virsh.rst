@@ -592,6 +592,7 @@ domcapabilities
    domcapabilities [virttype] [emulatorbin] [arch] [machine]
                    [--xpath EXPRESSION] [--wrap]
                    [--disable-deprecated-features]
+                   [--expand-cpu-features]
 
 
 Print an XML document describing the domain capabilities for the
@@ -637,6 +638,10 @@ The **--disable-deprecated-features** argument will modify the contents
 of host-model CPU XML, updating the features list with any features
 flagged as deprecated for the CPU model by the hypervisor. These
 features will be paired with the "disable" policy.
+
+The **--expand-cpu-features** option will cause the host-model CPU definition
+to contain all CPU features supported on the host including those implicitly
+enabled by the selected CPU model.
 
 
 pool-capabilities
@@ -1467,7 +1472,7 @@ blockcopy
       [--shallow] [--reuse-external] [bandwidth]
       [--wait [--async] [--verbose]] [{--pivot | --finish}]
       [--timeout seconds] [granularity] [buf-size] [--bytes]
-      [--transient-job] [--synchronous-writes] [--print-xml]
+      [--transient-job] [--synchronous-writes] [--dest-is-zero] [--print-xml]
 
 Copy a disk backing image chain to a destination.  Either *dest* as
 the destination file name, or *--xml* with the name of an XML file containing
@@ -1531,6 +1536,10 @@ If *--synchronous-writes* is specified the block job will wait for guest writes
 to be propagated both to the original image and to the destination of the copy
 so that it's guaranteed that the job converges if the destination storage is
 slower. This may impact performance of writes while the blockjob is running.
+
+If *--dest-is-zero* is specified the hypervisor may assume that the target
+image was already cleared (any offset reads 0x00 bytes) and thus may skip
+clearing it.
 
 If *--print-xml* is specified, then the XML used to start the block copy job
 is printed instead of starting the job.
@@ -3713,6 +3722,7 @@ migrate
       [--timeout seconds [--timeout-suspend | --timeout-postcopy]]
       [--xml file]
       [--migrate-disks disk-list] [--migrate-disks-detect-zeroes disk-list]
+      [--migrate-disks-target-zero disk-list]
       [--disks-port port]
       [--compressed] [--comp-methods method-list]
       [--comp-mt-level] [--comp-mt-threads] [--comp-mt-dthreads]
@@ -3751,6 +3761,9 @@ disk target names enables zeroed block detection for the listed migrated disks.
 These blocks are not transferred or allocated (requires that 'discard' option
 on given disk is set to 'unmap') on destination, effectively sparsifying the
 disk at the cost of CPU overhead.
+The *--migrate-disks-target-zero* option which takes a comma separated list of
+disk target names specifies disk images where the target was zeroed out prior
+to the migration and thus hypervisor will not attempt to zero them.
 With *--copy-storage-synchronous-writes* flag used the disk data migration will
 synchronously handle guest disk writes to both the original source and the
 destination to ensure that the disk migration converges at the price of possibly

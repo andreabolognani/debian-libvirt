@@ -41,6 +41,7 @@
 #include "virstring.h"
 #include "virkeycode.h"
 #include "domain_conf.h"
+#include "snapshot_conf.h"
 #include "virfdstream.h"
 #include "virfile.h"
 
@@ -196,6 +197,22 @@ hypervGetOperatingSystem(hypervPrivate *priv, Win32_OperatingSystem **operatingS
     if (hypervGetWmiClass(Win32_OperatingSystem, operatingSystem) < 0)
         return -1;
 
+    return 0;
+}
+
+
+static int
+hypervDomainGetTPMEnabled(hypervPrivate *priv,
+                          const char *id,
+                          bool *enabled)
+{
+    g_autoptr(Msvm_SecuritySettingData) securitySD = NULL;
+
+    if (hypervGetSecuritySD(priv, id, &securitySD) < 0)
+        return -1;
+
+    VIR_DEBUG("Getting TPM state for '%s': %u", id, securitySD->data->TpmEnabled);
+    *enabled = securitySD->data->TpmEnabled;
     return 0;
 }
 
@@ -2461,7 +2478,7 @@ hypervDomainScreenshot(virDomainPtr domain,
         ppmBuffer[i * 3 + 2] = (blueFive * 527 + 23) >> 6;
     }
 
-    temporaryDirectory = getenv("TMPDIR");
+    temporaryDirectory = g_getenv("TMPDIR");
     if (!temporaryDirectory)
         temporaryDirectory = "/tmp";
     temporaryFile = g_strdup_printf("%s/libvirt.hyperv.screendump.XXXXXX", temporaryDirectory);
@@ -2651,6 +2668,7 @@ hypervDomainGetXMLDesc(virDomainPtr domain, unsigned int flags)
     g_autoptr(Msvm_SerialPortSettingData) spsd = NULL;
     Msvm_ResourceAllocationSettingData *serialDevices = NULL;
     g_autoptr(Msvm_EthernetPortAllocationSettingData) nets = NULL;
+    bool tpmEnabled = false;
 
     virCheckFlags(VIR_DOMAIN_XML_COMMON_FLAGS, NULL);
 
@@ -2791,6 +2809,22 @@ hypervDomainGetXMLDesc(virDomainPtr domain, unsigned int flags)
     if (hypervDomainDefParseEthernet(domain, def, nets) < 0)
         return NULL;
 
+    if (hypervDomainGetTPMEnabled(priv, virtualSystemSettingData->data->InstanceID, &tpmEnabled) == 0
+        && tpmEnabled) {
+        virDomainTPMDef* tpm = NULL;
+
+        if (!def->tpms) {
+            def->tpms = g_new0(virDomainTPMDef *, 1);
+        }
+
+        tpm = g_new0(virDomainTPMDef, 1);
+        tpm->model = VIR_DOMAIN_TPM_MODEL_CRB;
+        tpm->type = VIR_DOMAIN_TPM_TYPE_EMULATOR;
+        tpm->data.emulator.version = VIR_DOMAIN_TPM_VERSION_2_0;
+
+        def->tpms[def->ntpms++] = tpm;
+    }
+
     /* XXX xmlopts must be non-NULL */
     return virDomainDefFormat(def, NULL, virDomainDefFormatConvertXMLFlags(flags));
 }
@@ -2925,7 +2959,9 @@ hypervDomainUndefine(virDomainPtr domain)
 
 
 static virDomainPtr
-hypervDomainDefineXML(virConnectPtr conn, const char *xml)
+hypervDomainDefineXMLFlags(virConnectPtr conn,
+                           const char *xml,
+                           unsigned int flags)
 {
     hypervPrivate *priv = conn->privateData;
     g_autofree char *hostname = hypervConnectGetHostname(conn);
@@ -2933,23 +2969,34 @@ hypervDomainDefineXML(virConnectPtr conn, const char *xml)
     virDomainPtr domain = NULL;
     g_autoptr(hypervInvokeParamsList) params = NULL;
     g_autoptr(GHashTable) defineSystemParam = NULL;
+    g_autoptr(Msvm_ComputerSystem) existing = NULL;
+    char uuid_string[VIR_UUID_STRING_BUFLEN];
     size_t i = 0;
+    unsigned int parse_flags = VIR_DOMAIN_DEF_PARSE_INACTIVE;
 
-    /* parse xml */
-    def = virDomainDefParseString(xml, priv->xmlopt, NULL,
-                                  1 << VIR_DOMAIN_VIRT_HYPERV | VIR_DOMAIN_XML_INACTIVE);
+    virCheckFlags(VIR_DOMAIN_DEFINE_VALIDATE, NULL);
+
+    if (flags & VIR_DOMAIN_DEFINE_VALIDATE)
+        parse_flags |= VIR_DOMAIN_DEF_PARSE_VALIDATE_SCHEMA;
+
+    def = virDomainDefParseString(xml, priv->xmlopt, NULL, parse_flags);
 
     if (!def)
         goto error;
 
     /* abort if a domain with this UUID already exists */
-    if ((domain = hypervDomainLookupByUUID(conn, def->uuid))) {
-        char uuid_string[VIR_UUID_STRING_BUFLEN];
-        virUUIDFormat(domain->uuid, uuid_string);
-        virReportError(VIR_ERR_DOM_EXIST, _("Domain already exists with UUID '%1$s'"), uuid_string);
+    virUUIDFormat(def->uuid, uuid_string);
+    if (hypervMsvmComputerSystemFromUUID(priv, uuid_string, &existing) == 0 && existing != NULL) {
+        virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
+                       _("Domain '%1$s' already exists, editing existing domains is not supported yet"),
+                       uuid_string);
+        return NULL;
+    }
 
-        // Don't use the 'exit' label, since we don't want to delete the existing domain.
-        virObjectUnref(domain);
+    /* abort if a domain with this name already exists */
+    if (hypervGetVirtualSystemByName(priv, def->name, &existing) == 0 &&
+        existing != NULL) {
+        virReportError(VIR_ERR_DOM_EXIST, "%s", def->name);
         return NULL;
     }
 
@@ -3031,6 +3078,14 @@ hypervDomainDefineXML(virConnectPtr conn, const char *xml)
         hypervDomainUndefine(domain);
 
     return NULL;
+}
+
+
+static virDomainPtr
+hypervDomainDefineXML(virConnectPtr conn,
+                      const char *xml)
+{
+    return hypervDomainDefineXMLFlags(conn, xml, 0);
 }
 
 
@@ -4056,6 +4111,274 @@ hypervDomainGetBlockInfo(virDomainPtr domain,
 }
 
 
+static Msvm_VirtualSystemSettingData*
+hypervDomainLookupSnapshotSD(virDomainPtr domain, const char *snapshot)
+{
+    hypervPrivate *priv = domain->conn->privateData;
+    g_autoptr(Msvm_VirtualSystemSettingData) vssd = NULL;
+    char domain_uuid_string[VIR_UUID_STRING_BUFLEN];
+    g_auto(virBuffer) query = VIR_BUFFER_INITIALIZER;
+
+    virUUIDFormat(domain->uuid, domain_uuid_string);
+
+    /* Hyper-V does not enforce unique snapshot names per domain, so we don't
+     * use the Hyper-V snapshot's ElementName field as the libvirt snapshot name.
+     * Instead we use the unique InstanceID as the name, even though it is not as
+     * user-friendly */
+    virBufferEscapeSQL(&query,
+                       MSVM_VIRTUALSYSTEMSETTINGDATA_WQL_SELECT
+                       "WHERE InstanceID='%s'",
+                       snapshot);
+    virBufferEscapeSQL(&query, "AND VirtualSystemIdentifier='%s'", domain_uuid_string);
+    virBufferAddLit(&query, "AND VirtualSystemType='"
+                    MSVM_VIRTUALSYSTEMSETTINGDATA_VIRTUALTYPE_SNAPSHOT "'");
+
+    if (hypervGetWmiClass(Msvm_VirtualSystemSettingData, &vssd) < 0)
+        return NULL;
+
+    if (!vssd) {
+        virReportError(VIR_ERR_NO_DOMAIN_SNAPSHOT,
+                       _("no domain snapshot with matching name '%1$s'"), snapshot);
+        return NULL;
+    }
+
+    return g_steal_pointer(&vssd);
+}
+
+
+static virDomainSnapshotPtr
+hypervDomainSnapshotLookupByName(virDomainPtr domain,
+                                 const char *name,
+                                 unsigned int flags)
+{
+    g_autoptr(Msvm_VirtualSystemSettingData) vssd = NULL;
+
+    virCheckFlags(0, NULL);
+
+    vssd = hypervDomainLookupSnapshotSD(domain, name);
+    if (vssd == NULL)
+        return NULL;
+
+    return virGetDomainSnapshot(domain, name);
+}
+
+
+static int
+hypervDomainListAllSnapshots(virDomainPtr domain,
+                             virDomainSnapshotPtr **snaps,
+                             unsigned int flags)
+{
+    hypervPrivate *priv = domain->conn->privateData;
+    g_autoptr(Msvm_VirtualSystemSettingData) snapshots = NULL;
+    Msvm_VirtualSystemSettingData *snapshot = NULL;
+    g_autoptr(GList) filtered = NULL;
+    virDomainSnapshotPtr *snapshotsRet = NULL;
+    char uuid_string[VIR_UUID_STRING_BUFLEN];
+    int count = 0;
+    int ret = -1;
+
+    virCheckFlags(VIR_DOMAIN_SNAPSHOT_LIST_ROOTS |
+                  VIR_DOMAIN_SNAPSHOT_LIST_METADATA |
+                  VIR_DOMAIN_SNAPSHOT_LIST_NO_METADATA, -1);
+
+    /* libvirt does not maintain any metadata for hyper-v snapshots */
+    if (flags & VIR_DOMAIN_SNAPSHOT_LIST_METADATA)
+        return 0;
+
+    virUUIDFormat(domain->uuid, uuid_string);
+
+    if (hypervGetDomainSnapshotsSD(priv, uuid_string, &snapshots) < 0)
+        return -1;
+
+    /* filter snapshots */
+    for (snapshot = snapshots; snapshot; snapshot = snapshot->next) {
+        if ((flags & VIR_DOMAIN_SNAPSHOT_LIST_ROOTS) && snapshot->data->Parent)
+            continue;
+
+        filtered = g_list_append(filtered, snapshot);
+    }
+
+    count = g_list_length(filtered);
+
+    if (!snaps)
+        return count;
+
+    if (count > 0) {
+        GList *l = NULL;
+        int idx = 0;
+
+        snapshotsRet = g_new0(virDomainSnapshotPtr, count);
+
+        for (l = filtered; l; l = l->next) {
+            Msvm_VirtualSystemSettingData *vssd = l->data;
+            snapshotsRet[idx] = virGetDomainSnapshot(domain, vssd->data->InstanceID);
+            if (!snapshotsRet[idx])
+                goto cleanup;
+            idx++;
+        }
+    }
+
+    *snaps = snapshotsRet;
+    ret = count;
+
+ cleanup:
+    if (ret < 0) {
+        size_t i;
+        for (i = 0; i < count; i++) {
+            if (snapshotsRet[i])
+                virObjectUnref(snapshotsRet[i]);
+        }
+        VIR_FREE(snapshotsRet);
+    }
+
+    return ret;
+}
+
+
+static int
+hypervDomainSnapshotNum(virDomainPtr domain,
+                        unsigned int flags)
+{
+    return hypervDomainListAllSnapshots(domain, NULL, flags);
+}
+
+
+/* A snapshot's parent is specified as an object path like 'InstanceID="$ID"'.
+ * This function extracts the id portion. */
+static char *
+hypervParseInstanceIdFromParentPath(const char *obj_path)
+{
+    const char *const instance_prefix = "InstanceID=\"";
+    const char *id_start = NULL;
+    if (!obj_path)
+        return NULL;
+
+    id_start = strstr(obj_path, instance_prefix);
+    if (id_start) {
+        const char *id_end;
+        id_start += strlen(instance_prefix);
+        id_end = strchr(id_start, '"');
+        if (id_end) {
+            g_autofree char* parent_id_escaped = g_strndup(id_start, id_end - id_start);
+            char* parent_id = virStringReplace(parent_id_escaped, "\\\\", "\\");
+            return parent_id;
+        }
+    }
+    return NULL;
+}
+
+
+static int
+hypervDomainHasCurrentSnapshot(virDomainPtr domain,
+                               unsigned int flags)
+{
+    g_autoptr(Msvm_VirtualSystemSettingData) vssd = NULL;
+    hypervPrivate *priv = domain->conn->privateData;
+    char uuid_string[VIR_UUID_STRING_BUFLEN];
+
+    virCheckFlags(0, -1);
+
+    virUUIDFormat(domain->uuid, uuid_string);
+
+    if (hypervGetMsvmVirtualSystemSettingDataFromUUID(priv, uuid_string, &vssd) < 0)
+        return -1;
+
+    return vssd->data->Parent != NULL;
+}
+
+
+static virDomainSnapshotPtr
+hypervDomainSnapshotCurrent(virDomainPtr domain,
+                            unsigned int flags)
+{
+    hypervPrivate *priv = domain->conn->privateData;
+    char uuid_string[VIR_UUID_STRING_BUFLEN];
+    g_autoptr(Msvm_VirtualSystemSettingData) vssd = NULL;
+    g_autofree char* current_snapshot = NULL;
+
+    virCheckFlags(0, NULL);
+
+    virUUIDFormat(domain->uuid, uuid_string);
+
+    if (hypervGetMsvmVirtualSystemSettingDataFromUUID(priv, uuid_string, &vssd) < 0)
+        return NULL;
+
+    current_snapshot = hypervParseInstanceIdFromParentPath(vssd->data->Parent);
+    if (!current_snapshot) {
+        virReportError(VIR_ERR_NO_DOMAIN_SNAPSHOT, "%s",
+                       _("the domain does not have a current snapshot"));
+        return NULL;
+    }
+
+    return virGetDomainSnapshot(domain, current_snapshot);
+}
+
+
+static char *
+hypervDomainSnapshotGetXMLDesc(virDomainSnapshotPtr snapshot,
+                               unsigned int flags)
+{
+    hypervPrivate *priv = snapshot->domain->conn->privateData;
+    g_autoptr(Msvm_VirtualSystemSettingData) vssd = NULL;
+    g_autoptr(virDomainSnapshotDef) def = NULL;
+    char uuidstr[VIR_UUID_STRING_BUFLEN];
+
+    virCheckFlags(VIR_DOMAIN_SNAPSHOT_XML_SECURE, NULL);
+
+    vssd = hypervDomainLookupSnapshotSD(snapshot->domain, snapshot->name);
+    if (!vssd)
+        return NULL;
+
+    if (!(def = virDomainSnapshotDefNew()))
+        return NULL;
+
+    def->parent.name = g_strdup(vssd->data->InstanceID);
+    def->parent.description = g_strdup(vssd->data->ElementName);
+    def->parent.parent_name = hypervParseInstanceIdFromParentPath(vssd->data->Parent);
+    /* IsSaved indicates the snapshot configuration references a saved memory
+     * state file, meaning the snapshot was taken from a running VM and includes
+     * full machine state. Otherwise it's either a 'production' checkpoint or an
+     * offline snapshot, which are both disk-only. */
+    def->state = vssd->data->IsSaved ? VIR_DOMAIN_SNAPSHOT_RUNNING : VIR_DOMAIN_SNAPSHOT_DISK_SNAPSHOT;
+
+    if (vssd->data->CreationTime) {
+        g_autoptr(GDateTime) dt = g_date_time_new_from_iso8601(vssd->data->CreationTime, NULL);
+        if (dt)
+            def->parent.creationTime = g_date_time_to_unix(dt);
+    }
+
+    virUUIDFormat(snapshot->domain->uuid, uuidstr);
+
+    return virDomainSnapshotDefFormat(uuidstr, def, priv->xmlopt,
+                                      virDomainSnapshotFormatConvertXMLFlags(flags));
+}
+
+
+static virDomainSnapshotPtr
+hypervDomainSnapshotGetParent(virDomainSnapshotPtr snapshot,
+                              unsigned int flags)
+{
+    g_autoptr(Msvm_VirtualSystemSettingData) vssd = NULL;
+    g_autofree char* parent_id = NULL;
+
+    virCheckFlags(0, NULL);
+
+    vssd = hypervDomainLookupSnapshotSD(snapshot->domain, snapshot->name);
+    if (!vssd)
+        return NULL;
+
+    parent_id = hypervParseInstanceIdFromParentPath(vssd->data->Parent);
+    if (!parent_id) {
+        virReportError(VIR_ERR_NO_DOMAIN_SNAPSHOT,
+                       _("snapshot '%1$s' does not have a parent"),
+                       snapshot->name);
+        return NULL;
+    }
+
+    return virGetDomainSnapshot(snapshot->domain, parent_id);
+}
+
+
 static virHypervisorDriver hypervHypervisorDriver = {
     .name = "Hyper-V",
     .connectOpen = hypervConnectOpen, /* 0.9.5 */
@@ -4099,6 +4422,7 @@ static virHypervisorDriver hypervHypervisorDriver = {
     .domainCreate = hypervDomainCreate, /* 0.9.5 */
     .domainCreateWithFlags = hypervDomainCreateWithFlags, /* 0.9.5 */
     .domainDefineXML = hypervDomainDefineXML, /* 7.1.0 */
+    .domainDefineXMLFlags = hypervDomainDefineXMLFlags, /* 12.2.0 */
     .domainUndefine = hypervDomainUndefine, /* 7.1.0 */
     .domainUndefineFlags = hypervDomainUndefineFlags, /* 7.1.0 */
     .domainAttachDevice = hypervDomainAttachDevice, /* 7.1.0 */
@@ -4121,6 +4445,13 @@ static virHypervisorDriver hypervHypervisorDriver = {
     .connectIsAlive = hypervConnectIsAlive, /* 0.9.8 */
     .domainInterfaceAddresses = hypervDomainInterfaceAddresses, /* 12.1.0 */
     .domainGetBlockInfo = hypervDomainGetBlockInfo, /* 12.1.0 */
+    .domainSnapshotLookupByName = hypervDomainSnapshotLookupByName, /* 12.2.0 */
+    .domainListAllSnapshots = hypervDomainListAllSnapshots, /* 12.2.0 */
+    .domainSnapshotNum = hypervDomainSnapshotNum, /* 12.2.0 */
+    .domainSnapshotGetXMLDesc = hypervDomainSnapshotGetXMLDesc, /* 12.2.0 */
+    .domainHasCurrentSnapshot = hypervDomainHasCurrentSnapshot, /* 12.2.0 */
+    .domainSnapshotCurrent = hypervDomainSnapshotCurrent, /* 12.2.0 */
+    .domainSnapshotGetParent = hypervDomainSnapshotGetParent, /* 12.2.0 */
 };
 
 

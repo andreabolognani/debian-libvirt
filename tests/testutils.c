@@ -73,10 +73,10 @@ static int virTestUseTerminalColors(void)
 static unsigned int
 virTestGetFlag(const char *name)
 {
-    char *flagStr;
+    const char *flagStr;
     unsigned int flag;
 
-    if ((flagStr = getenv(name)) == NULL)
+    if ((flagStr = g_getenv(name)) == NULL)
         return 0;
 
     if (virStrToLong_ui(flagStr, NULL, 10, &flag) < 0)
@@ -123,7 +123,7 @@ virTestRun(const char *title,
 
     /* Some test are fragile about environ settings.  If that's
      * the case, don't poison it. */
-    if (getenv("VIR_TEST_MOCK_PROGNAME"))
+    if (g_getenv("VIR_TEST_MOCK_PROGNAME"))
         g_setenv("VIR_TEST_MOCK_TESTNAME", title, TRUE);
 
     if (testCounter == 0 && !virTestGetVerbose())
@@ -760,7 +760,7 @@ virTestHasRangeBitmap(void)
 static int
 virTestSetEnvPath(void)
 {
-    const char *path = getenv("PATH");
+    const char *path = g_getenv("PATH");
     g_autofree char *new_path = NULL;
 
     if (path) {
@@ -779,6 +779,20 @@ virTestSetEnvPath(void)
 
 #define FAKEROOTDIRTEMPLATE abs_builddir "/fakerootdir-XXXXXX"
 
+static int
+virTestFakeEnvSubDirInit(const char *envName, const char *fakeRootName, const char *fakeSubDirName)
+{
+    g_autofree char *envVal = g_build_filename(fakeRootName, fakeSubDirName, NULL);
+
+    if (g_mkdir(envVal, 0777) < 0) {
+        fprintf(stderr, "Cannot create fake %s directory at %s", envName, envVal);
+        return -1;
+    }
+
+    g_setenv(envName, envVal, TRUE);
+    return 0;
+}
+
 char*
 virTestFakeRootDirInit(void)
 {
@@ -790,6 +804,22 @@ virTestFakeRootDirInit(void)
     }
 
     g_setenv("LIBVIRT_FAKE_ROOT_DIR", fakerootdir, TRUE);
+
+    /* the glib g_get_user_*_dir() functions use these environment variables to
+     * determine locations for various data/log/config files. Setting them here
+     * will assure that code under test that is using those directories won't pollute
+     * the system under test.
+     */
+    if (virTestFakeEnvSubDirInit("HOME", fakerootdir, "home") < 0)
+        return NULL;
+    if (virTestFakeEnvSubDirInit("XDG_RUNTIME_DIR", fakerootdir, "user-runtime-dir") < 0)
+        return NULL;
+    if (virTestFakeEnvSubDirInit("XDG_DATA_HOME", fakerootdir, "user-data-home") < 0)
+        return NULL;
+    if (virTestFakeEnvSubDirInit("XDG_CACHE_HOME", fakerootdir, "user-cache-home") < 0)
+        return NULL;
+    if (virTestFakeEnvSubDirInit("XDG_CONFIG_HOME", fakerootdir, "user-config-home") < 0)
+        return NULL;
 
     return g_steal_pointer(&fakerootdir);
 }
@@ -813,7 +843,7 @@ int virTestMain(int argc,
     const char *lib;
     va_list ap;
     int ret;
-    char *testRange = NULL;
+    const char *testRange = NULL;
     size_t noutputs = 0;
     virLogOutput *output = NULL;
     virLogOutput **outputs = NULL;
@@ -823,17 +853,11 @@ int virTestMain(int argc,
     g_autofree char *mock = NULL;
     g_autofree char *fakerootdir = NULL;
 
-    if (getenv("VIR_TEST_FILE_ACCESS")) {
+    if (g_getenv("VIR_TEST_FILE_ACCESS")) {
         preloads = g_renew(const char *, preloads, npreloads + 2);
         preloads[npreloads++] = VIR_TEST_MOCK("virtest");
         preloads[npreloads] = NULL;
     }
-
-    g_setenv("HOME", "/bad-test-used-env-home", TRUE);
-    g_setenv("XDG_RUNTIME_DIR", "/bad-test-used-env-xdg-runtime-dir", TRUE);
-    g_setenv("XDG_DATA_HOME", "/bad-test-used-env-xdg-data-home", TRUE);
-    g_setenv("XDG_CACHE_HOME", "/bad-test-used-env-xdg-cache-home", TRUE);
-    g_setenv("XDG_CONFIG_HOME", "/bad-test-used-env-xdg-config-home", TRUE);
 
     va_start(ap, func);
     while ((lib = va_arg(ap, const char *))) {
@@ -884,7 +908,7 @@ int virTestMain(int argc,
     if (virLogSetFromEnv() < 0)
         return EXIT_FAILURE;
 
-    if (!getenv("LIBVIRT_DEBUG") && !virLogGetNbOutputs()) {
+    if (!g_getenv("LIBVIRT_DEBUG") && !virLogGetNbOutputs()) {
         if (!(output = virLogOutputNew(virtTestLogOutput, virtTestLogClose,
                                        &testLog, VIR_LOG_DEBUG,
                                        VIR_LOG_TO_STDERR, NULL)))
@@ -898,7 +922,7 @@ int virTestMain(int argc,
         }
     }
 
-    if ((testRange = getenv("VIR_TEST_RANGE")) != NULL) {
+    if ((testRange = g_getenv("VIR_TEST_RANGE")) != NULL) {
         if (!(testBitmap = virBitmapParseUnlimited(testRange))) {
             fprintf(stderr, "Cannot parse range %s\n", testRange);
             return EXIT_FAILURE;

@@ -102,10 +102,10 @@ qemuInteropFetchConfigs(const char *name,
          * much sense to parse files in root's home directory. It
          * makes sense only for session daemon which runs under
          * regular user. */
-        xdgConfig = g_strdup(getenv("XDG_CONFIG_HOME"));
+        xdgConfig = g_strdup(g_getenv("XDG_CONFIG_HOME"));
 
         if (!xdgConfig) {
-            g_autofree char *home = virGetUserDirectory();
+            g_autofree char *home = virGetUserHomeDirectory();
 
             xdgConfig = g_strdup_printf("%s/.config", home);
         }
