@@ -10,7 +10,7 @@ Forwarded: not-needed
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/tools/vsh.c b/tools/vsh.c
-index 69d3930..5362f54 100644
+index 74016c0..594a0b4 100644
 --- a/tools/vsh.c
 +++ b/tools/vsh.c
 @@ -2601,7 +2601,7 @@ vshEditWriteToTempFile(vshControl *ctl, const char *doc)
