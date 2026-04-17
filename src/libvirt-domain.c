@@ -6681,12 +6681,15 @@ virDomainMemoryPeek(virDomainPtr dom,
  * Since: 0.8.1
  */
 int
-virDomainGetBlockInfo(virDomainPtr domain, const char *disk,
-                      virDomainBlockInfoPtr info, unsigned int flags)
+virDomainGetBlockInfo(virDomainPtr domain,
+                      const char *disk,
+                      virDomainBlockInfoPtr info,
+                      unsigned int flags)
 {
     virConnectPtr conn;
 
-    VIR_DOMAIN_DEBUG(domain, "info=%p, flags=0x%x", info, flags);
+    VIR_DOMAIN_DEBUG(domain, "disk='%s', info=%p, flags=0x%x",
+                     disk, info, flags);
 
     virResetLastError();
 
@@ -11261,6 +11264,10 @@ virDomainBlockRebase(virDomainPtr dom, const char *disk,
  * the destination storage is slower. This may impact performance of writes
  * while the blockjob is running.
  *
+ * If @flags contains VIR_DOMAIN_BLOCK_COPY_TARGET_ZEROED the hypervisor may
+ * assume that the target image was already zeroed out (any read will return
+ * 0x00 bytes) and thus may skip this step.
+ *
  * The @disk parameter is either an unambiguous source name of the
  * block device (the <source file='...'/> sub-element, such as
  * "/path/to/image"), or the device target shorthand (the
@@ -12329,6 +12336,11 @@ virDomainSetUserPassword(virDomainPtr dom,
  * underlying emulator and/or libvirt is capable of. For
  * instance, if host, libvirt and qemu is capable of VFIO
  * passthrough and so on.
+ *
+ * If @flags includes VIR_CONNECT_GET_DOMAIN_CAPABILITIES_EXPAND_CPU_FEATURES,
+ * libvirt will explicitly list all CPU features (in host-model CPU definition)
+ * that are supported on the host. Without this flag features that are part of
+ * the CPU model itself will not be listed.
  *
  * Returns NULL in case of error or an XML string
  * defining the capabilities.

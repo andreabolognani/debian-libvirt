@@ -38,6 +38,9 @@
 #define MSVM_IMAGEMANAGEMENTSERVICE_SELECTOR \
     "CreationClassName=Msvm_ImageManagementService"
 
+#define MSVM_VIRTUALSYSTEMSETTINGDATA_VIRTUALTYPE_SNAPSHOT \
+    "Microsoft:Hyper-V:Snapshot:Realized"
+
 int hypervVerifyResponse(WsManClient *client, WsXmlDocH response,
                          const char *detail);
 
@@ -237,6 +240,10 @@ int hypervGetMsvmVirtualSystemSettingDataFromUUID(hypervPrivate *priv,
                                                   const char *uuid_string,
                                                   Msvm_VirtualSystemSettingData **list);
 
+int hypervGetDomainSnapshotsSD(hypervPrivate *priv,
+                               const char *domain_uuid_string,
+                               Msvm_VirtualSystemSettingData **list);
+
 int hypervGetResourceAllocationSD(hypervPrivate *priv,
                                   const char *id,
                                   Msvm_ResourceAllocationSettingData **data);
@@ -268,6 +275,10 @@ int hypervGetEthernetPortAllocationSD(hypervPrivate *priv,
 int hypervImageManagementServiceGetVHDSD(hypervPrivate *priv,
                                          const char *vhdPath,
                                          WsXmlDocH *settingDataDoc);
+
+int hypervGetSecuritySD(hypervPrivate *priv,
+                        const char *vssd_instanceid,
+                        Msvm_SecuritySettingData **data);
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Msvm_VirtualSystemManagementService

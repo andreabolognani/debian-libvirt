@@ -4242,6 +4242,8 @@ void virDomainDefFree(virDomainDef *def)
     g_free(def->kvm_features);
     g_free(def->tcg_features);
 
+    g_free(def->iommufd_fdgroup);
+
     virBlkioDeviceArrayClear(def->blkio.devices,
                              def->blkio.ndevices);
     g_free(def->blkio.devices);
@@ -16824,6 +16826,8 @@ virDomainIOMMUDefEquals(const virDomainIOMMUDef *a,
         a->iotlb != b->iotlb ||
         a->aw_bits != b->aw_bits ||
         a->dma_translation != b->dma_translation ||
+        a->xtsup != b->xtsup ||
+        a->pt != b->pt ||
         a->granule != b->granule)
         return false;
 
@@ -19881,6 +19885,33 @@ virDomainDefControllersParse(virDomainDef *def,
     return 0;
 }
 
+static int
+virDomainDefIommufdParse(virDomainDef *def,
+                         xmlXPathContextPtr ctxt)
+{
+    int n;
+    g_autofree xmlNodePtr *nodes = NULL;
+
+    if ((n = virXPathNodeSet("./iommufd", ctxt, &nodes)) < 0)
+        return -1;
+
+    if (n > 1) {
+        virReportError(VIR_ERR_XML_ERROR, "%s",
+                       _("only one 'iommufd' element is supported"));
+        return -1;
+    }
+
+    if (n == 0)
+        return 0;
+
+    if (virXMLPropTristateBool(nodes[0], "enabled", VIR_XML_PROP_REQUIRED, &def->iommufd) < 0)
+        return -1;
+
+    def->iommufd_fdgroup = virXMLPropString(nodes[0], "fdgroup");
+
+    return 0;
+}
+
 static virDomainDef *
 virDomainDefParseXML(xmlXPathContextPtr ctxt,
                      virDomainXMLOption *xmlopt,
@@ -19958,6 +19989,9 @@ virDomainDefParseXML(xmlXPathContextPtr ctxt,
         !def->cputune.emulatorpin &&
         !virDomainIOThreadIDArrayHasPin(def))
         def->placement_mode = VIR_DOMAIN_CPU_PLACEMENT_MODE_AUTO;
+
+    if (virDomainDefIommufdParse(def, ctxt) < 0)
+        return NULL;
 
     if ((n = virXPathNodeSet("./resource", ctxt, &nodes)) < 0)
         return NULL;
@@ -22613,14 +22647,14 @@ virDomainIOMMUDefCheckABIStability(virDomainIOMMUDef *src,
     }
     if (src->pt != dst->pt) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("Target domain IOMMU device dma translation '%1$s' does not match source '%2$s'"),
+                       _("Target domain IOMMU device passthrough '%1$s' does not match source '%2$s'"),
                        virTristateSwitchTypeToString(dst->pt),
                        virTristateSwitchTypeToString(src->pt));
         return false;
     }
     if (src->xtsup != dst->xtsup) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("Target domain IOMMU device dma translation '%1$s' does not match source '%2$s'"),
+                       _("Target domain IOMMU device xtsup '%1$s' does not match source '%2$s'"),
                        virTristateSwitchTypeToString(dst->xtsup),
                        virTristateSwitchTypeToString(src->xtsup));
         return false;
@@ -24213,11 +24247,8 @@ virDomainDiskDefFormatIotune(virBuffer *buf,
         virBufferAsprintf(&childBuf, "<size_iops_sec>%llu</size_iops_sec>\n",
                           disk->blkdeviotune.size_iops_sec);
     }
-
-    if (disk->blkdeviotune.group_name) {
-        virBufferEscapeString(&childBuf, "<group_name>%s</group_name>\n",
-                              disk->blkdeviotune.group_name);
-    }
+    virBufferEscapeString(&childBuf, "<group_name>%s</group_name>\n",
+                          disk->blkdeviotune.group_name);
 
     FORMAT_IOTUNE(total_bytes_sec_max_length);
     FORMAT_IOTUNE(read_bytes_sec_max_length);
@@ -27489,9 +27520,7 @@ virDomainGraphicsAuthDefFormatAttr(virBuffer *buf,
     if (!def->passwd)
         return;
 
-    if (def->username)
-        virBufferEscapeString(buf, " username='%s'",
-                              def->username);
+    virBufferEscapeString(buf, " username='%s'", def->username);
 
     if (flags & VIR_DOMAIN_DEF_FORMAT_SECURE)
         virBufferEscapeString(buf, " passwd='%s'",
@@ -27621,8 +27650,7 @@ virDomainGraphicsListenDefFormatAddr(virBuffer *buf,
                  VIR_DOMAIN_DEF_FORMAT_MIGRATABLE))
         return;
 
-    if (glisten->address)
-        virBufferEscapeString(buf, " listen='%s'", glisten->address);
+    virBufferEscapeString(buf, " listen='%s'", glisten->address);
 }
 
 static void
@@ -27635,8 +27663,7 @@ virDomainGraphicsDefFormatGL(virBuffer *buf,
     if (gl != VIR_TRISTATE_BOOL_ABSENT)
         virBufferAsprintf(&attrBuf, " enable='%s'", virTristateBoolTypeToString(gl));
 
-    if (rendernode)
-        virBufferEscapeString(&attrBuf, " rendernode='%s'", rendernode);
+    virBufferEscapeString(&attrBuf, " rendernode='%s'", rendernode);
 
     virXMLFormatElement(buf, "gl", &attrBuf, NULL);
 }
@@ -28174,6 +28201,24 @@ virDomainHubDefFormat(virBuffer *buf,
     virXMLFormatElement(buf, "hub", &attrBuf, &childBuf);
 
     return 0;
+}
+
+
+static void
+virDomainDefIommufdFormat(virBuffer *buf,
+                          virDomainDef *def)
+{
+    g_auto(virBuffer) attrBuf = VIR_BUFFER_INITIALIZER;
+
+    if (def->iommufd == VIR_TRISTATE_BOOL_ABSENT)
+        return;
+
+    virBufferAsprintf(&attrBuf, " enabled='%s'",
+                      virTristateBoolTypeToString(def->iommufd));
+
+    virBufferEscapeString(&attrBuf, " fdgroup='%s'", def->iommufd_fdgroup);
+
+    virXMLFormatElement(buf, "iommufd", &attrBuf, NULL);
 }
 
 
@@ -29725,6 +29770,8 @@ virDomainDefFormatInternalSetRootName(virDomainDef *def,
 
     if (virDomainNumatuneFormatXML(buf, def->numa) < 0)
         return -1;
+
+    virDomainDefIommufdFormat(buf, def);
 
     virDomainResourceDefFormat(buf, def->resource);
 
@@ -32770,6 +32817,20 @@ virDomainDefHasPCIHostdevWithIOMMUFD(const virDomainDef *def)
 
 
 bool
+virDomainDefHasPCIHostdevWithoutIOMMUFD(const virDomainDef *def)
+{
+    size_t i;
+
+    for (i = 0; i < def->nhostdevs; i++) {
+        if (virHostdevIsPCIDeviceWithoutIOMMUFD(def->hostdevs[i]))
+            return true;
+    }
+
+    return false;
+}
+
+
+bool
 virDomainDefHasMdevHostdev(const virDomainDef *def)
 {
     size_t i;
@@ -33031,6 +33092,33 @@ virHostdevIsMdevDevice(const virDomainHostdevDef *hostdev)
 }
 
 
+static bool
+virHostdevPCIDevHasIOMMUFD(const virDomainHostdevDef *hostdev)
+{
+    return hostdev->source.subsys.u.pci.driver.name == VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_VFIO &&
+        hostdev->source.subsys.u.pci.driver.iommufd == VIR_TRISTATE_BOOL_YES;
+}
+
+
+static bool
+virHostdevIsPCIDeviceImpl(const virDomainHostdevDef *hostdev,
+                          virTristateBool iommufd)
+{
+    if (hostdev->mode != VIR_DOMAIN_HOSTDEV_MODE_SUBSYS)
+        return false;
+
+    if (hostdev->source.subsys.type != VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_PCI)
+        return false;
+
+    if (iommufd != VIR_TRISTATE_BOOL_ABSENT) {
+        bool hasIOMMUFD = iommufd == VIR_TRISTATE_BOOL_YES;
+        return hasIOMMUFD == virHostdevPCIDevHasIOMMUFD(hostdev);
+    }
+
+    return true;
+}
+
+
 /**
  * virHostdevIsPCIDevice:
  * @hostdev: host device to check
@@ -33040,8 +33128,7 @@ virHostdevIsMdevDevice(const virDomainHostdevDef *hostdev)
 bool
 virHostdevIsPCIDevice(const virDomainHostdevDef *hostdev)
 {
-    return hostdev->mode == VIR_DOMAIN_HOSTDEV_MODE_SUBSYS &&
-        hostdev->source.subsys.type == VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_PCI;
+    return virHostdevIsPCIDeviceImpl(hostdev, VIR_TRISTATE_BOOL_ABSENT);
 }
 
 
@@ -33054,9 +33141,20 @@ virHostdevIsPCIDevice(const virDomainHostdevDef *hostdev)
 bool
 virHostdevIsPCIDeviceWithIOMMUFD(const virDomainHostdevDef *hostdev)
 {
-    return virHostdevIsPCIDevice(hostdev) &&
-        hostdev->source.subsys.u.pci.driver.name == VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_VFIO &&
-        hostdev->source.subsys.u.pci.driver.iommufd == VIR_TRISTATE_BOOL_YES;
+    return virHostdevIsPCIDeviceImpl(hostdev, VIR_TRISTATE_BOOL_YES);
+}
+
+
+/**
+ * virHostdevIsPCIDeviceWithIOMMUFD:
+ * @hostdev: host device to check
+ *
+ * Returns true if @hostdev is a PCI device with IOMMUFD disabled, false otherwise.
+ */
+bool
+virHostdevIsPCIDeviceWithoutIOMMUFD(const virDomainHostdevDef *hostdev)
+{
+    return virHostdevIsPCIDeviceImpl(hostdev, VIR_TRISTATE_BOOL_NO);
 }
 
 

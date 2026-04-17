@@ -1382,6 +1382,33 @@ Block I/O Tuning
    ``write_iops_sec``
       Write I/O operations per second limit. :since:`Since 1.2.2`
 
+Host Device IOMMUFD
+-------------------
+
+::
+
+   <domain>
+     ...
+     <iommufd enabled='yes' fdgroup='iommu'/>
+     ...
+   </domain>
+
+``iommufd``
+   :since:`Since 12.2.0 (QEMU/KVM only)` The optional ``iommufd`` element with
+   mandatory ``enabled`` attribute can be used to enable IOMMUFD backend for
+   VFIO host devices. This provides an interface to propagate DMA mappings to
+   kernel for assigned devices. Libvirt will open the /dev/iommu and VFIO device
+   cdev and pass associated file descriptors to QEMU.
+
+   This controls IOMMUFD usage for all host devices, each device can change this
+   global default by setting ``iommufd`` attribute for ``driver`` element.
+
+   Optional ``fdgroup`` attribute can be used together with
+   `virDomainFDAssociate <html/libvirt-libvirt-domain.html#virDomainFDAssociate>`__
+   to pass /dev/iommu FD instead of letting libvirt to open it. Caller is
+   responsible for setting per-process locked memory accounting otherwise
+   starting multiple VMs with host devices using IOMMUFD may fail.
+
 Resource partitioning
 ---------------------
 
@@ -6689,11 +6716,14 @@ IPv6 the default prefix is 64. The optional ``peer`` attribute holds the IP
 address of the other end of a point-to-point network device
 :since:`(since 2.1.0)`.
 
-:since:`Since 1.2.12` route elements can also be added to define IP routes to
-add in the guest. The attributes of this element are described in the
-documentation for the ``route`` element in `network
-definitions <formatnetwork.html#static-routes>`__. This is used by the LXC
-driver.
+:since:`Since 1.2.12` route elements can also be added to define IP
+routes to add in the guest. The attributes of this element are
+described in the documentation for the ``route`` element in `network
+definitions <formatnetwork.html#static-routes>`__. This is used by the
+LXC driver for adding general routes within the container. :since:
+'Since 12.2.0' ``route`` elements are also user by the QEMU driver only in the
+case of a passt-based interface (``<backend type='passt'/>``) and only
+for default routes (done by specifying just the ``gateway``).
 
 ::
 
@@ -6799,6 +6829,7 @@ setting guest-side IP addresses with ``<ip>`` and port forwarding with
        <mac address='52:54:00:3b:83:1a'/>
        <source dev='enp1s0'/>
        <ip address='10.30.0.5' prefix='24'/>
+       <route gateway='10.30.0.1'/>
      </interface>
    </devices>
    ...

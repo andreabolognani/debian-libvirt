@@ -8,6 +8,76 @@ the changes introduced by each of them.
 For a more fine-grained view, use the `git log`_.
 
 
+v12.2.0 (2026-04-01)
+====================
+
+* **Removed features**
+
+  * qemu: Stop advertising support for ``handle`` backend of 9p filesystems
+
+    QEMU removed the feature in the 4.0 release, but our capability XML
+    still reported it.
+
+* **New features**
+
+  * qemu: Add support to configure IOMMUFD backend for whole VM
+
+    In addition to setting IOMMUFD backend for each device it is possible
+    to use the new ``<iommufd>`` element to enable IOMMUFD backend for all
+    host devices. Users can still change it per device.
+
+  * qemu: Add support to pass FD for IOMMUFD when starting VM
+
+    Management applications running unprivileged libvirt can open /dev/iommu
+    and pass FD to libvirt in order to change locked memory accounting.
+    This is done via new ``<iommufd>`` element.
+
+  * qemu: Add support for declaring that storage was zeroed for storage copy APIs
+
+    The qemu driver now can skip zeroing of the storage during
+    ``virDomainBlockCopy`` or migration with non-shared storage with the
+    appropriate flags. This can be used for storage technologies which lack
+    efficient zeroing support.
+
+  * hyperv: Add basic snapshot functionality
+
+    The hyperv driver now implements the following libvirt APIs:
+    ``virDomainDefineXMLFlags()``, ``virDomainSnapshotLookupByName()``,
+    ``virDomainListAllSnapshots()``, ``virDomainSnapshotNum()``,
+    ``virDomainSnapshotGetXMLDesc()``, ``virDomainSnapshotCurrent()``,
+    ``virDomainHasCurrentSnapshot()``, ``virDomainSnapshotGetParent()``.
+
+* **Improvements**
+
+  * conf: support more than 255 vCPUs with amd-iommu
+
+    With 256 or more vCPUs libvirt previously required EIM enabled for all
+    models of IOMMU. This is not valid for AMD model and validation was changed
+    so that XTSup is required there. Additionally, it is automatically enabled
+    if needed.
+
+  * Introduce VIR_CONNECT_GET_DOMAIN_CAPABILITIES_EXPAND_CPU_FEATURES flag
+
+    This new flag for virConnectGetDomainCapabilities can be used to request
+    the host-model CPU definition to include all supported features (normally
+    only extra features relative to the selected CPU model are listed).
+
+  * qemu: Add statistics for ``<dataStore>`` storage
+
+    The bulk statistics (``virsh domstats --block --backing``) now report also
+    information about the ``<dataStore>`` if given disk uses this feature.
+
+  * hyperv: Hyper-V guests now report TPM device status in their domain xml
+    definition.
+
+* **Bug fixes**
+
+  * qemu: Fix crash when attaching network inteface with hostdev network
+
+    Introduced in v12.1.0 by implementing IOMMUFD backend support for
+    host devices.
+
+
 v12.1.0 (2026-03-02)
 ====================
 

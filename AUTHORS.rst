@@ -344,6 +344,7 @@ Patches have also been contributed by:
 * Eli Qiao <liyong.qiao@intel.com>
 * Eli Qiao <taget@linux.vnet.ibm.com>
 * Elizaveta Tereshkina <etereshkina@astralinux.ru>
+* Elizaveta Tereshkina <teryoshkina.ea@gmail.com>
 * Emilio Herrera <ehespinosa57@gmail.com>
 * Enrique Llorente via Devel <devel@lists.libvirt.org>
 * Eric Blake <eblake@redhat.com>
@@ -593,6 +594,7 @@ Patches have also been contributed by:
 * Laurent Bigonville <bigon@bigon.be>
 * Laurent Léonard <laurent@open-minds.org>
 * lawrancejing <lawrancejing@gmail.com>
+* Leander Kohler <leander.kohler@cyberus-technology.de>
 * Léane GRASSER <leane.grasser@proton.me>
 * Lee Yarwood <lyarwood@redhat.com>
 * Leigh Brown <leigh@solinno.co.uk>
@@ -1048,6 +1050,7 @@ Patches have also been contributed by:
 * Xianglai Li <lixianglai@loongson.cn>
 * Xian Han Yu <xhyubj@linux.vnet.ibm.com>
 * Xiao Feng Ren <renxiaof@linux.vnet.ibm.com>
+* Xiaotian Feng <Xiaotian.Feng@amd.com>
 * Xing Lin <xinglin@cs.utah.edu>
 * xinhua.Cao <caoxinhua@huawei.com>
 * Xu Chao <xu.chao6@zte.com.cn>

@@ -1026,6 +1026,10 @@
       </optional>
 
       <optional>
+        <ref name="iommufd"/>
+      </optional>
+
+      <optional>
         <ref name="respartition"/>
       </optional>
     </interleave>
@@ -1365,6 +1369,17 @@
           </element>
         </zeroOrMore>
       </interleave>
+    </element>
+  </define>
+
+  <define name="iommufd">
+    <element name="iommufd">
+      <attribute name="enabled">
+        <ref name="virYesNo"/>
+      </attribute>
+      <optional>
+        <attribute name="fdgroup"/>
+      </optional>
     </element>
   </define>
 

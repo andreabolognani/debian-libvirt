@@ -3244,6 +3244,9 @@ struct _virDomainDef {
     virTristateSwitch apic_eoi;
     virDomainFeatureTCG *tcg_features;
 
+    virTristateBool iommufd;
+    char *iommufd_fdgroup;
+
     bool tseg_specified;
     unsigned long long tseg_size;
 
@@ -4675,6 +4678,9 @@ bool
 virDomainDefHasPCIHostdevWithIOMMUFD(const virDomainDef *def);
 
 bool
+virDomainDefHasPCIHostdevWithoutIOMMUFD(const virDomainDef *def);
+
+bool
 virDomainDefHasMdevHostdev(const virDomainDef *def);
 
 bool
@@ -4734,6 +4740,9 @@ virHostdevIsPCIDevice(const virDomainHostdevDef *hostdev)
     ATTRIBUTE_NONNULL(1);
 bool
 virHostdevIsPCIDeviceWithIOMMUFD(const virDomainHostdevDef *hostdev)
+    ATTRIBUTE_NONNULL(1);
+bool
+virHostdevIsPCIDeviceWithoutIOMMUFD(const virDomainHostdevDef *hostdev)
     ATTRIBUTE_NONNULL(1);
 
 void

@@ -78,7 +78,6 @@ mock_libs = [
   { 'name': 'virfilecachemock' },
   { 'name': 'virfirewallmock' },
   { 'name': 'virhostcpumock' },
-  { 'name': 'virhostdevmock' },
   { 'name': 'virnetdaemonmock' },
   { 'name': 'virnetdevmock' },
   { 'name': 'virnetserverclientmock' },
@@ -152,7 +151,10 @@ endif
 if conf.has('WITH_QEMU')
   test_utils_qemu_lib = static_library(
     'test_utils_qemu',
-    [ 'testutilsqemu.c', 'testutilsqemuschema.c' ],
+    [ 'qemufakedrivers.c',
+      'testutilsqemu.c',
+      'testutilsqemuschema.c',
+    ],
     dependencies: [ tests_dep ],
   )
 

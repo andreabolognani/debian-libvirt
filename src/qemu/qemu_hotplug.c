@@ -1134,20 +1134,19 @@ qemuDomainAttachDeviceDiskLive(virQEMUDriver *driver,
                                virDomainObj *vm,
                                virDomainDeviceDef *dev)
 {
-    virDomainDiskDef *disk = dev->data.disk;
     virDomainDiskDef *orig_disk = NULL;
 
     /* this API overloads media change semantics on disk hotplug
      * for devices supporting media changes */
-    if ((disk->device == VIR_DOMAIN_DISK_DEVICE_CDROM ||
-         disk->device == VIR_DOMAIN_DISK_DEVICE_FLOPPY) &&
-        (orig_disk = virDomainDiskByTarget(vm->def, disk->dst))) {
+    if ((dev->data.disk->device == VIR_DOMAIN_DISK_DEVICE_CDROM ||
+         dev->data.disk->device == VIR_DOMAIN_DISK_DEVICE_FLOPPY) &&
+        (orig_disk = virDomainDiskByTarget(vm->def, dev->data.disk->dst))) {
         if (qemuDomainChangeEjectableMedia(driver, vm, orig_disk,
-                                           disk->src, false) < 0)
+                                           dev->data.disk->src, false) < 0)
             return -1;
 
-        disk->src = NULL;
-        virDomainDiskDefFree(disk);
+        dev->data.disk->src = NULL;
+        g_clear_pointer(&dev->data.disk, virDomainDiskDefFree);
         return 0;
     }
 
@@ -1613,10 +1612,10 @@ qemuDomainAttachHostPCIDevice(virQEMUDriver *driver,
     }
 
     if (virHostdevIsPCIDeviceWithIOMMUFD(hostdev)) {
-        if (qemuProcessOpenVfioDeviceFd(hostdev) < 0)
+        if (qemuProcessOpenVfioDeviceFd(vm, hostdev) < 0)
             goto error;
 
-        if (!priv->iommufdState) {
+        if (!priv->iommufdState && !vm->def->iommufd_fdgroup) {
             if (qemuProcessOpenIommuFd(vm) < 0)
                 goto error;
 
@@ -1630,19 +1629,22 @@ qemuDomainAttachHostPCIDevice(virQEMUDriver *driver,
 
     qemuDomainObjEnterMonitor(vm);
 
-    if (objprops) {
-        if ((ret = qemuFDPassDirectTransferMonitor(priv->iommufd, priv->mon)) < 0)
-            goto exit_monitor;
 
-        if ((ret = qemuMonitorAddObject(priv->mon, &objprops, NULL)) < 0)
-            goto exit_monitor;
+    if (virHostdevIsPCIDeviceWithIOMMUFD(hostdev)) {
+        if (objprops) {
+            if ((ret = qemuFDPassDirectTransferMonitor(priv->iommufd, priv->mon)) < 0)
+                goto exit_monitor;
 
-        priv->iommufdState = true;
-        removeiommufd = true;
+            if ((ret = qemuMonitorAddObject(priv->mon, &objprops, NULL)) < 0)
+                goto exit_monitor;
+
+            priv->iommufdState = true;
+            removeiommufd = true;
+        }
+
+        if ((ret = qemuFDPassDirectTransferMonitor(hostdevPriv->vfioDeviceFd, priv->mon)) < 0)
+            goto exit_monitor;
     }
-
-    if ((ret = qemuFDPassDirectTransferMonitor(hostdevPriv->vfioDeviceFd, priv->mon)) < 0)
-        goto exit_monitor;
 
     if ((ret = qemuDomainAttachExtensionDevice(priv->mon, hostdev->info)) < 0)
         goto exit_monitor;
@@ -1674,15 +1676,19 @@ qemuDomainAttachHostPCIDevice(virQEMUDriver *driver,
     if (teardownmemlock && qemuDomainAdjustMaxMemLock(vm) < 0)
         VIR_WARN("Unable to reset maximum locked memory on hotplug fail");
 
-    qemuDomainObjEnterMonitor(vm);
+    if (virHostdevIsPCIDeviceWithIOMMUFD(hostdev)) {
+        qemuDomainObjEnterMonitor(vm);
 
-    if (removeiommufd)
-        ignore_value(qemuMonitorDelObject(priv->mon, "iommufd0", false));
+        if (removeiommufd) {
+            priv->iommufdState = false;
+            ignore_value(qemuMonitorDelObject(priv->mon, "iommufd0", false));
+        }
 
-    qemuFDPassDirectTransferMonitorRollback(hostdevPriv->vfioDeviceFd, priv->mon);
-    qemuFDPassDirectTransferMonitorRollback(priv->iommufd, priv->mon);
+        qemuFDPassDirectTransferMonitorRollback(hostdevPriv->vfioDeviceFd, priv->mon);
+        qemuFDPassDirectTransferMonitorRollback(priv->iommufd, priv->mon);
 
-    qemuDomainObjExitMonitor(vm);
+        qemuDomainObjExitMonitor(vm);
+    }
 
     if (releaseaddr)
         qemuDomainReleaseDeviceAddress(vm, info);
@@ -2887,7 +2893,7 @@ qemuDomainAttachHostDevice(virQEMUDriver *driver,
         return -1;
     }
 
-    if (qemuDomainPrepareHostdev(hostdev, vm->privateData) < 0)
+    if (qemuDomainPrepareHostdev(vm->def, hostdev, vm->privateData) < 0)
         return -1;
 
     switch (hostdev->source.subsys.type) {
@@ -3451,7 +3457,7 @@ qemuDomainAttachDeviceLive(virDomainObj *vm,
     case VIR_DOMAIN_DEVICE_DISK:
         qemuDomainObjCheckDiskTaint(driver, vm, dev->data.disk, NULL);
         ret = qemuDomainAttachDeviceDiskLive(driver, vm, dev);
-        if (!ret) {
+        if (ret == 0 && dev->data.disk) {
             alias = dev->data.disk->info.alias;
             dev->data.disk = NULL;
         }
@@ -5037,7 +5043,7 @@ qemuDomainRemoveHostDevice(virQEMUDriver *driver,
         }
     }
 
-    if (priv->iommufdState &&
+    if (priv->iommufdState && !vm->def->iommufd_fdgroup &&
         !virDomainDefHasPCIHostdevWithIOMMUFD(vm->def)) {
         qemuDomainObjEnterMonitor(vm);
         ignore_value(qemuMonitorDelObject(priv->mon, "iommufd0", false));

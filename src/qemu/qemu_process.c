@@ -6087,7 +6087,7 @@ qemuProcessPrepareDomainNetwork(virDomainObj *vm)
                 /* For hostdev present in qemuProcessPrepareDomain() phase this was
                  * done already, but this code runs after that, so we have to call
                  * it ourselves. */
-                if (qemuDomainPrepareHostdev(hostdev, priv) < 0)
+                if (qemuDomainPrepareHostdev(def, hostdev, priv) < 0)
                     return -1;
 
                 virDomainHostdevInsert(def, hostdev);
@@ -6875,7 +6875,7 @@ qemuProcessPrepareDomainHostdevs(virDomainObj *vm,
     for (i = 0; i < vm->def->nhostdevs; i++) {
         virDomainHostdevDef *hostdev = vm->def->hostdevs[i];
 
-        if (qemuDomainPrepareHostdev(hostdev, priv) < 0)
+        if (qemuDomainPrepareHostdev(vm->def, hostdev, priv) < 0)
             return -1;
     }
 
@@ -7728,12 +7728,59 @@ int
 qemuProcessOpenIommuFd(virDomainObj *vm)
 {
     qemuDomainObjPrivate *priv = vm->privateData;
-    int iommufd;
+    VIR_AUTOCLOSE iommufd = -1;
 
     VIR_DEBUG("Opening IOMMU FD for domain %s", vm->def->name);
 
-    if ((iommufd = virIOMMUFDOpenDevice()) < 0)
+    if ((iommufd = virIOMMUFDOpenDevice(priv->driver->privileged)) < 0)
         return -1;
+
+    if (qemuSecuritySetImageFDLabel(priv->driver->securityManager, vm->def, iommufd) < 0)
+        return -1;
+
+    priv->iommufd = qemuFDPassDirectNew("iommufd", &iommufd);
+
+    return 0;
+}
+
+/**
+ * qemuProcessGetPassedIommuFd:
+ * @vm: domain object
+ *
+ * Find passed FD via virDomainFDAssociate() API for the VM.
+ *
+ * Exported only to be used in tests.
+ *
+ * Returns: 0 on success, -1 on failure
+ */
+int
+qemuProcessGetPassedIommuFd(virDomainObj *vm)
+{
+    qemuDomainObjPrivate *priv = vm->privateData;
+    virDomainFDTuple *fdt = virHashLookup(priv->fds, vm->def->iommufd_fdgroup);
+    VIR_AUTOCLOSE iommufd = -1;
+
+    if (!fdt) {
+        virReportError(VIR_ERR_INVALID_ARG,
+                       _("file descriptor group '%1$s' was not associated with the domain"),
+                       vm->def->iommufd_fdgroup);
+        return -1;
+    }
+
+    if (fdt->nfds != 1) {
+        virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
+                       _("Only one file descriptor needs to be associated with iommufd"));
+        return -1;
+    }
+
+    if (fdt->testfds) {
+        iommufd = dup2(fdt->fds[0], fdt->testfds[0]);
+    } else {
+        iommufd = dup(fdt->fds[0]);
+
+        if (qemuSecuritySetImageFDLabel(priv->driver->securityManager, vm->def, iommufd) < 0)
+            return -1;
+    }
 
     priv->iommufd = qemuFDPassDirectNew("iommufd", &iommufd);
 
@@ -7749,14 +7796,19 @@ qemuProcessOpenIommuFd(virDomainObj *vm)
  * Returns: 0 on success, -1 on failure
  */
 int
-qemuProcessOpenVfioDeviceFd(virDomainHostdevDef *hostdev)
+qemuProcessOpenVfioDeviceFd(virDomainObj *vm,
+                            virDomainHostdevDef *hostdev)
 {
+    qemuDomainObjPrivate *priv = vm->privateData;
     qemuDomainHostdevPrivate *hostdevPriv = QEMU_DOMAIN_HOSTDEV_PRIVATE(hostdev);
     virDomainHostdevSubsysPCI *pci = &hostdev->source.subsys.u.pci;
     g_autofree char *name = g_strdup_printf("hostdev-%s-fd", hostdev->info->alias);
-    int vfioDeviceFd;
+    VIR_AUTOCLOSE vfioDeviceFd = -1;
 
     if ((vfioDeviceFd = virPCIDeviceOpenVfioFd(&pci->addr)) < 0)
+        return -1;
+
+    if (qemuSecuritySetImageFDLabel(priv->driver->securityManager, vm->def, vfioDeviceFd) < 0)
         return -1;
 
     hostdevPriv->vfioDeviceFd = qemuFDPassDirectNew(name, &vfioDeviceFd);
@@ -7776,7 +7828,7 @@ qemuProcessPrepareHostHostdev(virDomainObj *vm)
         case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_PCI:
             if (virHostdevIsPCIDeviceWithIOMMUFD(hostdev)) {
                 /* Open VFIO device FD */
-                if (qemuProcessOpenVfioDeviceFd(hostdev) < 0)
+                if (qemuProcessOpenVfioDeviceFd(vm, hostdev) < 0)
                     return -1;
             }
             break;
@@ -7790,9 +7842,12 @@ qemuProcessPrepareHostHostdev(virDomainObj *vm)
     }
 
     /* Open IOMMU FD */
-    if (virDomainDefHasPCIHostdevWithIOMMUFD(vm->def) &&
-        qemuProcessOpenIommuFd(vm) < 0) {
-        return -1;
+    if (vm->def->iommufd_fdgroup) {
+        if (qemuProcessGetPassedIommuFd(vm) < 0)
+            return -1;
+    } else if (virDomainDefHasPCIHostdevWithIOMMUFD(vm->def)) {
+        if (qemuProcessOpenIommuFd(vm) < 0)
+            return -1;
     }
 
     return 0;

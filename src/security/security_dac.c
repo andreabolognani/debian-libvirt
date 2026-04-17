@@ -41,7 +41,6 @@
 #include "virscsivhost.h"
 #include "virstring.h"
 #include "virutil.h"
-#include "viriommufd.h"
 
 #define VIR_FROM_THIS VIR_FROM_SECURITY
 
@@ -1234,7 +1233,6 @@ virSecurityDACSetHostdevLabel(virSecurityManager *mgr,
     virDomainHostdevSubsysSCSI *scsisrc = &dev->source.subsys.u.scsi;
     virDomainHostdevSubsysSCSIVHost *hostsrc = &dev->source.subsys.u.scsi_host;
     virDomainHostdevSubsysMediatedDev *mdevsrc = &dev->source.subsys.u.mdev;
-    int ret = -1;
 
     if (!priv->dynamicOwnership)
         return 0;
@@ -1265,9 +1263,11 @@ virSecurityDACSetHostdevLabel(virSecurityManager *mgr,
         if (!(usb = virUSBDeviceNew(usbsrc->bus, usbsrc->device, vroot)))
             return -1;
 
-        ret = virUSBDeviceFileIterate(usb,
-                                      virSecurityDACSetUSBLabel,
-                                      &cbdata);
+        if (virUSBDeviceFileIterate(usb,
+                                    virSecurityDACSetUSBLabel,
+                                    &cbdata) < 0) {
+            return -1;
+        }
         break;
     }
 
@@ -1275,7 +1275,7 @@ virSecurityDACSetHostdevLabel(virSecurityManager *mgr,
         g_autoptr(virPCIDevice) pci = NULL;
 
         if (!virPCIDeviceExists(&pcisrc->addr))
-            break;
+            return -1;
 
         pci = virPCIDeviceNew(&pcisrc->addr);
 
@@ -1283,31 +1283,24 @@ virSecurityDACSetHostdevLabel(virSecurityManager *mgr,
             return -1;
 
         if (pcisrc->driver.name == VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_VFIO) {
-            if (dev->source.subsys.u.pci.driver.iommufd != VIR_TRISTATE_BOOL_YES) {
+            if (virHostdevIsPCIDeviceWithoutIOMMUFD(dev)) {
                 g_autofree char *vfioGroupDev = virPCIDeviceGetIOMMUGroupDev(pci);
 
                 if (!vfioGroupDev)
                     return -1;
 
-                ret = virSecurityDACSetHostdevLabelHelper(vfioGroupDev,
-                                                          false,
-                                                          &cbdata);
-            } else {
-                g_autofree char *vfiofdDev = NULL;
-
-                if (virPCIDeviceGetVfioPath(pci, &vfiofdDev) < 0)
+                if (virSecurityDACSetHostdevLabelHelper(vfioGroupDev,
+                                                        false,
+                                                        &cbdata) < 0) {
                     return -1;
-
-                ret = virSecurityDACSetHostdevLabelHelper(vfiofdDev, false, &cbdata);
-                if (ret < 0)
-                    break;
-
-                ret = virSecurityDACSetHostdevLabelHelper(VIR_IOMMU_DEV_PATH, false, &cbdata);
+                }
             }
         } else {
-            ret = virPCIDeviceFileIterate(pci,
-                                          virSecurityDACSetPCILabel,
-                                          &cbdata);
+            if (virPCIDeviceFileIterate(pci,
+                                        virSecurityDACSetPCILabel,
+                                        &cbdata) < 0) {
+                return -1;
+            }
         }
         break;
     }
@@ -1323,9 +1316,11 @@ virSecurityDACSetHostdevLabel(virSecurityManager *mgr,
         if (!scsi)
             return -1;
 
-        ret = virSCSIDeviceFileIterate(scsi,
-                                       virSecurityDACSetSCSILabel,
-                                       &cbdata);
+        if (virSCSIDeviceFileIterate(scsi,
+                                     virSecurityDACSetSCSILabel,
+                                     &cbdata) < 0) {
+            return -1;
+        }
         break;
     }
 
@@ -1335,9 +1330,11 @@ virSecurityDACSetHostdevLabel(virSecurityManager *mgr,
         if (!host)
             return -1;
 
-        ret = virSCSIVHostDeviceFileIterate(host,
-                                            virSecurityDACSetHostLabel,
-                                            &cbdata);
+        if (virSCSIVHostDeviceFileIterate(host,
+                                          virSecurityDACSetHostLabel,
+                                          &cbdata) < 0) {
+            return -1;
+        }
         break;
     }
 
@@ -1347,16 +1344,16 @@ virSecurityDACSetHostdevLabel(virSecurityManager *mgr,
         if (!(vfiodev = virMediatedDeviceGetIOMMUGroupDev(mdevsrc->uuidstr)))
             return -1;
 
-        ret = virSecurityDACSetHostdevLabelHelper(vfiodev, false, &cbdata);
+        if (virSecurityDACSetHostdevLabelHelper(vfiodev, false, &cbdata) < 0)
+            return -1;
         break;
     }
 
     case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_LAST:
-        ret = 0;
         break;
     }
 
-    return ret;
+    return 0;
 }
 
 
@@ -1414,7 +1411,6 @@ virSecurityDACRestoreHostdevLabel(virSecurityManager *mgr,
     virDomainHostdevSubsysSCSI *scsisrc = &dev->source.subsys.u.scsi;
     virDomainHostdevSubsysSCSIVHost *hostsrc = &dev->source.subsys.u.scsi_host;
     virDomainHostdevSubsysMediatedDev *mdevsrc = &dev->source.subsys.u.mdev;
-    int ret = -1;
 
     secdef = virDomainDefGetSecurityLabelDef(def, SECURITY_DAC_NAME);
 
@@ -1441,7 +1437,8 @@ virSecurityDACRestoreHostdevLabel(virSecurityManager *mgr,
         if (!(usb = virUSBDeviceNew(usbsrc->bus, usbsrc->device, vroot)))
             return -1;
 
-        ret = virUSBDeviceFileIterate(usb, virSecurityDACRestoreUSBLabel, mgr);
+        if (virUSBDeviceFileIterate(usb, virSecurityDACRestoreUSBLabel, mgr) < 0)
+            return -1;
         break;
     }
 
@@ -1449,7 +1446,7 @@ virSecurityDACRestoreHostdevLabel(virSecurityManager *mgr,
         g_autoptr(virPCIDevice) pci = NULL;
 
         if (!virPCIDeviceExists(&pcisrc->addr))
-            break;
+            return -1;
 
         pci = virPCIDeviceNew(&pcisrc->addr);
 
@@ -1457,30 +1454,20 @@ virSecurityDACRestoreHostdevLabel(virSecurityManager *mgr,
             return -1;
 
         if (pcisrc->driver.name == VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_VFIO) {
-            if (dev->source.subsys.u.pci.driver.iommufd != VIR_TRISTATE_BOOL_YES) {
+            if (virHostdevIsPCIDeviceWithoutIOMMUFD(dev)) {
                 g_autofree char *vfioGroupDev = virPCIDeviceGetIOMMUGroupDev(pci);
 
                 if (!vfioGroupDev)
                     return -1;
 
-                ret = virSecurityDACRestoreFileLabelInternal(mgr, NULL,
-                                                         vfioGroupDev, false);
-            } else {
-                g_autofree char *vfiofdDev = NULL;
-
-                if (virPCIDeviceGetVfioPath(pci, &vfiofdDev) < 0)
+                if (virSecurityDACRestoreFileLabelInternal(mgr, NULL,
+                                                           vfioGroupDev, false) < 0) {
                     return -1;
-
-                ret = virSecurityDACRestoreFileLabelInternal(mgr, NULL,
-                                                             vfiofdDev, false);
-                if (ret < 0)
-                    break;
-
-                ret = virSecurityDACRestoreFileLabelInternal(mgr, NULL,
-                                                             VIR_IOMMU_DEV_PATH, false);
+                }
             }
         } else {
-            ret = virPCIDeviceFileIterate(pci, virSecurityDACRestorePCILabel, mgr);
+            if (virPCIDeviceFileIterate(pci, virSecurityDACRestorePCILabel, mgr) < 0)
+                return -1;
         }
         break;
     }
@@ -1496,7 +1483,8 @@ virSecurityDACRestoreHostdevLabel(virSecurityManager *mgr,
         if (!scsi)
             return -1;
 
-        ret = virSCSIDeviceFileIterate(scsi, virSecurityDACRestoreSCSILabel, mgr);
+        if (virSCSIDeviceFileIterate(scsi, virSecurityDACRestoreSCSILabel, mgr) < 0)
+            return -1;
         break;
     }
 
@@ -1506,9 +1494,11 @@ virSecurityDACRestoreHostdevLabel(virSecurityManager *mgr,
         if (!host)
             return -1;
 
-        ret = virSCSIVHostDeviceFileIterate(host,
-                                            virSecurityDACRestoreHostLabel,
-                                            mgr);
+        if (virSCSIVHostDeviceFileIterate(host,
+                                          virSecurityDACRestoreHostLabel,
+                                          mgr) < 0) {
+            return -1;
+        }
         break;
     }
 
@@ -1518,16 +1508,16 @@ virSecurityDACRestoreHostdevLabel(virSecurityManager *mgr,
         if (!(vfiodev = virMediatedDeviceGetIOMMUGroupDev(mdevsrc->uuidstr)))
             return -1;
 
-        ret = virSecurityDACRestoreFileLabelInternal(mgr, NULL, vfiodev, false);
+        if (virSecurityDACRestoreFileLabelInternal(mgr, NULL, vfiodev, false) < 0)
+            return -1;
         break;
     }
 
     case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_LAST:
-        ret = 0;
         break;
     }
 
-    return ret;
+    return 0;
 }
 
 

@@ -2335,18 +2335,18 @@ qemuDomainDiskPrivateFormat(virDomainDiskDef *disk,
     if (priv->nodeCopyOnRead || disk->nthrottlefilters > 0) {
         virBufferAddLit(buf, "<nodenames>\n");
         virBufferAdjustIndent(buf, 2);
-        if (priv->nodeCopyOnRead)
-            virBufferEscapeString(buf, "<nodename type='copyOnRead' name='%s'/>\n",
-                                  priv->nodeCopyOnRead);
+        virBufferEscapeString(buf,
+                              "<nodename type='copyOnRead' name='%s'/>\n",
+                              priv->nodeCopyOnRead);
         if (disk->nthrottlefilters > 0) {
             for (i = 0; i < disk->nthrottlefilters; i++) {
 
-                if (disk->throttlefilters[i]->nodename)
-                    virBufferEscapeString(buf, "<nodename type='throttle-filter' name='%s' ",
-                                          disk->throttlefilters[i]->nodename);
+                virBufferEscapeString(buf,
+                                      "<nodename type='throttle-filter' name='%s' ",
+                                      disk->throttlefilters[i]->nodename);
 
-                if (disk->throttlefilters[i]->group_name)
-                    virBufferEscapeString(buf, "group='%s'/>\n", disk->throttlefilters[i]->group_name);
+                virBufferEscapeString(buf, "group='%s'/>\n",
+                                      disk->throttlefilters[i]->group_name);
             }
         }
         virBufferAdjustIndent(buf, -2);
@@ -8259,8 +8259,14 @@ getPPC64MemLockLimitBytes(virDomainDef *def)
         passthroughLimit = maxMemory +
                            128 * (1ULL<<30) / 512 * nPCIHostBridges +
                            8192;
-    } else if (qemuDomainNeedsVFIO(def) || virDomainDefHasVDPANet(def)) {
-        /* For regular (non-NVLink2 present) VFIO passthrough, the value
+    } else if (virDomainDefHasPCIHostdev(def) ||
+               virDomainDefHasMdevHostdev(def) ||
+               virDomainDefHasNVMeDisk(def) ||
+               virDomainDefHasVDPANet(def)) {
+        /* Not using qemuDomainNeedsVFIO() as that doesn't take PCI host
+         * devices with IOMMFD into account.
+         *
+         * For regular (non-NVLink2 present) VFIO passthrough, the value
          * of passthroughLimit is:
          *
          * passthroughLimit := max( 2 GiB * #PHBs,                       (c)
@@ -9278,10 +9284,17 @@ qemuDomainSupportsVideoVga(const virDomainVideoDef *video,
 }
 
 
+/**
+ * qemuDomainNeedsVFIO:
+ * @def: domain definition to check
+ *
+ * Check the domain definition to figure out if QEMU needs access
+ * to /dev/vfio/vfio. It's not required if IOMMUFD is used.
+ */
 bool
 qemuDomainNeedsVFIO(const virDomainDef *def)
 {
-    return virDomainDefHasPCIHostdev(def) ||
+    return virDomainDefHasPCIHostdevWithoutIOMMUFD(def) ||
         virDomainDefHasMdevHostdev(def) ||
         virDomainDefHasNVMeDisk(def);
 }
@@ -9835,7 +9848,7 @@ qemuDomainPrepareStorageSourceFDs(virStorageSource *src,
 {
     qemuDomainStorageSourcePrivate *srcpriv = NULL;
     virStorageType actualType = virStorageSourceGetActualType(src);
-    virStorageSourceFDTuple *fdt = NULL;
+    virDomainFDTuple *fdt = NULL;
     size_t i;
 
     if (actualType != VIR_STORAGE_TYPE_FILE &&
@@ -10107,10 +10120,12 @@ qemuDomainPrepareHostdevSCSI(virDomainHostdevDef *hostdev,
 
 
 static int
-qemuDomainPrepareHostdevPCI(virDomainHostdevDef *hostdev,
+qemuDomainPrepareHostdevPCI(const virDomainDef *def,
+                            virDomainHostdevDef *hostdev,
                             virQEMUCaps *qemuCaps)
 {
     virDeviceHostdevPCIDriverName *driverName = &hostdev->source.subsys.u.pci.driver.name;
+    virDomainHostdevSubsysPCI *pcisrc = &hostdev->source.subsys.u.pci;
 
     /* assign defaults for hostdev passthrough */
     switch (*driverName) {
@@ -10147,12 +10162,16 @@ qemuDomainPrepareHostdevPCI(virDomainHostdevDef *hostdev,
         return -1;
     }
 
+    if (pcisrc->driver.iommufd == VIR_TRISTATE_BOOL_ABSENT)
+        pcisrc->driver.iommufd = def->iommufd;
+
     return 0;
 }
 
 
 int
-qemuDomainPrepareHostdev(virDomainHostdevDef *hostdev,
+qemuDomainPrepareHostdev(const virDomainDef *def,
+                         virDomainHostdevDef *hostdev,
                          qemuDomainObjPrivate *priv)
 {
     if (hostdev->mode != VIR_DOMAIN_HOSTDEV_MODE_SUBSYS)
@@ -10162,7 +10181,7 @@ qemuDomainPrepareHostdev(virDomainHostdevDef *hostdev,
     case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_SCSI:
         return qemuDomainPrepareHostdevSCSI(hostdev, priv);
     case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_PCI:
-        return qemuDomainPrepareHostdevPCI(hostdev, priv->qemuCaps);
+        return qemuDomainPrepareHostdevPCI(def, hostdev, priv->qemuCaps);
     case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_USB:
     case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_SCSI_HOST:
     case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_MDEV:

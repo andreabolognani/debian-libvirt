@@ -465,8 +465,16 @@ virNetDevIPRouteAdd(const char *ifname,
     g_autofree char *addrstr = NULL;
     g_autofree char *gatewaystr = NULL;
 
-    if (!(addrstr = virSocketAddrFormat(addr)))
-        return -1;
+    if (VIR_SOCKET_ADDR_VALID(addr)) {
+        if (!(addrstr = virSocketAddrFormat(addr)))
+            return -1;
+    } else {
+        if (VIR_SOCKET_ADDR_IS_FAMILY(gateway, AF_INET6))
+            addrstr = g_strdup(VIR_SOCKET_ADDR_IPV6_ALL);
+        else
+            addrstr = g_strdup(VIR_SOCKET_ADDR_IPV4_ALL);
+    }
+
     if (!(gatewaystr = virSocketAddrFormat(gateway)))
         return -1;
     cmd = virCommandNew("ip");
@@ -538,10 +546,6 @@ virNetDevIPCheckIPv6Forwarding(void)
                        PROC_NET_IPV6_ROUTE);
         return false;
     }
-
-    /* Dropping the last character to stop the loop */
-    if (len > 0)
-        buf[len-1] = '\0';
 
     cur = buf;
     while (cur) {
@@ -776,7 +780,7 @@ virNetDevIPRouteGetAddress(virNetDevIPRoute *def)
 }
 
 int
-virNetDevIPRouteGetPrefix(virNetDevIPRoute *def)
+virNetDevIPRouteGetPrefix(const virNetDevIPRoute *def)
 {
     int prefix = 0;
     virSocketAddr zero;

@@ -782,6 +782,9 @@ virHostdevPreparePCIDevicesImpl(virHostdevManager *mgr,
         }
     }
 
+    /* Step 2.5: Wait for udev to handle all events for devices. */
+    virWaitForDevices();
+
     /* At this point, all devices are attached to the stub driver and have
      * been marked as inactive */
 
@@ -2533,10 +2536,17 @@ virHostdevUpdateActiveNVMeDevices(virHostdevManager *hostdev_mgr,
     goto cleanup;
 }
 
+/**
+ * virHostdevNeedsVFIO:
+ * @hostdev: host device to check
+ *
+ * Returns true if using the @hostdev requires access to /dev/vfio/vfio,
+ * otherwise false.
+ */
 bool
 virHostdevNeedsVFIO(const virDomainHostdevDef *hostdev)
 {
-    return virHostdevIsPCIDevice(hostdev) ||
+    return virHostdevIsPCIDeviceWithoutIOMMUFD(hostdev) ||
         virHostdevIsMdevDevice(hostdev);
 }
 

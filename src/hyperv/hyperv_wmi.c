@@ -513,13 +513,13 @@ hypervSerializeEprParam(hypervParam *p, hypervPrivate *priv,
         return -1;
     }
 
-    if (!ws_xml_ns_add(xmlNodeParam, "http://schemas.xmlsoap.org/ws/2004/08/addressing", "a")) {
+    if (!ws_xml_ns_add(xmlNodeParam, XML_NS_ADDRESSING, "a")) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        _("Could not set namespace address for xmlNodeParam"));
         return -1;
     }
 
-    if (!ws_xml_ns_add(xmlNodeParam, "http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd", "w")) {
+    if (!ws_xml_ns_add(xmlNodeParam, XML_NS_WS_MAN, "w")) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        _("Could not set wsman namespace address for xmlNodeParam"));
         return -1;
@@ -548,7 +548,7 @@ hypervSerializeEmbeddedParam(hypervParam *p, const char *resourceUri,
     hypervWmiClassInfo *classInfo = p->embedded.info;
     g_autofree virHashKeyValuePair *items = NULL;
     hypervCimType *property = NULL;
-    ssize_t numKeys = -1;
+    size_t numKeys = 0;
     int len = 0, i = 0;
 
     if (!(xmlNodeParam = ws_xml_add_child(*methodNode, resourceUri, p->embedded.name,
@@ -582,8 +582,7 @@ hypervSerializeEmbeddedParam(hypervParam *p, const char *resourceUri,
     }
 
     /* retrieve parameters out of hash table */
-    numKeys = virHashSize(p->embedded.table);
-    items = virHashGetItems(p->embedded.table, NULL, false);
+    items = virHashGetItems(p->embedded.table, &numKeys, false);
     if (!items) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        _("Could not read embedded param hash table"));
@@ -1406,6 +1405,26 @@ hypervGetMsvmVirtualSystemSettingDataFromUUID(hypervPrivate *priv,
 }
 
 
+int
+hypervGetDomainSnapshotsSD(hypervPrivate *priv,
+                           const char *domain_uuid_string,
+                           Msvm_VirtualSystemSettingData **list)
+{
+    g_auto(virBuffer) query = VIR_BUFFER_INITIALIZER;
+
+    virBufferAsprintf(&query,
+                      "ASSOCIATORS OF {Msvm_ComputerSystem.CreationClassName='Msvm_ComputerSystem',Name='%s'} "
+                      "WHERE AssocClass = Msvm_SnapshotOfVirtualSystem "
+                      "ResultClass = Msvm_VirtualSystemSettingData",
+                      domain_uuid_string);
+
+    if (hypervGetWmiClass(Msvm_VirtualSystemSettingData, list) < 0)
+        return -1;
+
+    return 0;
+}
+
+
 #define hypervGetSettingData(type, id, out) \
     g_auto(virBuffer) query = VIR_BUFFER_INITIALIZER; \
     virBufferEscapeSQL(&query, \
@@ -1622,6 +1641,32 @@ hypervMsvmVSMSModifyResourceSettings(hypervPrivate *priv,
 
     if (hypervInvokeMethod(priv, &params, NULL) < 0)
         return -1;
+
+    return 0;
+}
+
+
+int
+hypervGetSecuritySD(hypervPrivate *priv,
+                    const char *vssd_instanceid,
+                    Msvm_SecuritySettingData **data)
+{
+    g_auto(virBuffer) query = VIR_BUFFER_INITIALIZER;
+
+    virBufferEscapeSQL(&query,
+                       "ASSOCIATORS OF {Msvm_VirtualSystemSettingData.InstanceID='%s'} "
+                       "WHERE ResultClass = Msvm_SecuritySettingData",
+                       vssd_instanceid);
+
+    if (hypervGetWmiClass(Msvm_SecuritySettingData, data) < 0)
+        return -1;
+
+    if (!*data) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("Could not look up security setting data with virtual system instance ID '%1$s'"),
+                       vssd_instanceid);
+        return -1;
+    }
 
     return 0;
 }
