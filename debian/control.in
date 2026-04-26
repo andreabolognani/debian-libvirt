@@ -92,12 +92,10 @@ Description: virtualization library - clients
 
 Package: libvirt-clients-qemu
 Section: admin
-Architecture: all
+Architecture: ${ARCHES_QEMU}
 Depends:
- libvirt-common (<< ${source:Version}.1~),
- libvirt-common (>= ${source:Version}),
- libvirt0 (<< ${source:Version}.1~),
- libvirt0 (>= ${source:Version}),
+ libvirt-common (= ${binary:Version}),
+ libvirt0 (= ${binary:Version}),
  python3-cryptography,
  python3-libvirt,
  python3-lxml,

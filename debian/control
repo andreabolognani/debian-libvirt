@@ -96,12 +96,10 @@ Description: virtualization library - clients
 
 Package: libvirt-clients-qemu
 Section: admin
-Architecture: all
+Architecture: amd64 arm64 armel armhf i386 loong64 mips64el mipsel powerpc ppc64 ppc64el riscv64 s390x sparc64 x32
 Depends:
- libvirt-common (<< ${source:Version}.1~),
- libvirt-common (>= ${source:Version}),
- libvirt0 (<< ${source:Version}.1~),
- libvirt0 (>= ${source:Version}),
+ libvirt-common (= ${binary:Version}),
+ libvirt0 (= ${binary:Version}),
  python3-cryptography,
  python3-libvirt,
  python3-lxml,
