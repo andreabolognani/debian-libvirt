@@ -1,6 +1,6 @@
 ARCHES_CEPH = amd64 arm64 loong64 mips64el ppc64el riscv64 s390x
 ARCHES_GLUSTER = amd64 arm64 ia64 loong64 mips64el ppc64 ppc64el riscv64 s390x sparc64
-ARCHES_QEMU = amd64 arm64 armel armhf i386 loong64 mips64el mipsel powerpc ppc64 ppc64el riscv64 s390x sparc64 x32
+ARCHES_QEMU = amd64 arm64 loong64 mips64el ppc64 ppc64el riscv64 s390x sparc64
 ARCHES_XEN = amd64 arm64
 ARCHES_VBOX = amd64 i386
 ARCHES_DMIDECODE = amd64 arm64 armhf i386 riscv64 loong64 x32

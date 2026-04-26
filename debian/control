@@ -52,7 +52,7 @@ Build-Depends:
  po-debconf,
  python3-docutils,
  python3:native,
- qemu-utils [amd64 arm64 armel armhf i386 loong64 mips64el mipsel powerpc ppc64 ppc64el riscv64 s390x sparc64 x32],
+ qemu-utils [amd64 arm64 loong64 mips64el ppc64 ppc64el riscv64 s390x sparc64],
  systemtap-sdt-dev [linux-any],
  xsltproc,
 Vcs-Git: https://salsa.debian.org/libvirt-team/libvirt.git
@@ -72,7 +72,7 @@ Depends:
  ${misc:Depends},
  ${shlibs:Depends},
 Suggests:
- libvirt-clients-qemu (= ${source:Version}) [amd64 arm64 armel armhf i386 loong64 mips64el mipsel powerpc ppc64 ppc64el riscv64 s390x sparc64 x32],
+ libvirt-clients-qemu (= ${source:Version}) [amd64 arm64 loong64 mips64el ppc64 ppc64el riscv64 s390x sparc64],
  libvirt-daemon (= ${binary:Version}) [linux-any],
  libvirt-login-shell (= ${binary:Version}) [linux-any],
 Breaks:
@@ -96,7 +96,7 @@ Description: virtualization library - clients
 
 Package: libvirt-clients-qemu
 Section: admin
-Architecture: amd64 arm64 armel armhf i386 loong64 mips64el mipsel powerpc ppc64 ppc64el riscv64 s390x sparc64 x32
+Architecture: amd64 arm64 loong64 mips64el ppc64 ppc64el riscv64 s390x sparc64
 Depends:
  libvirt-common (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
@@ -131,7 +131,7 @@ Recommends:
  libvirt-daemon-driver-network (= ${binary:Version}),
  libvirt-daemon-driver-nodedev (= ${binary:Version}),
  libvirt-daemon-driver-nwfilter (= ${binary:Version}),
- libvirt-daemon-driver-qemu (= ${binary:Version}) [amd64 arm64 armel armhf i386 loong64 mips64el mipsel powerpc ppc64 ppc64el riscv64 s390x sparc64 x32],
+ libvirt-daemon-driver-qemu (= ${binary:Version}) [amd64 arm64 loong64 mips64el ppc64 ppc64el riscv64 s390x sparc64],
  libvirt-daemon-driver-secret (= ${binary:Version}),
  libvirt-daemon-driver-storage (= ${binary:Version}),
  libvirt-daemon-driver-storage-disk (= ${binary:Version}),
@@ -267,7 +267,7 @@ Homepage: https://libvirt.org/daemons.html#locking-daemon
 
 Package: libvirt-daemon-driver-qemu
 Section: admin
-Architecture: amd64 arm64 armel armhf i386 loong64 mips64el mipsel powerpc ppc64 ppc64el riscv64 s390x sparc64 x32
+Architecture: amd64 arm64 loong64 mips64el ppc64 ppc64el riscv64 s390x sparc64
 Multi-Arch: no
 Depends:
  libvirt-common (= ${binary:Version}),
@@ -807,7 +807,7 @@ Homepage: https://libvirt.org/kbase/locking-sanlock.html
 
 Package: libvirt-daemon-system
 Section: admin
-Architecture: amd64 arm64 armel armhf i386 loong64 mips64el mipsel powerpc ppc64 ppc64el riscv64 s390x sparc64 x32
+Architecture: amd64 arm64 loong64 mips64el ppc64 ppc64el riscv64 s390x sparc64
 Depends:
  libvirt-clients (= ${binary:Version}),
  libvirt-common (= ${binary:Version}),
@@ -818,7 +818,7 @@ Depends:
  libvirt-daemon-driver-network (= ${binary:Version}),
  libvirt-daemon-driver-nodedev (= ${binary:Version}),
  libvirt-daemon-driver-nwfilter (= ${binary:Version}),
- libvirt-daemon-driver-qemu (= ${binary:Version}) [amd64 arm64 armel armhf i386 loong64 mips64el mipsel powerpc ppc64 ppc64el riscv64 s390x sparc64 x32],
+ libvirt-daemon-driver-qemu (= ${binary:Version}) [amd64 arm64 loong64 mips64el ppc64 ppc64el riscv64 s390x sparc64],
  libvirt-daemon-driver-secret (= ${binary:Version}),
  libvirt-daemon-driver-storage (= ${binary:Version}),
  libvirt-daemon-log (= ${binary:Version}),
