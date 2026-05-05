@@ -3334,7 +3334,7 @@ qemuDomainAttachFSDevice(virQEMUDriver *driver,
     virErrorPtr origErr = NULL;
     bool releaseaddr = false;
     bool chardevAdded = false;
-    bool started = false;
+    bool startCalled = false;
     g_autofree char *charAlias = NULL;
     int ret = -1;
 
@@ -3361,17 +3361,15 @@ qemuDomainAttachFSDevice(virQEMUDriver *driver,
     if (!(devprops = qemuBuildVHostUserFsDevProps(fs, vm->def, charAlias, priv)))
         goto cleanup;
 
-    if (!fs->sock) {
-        if (qemuVirtioFSPrepareDomain(driver, fs) < 0)
-            goto cleanup;
+    if (qemuVirtioFSPrepareDomain(driver, fs) < 0)
+        goto cleanup;
 
-        if (qemuVirtioFSStart(driver, vm, fs) < 0)
-            goto cleanup;
-        started = true;
+    if (qemuVirtioFSStart(driver, vm, fs) < 0)
+        goto cleanup;
+    startCalled = true;
 
-        if (qemuVirtioFSSetupCgroup(vm, fs, priv->cgroup) < 0)
-            goto cleanup;
-    }
+    if (qemuVirtioFSSetupCgroup(vm, fs, priv->cgroup) < 0)
+        goto cleanup;
 
     qemuDomainObjEnterMonitor(vm);
 
@@ -3400,7 +3398,7 @@ qemuDomainAttachFSDevice(virQEMUDriver *driver,
         virErrorPreserveLast(&origErr);
         if (releaseaddr)
             qemuDomainReleaseDeviceAddress(vm, &fs->info);
-        if (started)
+        if (startCalled)
             qemuVirtioFSStop(driver, vm, fs);
         virErrorRestore(&origErr);
     }
@@ -3808,6 +3806,12 @@ qemuDomainChangeNet(virQEMUDriver *driver,
         goto cleanup;
     }
 
+    if (olddev->backend.type != newdev->backend.type) {
+        virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
+                       _("cannot change backend type of network interface"));
+        goto cleanup;
+    }
+
     /* Check individual attributes for changes that can't be done to a
      * live netdev. These checks *mostly* go in order of the
      * declarations in virDomainNetDef in order to assure nothing is
@@ -4123,6 +4127,27 @@ qemuDomainChangeNet(virQEMUDriver *driver,
             break;
 
         case VIR_DOMAIN_NET_TYPE_VHOSTUSER:
+            /* The path the to vhostuser socket and its parameters
+             * can't be changed, but in the case of a PASST backend
+             * using vhostuser, all of those parameters are internally
+             * generated anyway, so the user wouldn't be able to
+             * specify them in the updated XML and thus we skip the
+             * check here.
+             */
+            if (newdev->backend.type == VIR_DOMAIN_NET_BACKEND_PASST)
+                break;
+
+            if (STRNEQ_NULLABLE(olddev->data.vhostuser->data.nix.path, newdev->data.vhostuser->data.nix.path) ||
+                olddev->data.vhostuser->data.nix.listen != newdev->data.vhostuser->data.nix.listen ||
+                olddev->data.vhostuser->data.nix.reconnect.enabled != newdev->data.vhostuser->data.nix.reconnect.enabled ||
+                olddev->data.vhostuser->data.nix.reconnect.timeout != newdev->data.vhostuser->data.nix.reconnect.timeout) {
+                virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
+                               _("unable to change socket config on '%1$s' network type"),
+                               virDomainNetTypeToString(newdev->type));
+                goto cleanup;
+            }
+            break;
+
         case VIR_DOMAIN_NET_TYPE_HOSTDEV:
         case VIR_DOMAIN_NET_TYPE_VDPA:
         case VIR_DOMAIN_NET_TYPE_NULL:
@@ -5506,7 +5531,7 @@ qemuDomainRemoveFSDevice(virQEMUDriver *driver,
     if (rc < 0)
         return -1;
 
-    if (!fs->sock && fs->fsdriver == VIR_DOMAIN_FS_DRIVER_TYPE_VIRTIOFS)
+    if (fs->fsdriver == VIR_DOMAIN_FS_DRIVER_TYPE_VIRTIOFS)
         qemuVirtioFSStop(driver, vm, fs);
 
     if ((idx = virDomainFSDefFind(vm->def, fs)) >= 0)

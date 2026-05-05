@@ -2244,7 +2244,7 @@ virVMXGenerateDiskTarget(virDomainDiskDef *def,
             return -1;
         }
 
-        idx = controllerOrBus * 15 + (unit < 7 ? unit : unit - 1);
+        idx = controllerOrBus * (vmdef->scsiBusMaxUnit - 1) + (unit < 7 ? unit : unit - 1);
         prefix = "sd";
         break;
 

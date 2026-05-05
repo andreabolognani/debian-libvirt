@@ -8,6 +8,78 @@ the changes introduced by each of them.
 For a more fine-grained view, use the `git log`_.
 
 
+v12.3.0 (2026-05-02)
+====================
+
+* **New features**
+
+  * bhyve: Add blkiotune support
+
+    The bhyve driver now supports guest I/O throttling configuration::
+
+     <blkiotune>
+       <device>
+         <path>*</path>
+         <read_iops_sec>20000</read_iops_sec>
+         <write_iops_sec>20000</write_iops_sec>
+         <read_bytes_sec>10000</read_bytes_sec>
+         <write_bytes_sec>10000</write_bytes_sec>
+       </device>
+     </blkiotune>
+
+    It uses the ``rctl(4)`` framework to apply these limits.
+
+  * bhyve: Implement ``virDomainInterfaceAddresses()`` and ``virDomainGetHostname()``
+
+    The bhyve driver now implements APIs allowing to fetch address of
+    VM's interfaces (accessible via ``virsh domifaddr``) and the hostname
+    of the VM (``virsh domhostname``).
+
+  * hyperv: Implement ``virDomainGetGuestInfo()``
+
+    The hyperv driver now implements API for fetching guest information
+    (``virsh guestinfo``).
+
+* **Improvements**
+
+  * security: Don't error out on security labels of type='none'
+
+    Previously, libvirt reported an error if a domain with seclabel of
+    type='none' (meaning do not take this security model into account for this
+    domain) was being started and the model wasn't available (for instance, in
+    case of SELinux it was disabled at boot).
+
+  * Allow for multiple PCI root buses, not just for a single one numbered '0'
+
+    `virPCIDeviceReset()` and `virPCIDeviceIsBehindSwitchLackingACS()` no
+    longer use a hardcoded check (e.g bus == 0 ) to determine if a device is
+    attached to a "root bus". This allows for better support on more complex
+    PCI topologies.
+
+  * Add mechanism to prevent accidental shrink of device with ``virsh blockresize``
+
+    A new flag ``VIR_DOMAIN_BLOCK_RESIZE_EXTEND`` was introduced which prevents
+    accidental shrinking of the block device of the VM. The flag is exposed
+    as ``virsh blockresize --extend``.
+
+  * Expose ``MemAvailable`` field from kernel's meminfo as ``VIR_NODE_MEMORY_STATS_AVAILABLE``
+
+* **Bug fixes**
+
+  * virnetdevmacvlan: Wait for udev to settle after creating macvtap
+
+    When starting a domain with a macvtap device (or when hotplugging one),
+    libvirt creates the device and opens its ``/dev`` representation in order
+    to set it according to the ``<interface/>`` XML (e.g. MAC address, queues,
+    etc.). But if the system is under heavy load, it might happen that after
+    the device creation the udev daemon was triggered, but did not have enough
+    time to set the ``/dev`` representation fully. This may result in various
+    misconfiguration or even failed ``open()``. Therefore, libvirt waits after
+    device creation for udev daemon to settle down.
+
+  * apparmor: Don't drop macvtap devices from profile on blockjobs
+
+
 v12.2.0 (2026-04-01)
 ====================
 

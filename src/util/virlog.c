@@ -116,7 +116,7 @@ static void virLogOutputToFd(virLogSource *src,
                              int linenr,
                              const char *funcname,
                              const char *timestamp,
-                             struct _virLogMetadata *metadata,
+                             virLogMetadata *metadata,
                              const char *rawstr,
                              const char *str,
                              void *data);
@@ -178,7 +178,7 @@ virLogSetDefaultOutputToFile(const char *binary, bool privileged)
         old_umask = umask(077);
         if (g_mkdir_with_parents(logdir, 0777) < 0) {
             umask(old_umask);
-            virReportSystemError(errno, "%s", _("Could not create log directory"));
+            virReportSystemError(errno, _("Could not create log directory '%1$s'"), logdir);
             return -1;
         }
         umask(old_umask);
@@ -434,30 +434,6 @@ virLogFormatString(char **msg,
 
 
 static void
-virLogVersionString(const char **rawmsg,
-                    char **msg)
-{
-    *rawmsg = VIR_LOG_VERSION_STRING;
-    virLogFormatString(msg, 0, NULL, VIR_LOG_INFO, VIR_LOG_VERSION_STRING);
-}
-
-/* Similar to virGetHostname() but avoids use of error
- * reporting APIs or logging APIs, to prevent recursion
- */
-static void
-virLogHostnameString(char **rawmsg,
-                     char **msg)
-{
-    char *hoststr;
-
-    hoststr = g_strdup_printf("hostname: %s", g_get_host_name());
-
-    virLogFormatString(msg, 0, NULL, VIR_LOG_INFO, hoststr);
-    *rawmsg = hoststr;
-}
-
-
-static void
 virLogSourceUpdate(virLogSource *source)
 {
     virLogLock();
@@ -476,6 +452,135 @@ virLogSourceUpdate(virLogSource *source)
         source->serial = virLogFiltersSerial;
     }
     virLogUnlock();
+}
+
+
+/**
+ * virLogOneInitMsg:
+ *
+ *  @str:    the "raw" form of the string that's going to be logged
+ *
+ * (the args are all described in the caller - virLogToOneTarget()
+ * @timestamp,@outputFunc, @data
+ *
+ * send one "init message" (the lines that are at the beginning of the
+ * log when a new daemon starts) to one target. This just creates the
+ * "fancy" version of the string with thread-id and priority, and
+ * sends that, along with the "raw" version of the string, to the log
+ * target at INFO level.
+ */
+static void
+virLogOneInitMsg(const char *timestamp,
+                 const char *str,
+                 virLogOutputFunc outputFunc,
+                 void *data)
+{
+    g_autofree char *msg = NULL;
+
+    virLogFormatString(&msg, 0, NULL, VIR_LOG_INFO, str);
+    outputFunc(&virLogSelf, VIR_LOG_INFO, __FILE__, __LINE__, __func__,
+               timestamp, NULL, str, msg, data);
+}
+
+
+/**
+ * virLogToOneTarget:
+ *
+ * (these first several args are coming directly from the args of
+ * virLogVMessage() - you can find their description there)
+ *
+ * @source, @priority, @filename, @linenr, @funcname, @metadata:
+ *
+ * (the next 3 are created once during each call to virLogMMessage() and reused
+ * for each target)
+ *
+ * @timestamp:   cached (during this one log to multiple targets) raw time
+ * @str:         the log message formatted from what appears in the VIR_*()
+                 or virReport*() call
+ * @msg:         the formatted log message with function name, line number, and
+ *               priority added
+ *
+ * @outputFunc:  pointer to function to call to output the data
+ * @data:        private data used by @outputFunc (e.g. fd to write to)
+ * @needInit:    pointer to bool that gets set to false once the
+ *               once-per-daemon-run init message has been sent to this target
+ *
+ * If needInit is true, construct the strings to send the "init"
+ * message (a banner with software version, etc) to the log target
+ * using @outputFunc and set @needInit to false. Then send the current
+ * log message to the target (described by the other args) using
+ * @outputFunc.
+ */
+static void
+virLogToOneTarget(virLogSource *source,
+                  virLogPriority priority,
+                  const char *filename,
+                  int linenr,
+                  const char *funcname,
+                  virLogMetadata *metadata,
+                  const char *timestamp,
+                  const char *str,
+                  const char *msg,
+                  virLogOutputFunc outputFunc,
+                  void *data,
+                  bool *needInit)
+{
+    if (*needInit) {
+        uid_t uid = geteuid();
+        g_autofree char *hoststr = NULL;
+
+        /* put some useful info at the top of the log. Avoid calling
+         * any function that might end up reporting an error or
+         * otherwise logging something, to prevent recursion.
+         */
+        virLogOneInitMsg(timestamp, VIR_LOG_VERSION_STRING, outputFunc, data);
+
+        hoststr = g_strdup_printf("hostname: %s, uid: %u",
+                                  g_get_host_name(), (unsigned int)uid);
+        virLogOneInitMsg(timestamp, hoststr, outputFunc, data);
+
+        /* This info is only relevant when running as something other than root */
+        if (uid != 0) {
+            g_autofree char *envHOME = NULL;
+            g_autofree char *envXDG_RUNTIME_DIR = NULL;
+            g_autofree char *envXDG_CONFIG_HOME = NULL;
+            g_autofree char *envXDG_CACHE_HOME = NULL;
+
+            g_autofree char *envstr1 = NULL;
+            g_autofree char *envstr2 = NULL;
+            g_autofree char *envstr3 = NULL;
+            g_autofree char *envstr4 = NULL;
+
+            if (!(envHOME = g_strdup(g_getenv("HOME"))))
+                envHOME = g_strdup("(unset)");
+            if (!(envXDG_RUNTIME_DIR = g_strdup(g_getenv("XDG_RUNTIME_DIR"))))
+                envXDG_RUNTIME_DIR = g_strdup("(unset)");
+            if (!(envXDG_CONFIG_HOME = g_strdup(g_getenv("XDG_CONFIG_HOME"))))
+                envXDG_CONFIG_HOME = g_strdup("(unset)");
+            if (!(envXDG_CACHE_HOME = g_strdup(g_getenv("XDG_CACHE_HOME"))))
+                envXDG_CACHE_HOME = g_strdup("(unset)");
+
+            envstr1 = g_strdup_printf("home dir: '%s' (HOME='%s')",
+                                      g_get_home_dir(), envHOME);
+            virLogOneInitMsg(timestamp, envstr1, outputFunc, data);
+
+            envstr2 = g_strdup_printf("runtime dir: '%s' (XDG_RUNTIME_DIR='%s')",
+                                      g_get_user_runtime_dir(), envXDG_RUNTIME_DIR);
+            virLogOneInitMsg(timestamp, envstr2, outputFunc, data);
+
+            envstr3 = g_strdup_printf("config dir: '%s' (XDG_CONFIG_HOME='%s')",
+                                      g_get_user_config_dir(), envXDG_CONFIG_HOME);
+            virLogOneInitMsg(timestamp, envstr3, outputFunc, data);
+
+            envstr4 = g_strdup_printf("log dir: '%s' (XDG_CACHE_HOME='%s')",
+                                      g_get_user_cache_dir(), envXDG_CACHE_HOME);
+            virLogOneInitMsg(timestamp, envstr4, outputFunc, data);
+        }
+        *needInit = false;
+    }
+
+    outputFunc(source, priority, filename, linenr, funcname,
+               timestamp, metadata, str, msg, data);
 }
 
 
@@ -500,7 +605,7 @@ virLogVMessage(virLogSource *source,
                const char *filename,
                int linenr,
                const char *funcname,
-               struct _virLogMetadata *metadata,
+               virLogMetadata *metadata,
                const char *fmt,
                va_list vargs)
 {
@@ -548,57 +653,19 @@ virLogVMessage(virLogSource *source,
      */
     for (i = 0; i < virLogNbOutputs; i++) {
         if (priority >= virLogOutputs[i]->priority) {
-            if (virLogOutputs[i]->logInitMessage) {
-                const char *rawinitmsg;
-                char *hoststr = NULL;
-                char *initmsg = NULL;
-                virLogVersionString(&rawinitmsg, &initmsg);
-                virLogOutputs[i]->f(&virLogSelf, VIR_LOG_INFO,
-                                    __FILE__, __LINE__, __func__,
-                                    timestamp, NULL, rawinitmsg, initmsg,
-                                    virLogOutputs[i]->data);
-                VIR_FREE(initmsg);
-
-                virLogHostnameString(&hoststr, &initmsg);
-                virLogOutputs[i]->f(&virLogSelf, VIR_LOG_INFO,
-                                    __FILE__, __LINE__, __func__,
-                                    timestamp, NULL, hoststr, initmsg,
-                                    virLogOutputs[i]->data);
-                VIR_FREE(hoststr);
-                VIR_FREE(initmsg);
-                virLogOutputs[i]->logInitMessage = false;
-            }
-            virLogOutputs[i]->f(source, priority,
-                                filename, linenr, funcname,
-                                timestamp, metadata,
-                                str, msg, virLogOutputs[i]->data);
+            virLogToOneTarget(source, priority, filename, linenr, funcname, metadata,
+                              timestamp, str, msg,
+                              virLogOutputs[i]->f,
+                              virLogOutputs[i]->data,
+                              &virLogOutputs[i]->logInitMessage);
         }
     }
     if (virLogNbOutputs == 0) {
-        if (logInitMessageStderr) {
-            const char *rawinitmsg;
-            char *hoststr = NULL;
-            char *initmsg = NULL;
-            virLogVersionString(&rawinitmsg, &initmsg);
-            virLogOutputToFd(&virLogSelf, VIR_LOG_INFO,
-                             __FILE__, __LINE__, __func__,
-                             timestamp, NULL, rawinitmsg, initmsg,
-                             (void *) STDERR_FILENO);
-            VIR_FREE(initmsg);
-
-            virLogHostnameString(&hoststr, &initmsg);
-            virLogOutputToFd(&virLogSelf, VIR_LOG_INFO,
-                             __FILE__, __LINE__, __func__,
-                             timestamp, NULL, hoststr, initmsg,
-                             (void *) STDERR_FILENO);
-            VIR_FREE(hoststr);
-            VIR_FREE(initmsg);
-            logInitMessageStderr = false;
-        }
-        virLogOutputToFd(source, priority,
-                         filename, linenr, funcname,
-                         timestamp, metadata,
-                         str, msg, (void *) STDERR_FILENO);
+        virLogToOneTarget(source, priority, filename, linenr, funcname, metadata,
+                          timestamp, str, msg,
+                          virLogOutputToFd,
+                          (void *) STDERR_FILENO,
+                          &logInitMessageStderr);
     }
     virLogUnlock();
 
@@ -627,7 +694,7 @@ virLogMessage(virLogSource *source,
               const char *filename,
               int linenr,
               const char *funcname,
-              struct _virLogMetadata *metadata,
+              virLogMetadata *metadata,
               const char *fmt, ...)
 {
     va_list ap;
@@ -646,7 +713,7 @@ virLogOutputToFd(virLogSource *source G_GNUC_UNUSED,
                  int linenr G_GNUC_UNUSED,
                  const char *funcname G_GNUC_UNUSED,
                  const char *timestamp,
-                 struct _virLogMetadata *metadata G_GNUC_UNUSED,
+                 virLogMetadata *metadata G_GNUC_UNUSED,
                  const char *rawstr G_GNUC_UNUSED,
                  const char *str,
                  void *data)
@@ -746,7 +813,7 @@ virLogOutputToSyslog(virLogSource *source G_GNUC_UNUSED,
                      int linenr G_GNUC_UNUSED,
                      const char *funcname G_GNUC_UNUSED,
                      const char *timestamp G_GNUC_UNUSED,
-                     struct _virLogMetadata *metadata G_GNUC_UNUSED,
+                     virLogMetadata *metadata G_GNUC_UNUSED,
                      const char *rawstr G_GNUC_UNUSED,
                      const char *str,
                      void *data G_GNUC_UNUSED)
@@ -890,7 +957,7 @@ virLogOutputToJournald(virLogSource *source,
                        int linenr,
                        const char *funcname,
                        const char *timestamp G_GNUC_UNUSED,
-                       struct _virLogMetadata *metadata,
+                       virLogMetadata *metadata,
                        const char *rawstr,
                        const char *str G_GNUC_UNUSED,
                        void *data)

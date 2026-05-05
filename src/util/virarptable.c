@@ -1,7 +1,8 @@
 /*
- * virarptable.c Linux ARP table handling
+ * virarptable.c ARP table handling
  *
  * Copyright (C) 2018 Chen Hanxiao
+ * Copyright (C) 2026 The FreeBSD Foundation
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -22,6 +23,16 @@
 
 #ifdef __linux__
 # include <linux/rtnetlink.h>
+#elif defined(__FreeBSD__)
+# include <sys/types.h>
+# include <sys/socket.h>
+# include <sys/sysctl.h>
+# include <net/if.h>
+# include <net/if_dl.h>
+# include <net/if_types.h>
+# include <netinet/in.h>
+# include <net/route.h>
+# include <arpa/inet.h>
 #endif
 
 #include "viralloc.h"
@@ -145,6 +156,80 @@ virArpTableGet(void)
     return NULL;
 }
 
+#elif defined(__FreeBSD__)
+
+virArpTable *
+virArpTableGet(void)
+{
+    int num = 0;
+    int mib[6] = {CTL_NET, PF_ROUTE, 0, AF_INET, NET_RT_FLAGS, 0};
+    size_t needed;
+    g_autofree char *buf = NULL;
+    char *next, *lim;
+    struct rt_msghdr *rtm;
+    struct sockaddr_in *sin;
+    struct sockaddr_dl *sdl;
+    virArpTable *table = NULL;
+
+    if (sysctl(mib, 6, NULL, &needed, NULL, 0) < 0) {
+        virReportSystemError(errno, "%s", _("failed to get ARP table via sysctl"));
+        return NULL;
+    }
+
+    if (needed == 0)
+        return NULL;
+
+    buf = g_new0(char, needed);
+
+    if (sysctl(mib, 6, buf, &needed, NULL, 0) < 0) {
+        virReportSystemError(errno, "%s", _("failed to get ARP table via sysctl"));
+        return NULL;
+    }
+
+    table = g_new0(virArpTable, 1);
+
+    lim = buf + needed;
+    VIR_WARNINGS_NO_CAST_ALIGN
+    for (next = buf; next < lim; next += rtm->rtm_msglen) {
+        rtm = (struct rt_msghdr *)next;
+
+        if (rtm->rtm_msglen == 0)
+            break;
+
+        sin = (struct sockaddr_in *)(rtm + 1);
+        sdl = (struct sockaddr_dl *)((char *)sin + SA_SIZE(sin));
+
+        if (sdl->sdl_alen &&
+            (sdl->sdl_type == IFT_ETHER || sdl->sdl_type == IFT_BRIDGE)) {
+            char *ipstr = NULL;
+            virSocketAddr virAddr = { 0 };
+            virMacAddr macaddr;
+            char ifmac[VIR_MAC_STRING_BUFLEN];
+
+            VIR_REALLOC_N(table->t, num + 1);
+            table->n = num + 1;
+
+            virAddr.len = sizeof(virAddr.data.inet4);
+            virAddr.data.inet4.sin_family = AF_INET;
+            virAddr.data.inet4.sin_addr = sin->sin_addr;
+            ipstr = virSocketAddrFormat(&virAddr);
+
+            table->t[num].ipaddr = g_steal_pointer(&ipstr);
+
+            memcpy(macaddr.addr, LLADDR(sdl), VIR_MAC_BUFLEN);
+
+            virMacAddrFormat(&macaddr, ifmac);
+
+            table->t[num].mac = g_strdup(ifmac);
+
+            num++;
+        }
+    }
+    VIR_WARNINGS_RESET
+
+    return table;
+}
+
 #else
 
 virArpTable *
@@ -155,7 +240,7 @@ virArpTableGet(void)
     return NULL;
 }
 
-#endif /* __linux__ */
+#endif
 
 void
 virArpTableFree(virArpTable *table)

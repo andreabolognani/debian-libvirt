@@ -900,7 +900,6 @@ prlsdkParseNetAddress(char *addr)
         VIR_WARN("cannot parse network address '%s'", addr);
 
     VIR_FREE(ip);
-    VIR_FREE(addr);
 
     return ret;
 }
@@ -923,7 +922,7 @@ prlsdkGetNetAddresses(PRL_HANDLE sdknet, virDomainNetDef *net)
     for (i = 0; i < num; ++i) {
         virNetDevIPAddr *ip = NULL;
         PRL_UINT32 buflen = 0;
-        char *addr;
+        g_autofree char *addr = NULL;
 
         pret = PrlStrList_GetItem(addrlist, i, NULL, &buflen);
         prlsdkCheckRetGoto(pret, cleanup);

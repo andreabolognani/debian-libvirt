@@ -13,7 +13,7 @@ msgstr ""
 "Project-Id-Version: libvirt 6.0.0\n"
 "Report-Msgid-Bugs-To: https://libvirt.org/bugs.html\n"
 "POT-Creation-Date: 2026-01-09 09:51+0000\n"
-"PO-Revision-Date: 2026-03-19 18:58+0000\n"
+"PO-Revision-Date: 2026-04-07 23:15+0000\n"
 "Last-Translator: Andi Chandler <andi@gowling.com>\n"
 "Language-Team: English (United Kingdom) <https://translate.fedoraproject.org/"
 "projects/libvirt/libvirt/en_GB/>\n"
@@ -2936,28 +2936,27 @@ msgstr "Cannot access storage file '%1$s'"
 
 #, c-format
 msgid "Cannot access storage file '%1$s' (as uid:%2$u, gid:%3$u)"
-msgstr ""
+msgstr "Cannot access storage file '%1$s' (as uid:%2$u, gid:%3$u)"
 
 msgid "Cannot add CURL handle to a multi handle twice"
 msgstr "Cannot add CURL handle to a multi handle twice"
 
 #, c-format
 msgid "Cannot add multicast MAC %1$s on '%2$s' interface"
-msgstr ""
+msgstr "Cannot add multicast MAC %1$s on '%2$s' interface"
 
 msgid "Cannot add pid to non-existing resctrl group"
-msgstr ""
+msgstr "Cannot add PID to non-existing resctrl group"
 
 msgid "Cannot add uninitialized CURL handle to a multi handle"
 msgstr "Cannot add uninitialised CURL handle to a multi handle"
 
-#, fuzzy
 msgid "Cannot alter an existing mem_nodes set"
-msgstr "cannot change private flag on existing secret"
+msgstr "Cannot alter an existing mem_nodes set"
 
 #, c-format
 msgid "Cannot alter an existing nmem_nodes distances set for node: %1$zu"
-msgstr ""
+msgstr "Cannot alter an existing nmem_nodes distances set for node: %1$zu"
 
 msgid "Cannot attach disk until init PID is known"
 msgstr "Cannot attach disk until init PID is known"
@@ -2970,10 +2969,12 @@ msgid ""
 "Cannot automatically add a new PCI bus for a device with unrecognized "
 "connect flags %1$.2x"
 msgstr ""
+"Cannot automatically add a new PCI bus for a device with unrecognised "
+"connect flags %1$.2x"
 
-#, fuzzy, c-format
+#, c-format
 msgid "Cannot boot from device %1$s"
-msgstr "unknown boot device '%1$s'"
+msgstr "Cannot boot from device %1$s"
 
 #, c-format
 msgid "Cannot check NBD device %1$s pid"
@@ -2985,33 +2986,30 @@ msgstr "Cannot check QEMU binary %1$s"
 
 #, c-format
 msgid "Cannot check QEMU module directory %1$s"
-msgstr ""
+msgstr "Cannot check QEMU module directory %1$s"
 
-#, fuzzy
 msgid "Cannot check address family on this platform"
-msgstr "Cannot create macvlan devices on this platform"
+msgstr "Cannot check address family on this platform"
 
-#, fuzzy, c-format
+#, c-format
 msgid "Cannot chown uniq path: %1$s"
-msgstr "cannot open path '%1$s'"
+msgstr "Cannot chown uniq path: %1$s"
 
-#, fuzzy
 msgid "Cannot close resctrl"
-msgstr "cannot close file"
+msgstr "Cannot close resctrl"
 
 msgid "Cannot complete within timeout period"
 msgstr "Cannot complete within timeout period"
 
-#, fuzzy
 msgid "Cannot convert domain name to wide character string"
-msgstr "Cannot convert socket address to string: %s"
+msgstr "Cannot convert domain name to wide character string"
 
 #, c-format
 msgid "Cannot convert socket address to string: %1$s"
 msgstr "Cannot convert socket address to string: %1$s"
 
 msgid "Cannot convert wide character string back to multi-byte domain name"
-msgstr ""
+msgstr "Cannot convert wide character string back to multi-byte domain name"
 
 #, c-format
 msgid "Cannot create %1$s"
@@ -3023,12 +3021,11 @@ msgstr "Cannot create /dev"
 msgid "Cannot create /dev/pts"
 msgstr "Cannot create /dev/pts"
 
-#, fuzzy
 msgid "Cannot create a vboxSnapshotXmlHardDisk"
-msgstr "Cannot create autostart directory %s"
+msgstr "Cannot create a vboxSnapshotXmlHardDisk"
 
 msgid "Cannot create a vboxSnapshotXmlSnapshotPtr"
-msgstr ""
+msgstr "Cannot create a vboxSnapshotXmlSnapshotPtr"
 
 #, c-format
 msgid "Cannot create autostart directory %1$s"
@@ -3036,11 +3033,11 @@ msgstr "Cannot create autostart directory %1$s"
 
 #, c-format
 msgid "Cannot create daemon common directory '%1$s'"
-msgstr ""
+msgstr "Cannot create daemon common directory '%1$s'"
 
-#, fuzzy, c-format
+#, c-format
 msgid "Cannot create directory '%1$s'"
-msgstr "Cannot create log directory '%1$s'"
+msgstr "Cannot create directory '%1$s'"
 
 #, c-format
 msgid "Cannot create log directory '%1$s'"
@@ -3050,23 +3047,23 @@ msgid "Cannot create macvlan devices on this platform"
 msgstr "Cannot create macvlan devices on this platform"
 
 msgid "Cannot create monitor FIFO"
-msgstr ""
+msgstr "Cannot create monitor FIFO"
 
-#, fuzzy, c-format
+#, c-format
 msgid "Cannot create resctrl directory '%1$s'"
-msgstr "Cannot create log directory '%1$s'"
+msgstr "Cannot create resctrl directory '%1$s'"
 
 #, c-format
 msgid "Cannot create save directory '%1$s'"
-msgstr ""
+msgstr "Cannot create save directory '%1$s'"
 
 #, c-format
 msgid "Cannot create socket '%1$s'"
-msgstr ""
+msgstr "Cannot create socket '%1$s'"
 
 #, c-format
 msgid "Cannot create socket directory '%1$s'"
-msgstr ""
+msgstr "Cannot create socket directory '%1$s'"
 
 #, fuzzy, c-format
 msgid "Cannot create user runtime directory '%1$s'"

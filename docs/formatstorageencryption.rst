@@ -64,10 +64,8 @@ expected (except for the case of RBD layered encryption mentioned above).
 For volume creation, it is possible to specify the encryption algorithm used to
 encrypt the luks volume. The following two optional elements may be provided for
 that purpose. It is hypervisor dependent as to which algorithms are supported.
-The default algorithm used by the storage driver backend when using qemu-img to
-create the volume is 'aes-256-cbc' using 'essiv' for initialization vector
-generation and 'sha256' hash algorithm for both the cipher and the
-initialization vector generation.
+If no cipher elements are provided, the storage driver backend will use
+qemu-img's default encryption settings.
 
 ``cipher``
    This element describes the cipher algorithm to be used to either encrypt or

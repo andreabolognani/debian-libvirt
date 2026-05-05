@@ -1367,10 +1367,15 @@ Block I/O Tuning
    associated with each guest disk device (contrast this to the <iotune>
    element of a disk definition (See `Hard drives, floppy disks, CDROMs`_)
    which can applies to an individual disk).  Each ``device`` element has
-   two mandatory sub-elements, ``path`` describing the absolute path of the
-   device, and ``weight`` giving the relative weight of that device, in the
-   range [100, 1000]. After kernel 2.6.39, the value could be in the range [10,
-   1000]. :since:`Since 0.9.8`
+   a mandatory  ``path`` sub-element describing the absolute path of the
+   device.
+
+   A special value ``*`` can be used to throttle all domain
+   devices. :since:`Since 12.3.0, bhyve`
+
+   An optional ``weight`` sub-element specifies the relative
+   weight of the device, in the range [100, 1000]. After kernel 2.6.39,
+   the value could be in the range [10, 1000]. :since:`Since 0.9.8`
    Additionally, the following optional sub-elements can be used:
 
    ``read_bytes_sec``
@@ -9834,7 +9839,7 @@ Example configuration:
    <domain>
      ...
      <launchSecurity type='tdx'>
-       <policy>0x10000001</policy>
+       <policy>0x10000000</policy>
        <mrConfigId>xxx</mrConfigId>
        <mrOwner>xxx</mrOwner>
        <mrOwnerConfig>xxx</mrOwnerConfig>
@@ -9855,7 +9860,9 @@ Example configuration:
    ====== ====================================================================================
    Bit(s) Description
    ====== ====================================================================================
-   0      Guest TD runs in off-TD debug mode when set
+   0      Activate off-TD debug when set, i.e., activate debug from outside the TD. Its VCPU
+          state and private memory are accessible by the host VMM.
+          Deactivate off-TD debug when clear, i.e., deactivate debug from outside the TD.
    1:27   reserved
    28     Disable EPT violation conversion to #VE on guest TD access of PENDING pages when set
    29:63  reserved

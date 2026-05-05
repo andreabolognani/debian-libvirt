@@ -2971,6 +2971,7 @@ virDomainNetDefFree(virDomainNetDef *def)
     g_free(def->virtio);
     g_free(def->coalesce);
     g_free(def->sourceDev);
+    g_free(def->tapfdpath);
 
     virNetDevIPInfoClear(&def->guestIP);
     virNetDevIPInfoClear(&def->hostIP);
@@ -7076,14 +7077,13 @@ virSecurityLabelDefParseXML(xmlXPathContextPtr ctxt,
     if (!(seclabel = virSecurityLabelDefNew(model)))
         return NULL;
 
-    /* set default value */
-    seclabel->type = VIR_DOMAIN_SECLABEL_DYNAMIC;
-
-    if (virXMLPropEnum(ctxt->node, "type",
-                       virDomainSeclabelTypeFromString,
-                       VIR_XML_PROP_NONZERO,
-                       &seclabel->type) < 0)
+    if (virXMLPropEnumDefault(ctxt->node, "type",
+                              virDomainSeclabelTypeFromString,
+                              VIR_XML_PROP_NONZERO,
+                              &seclabel->type,
+                              VIR_DOMAIN_SECLABEL_DYNAMIC) < 0) {
         return NULL;
+    }
 
     if (seclabel->type == VIR_DOMAIN_SECLABEL_STATIC ||
         seclabel->type == VIR_DOMAIN_SECLABEL_NONE)
@@ -10634,6 +10634,10 @@ virDomainNetDefParseXML(virDomainXMLOption *xmlopt,
     if ((coalesce_node = virXPathNode("./coalesce", ctxt))) {
         if (virDomainNetDefCoalesceParseXML(coalesce_node, ctxt, &def->coalesce) < 0)
             return NULL;
+    }
+
+    if (!(flags & VIR_DOMAIN_DEF_PARSE_INACTIVE)) {
+        def->tapfdpath = virXPathString("string(./tapfd/@path)", ctxt);
     }
 
     if (virNetworkPortOptionsParseXML(ctxt, &def->isolatedPort) < 0)
@@ -26032,6 +26036,9 @@ virDomainNetDefFormat(virBuffer *buf,
 
     if (def->mtu)
         virBufferAsprintf(buf, "<mtu size='%u'/>\n", def->mtu);
+
+    if (def->tapfdpath && (flags & VIR_DOMAIN_DEF_FORMAT_STATUS))
+        virBufferEscapeString(buf, "<tapfd path='%s'/>\n", def->tapfdpath);
 
     virDomainNetDefCoalesceFormatXML(buf, def->coalesce);
 
