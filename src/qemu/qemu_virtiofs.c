@@ -65,16 +65,6 @@ qemuVirtioFSCreatePidFilename(virDomainObj *vm,
 }
 
 
-char *
-qemuVirtioFSCreateSocketFilename(virDomainObj *vm,
-                                 const char *alias)
-{
-    qemuDomainObjPrivate *priv = vm->privateData;
-
-    return virFileBuildPath(priv->libDir, alias, "-fs.sock");
-}
-
-
 static int
 qemuVirtioFSOpenChardev(virQEMUDriver *driver,
                         virDomainObj *vm,
@@ -238,6 +228,9 @@ qemuVirtioFSStart(virQEMUDriver *driver,
     g_autoptr(domainLogContext) logContext = NULL;
     int rc;
 
+    if (fs->sock)
+        return 0;
+
     if (!virFileIsExecutable(fs->binary)) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("virtiofsd binary '%1$s' is not executable"),
@@ -337,6 +330,9 @@ qemuVirtioFSStop(virQEMUDriver *driver G_GNUC_UNUSED,
     g_autofree char *pidfile = NULL;
     virErrorPtr orig_err;
 
+    if (fs->sock)
+        return;
+
     virErrorPreserveLast(&orig_err);
 
     if (!(pidfile = qemuVirtioFSCreatePidFilename(vm, fs->info.alias)))
@@ -370,6 +366,9 @@ qemuVirtioFSSetupCgroup(virDomainObj *vm,
     g_autofree char *pidfile = NULL;
     pid_t pid = -1;
     int rc;
+
+    if (fs->sock)
+        return 0;
 
     if (!cgroup)
         return 0;

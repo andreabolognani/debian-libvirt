@@ -6285,17 +6285,9 @@ qemuDomainGetImageIds(virQEMUDriverConfig *cfg,
     virSecurityDeviceLabelDef *disklabel;
 
     if (uid)
-        *uid = -1;
+        *uid = cfg->user;
     if (gid)
-        *gid = -1;
-
-    if (cfg) {
-        if (uid)
-            *uid = cfg->user;
-
-        if (gid)
-            *gid = cfg->group;
-    }
+        *gid = cfg->group;
 
     if ((vmlabel = virDomainDefGetSecurityLabelDef(def, "dac")) &&
         vmlabel->label)
@@ -10698,7 +10690,6 @@ qemuDomainOpenFile(virQEMUDriverConfig *cfg,
     bool dynamicOwnership = cfg->dynamicOwnership;
     virSecurityLabelDef *seclabel;
 
-    /* TODO: Take imagelabel into account? */
     if (def &&
         (seclabel = virDomainDefGetSecurityLabelDef(def, "dac")) != NULL &&
         seclabel->label != NULL &&

@@ -29,7 +29,7 @@ msgstr ""
 "Project-Id-Version: libvirt\n"
 "Report-Msgid-Bugs-To: https://libvirt.org/bugs.html\n"
 "POT-Creation-Date: 2026-01-09 09:51+0000\n"
-"PO-Revision-Date: 2026-03-17 16:25+0000\n"
+"PO-Revision-Date: 2026-04-07 13:55+0000\n"
 "Last-Translator: \"Fco. Javier F. Serrador\" <fserrador@gmail.com>\n"
 "Language-Team: Spanish <https://translate.fedoraproject.org/projects/libvirt/"
 "libvirt/es/>\n"
@@ -9703,7 +9703,6 @@ msgstr ""
 "El formato del dispositivo '%1$s' no coincide con el formato '%2$s' "
 "esperado, es necesaria forzar sobrescritura"
 
-#, fuzzy
 msgid "Format storage pool"
 msgstr "Sondeo de formato de almacenaje"
 
@@ -9714,7 +9713,6 @@ msgstr "Formato de volumen de almacenaje"
 msgid "Formatting IP address for host '%1$s' failed: %2$s"
 msgstr "El formateo de dirección IP para el host '%1$s' falló: %2$s"
 
-#, fuzzy
 msgid "Formatting storage pool data requires authorization"
 msgstr "El formateo de los datos almacenados de sondeo requiere autorización"
 
@@ -11702,11 +11700,10 @@ msgstr ""
 msgid "List event types, or wait for secret events to occur"
 msgstr "Enumere los tipos de sucesos, o espere a que sucedan sucesos secretos"
 
-#, fuzzy
 msgid "List event types, or wait for storage pool events to occur"
 msgstr ""
-"Enumere los tipos de suceso, o espere a que se produzcan sucesos del sondeo "
-"de almacenamiento"
+"Enumerar los tipos de eventos o esperar a que se produzcan eventos en el "
+"grupo de almacenamiento"
 
 msgid "List interfaces"
 msgstr "Listado de interfaces"
@@ -11732,13 +11729,11 @@ msgstr "Listado de secretos"
 msgid "List snapshots for a domain"
 msgstr "Listado de instantáneas para un dominio"
 
-#, fuzzy
 msgid "List storage pool volumes"
-msgstr "Listado de volúmenes del sondeo de almacén"
+msgstr "Enumerar los volúmenes del grupo de almacenamiento"
 
-#, fuzzy
 msgid "List storage pools"
-msgstr "Listado de sondeos de almacén"
+msgstr "Enumera grupos de almacenamiento"
 
 msgid "Listen for QEMU Monitor Events"
 msgstr "Enumerado para Sucesos de Monitor de QEMU"
@@ -11771,13 +11766,11 @@ msgstr "Atender a dispositivos de nodo requiere autorización"
 msgid "Listing secrets requires authorization"
 msgstr "Atender secretos requiere autorización"
 
-#, fuzzy
 msgid "Listing storage pool volumes requires authorization"
-msgstr "Atender volúmenes de sondeo de almacén requiere autorización"
+msgstr "Enumerar volúmenes del grupo de almacenamiento requiere autorización"
 
-#, fuzzy
 msgid "Listing storage pools requires authorization"
-msgstr "Atender a sondeos de almacén requiere autorización"
+msgstr "Enumerar los grupos de almacenamiento requiere autorización"
 
 msgid "Load kvm_hv for better performance"
 msgstr "Carga kvm_hv para mejor rendimiento"
@@ -12045,9 +12038,8 @@ msgstr "Managedsave"
 msgid "Mandatory option not present"
 msgstr "Opción obligatoria no presente"
 
-#, fuzzy
 msgid "Manipulate pages pool size"
-msgstr "Manipula el tamaño del sondeo de páginas"
+msgstr "Manipula el tamaño del grupo de páginas"
 
 #, c-format
 msgid "Max backup %1$zu must be less than or equal to %2$d"
@@ -35967,7 +35959,7 @@ msgstr "Abrir un editor para modificar la descripción"
 msgid "open(\"%1$s\")"
 msgstr "open(\"%1$s\")"
 
-#, c-format, fuzzy
+#, c-format
 msgid "openwsman: %1$s"
 msgstr "openwsman: %1$s"
 
@@ -36603,11 +36595,8 @@ msgstr "ayudante pr %1$s muerto inesperadamente"
 msgid "pr helper died and reported: %1$s"
 msgstr "ayudante pr muerto y reportado: %1$s"
 
-#, fuzzy
 msgid "pr helper socked did not show up"
-msgstr ""
-"ayudante pr ‘socked’ no se presentó:-( ¿socked es socket de conexión o de "
-"calcetín? ¿o qué diablos significa?"
+msgstr "El asistente de relaciones públicas no se presentó"
 
 #, c-format
 msgid "prctl failed to enable '%1$s' in the AMBIENT set"
@@ -36619,13 +36608,13 @@ msgstr "prctl no pudo reconfigurar KEEPCAPS"
 msgid "prctl failed to set KEEPCAPS"
 msgstr "prctl no pudo configurar KEEPCAPS"
 
-#, c-format, fuzzy
+#, c-format
 msgid ""
 "pre-creation of storage target for incremental storage migration of disk "
 "'%1$s' is not supported"
 msgstr ""
-"pre-creación de almacén destino para migración de almacén incremental de "
-"disco '%1$s' no está admitido"
+"pre‐creación de almacén destino para migración de almacén incremental de "
+"disco '%1$s' no está admitida"
 
 msgid "preallocate is not supported on this platform"
 msgstr "pre‐asignación no está mantenida para esta plataforma"
@@ -36668,115 +36657,90 @@ msgstr ""
 "evita cualquier cambio de configuración al dominio hasta que finalice la "
 "migración"
 
-#, fuzzy
 msgid "print XML document rather than attach the disk"
 msgstr "declara el documento XML en lugar de adjuntar el disco"
 
-#, fuzzy
 msgid "print XML document rather than attach the interface"
 msgstr "declara el documento XML en lugar de adjuntar el interfaz"
 
-#, fuzzy
 msgid "print XML document rather than change media"
-msgstr "declara el documento XML en lugar de cambiar los medios"
+msgstr "declara el documento XML en lugar de cambiar el medio"
 
-#, fuzzy
 msgid "print XML document rather than clone the volume"
 msgstr "declara el documento XML en vez de clonar el volumen"
 
-#, fuzzy
 msgid "print XML document rather than create"
 msgstr "declara el documento XML en lugar de crearlo"
 
-#, fuzzy
 msgid "print XML document rather than detach the disk"
 msgstr "declara el documento XML en lugar de desenganchar el disco"
 
-#, fuzzy
 msgid "print XML document rather than detach the interface"
 msgstr "declara el documento XML en vez de desenganchar el interfaz"
 
-#, fuzzy
 msgid "print XML document rather than set the interface link state"
 msgstr ""
 "declara el documento XML en vez de establecer el interfaz del estado de "
 "enlace"
 
-#, fuzzy
 msgid "print XML document, but don't define/create"
 msgstr "declara documento XML, pero no lo crea/define"
 
-#, fuzzy
 msgid "print a more human readable output"
 msgstr "declara una salida más legible por humanos"
 
-#, fuzzy
 msgid "print domain's time in human readable form"
 msgstr "declara hora/fecha del dominio en una forma más legible por humanos"
 
 msgid "print help"
 msgstr "asistencia de impresión"
 
-#, fuzzy
 msgid "print lease info for a given network"
 msgstr "declara informe de concesión para una red determinada"
 
-#, fuzzy
 msgid "print statistics for any kind of job (even failed ones)"
 msgstr ""
 "declara estadísticas para cualquier familia de tarea (incluso unas "
 "incorrectas)"
 
-#, fuzzy
 msgid "print the XML used to start the copy job instead of starting the job"
 msgstr ""
 "declara el XML utilizado para inicial la tarea de copia en vez de iniciar la "
 "tarea"
 
-#, fuzzy
 msgid "print the admin server URI"
 msgstr "declara el URI del servidor admin"
 
-#, fuzzy
 msgid "print the current directory"
 msgstr "declara el directorio actual"
 
-#, fuzzy
 msgid "print the domain's hostname"
 msgstr "declara el nombre de host de dominio"
 
-#, fuzzy
 msgid "print the hypervisor canonical URI"
 msgstr "declara el URI canónico del hypervisor"
 
-#, fuzzy
 msgid "print the hypervisor hostname"
 msgstr "declara el nombre del host del hypervisor"
 
-#, fuzzy
 msgid "print the hypervisor sysinfo"
 msgstr "declara sysinfo del hipervisor"
 
-#, fuzzy
 msgid "print the raw data returned by libvirt"
 msgstr "declara los datos sin formato devueltos por la biblioteca libvirt"
 
-#, fuzzy
 msgid "print updated memory device XML instead of executing the change"
 msgstr ""
 "declara el XML del dispositivo de memoria actualizado de ejecución del cambio"
 
-#, fuzzy
 msgid "prints by percentage during 1 second."
 msgstr "declara por porcentaje durante 1 segundo."
 
-#, fuzzy
 msgid "prints specified cell statistics only."
 msgstr "declara únicamente estadística de celda especificada."
 
-#, fuzzy
 msgid "prints specified cpu statistics only."
-msgstr "declara únicamente las estadísticas de la cpu especificada."
+msgstr "declara únicamente las estadísticas de cpu especificada."
 
 msgid "process exited while connecting to monitor"
 msgstr "proceso terminó mientras conectaba a monitor"
@@ -36879,7 +36843,6 @@ msgstr "agente qemu no devolvió una formación de interfaces"
 msgid "qemu agent didn't return an array of keys"
 msgstr "agente qemu no revolvió una formación de llaves"
 
-#, fuzzy
 msgid "qemu agent didn't return an array of loads"
 msgstr "qemu de agente no devolvió una formación de cargas"
 
@@ -36893,7 +36856,6 @@ msgstr "qemu no concede especificar ID de pantalla"
 msgid "qemu does not support more than one entry to Type 2 in SMBIOS table"
 msgstr "qemu no admite más de un apunte para Type 2 en tabla SMBIOS"
 
-#, fuzzy
 msgid "qemu does not support the accel2d setting"
 msgstr "qemu no admite el ajuste de accel2d"
 
@@ -36903,7 +36865,6 @@ msgstr "qemu no admite revisión de captura tomada en estado PMSUSPENDED"
 msgid "qemu doesn't support taking snapshots of PMSUSPENDED guests"
 msgstr "qemu no admite tomar captura de invitado PMSUSTEMDED"
 
-#, fuzzy
 msgid ""
 "qemu driver doesn't support 'onReboot' set to 'destroy and 'onPoweroff' set "
 "to 'reboot'"
@@ -36975,7 +36936,7 @@ msgstr "La respuesta de qom-list tiene datos de 'type' incorrectos"
 msgid "qom-list-types reply data was missing 'name'"
 msgstr "A los tipos de qom-list les faltan datos de 'name'"
 
-#, fuzzy, c-format
+#, c-format
 msgid "qom-set invalid object property type %1$d"
 msgstr "qom-set tipo de propiedad de objeto no válido %1$d"
 
@@ -36985,9 +36946,8 @@ msgstr "obtener Información del huésped (a través del agente)"
 msgid "query is supported only with HTTP(S) protocols"
 msgstr "solicitud está admitida solo con protocolos HTTP(S)"
 
-#, fuzzy
 msgid "query or modify state of vcpu in the guest (via agent)"
-msgstr "solicita o modifica estado de vcpu en el huésped (por agente)"
+msgstr "solicita o modifica estado de vcpu en el invitado (por agente)"
 
 #, fuzzy
 msgid "query-accelerators was missing 'enabled'"

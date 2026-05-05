@@ -1301,13 +1301,16 @@ safezero_posix_fallocate(int fd, off_t offset, off_t len)
     int ret = posix_fallocate(fd, offset, len);
     if (ret == 0) {
         return 0;
-    } else if (ret == EINVAL) {
+    } else if (ret == EINVAL || ret == EOPNOTSUPP) {
         /* EINVAL is returned when either:
            - Operation is not supported by the underlying filesystem,
            - offset or len argument values are invalid.
            Assuming that offset and len are valid, this error means
            the operation is not supported, and we need to fall back
            to other methods.
+
+           Newer versions of FreeBSD return EOPNOTSUPP when the
+           operation is not supported.
         */
         return -2;
     }

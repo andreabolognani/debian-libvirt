@@ -206,6 +206,8 @@ Patches have also been contributed by:
 * Bronek Kozicki <brok@incorrekt.com>
 * Brooks Swinnerton <bswinnerton@gmail.com>
 * Bruno Haible <bruno@clisp.org>
+* Bruno Martins <ehanoc@protonmail.com>
+* Bruno Renié <brutasse@users.noreply.github.com>
 * Bryan Kearney <bkearney@redhat.com>
 * Cao jin <caoj.fnst@cn.fujitsu.com>
 * caoxinhua <caoxinhua@huawei.com>
@@ -374,6 +376,7 @@ Patches have also been contributed by:
 * Félix Bouliane <felixbouliane@gmail.com>
 * Felix Geyer <debfx@fobos.de>
 * Felix Geyer <fgeyer@debian.org>
+* Felix Huettner <felix.huettner@stackit.cloud>
 * Filip Alac <filipalac@gmail.com>
 * Fima Shevrin <efim.shevrin@virtuozzo.com>
 * Florian Vichot <florian.vichot@diateam.net>
@@ -915,6 +918,7 @@ Patches have also been contributed by:
 * shenjiatong <yshxxsjt715@gmail.com>
 * Shichangkuo <shi.changkuo@h3c.com>
 * Shi Lei <shi_lei@massclouds.com>
+* shivanayak <shivanayak@gmail.com>
 * Shivangi Dhir <shivangi.dhir.02@gmail.com>
 * Shivaprasad G Bhat <sbhat@linux.vnet.ibm.com>
 * Shivaprasad G Bhat <shivaprasadbhat@gmail.com>
@@ -961,6 +965,7 @@ Patches have also been contributed by:
 * Szymon Scholz <szymonscholz@gmail.com>
 * Taisuke Yamada <tai@rakugaki.org>
 * Taizo ITO <taizo.ito@hde.co.jp>
+* Takashi Kajinami <kajinamit@oss.nttdata.com>
 * Taku Izumi <izumi.taku@jp.fujitsu.com>
 * Tal Kain <tal.kain@ravellosystems.com>
 * Tang Chen <tangchen@cn.fujitsu.com>
@@ -1035,6 +1040,7 @@ Patches have also been contributed by:
 * Weiwei Li <nuonuoli@tencent.com>
 * weiwei li <weiweili821@gmail.com>
 * Wen Congyang <wency@cn.fujitsu.com>
+* Wesley Hershberger <wesley.hershberger@canonical.com>
 * Wido den Hollander <wido@widodh.nl>
 * Wieland Hoffmann <themineo@googlemail.com>
 * William Douglas <william.douglas@intel.com>

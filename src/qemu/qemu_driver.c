@@ -9446,9 +9446,11 @@ qemuDomainBlockResize(virDomainPtr dom,
     const char *nodename = NULL;
     virDomainDiskDef *disk = NULL;
     virDomainDiskDef *persistDisk = NULL;
+    virStorageSource *size_src = NULL;
 
     virCheckFlags(VIR_DOMAIN_BLOCK_RESIZE_BYTES |
-                  VIR_DOMAIN_BLOCK_RESIZE_CAPACITY, -1);
+                  VIR_DOMAIN_BLOCK_RESIZE_CAPACITY |
+                  VIR_DOMAIN_BLOCK_RESIZE_EXTEND, -1);
 
     /* We prefer operating on bytes.  */
     if ((flags & VIR_DOMAIN_BLOCK_RESIZE_BYTES) == 0) {
@@ -9494,36 +9496,46 @@ qemuDomainBlockResize(virDomainPtr dom,
         goto endjob;
     }
 
-    /* The physical capacity is needed both when automatic sizing is requested
-     * and when a slice is used on top of a block device.
+    /* When resizing to capacity (or when resizing a device with a storage slice
+     * -> effectively removing the slice) it's possible that we're dealing with
+     * a qcow2 image using the 'data-file' feature in which case we want to use
+     * the size of the data file. Similarly all limitations about the support of
+     * VIR_DOMAIN_BLOCK_RESIZE_CAPACITY are based on the actual 'data-file'
+     * which stores the actual blocks and thus represents the capacity.
      */
-    if (virStorageSourceIsBlockLocal(disk->src) &&
-        ((flags & VIR_DOMAIN_BLOCK_RESIZE_CAPACITY) ||
-         disk->src->sliceStorage)) {
+    if ((flags & VIR_DOMAIN_BLOCK_RESIZE_CAPACITY) || disk->src->sliceStorage) {
         g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(priv->driver);
 
-        if (qemuDomainStorageUpdatePhysical(cfg, vm, disk->src) < 0) {
-            virReportError(VIR_ERR_OPERATION_FAILED,
-                           _("failed to update capacity of '%1$s'"), disk->src->path);
-            goto endjob;
+        if (disk->src->dataFileStore)
+            size_src = disk->src->dataFileStore;
+        else
+            size_src = disk->src;
+
+        if (flags & VIR_DOMAIN_BLOCK_RESIZE_CAPACITY) {
+            if (!qemuBlockStorageSourceIsRaw(size_src) ||
+                !virStorageSourceIsBlockLocal(size_src)) {
+                virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
+                               _("block resize to full capacity supported only with 'raw' or local block-based disks"));
+                goto endjob;
+            }
         }
 
+        if (virStorageSourceIsBlockLocal(size_src)) {
+            if (qemuDomainStorageUpdatePhysical(cfg, vm, size_src) < 0) {
+                virReportError(VIR_ERR_OPERATION_FAILED,
+                               _("failed to update capacity of '%1$s'"), size_src->path);
+                goto endjob;
+            }
+        }
     }
 
     if (flags & VIR_DOMAIN_BLOCK_RESIZE_CAPACITY) {
-        if (!qemuBlockStorageSourceIsRaw(disk->src) ||
-            !virStorageSourceIsBlockLocal(disk->src)) {
-            virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
-                           _("block resize to full capacity supported only with 'raw' local block-based disks"));
-            goto endjob;
-        }
-
         if (size == 0) {
-            size = disk->src->physical;
-        } else if (size != disk->src->physical) {
+            size = size_src->physical;
+        } else if (size != size_src->physical) {
             virReportError(VIR_ERR_INVALID_ARG,
                            _("Requested resize to '%1$llu' but device size is '%2$llu'"),
-                           size, disk->src->physical);
+                           size, size_src->physical);
             goto endjob;
         }
     }
@@ -9587,11 +9599,40 @@ qemuDomainBlockResize(virDomainPtr dom,
     if (!qemuDiskBusIsSD(disk->bus)) {
         nodename = qemuBlockStorageSourceGetEffectiveNodename(disk->src);
     } else {
+        if (flags & VIR_DOMAIN_BLOCK_RESIZE_EXTEND) {
+            /* technically possible, just not implemented */
+            virReportError(VIR_ERR_INVALID_ARG, "%s",
+                           _("cannot prevent shrink on SD devices"));
+            goto endjob;
+        }
+
         if (!(device = qemuAliasDiskDriveFromDisk(disk)))
             goto endjob;
     }
 
     qemuDomainObjEnterMonitor(vm);
+
+    if (flags & VIR_DOMAIN_BLOCK_RESIZE_EXTEND) {
+        g_autoptr(GHashTable) blockNamedNodeData = qemuMonitorBlockGetNamedNodeData(priv->mon);
+        qemuBlockNamedNodeData *entry;
+
+        if (!(entry = virHashLookup(blockNamedNodeData, nodename))) {
+            virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
+                           _("failed to determine current size of '%1$s'"),
+                           path);
+            qemuDomainObjExitMonitor(vm);
+            goto endjob;
+        }
+
+        if (entry->capacity > size) {
+            virReportError(VIR_ERR_OPERATION_FAILED,
+                           _("resize of '%1$s' would shrink it from '%2$llu' to '%3$llu' bytes"),
+                           path, entry->capacity, size);
+            qemuDomainObjExitMonitor(vm);
+            goto endjob;
+        }
+    }
+
     if (qemuMonitorBlockResize(priv->mon, device, nodename, size) < 0) {
         qemuDomainObjExitMonitor(vm);
         goto endjob;
@@ -16434,6 +16475,8 @@ qemuDomainGetHostnameLease(virDomainObj *vm,
     size_t i, j;
     int ret = -1;
 
+    *hostname = NULL;
+
     if (virDomainObjBeginJob(vm, VIR_JOB_QUERY) < 0)
         return -1;
 
@@ -16471,7 +16514,7 @@ qemuDomainGetHostnameLease(virDomainObj *vm,
         VIR_FREE(leases);
 
         if (*hostname)
-            goto endjob;
+            break;
     }
 
     ret = 0;
@@ -20579,6 +20622,8 @@ qemuDomainSetThrottleGroup(virDomainPtr dom,
     virDomainObjEndJob(vm);
 
  cleanup:
+    VIR_FREE(info.group_name);
+    VIR_FREE(conf_info.group_name);
     virDomainObjEndAPI(&vm);
     virTypedParamsFree(eventParams, eventNparams);
     return ret;
