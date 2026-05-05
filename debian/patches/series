@@ -2,5 +2,4 @@ debian/Debianize-libvirt-guests.patch
 debian/apparmor_profiles_local_include.patch
 debian/Use-sensible-editor-by-default.patch
 debian/Drop-inter-package-Also-lines-from-libvirtd.service.patch
-debian/Drop-handling-of-secret-encryption-from-libvirtd.service.patch
 debian/sysusers.patch
