@@ -1,6 +1,5 @@
 etc/apparmor.d/usr.sbin.virtqemud
 etc/apparmor.d/usr.sbin.virtxend
-etc/libvirt/secret.conf
 etc/libvirt/virtinterfaced.conf
 etc/libvirt/virtlxcd.conf
 etc/libvirt/virtnetworkd.conf
@@ -12,7 +11,6 @@ etc/libvirt/virtsecretd.conf
 etc/libvirt/virtstoraged.conf
 etc/libvirt/virtvboxd.conf
 etc/libvirt/virtxend.conf
-usr/lib/systemd/system/virt-secret-init-encryption.service
 usr/lib/systemd/system/virtinterfaced-admin.socket
 usr/lib/systemd/system/virtinterfaced-ro.socket
 usr/lib/systemd/system/virtinterfaced.service
@@ -71,8 +69,6 @@ usr/sbin/virtsecretd
 usr/sbin/virtstoraged
 usr/sbin/virtvboxd
 usr/sbin/virtxend
-usr/share/augeas/lenses/libvirt_secrets.aug
-usr/share/augeas/lenses/tests/test_libvirt_secrets.aug
 usr/share/augeas/lenses/tests/test_virtinterfaced.aug
 usr/share/augeas/lenses/tests/test_virtlxcd.aug
 usr/share/augeas/lenses/tests/test_virtnetworkd.aug
