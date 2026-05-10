@@ -1,8 +1,19 @@
 libvirt (12.3.0-1) UNRELEASED; urgency=medium
 
+  [ Andrea Bolognani ]
   * [fc8fbe1] New upstream version 12.3.0
+  * [3839c78] patches: Drop debian/Drop-handling-of-secret-encryption-[...]
+    - The issue that was preventing us from enabling this
+      functionality has been fixed upstream
+  * [5267f7e] Add Multi-Arch field for packages that were missing it
 
- -- Andrea Bolognani <eof@kiyuko.org>  Tue, 05 May 2026 23:00:40 +0200
+  [ Pino Toscano ]
+  * [e64433c] Build libvirt-clients-qemu only on QEMU architectures
+  * [f7c3ccd] Drop QEMU driver on 32bit architectures
+    - No longer supported as host architectures starting with QEMU 11.0
+    - Closes: #1134873
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Sun, 10 May 2026 22:37:28 +0200
 
 libvirt (12.2.0-1) unstable; urgency=medium
 
