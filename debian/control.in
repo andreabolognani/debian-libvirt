@@ -64,6 +64,7 @@ Rules-Requires-Root: no
 Package: libvirt-clients
 Section: admin
 Architecture: any
+Multi-Arch: no
 Depends:
  libvirt-common (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
@@ -93,6 +94,7 @@ Description: virtualization library - clients
 Package: libvirt-clients-qemu
 Section: admin
 Architecture: ${ARCHES_QEMU}
+Multi-Arch: no
 Depends:
  libvirt-common (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
@@ -110,6 +112,7 @@ Description: virtualization library - clients (QEMU specific)
 Package: libvirt-daemon
 Section: admin
 Architecture: linux-any
+Multi-Arch: no
 Depends:
  libvirt-common (= ${binary:Version}),
  libvirt-daemon-common (= ${binary:Version}),
@@ -167,6 +170,7 @@ Homepage: https://libvirt.org/daemons.html#monolithic-driver-daemon
 Package: libvirt-daemon-common
 Section: admin
 Architecture: linux-any
+Multi-Arch: no
 Depends:
  dmidecode [${ARCHES_DMIDECODE}],
  gettext-base,
@@ -202,6 +206,7 @@ Description: virtualization daemon - common files
 Package: libvirt-daemon-log
 Section: admin
 Architecture: linux-any
+Multi-Arch: no
 Depends:
  libvirt-common (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
@@ -224,6 +229,7 @@ Homepage: https://libvirt.org/daemons.html#logging-daemon
 Package: libvirt-daemon-lock
 Section: admin
 Architecture: linux-any
+Multi-Arch: no
 Depends:
  libvirt-common (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
@@ -700,6 +706,7 @@ Homepage: https://libvirt.org/kbase/locking-sanlock.html
 Package: libvirt-daemon-system
 Section: admin
 Architecture: ${ARCHES_QEMU}
+Multi-Arch: foreign
 Depends:
  libvirt-clients (= ${binary:Version}),
  libvirt-common (= ${binary:Version}),
@@ -726,6 +733,7 @@ Description: virtualization daemon - typical QEMU-based deployment
 Package: libvirt-daemon-config-network
 Section: admin
 Architecture: all
+Multi-Arch: foreign
 Depends:
  libvirt-common (<< ${source:Version}.1~),
  libvirt-common (>= ${source:Version}),
@@ -746,6 +754,7 @@ Description: virtualization daemon - configuration files (default network)
 Package: libvirt-daemon-config-nwfilter
 Section: admin
 Architecture: all
+Multi-Arch: foreign
 Depends:
  libvirt-common (<< ${source:Version}.1~),
  libvirt-common (>= ${source:Version}),
@@ -893,6 +902,7 @@ Description: virtualization library - Wireshark dissector
 Package: libvirt-login-shell
 Section: admin
 Architecture: linux-any
+Multi-Arch: no
 Depends:
  libvirt-common (= ${binary:Version}),
  libvirt-daemon-driver-lxc (= ${binary:Version}),
@@ -912,6 +922,7 @@ Description: isolate user sessions using LXC containers
 Package: libvirt-sanlock
 Section: admin
 Architecture: linux-any
+Multi-Arch: no
 Depends:
  libvirt-common (= ${binary:Version}),
  libvirt-daemon-plugin-sanlock (= ${binary:Version}),
@@ -939,6 +950,7 @@ Description: transitional dummy package
 Package: libvirt-daemon-system-sysv
 Section: admin
 Architecture: all
+Multi-Arch: foreign
 Depends:
  libvirt-common (<< ${source:Version}.1~),
  libvirt-common (>= ${source:Version}),
