@@ -342,7 +342,7 @@ Homepage: https://libvirt.org/drvxen.html
 Package: libvirt-daemon-driver-storage
 Section: admin
 Architecture: linux-any
-Multi-arch: no
+Multi-Arch: no
 Depends:
  libvirt-common (= ${binary:Version}),
  libvirt-daemon (= ${binary:Version}),
@@ -366,7 +366,7 @@ Homepage: https://libvirt.org/storage.html
 Package: libvirt-daemon-driver-storage-disk
 Section: admin
 Architecture: linux-any
-Multi-arch: no
+Multi-Arch: no
 Depends:
  libvirt-common (= ${binary:Version}),
  libvirt-daemon (= ${binary:Version}),
@@ -406,7 +406,7 @@ Homepage: https://libvirt.org/storage.html#gluster-pool
 Package: libvirt-daemon-driver-storage-iscsi
 Section: admin
 Architecture: linux-any
-Multi-arch: no
+Multi-Arch: no
 Depends:
  libvirt-common (= ${binary:Version}),
  libvirt-daemon (= ${binary:Version}),
@@ -448,7 +448,7 @@ Homepage: https://libvirt.org/storage.html#iscsi-direct-pool
 Package: libvirt-daemon-driver-storage-logical
 Section: admin
 Architecture: linux-any
-Multi-arch: no
+Multi-Arch: no
 Depends:
  libvirt-common (= ${binary:Version}),
  libvirt-daemon (= ${binary:Version}),
@@ -471,7 +471,7 @@ Homepage: https://libvirt.org/storage.html#logical-volume-pool
 Package: libvirt-daemon-driver-storage-mpath
 Section: admin
 Architecture: linux-any
-Multi-arch: no
+Multi-Arch: no
 Depends:
  libvirt-common (= ${binary:Version}),
  libvirt-daemon (= ${binary:Version}),
@@ -509,7 +509,7 @@ Homepage: https://libvirt.org/storage.html#rbd-pool
 Package: libvirt-daemon-driver-storage-scsi
 Section: admin
 Architecture: linux-any
-Multi-arch: no
+Multi-Arch: no
 Depends:
  libvirt-common (= ${binary:Version}),
  libvirt-daemon (= ${binary:Version}),
@@ -549,7 +549,7 @@ Homepage: https://libvirt.org/storage.html#zfs-pool
 Package: libvirt-daemon-driver-network
 Section: admin
 Architecture: linux-any
-Multi-arch: no
+Multi-Arch: no
 Depends:
  dnsmasq-base,
  iptables | nftables,
@@ -573,7 +573,7 @@ Homepage: https://libvirt.org/formatnetwork.html
 Package: libvirt-daemon-driver-nwfilter
 Section: admin
 Architecture: linux-any
-Multi-arch: no
+Multi-Arch: no
 Depends:
  iptables,
  libvirt-common (= ${binary:Version}),
@@ -594,7 +594,7 @@ Homepage: https://libvirt.org/formatnwfilter.html
 Package: libvirt-daemon-driver-interface
 Section: admin
 Architecture: linux-any
-Multi-arch: no
+Multi-Arch: no
 Depends:
  libvirt-common (= ${binary:Version}),
  libvirt-daemon (= ${binary:Version}),
@@ -613,7 +613,7 @@ Description: virtualization daemon - interface driver
 Package: libvirt-daemon-driver-nodedev
 Section: admin
 Architecture: linux-any
-Multi-arch: no
+Multi-Arch: no
 Depends:
  libvirt-common (= ${binary:Version}),
  libvirt-daemon (= ${binary:Version}),
@@ -634,7 +634,7 @@ Homepage: https://libvirt.org/drvnodedev.html
 Package: libvirt-daemon-driver-secret
 Section: admin
 Architecture: linux-any
-Multi-arch: no
+Multi-Arch: no
 Depends:
  libvirt-common (= ${binary:Version}),
  libvirt-daemon (= ${binary:Version}),
@@ -654,7 +654,7 @@ Homepage: https://libvirt.org/drvsecret.html
 Package: libvirt-daemon-plugin-lockd
 Section: admin
 Architecture: linux-any
-Multi-arch: no
+Multi-Arch: no
 Depends:
  libvirt-common (= ${binary:Version}),
  libvirt-daemon-lock (= ${binary:Version}),
@@ -676,7 +676,7 @@ Homepage: https://libvirt.org/kbase/locking-lockd.html
 Package: libvirt-daemon-plugin-sanlock
 Section: admin
 Architecture: linux-any
-Multi-arch: no
+Multi-Arch: no
 Depends:
  augeas-tools,
  libvirt-common (= ${binary:Version}),
