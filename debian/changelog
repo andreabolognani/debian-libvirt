@@ -1,4 +1,4 @@
-libvirt (12.3.0-1) UNRELEASED; urgency=medium
+libvirt (12.3.0-1) unstable; urgency=medium
 
   [ Andrea Bolognani ]
   * [fc8fbe1] New upstream version 12.3.0
