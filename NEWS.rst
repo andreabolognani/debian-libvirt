@@ -8,6 +8,104 @@ the changes introduced by each of them.
 For a more fine-grained view, use the `git log`_.
 
 
+v12.4.0 (2026-06-01)
+====================
+
+* **Removed features**
+
+  * qemu: Bump minimum version to QEMU-7.2
+
+    The minimal required version of QEMU was bumped to 7.2.0.
+
+* **New features**
+
+  * resctrl: Add energy monitoring via resctrl's PERF_PKG_MON
+
+    Add support for Linux kernel 7.0 feature - energy monitoring via resctrl.
+    This allows to monitor per-VM energy consumption on supported platforms.
+    Implemented via ``energytune`` element in ``cputune`` .
+
+  * Add channel lifecycle domain event
+
+    Add support for a new domain event which can be used to track the state of
+    any virtio channel. It is similar to guest agent lifecycle event.
+
+  * bhyve: Add memory tuning support
+
+    The bhyve driver now allows setting a domain's memory hard limit using the
+    following syntax::
+
+     <memtune>
+       <hard_limit unit='G'>1</hard_limit>
+     </memtune>
+
+    It also implements the ``virDomainGetMemoryParameters()`` and
+    ``virDomainSetMemoryParameters()`` APIs for controlling
+    the memory hard limit of a running domain.
+
+  * bhyve: Add virtio-console device support
+
+    Domain XML can now use ``virtio-console`` devices. Among other things,
+    these devices can be used to configure a QEMU Guest Agent::
+
+     <devices>
+       <channel type='unix'>
+         <source mode='bind' path='/var/run/libvirt/bhyve/bhyve.agent'/>
+         <target type='virtio' name='org.qemu.guest_agent.0'/>
+         <address type='virtio-serial' controller='0' bus='0' port='1'/>
+       </channel>
+     </devices>
+
+    Additionally, the ``virDomainQemuAgentCommand()`` API which allows
+    running arbitrary guest agent commands is now supported.
+
+    The ``virDomainGetHostname()`` API, used to query the hostname of a guest,
+    now supports using the guest agent as a source of information.
+
+* **Improvements**
+
+  * vircgroupv2: Implement freezer controller
+
+    The CGroupV2 code now supports freezer controller which allows suspending
+    and resuming of LXC domains.
+
+  * virnetdevbandwidth: Only clear qdisc for defined directions
+
+    Setting a QoS on a vNIC no longer leads to clearing (preconfigured) root
+    queuing discipline ('qdisc`) in both directions (egress, ingress), only the
+    affected one.
+
+* **Bug fixes**
+
+  * storage: ZFS: Fix incorrect volsize and refreservation on zvol creation
+
+    When creating a zvol, the ZFS driver listed all volumes in the pool and
+    updated the new volume's size with data from the last volume in the list
+    rather than the matching one. Now it correctly returns on valid one.
+
+  * esx/vmware: VMs are tracked under different UUIDs by default
+
+    The VMWare-related drivers were using allegedly unique IDs for domains, but
+    it turned out they were not completely unique, even for the same host.  That
+    caused an issue where a different domain could have been acted upon then
+    requested.  Unfortunately, to make this work, the UUIDs of all
+    VMWare-related domains will change from this release.  In order to use the
+    pre-v12.4.0 behaviour there is a new URI query parameter ``legacy_uuid``
+    which, if set to ``1``, will revert to the older way of working.
+
+  * virsh: Provide no auth callbacks for bash completer
+
+    The bash completer script calls virsh to provide completions. In some cases
+    the underlying virsh might get stuck waiting on input (e.g. password for
+    SSH session). Not anymore.
+
+  * virauth: Verify virConnectAuth::cb is set in virAuthGetPasswordPath()
+
+    A check was missing in ``virAuthGetPasswordPath()`` which might lead to
+    crash of the client library when NULL callback was provided. This is now
+    fixed.
+
+
 v12.3.0 (2026-05-02)
 ====================
 
@@ -604,6 +702,12 @@ v11.7.0 (2025-09-01)
 
     The bhyve driver now supports querying domain block, interface,
     and memory statistics. Not all statistics fields are supported though.
+
+  * storage: ZFS: Implement native volume resizing
+
+    The ZFS storage driver now supports ``resizeVol`` allowing online
+    resizing of zvols via ``zfs set volsize``. Since ZFS is always
+    thin-provisioned, resize is essentially a size limit change.
 
 * **Improvements**
 

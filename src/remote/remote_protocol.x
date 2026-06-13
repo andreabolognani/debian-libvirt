@@ -3981,6 +3981,12 @@ struct remote_domain_event_memory_device_size_change_msg {
     unsigned hyper size;
 };
 
+struct remote_domain_event_vcpu_removed_msg {
+    int callbackID;
+    remote_nonnull_domain dom;
+    unsigned int vcpuid;
+};
+
 
 struct remote_domain_fd_associate_args {
     remote_nonnull_domain dom;
@@ -4007,6 +4013,14 @@ struct remote_domain_event_nic_mac_change_msg {
     remote_nonnull_string alias;
     remote_nonnull_string oldMAC;
     remote_nonnull_string newMAC;
+};
+
+struct remote_domain_event_callback_channel_lifecycle_msg {
+    int callbackID;
+    remote_nonnull_domain dom;
+    remote_nonnull_string channelName;
+    int state;
+    int reason;
 };
 
 /*----- Protocol. -----*/
@@ -7120,5 +7134,17 @@ enum remote_procedure {
      * @generate: both
      * @acl: none
      */
-    REMOTE_PROC_DOMAIN_EVENT_NIC_MAC_CHANGE = 453
+    REMOTE_PROC_DOMAIN_EVENT_NIC_MAC_CHANGE = 453,
+
+    /**
+     * @generate: both
+     * @acl: none
+     */
+    REMOTE_PROC_DOMAIN_EVENT_VCPU_REMOVED = 454,
+
+    /**
+     * @generate: both
+     * @acl: none
+     */
+    REMOTE_PROC_DOMAIN_EVENT_CALLBACK_CHANNEL_LIFECYCLE = 455
 };

@@ -317,6 +317,9 @@
   <feature name='avx512vbmi2'>
     <cpuid eax_in='0x00000007' ecx_in='0x00000000' ecx='0x00000040'/>
   </feature>
+  <feature name='cet-ss'>
+    <cpuid eax_in='0x00000007' ecx_in='0x00000000' ecx='0x00000080'/>
+  </feature>
   <feature name='gfni'>
     <cpuid eax_in='0x00000007' ecx_in='0x00000000' ecx='0x00000100'/>
   </feature>
@@ -388,6 +391,9 @@
   </feature>
   <feature name='arch-lbr'>
     <cpuid eax_in='0x00000007' ecx_in='0x00000000' edx='0x00080000'/>
+  </feature>
+  <feature name='cet-ibt'>
+    <cpuid eax_in='0x00000007' ecx_in='0x00000000' edx='0x00100000'/>
   </feature>
   <feature name='amx-bf16'>
     <cpuid eax_in='0x00000007' ecx_in='0x00000000' edx='0x00400000'/>
@@ -467,6 +473,9 @@
   <feature name='lam'>
     <cpuid eax_in='0x00000007' ecx_in='0x00000001' eax='0x04000000'/>
   </feature>
+  <feature name='movrs'>
+    <cpuid eax_in='0x00000007' ecx_in='0x00000001' eax='0x80000000'/>
+  </feature>
 
   <!-- cpuid level 0x00000007, 0x0001 (ecx) -->
   <feature name='msr-imm'>
@@ -491,6 +500,9 @@
   </feature>
   <feature name='avx10'>
     <cpuid eax_in='0x00000007' ecx_in='0x00000001' edx='0x00080000'/>
+  </feature>
+  <feature name='apxf'>
+    <cpuid eax_in='0x00000007' ecx_in='0x00000001' edx='0x00200000'/>
   </feature>
 
   <!-- cpuid level 0x00000007, 0x0002 (edx) -->
@@ -579,6 +591,32 @@
     <cpuid eax_in='0x00000014' ecx_in='0x00000000' ecx='0x80000000'/>
   </feature>
 
+  <!-- cpuid level 0x0000001e, 0x0001 (eax) -->
+  <feature name='amx-int8-alias'>
+    <cpuid eax_in='0x0000001e' ecx_in='0x00000001' eax='0x00000001'/>
+  </feature>
+  <feature name='amx-bf16-alias'>
+    <cpuid eax_in='0x0000001e' ecx_in='0x00000001' eax='0x00000002'/>
+  </feature>
+  <feature name='amx-complex-alias'>
+    <cpuid eax_in='0x0000001e' ecx_in='0x00000001' eax='0x00000004'/>
+  </feature>
+  <feature name='amx-fp16-alias'>
+    <cpuid eax_in='0x0000001e' ecx_in='0x00000001' eax='0x00000008'/>
+  </feature>
+  <feature name='amx-fp8'>
+    <cpuid eax_in='0x0000001e' ecx_in='0x00000001' eax='0x00000010'/>
+  </feature>
+  <feature name='amx-tf32'>
+    <cpuid eax_in='0x0000001e' ecx_in='0x00000001' eax='0x00000040'/>
+  </feature>
+  <feature name='amx-avx512'>
+    <cpuid eax_in='0x0000001e' ecx_in='0x00000001' eax='0x00000080'/>
+  </feature>
+  <feature name='amx-movrs'>
+    <cpuid eax_in='0x0000001e' ecx_in='0x00000001' eax='0x00000100'/>
+  </feature>
+
   <!-- cpuid level 0x00000024, 0x0000 (ebx) -->
   <feature name='avx10-128'>
     <cpuid eax_in='0x00000024' ecx_in='0x00000000' ebx='0x00010000'/>
@@ -588,6 +626,16 @@
   </feature>
   <feature name='avx10-512'>
     <cpuid eax_in='0x00000024' ecx_in='0x00000000' ebx='0x00040000'/>
+  </feature>
+
+  <!-- cpuid level 0x00000024, 0x0001 (ecx) -->
+  <feature name='avx10-vnni-int'>
+    <cpuid eax_in='0x00000024' ecx_in='0x00000001' ecx='0x00000004'/>
+  </feature>
+
+  <!-- cpuid level 0x00000029, 0x0000 (ebx) -->
+  <feature name='apx-nci-ndd-nf'>
+    <cpuid eax_in='0x00000029' ecx_in='0x00000000' ebx='0x00000001'/>
   </feature>
 
   <!-- cpuid level 0x80000001 (ecx) -->
@@ -791,6 +839,9 @@
   </feature>
   <feature name='vgif'>
     <cpuid eax_in='0x8000000a' edx='0x00010000'/>
+  </feature>
+  <feature name='gmet'>
+    <cpuid eax_in='0x8000000a' edx='0x00020000'/>
   </feature>
   <feature name='vnmi'>
     <cpuid eax_in='0x8000000a' edx='0x02000000'/>
@@ -1038,6 +1089,9 @@
   <feature name='vmx-xsaves'>
     <msr index='0x0000048b' edx='0x00100000' eax='0x00000000'/>
   </feature>
+  <feature name='vmx-mbec'>
+    <msr index='0x0000048b' edx='0x00400000' eax='0x00000000'/>
+  </feature>
   <feature name='vmx-tsc-scaling'>
     <msr index='0x0000048b' edx='0x02000000' eax='0x00000000'/>
   </feature>
@@ -1212,6 +1266,9 @@
   <feature name='vmx-exit-clear-rtit-ctl'>
     <msr index='0x0000048f' edx='0x02000000' eax='0x00000000'/>
   </feature>
+  <feature name='vmx-exit-save-cet'>
+    <msr index='0x0000048f' edx='0x10000000' eax='0x00000000'/>
+  </feature>
   <feature name='vmx-exit-load-pkrs'>
     <msr index='0x0000048f' edx='0x20000000' eax='0x00000000'/>
   </feature>
@@ -1240,6 +1297,9 @@
   </feature>
   <feature name='vmx-entry-load-rtit-ctl'>
     <msr index='0x00000490' edx='0x00040000' eax='0x00000000'/>
+  </feature>
+  <feature name='vmx-entry-load-cet'>
+    <msr index='0x00000490' edx='0x00100000' eax='0x00000000'/>
   </feature>
   <feature name='vmx-entry-load-pkrs'>
     <msr index='0x00000490' edx='0x00400000' eax='0x00000000'/>

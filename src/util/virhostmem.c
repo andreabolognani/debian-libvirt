@@ -248,11 +248,8 @@ virHostMemGetStatsLinux(FILE *meminfo,
 int
 virHostMemGetStats(int cellNum G_GNUC_UNUSED,
                    virNodeMemoryStatsPtr params G_GNUC_UNUSED,
-                   int *nparams G_GNUC_UNUSED,
-                   unsigned int flags)
+                   int *nparams G_GNUC_UNUSED)
 {
-    virCheckFlags(0, -1);
-
 #ifdef __linux__
     {
         int ret;
@@ -354,24 +351,24 @@ virHostMemParametersAreAllSupported(virTypedParameterPtr params,
 }
 #endif
 
+
 #ifdef __linux__
+const virTypedParamValidationTemplate virHostMemSetParametersValidation[] =
+{
+    { VIR_NODE_MEMORY_SHARED_PAGES_TO_SCAN, VIR_TYPED_PARAM_UINT },
+    { VIR_NODE_MEMORY_SHARED_SLEEP_MILLISECS, VIR_TYPED_PARAM_UINT },
+    { VIR_NODE_MEMORY_SHARED_MERGE_ACROSS_NODES, VIR_TYPED_PARAM_UINT },
+    { "", 0 }
+};
+
 int
-virHostMemSetParameters(virTypedParameterPtr params G_GNUC_UNUSED,
-                        int nparams G_GNUC_UNUSED,
-                        unsigned int flags)
+virHostMemSetParameters(virTypedParameterPtr params,
+                        int nparams)
 {
     size_t i;
 
-    virCheckFlags(0, -1);
-
-    if (virTypedParamsValidate(params, nparams,
-                               VIR_NODE_MEMORY_SHARED_PAGES_TO_SCAN,
-                               VIR_TYPED_PARAM_UINT,
-                               VIR_NODE_MEMORY_SHARED_SLEEP_MILLISECS,
-                               VIR_TYPED_PARAM_UINT,
-                               VIR_NODE_MEMORY_SHARED_MERGE_ACROSS_NODES,
-                               VIR_TYPED_PARAM_UINT,
-                               NULL) < 0)
+    if (virTypedParamsValidateTemplate(params, nparams,
+                                       virHostMemSetParametersValidation) < 0)
         return -1;
 
     if (!virHostMemParametersAreAllSupported(params, nparams))
@@ -385,13 +382,15 @@ virHostMemSetParameters(virTypedParameterPtr params G_GNUC_UNUSED,
     return 0;
 }
 #else
+const virTypedParamValidationTemplate virHostMemSetParametersValidation[] =
+{
+    { "", 0 }
+};
+
 int
 virHostMemSetParameters(virTypedParameterPtr params G_GNUC_UNUSED,
-                        int nparams G_GNUC_UNUSED,
-                        unsigned int flags)
+                        int nparams G_GNUC_UNUSED)
 {
-    virCheckFlags(0, -1);
-
     virReportError(VIR_ERR_NO_SUPPORT, "%s",
                    _("node set memory parameters not implemented on this platform"));
     return -1;
@@ -443,9 +442,8 @@ virHostMemGetParameterValue(const char *field,
 #define NODE_MEMORY_PARAMETERS_NUM 8
 #ifdef __linux__
 int
-virHostMemGetParameters(virTypedParameterPtr params G_GNUC_UNUSED,
-                        int *nparams G_GNUC_UNUSED,
-                        unsigned int flags)
+virHostMemGetParameters(virTypedParameterPtr params,
+                        int *nparams)
 {
     unsigned int pages_to_scan;
     unsigned int sleep_millisecs;
@@ -457,8 +455,6 @@ virHostMemGetParameters(virTypedParameterPtr params G_GNUC_UNUSED,
     unsigned long long full_scans = 0;
     size_t i;
     int ret;
-
-    virCheckFlags(VIR_TYPED_PARAM_STRING_OKAY, -1);
 
     if ((*nparams) == 0) {
         *nparams = NODE_MEMORY_PARAMETERS_NUM;
@@ -580,11 +576,8 @@ virHostMemGetParameters(virTypedParameterPtr params G_GNUC_UNUSED,
 #else
 int
 virHostMemGetParameters(virTypedParameterPtr params G_GNUC_UNUSED,
-                        int *nparams G_GNUC_UNUSED,
-                        unsigned int flags)
+                        int *nparams G_GNUC_UNUSED)
 {
-    virCheckFlags(VIR_TYPED_PARAM_STRING_OKAY, -1);
-
     virReportError(VIR_ERR_NO_SUPPORT, "%s",
                    _("node get memory parameters not implemented on this platform"));
     return -1;

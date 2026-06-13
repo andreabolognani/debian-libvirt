@@ -7667,6 +7667,10 @@ static const vshCmdOptDef opts_setvcpus[] = {
      .type = VSH_OT_BOOL,
      .help = N_("make added vcpus hot(un)pluggable")
     },
+    {.name = "async",
+     .type = VSH_OT_BOOL,
+     .help = N_("return after firing vcpu unplug request(s)")
+    },
     {.name = NULL}
 };
 
@@ -7681,11 +7685,13 @@ cmdSetvcpus(vshControl *ctl, const vshCmd *cmd)
     bool current = vshCommandOptBool(cmd, "current");
     bool guest = vshCommandOptBool(cmd, "guest");
     bool hotpluggable = vshCommandOptBool(cmd, "hotpluggable");
+    bool async = vshCommandOptBool(cmd, "async");
     unsigned int flags = VIR_DOMAIN_AFFECT_CURRENT;
 
     VSH_EXCLUSIVE_OPTIONS_VAR(current, live);
     VSH_EXCLUSIVE_OPTIONS_VAR(current, config);
     VSH_EXCLUSIVE_OPTIONS_VAR(guest, config);
+    VSH_EXCLUSIVE_OPTIONS_VAR(async, guest);
 
     VSH_REQUIRE_OPTION_VAR(maximum, config);
 
@@ -7699,6 +7705,8 @@ cmdSetvcpus(vshControl *ctl, const vshCmd *cmd)
         flags |= VIR_DOMAIN_VCPU_MAXIMUM;
     if (hotpluggable)
         flags |= VIR_DOMAIN_VCPU_HOTPLUGGABLE;
+    if (async)
+        flags |= VIR_DOMAIN_VCPU_ASYNC_UNPLUG;
 
     if (!(dom = virshCommandOptDomain(ctl, cmd, NULL)))
         return false;
@@ -7829,6 +7837,10 @@ static const vshCmdOptDef opts_setvcpu[] = {
      .type = VSH_OT_BOOL,
      .help = N_("disable cpus specified by cpumap")
     },
+    {.name = "async",
+     .type = VSH_OT_BOOL,
+     .help = N_("return after firing vcpu unplug request")
+    },
     VIRSH_COMMON_OPT_DOMAIN_CONFIG,
     VIRSH_COMMON_OPT_DOMAIN_LIVE,
     VIRSH_COMMON_OPT_DOMAIN_CURRENT,
@@ -7843,6 +7855,7 @@ cmdSetvcpu(vshControl *ctl, const vshCmd *cmd)
     bool disable = vshCommandOptBool(cmd, "disable");
     bool config = vshCommandOptBool(cmd, "config");
     bool live = vshCommandOptBool(cmd, "live");
+    bool async = vshCommandOptBool(cmd, "async");
     const char *vcpulist = NULL;
     int state = 0;
     unsigned int flags = VIR_DOMAIN_AFFECT_CURRENT;
@@ -7851,11 +7864,14 @@ cmdSetvcpu(vshControl *ctl, const vshCmd *cmd)
 
     VSH_EXCLUSIVE_OPTIONS("current", "live");
     VSH_EXCLUSIVE_OPTIONS("current", "config");
+    VSH_EXCLUSIVE_OPTIONS("async", "enable");
 
     if (config)
         flags |= VIR_DOMAIN_AFFECT_CONFIG;
     if (live)
         flags |= VIR_DOMAIN_AFFECT_LIVE;
+    if (async)
+        flags |= VIR_DOMAIN_SETVCPU_ASYNC_UNPLUG;
 
     if (!(enable || disable)) {
         vshError(ctl, "%s", _("one of --enable, --disable is required"));

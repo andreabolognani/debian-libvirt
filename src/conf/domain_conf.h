@@ -1243,6 +1243,11 @@ typedef enum {
     VIR_DOMAIN_CHR_DEVICE_STATE_LAST
 } virDomainChrDeviceState;
 
+G_STATIC_ASSERT((int)VIR_DOMAIN_CHR_DEVICE_STATE_CONNECTED ==
+                (int)VIR_CONNECT_DOMAIN_EVENT_AGENT_LIFECYCLE_STATE_CONNECTED);
+G_STATIC_ASSERT((int)VIR_DOMAIN_CHR_DEVICE_STATE_DISCONNECTED ==
+                (int)VIR_CONNECT_DOMAIN_EVENT_AGENT_LIFECYCLE_STATE_DISCONNECTED);
+
 VIR_ENUM_DECL(virDomainChrDeviceState);
 
 typedef enum {
@@ -4542,6 +4547,10 @@ virDomainAudioIsEqual(virDomainAudioDef *this,
 const char *virDomainChrSourceDefGetPath(virDomainChrSourceDef *chr);
 
 void virDomainChrSourceDefClear(virDomainChrSourceDef *def);
+
+#define VIR_DOMAIN_OBJ_GET_METADATA_FLAGS \
+    VIR_DOMAIN_AFFECT_LIVE | \
+    VIR_DOMAIN_AFFECT_CONFIG
 
 char *virDomainObjGetMetadata(virDomainObj *vm,
                               int type,

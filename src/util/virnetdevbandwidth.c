@@ -169,6 +169,40 @@ virNetDevBandwidthManipulateFilter(const char *ifname,
 }
 
 
+static int
+virNetDevBandwidthClearRoot(const char *ifname)
+{
+    int ret = 0;
+    int dummy; /* for ignoring the exit status */
+    g_autoptr(virCommand) cmd = NULL;
+
+    cmd = virCommandNew("tc");
+    virCommandAddArgList(cmd, "qdisc", "del", "dev", ifname, "root", NULL);
+
+    if (virCommandRun(cmd, &dummy) < 0)
+        ret = -1;
+
+    return ret;
+}
+
+
+static int
+virNetDevBandwidthClearIngress(const char *ifname)
+{
+    int ret = 0;
+    int dummy; /* for ignoring the exit status */
+    g_autoptr(virCommand) cmd = NULL;
+
+    cmd = virCommandNew("tc");
+    virCommandAddArgList(cmd, "qdisc",  "del", "dev", ifname, "ingress", NULL);
+
+    if (virCommandRun(cmd, &dummy) < 0)
+        ret = -1;
+
+    return ret;
+}
+
+
 /**
  * virNetDevBandwidthSet:
  * @ifname: on which interface
@@ -253,13 +287,13 @@ virNetDevBandwidthSet(const char *ifname,
         tx = bandwidth->out;
     }
 
-    /* Only if the caller requests, clear everything including root
-     * qdisc and all filters before adding everything.
-     */
-    if (flags & VIR_NETDEV_BANDWIDTH_SET_CLEAR_ALL)
-        virNetDevBandwidthClear(ifname);
-
     if (tx && tx->average) {
+        /* Only if the caller requests, clear the root qdisc and all filters
+         * before adding everything.
+         */
+        if (flags & VIR_NETDEV_BANDWIDTH_SET_CLEAR_ALL)
+            virNetDevBandwidthClearRoot(ifname);
+
         average = g_strdup_printf("%llukbps", tx->average);
         if (tx->peak)
             peak = g_strdup_printf("%llukbps", tx->peak);
@@ -383,6 +417,12 @@ virNetDevBandwidthSet(const char *ifname,
     }
 
     if (rx) {
+        /* Only if the caller requests, clear the ingress qdisc and all
+         * filters before adding everything.
+         */
+        if (flags & VIR_NETDEV_BANDWIDTH_SET_CLEAR_ALL)
+            virNetDevBandwidthClearIngress(ifname);
+
         average = g_strdup_printf("%llukbps", rx->average);
 
         if (rx->burst) {
@@ -440,27 +480,13 @@ virNetDevBandwidthSet(const char *ifname,
 int
 virNetDevBandwidthClear(const char *ifname)
 {
-    int ret = 0;
-    int dummy; /* for ignoring the exit status */
-    g_autoptr(virCommand) rootcmd = NULL;
-    g_autoptr(virCommand) ingresscmd = NULL;
-
     if (!ifname)
        return 0;
 
-    rootcmd = virCommandNew("tc");
-    virCommandAddArgList(rootcmd, "qdisc", "del", "dev", ifname, "root", NULL);
+    if (virNetDevBandwidthClearRoot(ifname) < 0)
+        return -1;
 
-    if (virCommandRun(rootcmd, &dummy) < 0)
-        ret = -1;
-
-    ingresscmd = virCommandNew("tc");
-    virCommandAddArgList(ingresscmd, "qdisc",  "del", "dev", ifname, "ingress", NULL);
-
-    if (virCommandRun(ingresscmd, &dummy) < 0)
-        ret = -1;
-
-    return ret;
+    return virNetDevBandwidthClearIngress(ifname);
 }
 
 /*

@@ -1642,12 +1642,15 @@ chDomainGetVcpuPinInfo(virDomain *dom,
 static int
 chNodeGetCPUMap(virConnectPtr conn,
                 unsigned char **cpumap,
-                unsigned int *online, unsigned int flags)
+                unsigned int *online,
+                unsigned int flags)
 {
+    virCheckFlags(0, -1);
+
     if (virNodeGetCPUMapEnsureACL(conn) < 0)
         return -1;
 
-    return virHostCPUGetMap(cpumap, online, flags);
+    return virHostCPUGetMap(cpumap, online);
 }
 
 
@@ -2301,10 +2304,12 @@ chNodeGetMemoryStats(virConnectPtr conn,
                      int *nparams,
                      unsigned int flags)
 {
+    virCheckFlags(0, -1);
+
     if (virNodeGetMemoryStatsEnsureACL(conn) < 0)
         return -1;
 
-    return virHostMemGetStats(cellNum, params, nparams, flags);
+    return virHostMemGetStats(cellNum, params, nparams);
 }
 
 static int

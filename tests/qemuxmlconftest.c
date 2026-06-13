@@ -31,12 +31,19 @@
 #define LIBVIRT_QEMU_PROCESSPRIV_H_ALLOW
 #include "qemu/qemu_processpriv.h"
 
+#define LIBVIRT_VIRCOMMANDPRIV_H_ALLOW
+#include "util/vircommandpriv.h"
+
 #include "testutilsqemu.h"
 
 #define VIR_FROM_THIS VIR_FROM_QEMU
 
 static virQEMUDriver driver;
 
+/* this test case uses virTestDummyFDContextNew so we want to mock dup() to
+ * track FD hints properly */
+#include "virmock.h"
+VIR_TEST_MAKE_DUMMY_FD_INSTALL_DUP_MOCK
 
 static void
 testQemuPrepareHostdevPCI(virDomainHostdevDef *hostdev)
@@ -45,8 +52,7 @@ testQemuPrepareHostdevPCI(virDomainHostdevDef *hostdev)
 
     if (virHostdevIsPCIDeviceWithIOMMUFD(hostdev)) {
         g_autofree char *name = g_strdup_printf("hostdev-%s-fd", hostdev->info->alias);
-        /* Use a placeholder FD value for tests */
-        int vfioDeviceFD = 0;
+        int vfioDeviceFD = virTestMakeDummyFD(g_strdup_printf("@hostdev-%s-fd@", hostdev->info->alias));
         hostdevPriv->vfioDeviceFd = qemuFDPassDirectNew(name, &vfioDeviceFD);
     }
 }
@@ -104,7 +110,7 @@ testQemuPrepareHostdev(virDomainObj *vm)
     if (vm->def->iommufd_fdgroup) {
         ignore_value(qemuProcessGetPassedIommuFd(vm));
     } else if (virDomainDefHasPCIHostdevWithIOMMUFD(vm->def)) {
-        int iommufd = 0;
+        int iommufd = virTestMakeDummyFD(g_strdup("@iommufd-fd@"));
         priv->iommufd = qemuFDPassDirectNew("iommufd", &iommufd);
     }
 }
@@ -166,34 +172,14 @@ testCompareXMLToArgvCreateArgs(virQEMUDriver *drv,
             STREQ(disk->src->path, "/dev/cdrom"))
             disk->src->hostcdrom = true;
 
-        if (info->args.vdpafds) {
-            for (src = disk->src; virStorageSourceIsBacking(src); src = src->backingStore) {
-                gpointer value;
+        for (src = disk->src; virStorageSourceIsBacking(src); src = src->backingStore) {
+            if (src->type == VIR_STORAGE_TYPE_VHOST_VDPA) {
+                qemuDomainStorageSourcePrivate *srcpriv = qemuDomainStorageSourcePrivateFetch(src);
+                int fd = virTestMakeDummyFD(g_strdup_printf("@vdpa-%s-fd@",
+                                                            qemuBlockStorageSourceGetStorageNodename(src)));
 
-                if (src->type != VIR_STORAGE_TYPE_VHOST_VDPA)
-                    continue;
-
-                if ((value = g_hash_table_lookup(info->args.vdpafds, src->vdpadev))) {
-                    int fd = GPOINTER_TO_INT(value);
-                    qemuDomainStorageSourcePrivate *srcpriv;
-                    VIR_AUTOCLOSE fakefd = open("/dev/zero", O_RDWR);
-
-                    if (fcntl(fd, F_GETFD) != -1) {
-                        fprintf(stderr, "fd '%d' is already in use\n", fd);
-                        abort();
-                    }
-
-                    if (dup2(fakefd, fd) < 0) {
-                        fprintf(stderr, "failed to duplicate fake fd: %s",
-                                g_strerror(errno));
-                        abort();
-                    }
-
-                    srcpriv = qemuDomainStorageSourcePrivateFetch(src);
-
-                    srcpriv->fdpass = qemuFDPassNew(qemuBlockStorageSourceGetStorageNodename(src), priv);
-                    qemuFDPassAddFD(srcpriv->fdpass, &fd, "-vdpa");
-                }
+                srcpriv->fdpass = qemuFDPassNew(qemuBlockStorageSourceGetStorageNodename(src), priv);
+                qemuFDPassAddFD(srcpriv->fdpass, &fd, "-vdpa");
             }
         }
     }
@@ -206,7 +192,7 @@ testCompareXMLToArgvCreateArgs(virQEMUDriver *drv,
         if (vsock->auto_cid == VIR_TRISTATE_BOOL_YES)
             vsock->guest_cid = 42;
 
-        vsockPriv->vhostfd = 6789;
+        vsockPriv->vhostfd = virTestMakeDummyFD(g_strdup("@vsock-vhost-fd@"));
     }
 
     for (i = 0; i < vm->def->nfss; i++) {
@@ -242,7 +228,7 @@ testCompareXMLToArgvCreateArgs(virQEMUDriver *drv,
         if (video->backend == VIR_DOMAIN_VIDEO_BACKEND_TYPE_VHOSTUSER) {
             qemuDomainVideoPrivate *vpriv = QEMU_DOMAIN_VIDEO_PRIVATE(video);
 
-            vpriv->vhost_user_fd = 1729;
+            vpriv->vhost_user_fd = virTestMakeDummyFD(g_strdup("@vhost-user-video-fd@"));
         }
     }
 
@@ -282,15 +268,25 @@ static const struct testValidateSchemaCommandData commands[] = {
 };
 
 static int
-testCompareXMLToArgvValidateSchemaCommand(GStrv args,
-                                          GHashTable *schema)
+testCompareXMLToArgvValidateSchema(virCommand *cmd,
+                                   testQemuInfo *info)
 {
-    GStrv arg;
+    char **args;
+    size_t nargs;
+    size_t a;
 
-    for (arg = args; *arg; arg++) {
-        const char *curcommand = *arg;
-        const char *curargs = *(arg + 1);
+    if (!info->qmpSchema)
+        return 0;
+
+    virCommandArgListAccess(cmd, &args, &nargs);
+
+    for (a = 0; a < nargs; a++) {
+        const char *curcommand = args[a];
+        const char *curargs = NULL;
         size_t i;
+
+        if (a + 1 < nargs)
+            curargs = args[a + 1];
 
         for (i = 0; i < G_N_ELEMENTS(commands); i++) {
             const struct testValidateSchemaCommandData *command = commands + i;
@@ -307,7 +303,7 @@ testCompareXMLToArgvValidateSchemaCommand(GStrv args,
             }
 
             if (*curargs != '{') {
-                arg++;
+                a++;
                 break;
             }
 
@@ -315,7 +311,7 @@ testCompareXMLToArgvValidateSchemaCommand(GStrv args,
                 return -1;
 
             if (testQEMUSchemaValidateCommand(command->schema, jsonargs,
-                                              schema, false, false,
+                                              info->qmpSchema, false, false,
                                               command->allowIncomplete,
                                               &debug) < 0) {
                 VIR_TEST_VERBOSE("failed to validate '%s %s' against QAPI schema: %s",
@@ -323,7 +319,7 @@ testCompareXMLToArgvValidateSchemaCommand(GStrv args,
                 return -1;
             }
 
-            arg++;
+            a++;
         }
     }
 
@@ -331,22 +327,215 @@ testCompareXMLToArgvValidateSchemaCommand(GStrv args,
 }
 
 
-static int
-testCompareXMLToArgvValidateSchema(virCommand *cmd,
-                                   testQemuInfo *info)
-{
-    g_auto(GStrv) args = NULL;
+struct testCompareXMLToArgvStabilizeOneFindJSONObjectIterData {
+    const char *field;
+    bool recurse;
+    virJSONValue *ret;
+};
 
-    if (!info->qmpSchema)
+static int
+testCompareXMLToArgvStabilizeOneFindJSONObjectIter(const char *key,
+                                                   virJSONValue *value,
+                                                   void *opaque)
+{
+    struct testCompareXMLToArgvStabilizeOneFindJSONObjectIterData *data = opaque;
+
+    /* negative value breaks iteration and returns specific return value */
+    if (STREQ(data->field, key))
+        return -1;
+
+    if (!data->recurse)
         return 0;
 
-    if (virCommandGetArgList(cmd, &args) < 0)
-        return -1;
+    if (!virJSONValueIsObject(value))
+        return 0;
 
-    if (testCompareXMLToArgvValidateSchemaCommand(args, info->qmpSchema) < 0)
+    if (virJSONValueObjectForeachKeyValue(value,
+                                          testCompareXMLToArgvStabilizeOneFindJSONObjectIter,
+                                          data) == -2) {
+        /* -2 means that the callback found something; now if it was the above
+         * call that found the key we need to fill the pointer to what we've
+         * called it with */
+        if (data->ret == NULL)
+            data->ret = value;
+
         return -1;
+    }
 
     return 0;
+}
+
+
+/**
+ * testCompareXMLToArgvStabilizeOne:
+ * @arg: argument to modify (may be replaced by other memory)
+ * @field: field to replace
+ * @substitutions: optional hash-table to look up value of @field and replace
+ *                 it with the stored string
+ *
+ * Takes one qemu argument @arg and replaces the value of '@field' by a stable
+ * string, either 'XXXXXXX' if @substitutions is NULL or the value of @field
+ * wasn't found in @substitutions, or with the string from @substitutions if
+ * found.
+ *
+ * Works both on JSON and normal arguments.
+ */
+static void
+testCompareXMLToArgvStabilizeOne(char **arg,
+                                 const char *field,
+                                 GHashTable *substitutions,
+                                 bool recurseJSON)
+{
+    g_autofree char *oldarg = g_steal_pointer(arg);
+
+    if (*oldarg == '{') {
+        g_autoptr(virJSONValue) j = virJSONValueFromString(oldarg);
+        struct testCompareXMLToArgvStabilizeOneFindJSONObjectIterData data = {
+            .field = field,
+            .recurse = recurseJSON,
+        };
+        const char *curstr = NULL;
+
+        /* Any JSON args will be validated so this ought not to happen */
+        if (!j) {
+            *arg = g_steal_pointer(&oldarg);
+            return;
+        }
+
+        if (virJSONValueObjectForeachKeyValue(j,
+                                              testCompareXMLToArgvStabilizeOneFindJSONObjectIter,
+                                              &data) == -2) {
+            /* -2 means that the callback found something; now if it was the above
+             * call that found the key we need to fill the pointer to what we've
+             * called it with */
+            if (data.ret == NULL)
+                data.ret = j;
+        }
+
+        if (data.ret) {
+            virJSONValue *cur = virJSONValueObjectGet(data.ret, field);
+
+            if (cur) {
+                switch (virJSONValueGetType(cur)) {
+                case VIR_JSON_TYPE_STRING:
+                    curstr = virJSONValueGetString(cur);
+                    break;
+
+                case VIR_JSON_TYPE_NUMBER:
+                    curstr = virJSONValueGetNumberString(cur);
+                    break;
+
+                case VIR_JSON_TYPE_OBJECT:
+                case VIR_JSON_TYPE_ARRAY:
+                case VIR_JSON_TYPE_BOOLEAN:
+                case VIR_JSON_TYPE_NULL:
+                    break;
+                }
+            }
+        }
+
+        if (curstr) {
+            g_autoptr(virJSONValue) newval = NULL;
+            const char *subst = NULL;
+
+            if (substitutions)
+                subst = g_hash_table_lookup(substitutions, curstr);
+
+            if (!subst)
+                subst = "XXXXXXX";
+
+            newval = virJSONValueNewString(g_strdup(subst));
+
+            ignore_value(virJSONValueObjectReplaceKey(data.ret, field, &newval));
+
+            *arg = virJSONValueToString(j, false);
+            return;
+        } else {
+            *arg = g_steal_pointer(&oldarg);
+            return;
+        }
+    } else {
+        g_autofree char *fieldmatch = g_strdup_printf("%s=", field);
+        char *match;
+        char *val;
+        char *rest;
+        const char *subst = NULL;
+
+        if (!(match = strstr(oldarg, fieldmatch))) {
+            *arg = g_steal_pointer(&oldarg);
+            return;
+        }
+
+        if ((rest = strchr(match, ',')))
+            *rest = '\0';
+
+        *match = '\0';
+
+        val = match + strlen(fieldmatch);
+
+        if (substitutions)
+            subst = g_hash_table_lookup(substitutions, val);
+
+        if (!subst)
+            subst = "XXXXXXX";
+
+        if (rest)
+            *rest = ',';
+
+        *arg = g_strdup_printf("%s%s%s%s", oldarg, fieldmatch, subst, NULLSTR_EMPTY(rest));
+    }
+}
+
+
+static void
+testCompareXMLToArgvStabilizeArgs(virCommand *cmd,
+                                  GHashTable *fdsubsts)
+{
+    char **args;
+    size_t nargs;
+    size_t a;
+
+    virCommandArgListAccess(cmd, &args, &nargs);
+
+    for (a = 0; a < nargs; a++) {
+        /* Any following replacements want also an argument for an option so
+         * so we guarantee that there's at least one extra arg */
+        if (a + 1 >= nargs)
+            break;
+
+        if (STREQ(args[a], "-add-fd") ||
+            STREQ(args[a], "-chardev") ||
+            (STREQ(args[a], "-object") && STRPREFIX(args[a + 1], "{\"qom-type\":\"iommufd\""))) {
+            testCompareXMLToArgvStabilizeOne(&args[a + 1], "fd", fdsubsts, false);
+
+            /* qemuxmlconftest also tests the JSON syntax which isn't supported via
+             * -chardev upstream. The syntax is weird so we need to make sure to
+             *  apply the substitution only on JSON with -chardev */
+            if (STREQ(args[a], "-chardev") && STRPREFIX(args[a + 1], "{")) {
+                testCompareXMLToArgvStabilizeOne(&args[a + 1], "str", fdsubsts, true);
+            }
+
+            a++;
+        } else if (STREQ(args[a], "-device")) {
+            if (STRPREFIX(args[a + 1], "{\"driver\":\"vhost-vsock-")) {
+                testCompareXMLToArgvStabilizeOne(&args[a + 1], "vhostfd", fdsubsts, false);
+            } else if (STRPREFIX(args[a + 1], "{\"driver\":\"vfio-pci\"")) {
+                testCompareXMLToArgvStabilizeOne(&args[a + 1], "fd", fdsubsts, false);
+            }
+
+            a++;
+        } else if (STREQ(args[a], "-netdev")) {
+            /* Stabiilize both the singular and plural forms. For the plural
+             * forms we don't bother splitting the colon separated lists into
+             * individual FDs so they will stay censored */
+            testCompareXMLToArgvStabilizeOne(&args[a + 1], "fd", fdsubsts, false);
+            testCompareXMLToArgvStabilizeOne(&args[a + 1], "fds", fdsubsts, false);
+            testCompareXMLToArgvStabilizeOne(&args[a + 1], "vhostfd", fdsubsts, false);
+            testCompareXMLToArgvStabilizeOne(&args[a + 1], "vhostfds", fdsubsts, false);
+
+            a++;
+        }
+    }
 }
 
 
@@ -369,15 +558,6 @@ testInfoCheckDuplicate(testQemuInfo *info)
     g_hash_table_insert(info->conf->duplicateTests, g_strdup(path), NULL);
 
     return 0;
-}
-
-
-static void
-testQemuConfMarkUsed(testQemuInfo *info,
-                     const char *file)
-{
-    if (file)
-        ignore_value(g_hash_table_remove(info->conf->existingTestCases, file));
 }
 
 
@@ -413,10 +593,10 @@ testQemuConfXMLCommon(testQemuInfo *info,
     if (info->prepared)
         goto cleanup;
 
-    testQemuConfMarkUsed(info, info->infile);
-    testQemuConfMarkUsed(info, info->outfile);
-    testQemuConfMarkUsed(info, info->errfile);
-    testQemuConfMarkUsed(info, info->out_xml_inactive);
+    virTestCaseMarkUsed(info->conf->existingTestCases, info->infile);
+    virTestCaseMarkUsed(info->conf->existingTestCases, info->outfile);
+    virTestCaseMarkUsed(info->conf->existingTestCases, info->errfile);
+    virTestCaseMarkUsed(info->conf->existingTestCases, info->out_xml_inactive);
 
     if (testQemuInfoInitArgs((testQemuInfo *) info) < 0)
         goto cleanup;
@@ -591,7 +771,7 @@ testExtDeviceArgv(testQemuInfo *info,
     outfile = g_strdup_printf("%s/qemuxmlconfdata/%s%s%s.%s%zu.args",
                               abs_srcdir, info->name, info->suffix,
                               info->args.capsvariant, helper, idx);
-    testQemuConfMarkUsed(info, outfile);
+    virTestCaseMarkUsed(info->conf->existingTestCases, outfile);
 
     if (!cmd) {
         err = virGetLastError();
@@ -668,7 +848,6 @@ testCompareXMLToArgv(const void *data)
     unsigned int flags = info->flags;
     int ret = -1;
     virDomainObj *vm = NULL;
-    virDomainChrSourceDef monitor_chr = { 0 };
     virError *err = NULL;
     g_autofree char *log = NULL;
     g_autoptr(virCommand) cmd = NULL;
@@ -716,9 +895,6 @@ testCompareXMLToArgv(const void *data)
 
     vm->def->id = -1;
 
-    if (qemuProcessPrepareMonitorChr(&monitor_chr, priv->libDir) < 0)
-        goto cleanup;
-
     virResetLastError();
 
     if (!(cmd = testCompareXMLToArgvCreateArgs(&driver, vm, migrateURI, info,
@@ -742,6 +918,8 @@ testCompareXMLToArgv(const void *data)
 
     if (testCompareXMLToArgvValidateSchema(cmd, info) < 0)
         goto cleanup;
+
+    testCompareXMLToArgvStabilizeArgs(cmd, info->fdsubsts);
 
     if (virCommandToStringBuf(cmd, &actualBuf, true, false) < 0)
         goto cleanup;
@@ -774,7 +952,6 @@ testCompareXMLToArgv(const void *data)
     /* clear overriden host cpu */
     if (info->args.capsHostCPUModel)
         qemuTestSetHostCPU(&driver, driver.hostarch, NULL);
-    virDomainChrSourceDefClear(&monitor_chr);
     if (vm) {
         vm->def = NULL;
         virObjectUnref(vm);
@@ -787,51 +964,12 @@ testCompareXMLToArgv(const void *data)
 }
 
 
-static int
-testConfXMLCheck(GHashTable *existingTestCases)
+static bool
+testConfXMLEnumerate(struct dirent *ent)
 {
-    g_autofree virHashKeyValuePair *items = virHashGetItems(existingTestCases, NULL, true);
-    size_t i;
-    int ret = 0;
-
-    for (i = 0; items[i].key; i++) {
-        if (ret == 0)
-            fprintf(stderr, "\n");
-
-        fprintf(stderr, "unused file: %s\n", (const char *) items[i].key);
-        ret = -1;
-    }
-
-    return ret;
-}
-
-
-static int
-testConfXMLEnumerate(GHashTable *existingTestCases)
-{
-    struct dirent *ent;
-    g_autoptr(DIR) dir = NULL;
-    int rc;
-
-    /* If VIR_TEST_RANGE is in use don't bother filling in the data, which
-     * also makes testConfXMLCheck succeed. */
-    if (virTestHasRangeBitmap())
-        return 0;
-
-    if (virDirOpen(&dir, abs_srcdir "/qemuxmlconfdata") < 0)
-        return -1;
-
-    while ((rc = virDirRead(dir, &ent, abs_srcdir "/qemuxmlconfdata")) > 0) {
-        if (virStringHasSuffix(ent->d_name, ".xml") ||
-            virStringHasSuffix(ent->d_name, ".args") ||
-            virStringHasSuffix(ent->d_name, ".err")) {
-            g_hash_table_insert(existingTestCases,
-                                g_strdup_printf(abs_srcdir "/qemuxmlconfdata/%s", ent->d_name),
-                                NULL);
-        }
-    }
-
-    return rc;
+    return virStringHasSuffix(ent->d_name, ".xml") ||
+        virStringHasSuffix(ent->d_name, ".args") ||
+        virStringHasSuffix(ent->d_name, ".err");
 }
 
 
@@ -860,10 +998,12 @@ testRun(const char *name,
     g_autofree char *name_argv = g_strdup_printf("QEMU XML def -> ARGV %s%s", name, suffix);
     g_autoptr(testQemuInfo) info = g_new0(testQemuInfo, 1);
     va_list ap;
+    g_autoptr(virTestDummyFDContext) fdsubsts = virTestDummyFDContextNew();
 
     info->name = name;
     info->suffix = suffix;
     info->conf = testConf;
+    info->fdsubsts = fdsubsts;
 
     va_start(ap, testConf);
     testQemuInfoSetArgs(info, ap);
@@ -902,23 +1042,27 @@ mymain(void)
     int ret = 0;
     g_autoptr(virConnect) conn = NULL;
     g_autoptr(GHashTable) duplicateTests = virHashNew(NULL);
-    g_autoptr(GHashTable) existingTestCases = virHashNew(NULL);
+    g_autoptr(GHashTable) existingTestCases = NULL;
     g_autoptr(GHashTable) capslatest = testQemuGetLatestCaps();
     g_autoptr(GHashTable) qapiSchemaCache = virHashNew((GDestroyNotify) g_hash_table_unref);
     g_autoptr(GHashTable) capscache = virHashNew(virObjectUnref);
     struct testQemuConf testConf = { .capslatest = capslatest,
                                      .capscache = capscache,
                                      .qapiSchemaCache = qapiSchemaCache,
-                                     .duplicateTests = duplicateTests,
-                                     .existingTestCases = existingTestCases };
+                                     .duplicateTests = duplicateTests };
 
     if (!capslatest)
         return EXIT_FAILURE;
 
     /* enumerate and store all available test cases to verify at the end that
      * all of them were invoked */
-    if (testConfXMLEnumerate(existingTestCases) < 0)
+    if (virTestEnumerateTestCases(abs_srcdir "/qemuxmlconfdata",
+                                  testConfXMLEnumerate,
+                                  &existingTestCases) < 0) {
         return EXIT_FAILURE;
+    }
+
+    testConf.existingTestCases = existingTestCases;
 
     /* Set the timezone because we are mocking the time() function.
      * If we don't do that, then localtime() may return unpredictable
@@ -1175,9 +1319,7 @@ mymain(void)
     DO_TEST_CAPS_LATEST("machine-smm-off");
     DO_TEST_CAPS_LATEST("machine-vmport-opt");
     DO_TEST_CAPS_LATEST("machine-i8042-on");
-    DO_TEST_CAPS_VER_PARSE_ERROR("machine-i8042-on", "6.2.0");
     DO_TEST_CAPS_LATEST("machine-i8042-off");
-    DO_TEST_CAPS_VER_PARSE_ERROR("machine-i8042-off", "6.2.0");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("machine-i8042-off-vmport-on");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("machine-i8042-off-explicit-ps2-inputs");
     DO_TEST_CAPS_LATEST("default-kvm-host-arch");
@@ -1510,7 +1652,6 @@ mymain(void)
     DO_TEST_CAPS_LATEST("disk-network-nfs");
     driver.config->nbdTLSx509secretUUID = g_strdup("6fd3f62d-9fe7-4a4e-a869-7acd6376d8ea");
     DO_TEST_CAPS_LATEST("disk-network-tlsx509-nbd");
-    DO_TEST_CAPS_VER_PARSE_ERROR("disk-network-tlsx509-nbd-hostname", "6.2.0");
     driver.config->nbdTLSpriority = g_strdup("@SYSTEM:-VERS-TLS1.3");
     DO_TEST_CAPS_LATEST("disk-network-tlsx509-nbd-hostname");
     VIR_FREE(driver.config->nbdTLSpriority);
@@ -1522,8 +1663,7 @@ mymain(void)
     DO_TEST_CAPS_LATEST("disk-target-nvme");
     DO_TEST_CAPS_LATEST("disk-vhostuser-numa");
     DO_TEST_CAPS_LATEST("disk-vhostuser");
-    DO_TEST_CAPS_ARCH_LATEST_FULL("disk-vhostvdpa", "x86_64",
-                                  ARG_VDPA_FD, "/dev/vhost-vdpa-0", 201);
+    DO_TEST_CAPS_LATEST("disk-vhostvdpa");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("disk-device-lun-type-invalid");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("disk-attaching-partition-nosupport");
     DO_TEST_CAPS_LATEST("disk-usb-device");
@@ -1587,12 +1727,12 @@ mymain(void)
     DO_TEST_CAPS_LATEST("disk-backing-chains-noindex");
     DO_TEST_CAPS_LATEST("disk-qcow2-datafile-store");
     DO_TEST_CAPS_ARCH_LATEST_FULL("disk-source-fd", "x86_64",
-                                  ARG_FD_GROUP, "testgroup2", false, 2, 200, 205,
-                                  ARG_FD_GROUP, "testgroup5", false, 1, 204,
-                                  ARG_FD_GROUP, "cdimage-ro", false, 1, 207,
-                                  ARG_FD_GROUP, "cdimage-rw", true, 1, 208,
-                                  ARG_FD_GROUP, "raw-rw-base", true, 1, 209,
-                                  ARG_FD_GROUP, "testgroup6", false, 2, 247, 248);
+                                  ARG_FD_GROUP, "testgroup2", false, 2,
+                                  ARG_FD_GROUP, "testgroup5", false, 1,
+                                  ARG_FD_GROUP, "cdimage-ro", false, 1,
+                                  ARG_FD_GROUP, "cdimage-rw", true, 1,
+                                  ARG_FD_GROUP, "raw-rw-base", true, 1,
+                                  ARG_FD_GROUP, "testgroup6", false, 2);
 
     DO_TEST_CAPS_LATEST("disk-slices");
     DO_TEST_CAPS_LATEST("disk-rotation");
@@ -2212,9 +2352,6 @@ mymain(void)
 
     /* host-model cpu expansion depends on the cpu reported by qemu and thus
      * we invoke it for all real capability dumps we have */
-    DO_TEST_CAPS_VER("cpu-host-model-kvm", "6.2.0");
-    DO_TEST_CAPS_VER("cpu-host-model-kvm", "7.0.0");
-    DO_TEST_CAPS_VER("cpu-host-model-kvm", "7.1.0");
     DO_TEST_CAPS_VER("cpu-host-model-kvm", "7.2.0");
     DO_TEST_CAPS_VER("cpu-host-model-kvm", "8.0.0");
     DO_TEST_CAPS_VER("cpu-host-model-kvm", "8.1.0");
@@ -2224,10 +2361,9 @@ mymain(void)
     DO_TEST_CAPS_VER("cpu-host-model-kvm", "9.2.0");
     DO_TEST_CAPS_VER("cpu-host-model-kvm", "10.0.0");
     DO_TEST_CAPS_VER("cpu-host-model-kvm", "10.1.0");
+    DO_TEST_CAPS_VER("cpu-host-model-kvm", "10.2.0");
+    DO_TEST_CAPS_VER("cpu-host-model-kvm", "11.0.0");
 
-    DO_TEST_CAPS_VER("cpu-host-model-tcg", "6.2.0");
-    DO_TEST_CAPS_VER("cpu-host-model-tcg", "7.0.0");
-    DO_TEST_CAPS_VER("cpu-host-model-tcg", "7.1.0");
     DO_TEST_CAPS_VER("cpu-host-model-tcg", "7.2.0");
     DO_TEST_CAPS_VER("cpu-host-model-tcg", "8.0.0");
     DO_TEST_CAPS_VER("cpu-host-model-tcg", "8.1.0");
@@ -2237,10 +2373,9 @@ mymain(void)
     DO_TEST_CAPS_VER("cpu-host-model-tcg", "9.2.0");
     DO_TEST_CAPS_VER("cpu-host-model-tcg", "10.0.0");
     DO_TEST_CAPS_VER("cpu-host-model-tcg", "10.1.0");
+    DO_TEST_CAPS_VER("cpu-host-model-tcg", "10.2.0");
+    DO_TEST_CAPS_VER("cpu-host-model-tcg", "11.0.0");
 
-    DO_TEST_CAPS_VER("cpu-host-model-fallback-kvm", "6.2.0");
-    DO_TEST_CAPS_VER("cpu-host-model-fallback-kvm", "7.0.0");
-    DO_TEST_CAPS_VER("cpu-host-model-fallback-kvm", "7.1.0");
     DO_TEST_CAPS_VER("cpu-host-model-fallback-kvm", "7.2.0");
     DO_TEST_CAPS_VER("cpu-host-model-fallback-kvm", "8.0.0");
     DO_TEST_CAPS_VER("cpu-host-model-fallback-kvm", "8.1.0");
@@ -2250,10 +2385,9 @@ mymain(void)
     DO_TEST_CAPS_VER("cpu-host-model-fallback-kvm", "9.2.0");
     DO_TEST_CAPS_VER("cpu-host-model-fallback-kvm", "10.0.0");
     DO_TEST_CAPS_VER("cpu-host-model-fallback-kvm", "10.1.0");
+    DO_TEST_CAPS_VER("cpu-host-model-fallback-kvm", "10.2.0");
+    DO_TEST_CAPS_VER("cpu-host-model-fallback-kvm", "11.0.0");
 
-    DO_TEST_CAPS_VER("cpu-host-model-fallback-tcg", "6.2.0");
-    DO_TEST_CAPS_VER("cpu-host-model-fallback-tcg", "7.0.0");
-    DO_TEST_CAPS_VER("cpu-host-model-fallback-tcg", "7.1.0");
     DO_TEST_CAPS_VER("cpu-host-model-fallback-tcg", "7.2.0");
     DO_TEST_CAPS_VER("cpu-host-model-fallback-tcg", "8.0.0");
     DO_TEST_CAPS_VER("cpu-host-model-fallback-tcg", "8.1.0");
@@ -2263,10 +2397,9 @@ mymain(void)
     DO_TEST_CAPS_VER("cpu-host-model-fallback-tcg", "9.2.0");
     DO_TEST_CAPS_VER("cpu-host-model-fallback-tcg", "10.0.0");
     DO_TEST_CAPS_VER("cpu-host-model-fallback-tcg", "10.1.0");
+    DO_TEST_CAPS_VER("cpu-host-model-fallback-tcg", "10.2.0");
+    DO_TEST_CAPS_VER("cpu-host-model-fallback-tcg", "11.0.0");
 
-    DO_TEST_CAPS_VER("cpu-host-model-nofallback-kvm", "6.2.0");
-    DO_TEST_CAPS_VER("cpu-host-model-nofallback-kvm", "7.0.0");
-    DO_TEST_CAPS_VER("cpu-host-model-nofallback-kvm", "7.1.0");
     DO_TEST_CAPS_VER("cpu-host-model-nofallback-kvm", "7.2.0");
     DO_TEST_CAPS_VER("cpu-host-model-nofallback-kvm", "8.0.0");
     DO_TEST_CAPS_VER("cpu-host-model-nofallback-kvm", "8.1.0");
@@ -2276,10 +2409,9 @@ mymain(void)
     DO_TEST_CAPS_VER("cpu-host-model-nofallback-kvm", "9.2.0");
     DO_TEST_CAPS_VER("cpu-host-model-nofallback-kvm", "10.0.0");
     DO_TEST_CAPS_VER("cpu-host-model-nofallback-kvm", "10.1.0");
+    DO_TEST_CAPS_VER("cpu-host-model-nofallback-kvm", "10.2.0");
+    DO_TEST_CAPS_VER("cpu-host-model-nofallback-kvm", "11.0.0");
 
-    DO_TEST_CAPS_VER("cpu-host-model-nofallback-tcg", "6.2.0");
-    DO_TEST_CAPS_VER("cpu-host-model-nofallback-tcg", "7.0.0");
-    DO_TEST_CAPS_VER("cpu-host-model-nofallback-tcg", "7.1.0");
     DO_TEST_CAPS_VER("cpu-host-model-nofallback-tcg", "7.2.0");
     DO_TEST_CAPS_VER("cpu-host-model-nofallback-tcg", "8.0.0");
     DO_TEST_CAPS_VER("cpu-host-model-nofallback-tcg", "8.1.0");
@@ -2289,6 +2421,8 @@ mymain(void)
     DO_TEST_CAPS_VER("cpu-host-model-nofallback-tcg", "9.2.0");
     DO_TEST_CAPS_VER("cpu-host-model-nofallback-tcg", "10.0.0");
     DO_TEST_CAPS_VER("cpu-host-model-nofallback-tcg", "10.1.0");
+    DO_TEST_CAPS_VER("cpu-host-model-nofallback-tcg", "10.2.0");
+    DO_TEST_CAPS_VER("cpu-host-model-nofallback-tcg", "11.0.0");
 
     /* For this specific test we accept the increased likelihood of changes
      * if qemu updates the CPU model */
@@ -2822,7 +2956,7 @@ mymain(void)
     DO_TEST_CAPS_LATEST("iommufd");
     DO_TEST_CAPS_LATEST("iommufd-q35");
     DO_TEST_CAPS_ARCH_LATEST_FULL("iommufd-q35-fd", "x86_64",
-                                  ARG_FD_GROUP, "iommu", false, 1, 20);
+                                  ARG_FD_GROUP, "iommu", false, 1);
     DO_TEST_CAPS_ARCH_LATEST("iommufd-virt", "aarch64");
     DO_TEST_CAPS_ARCH_LATEST("iommufd-virt-pci-bus-single", "aarch64");
 
@@ -2972,8 +3106,6 @@ mymain(void)
     DO_TEST_CAPS_ARCH_LATEST("aarch64-default-cpu-kvm-virt-10.0", "aarch64");
     DO_TEST_CAPS_ARCH_VER("aarch64-default-cpu-tcg-virt-4.2", "aarch64", "10.0.0");
     DO_TEST_CAPS_ARCH_LATEST("aarch64-default-cpu-tcg-virt-10.0", "aarch64");
-    DO_TEST_CAPS_ARCH_VER("ppc64-default-cpu-kvm-pseries-2.7", "ppc64", "7.0.0");
-    DO_TEST_CAPS_ARCH_VER("ppc64-default-cpu-tcg-pseries-2.7", "ppc64", "7.0.0");
     DO_TEST_CAPS_ARCH_LATEST("ppc64-default-cpu-kvm-pseries-3.1", "ppc64");
     DO_TEST_CAPS_ARCH_LATEST("ppc64-default-cpu-tcg-pseries-3.1", "ppc64");
     DO_TEST_CAPS_ARCH_LATEST("ppc64-default-cpu-kvm-pseries-4.2", "ppc64");
@@ -3008,7 +3140,8 @@ mymain(void)
     DO_TEST_CAPS_LATEST("cpu-phys-bits-limit");
     DO_TEST_CAPS_LATEST("cpu-phys-bits-emulate-bare");
 
-    DO_TEST_CAPS_VER("sgx-epc", "7.0.0");
+    DO_TEST_CAPS_ARCH_LATEST_FULL("sgx-epc", "x86_64",
+                                  ARG_CAPS_VARIANT, "+sgx", ARG_END);
 
     DO_TEST_CAPS_LATEST("crypto-builtin");
 
@@ -3088,7 +3221,7 @@ mymain(void)
     DO_TEST_CAPS_ARCH_LATEST("aarch64-virt-virtualization", "aarch64");
 
     /* check that all input files were actually used here */
-    if (testConfXMLCheck(existingTestCases) < 0)
+    if (virTestCheckUnusedTestCases(existingTestCases) < 0)
         ret = -1;
 
     qemuTestDriverFree(&driver);

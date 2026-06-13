@@ -2145,6 +2145,9 @@ vshPrintStderr(vshControl *ctl,
     if (ctl)
         vshOutputLogFile(ctl, level, str);
 
+    if (ctl->stderr_closed)
+        return;
+
     /* Most output is to stdout, but if someone ran virsh 2>&1, then
      * printing to stderr will not interleave correctly with stdout
      * unless we flush between every transition between streams.  */
@@ -3577,10 +3580,15 @@ cmdComplete(vshControl *ctl, const vshCmd *cmd)
     if (!ctl->imode) {
         if (virOnce(&vshCmdCompleteCloseStdinStderrOnce, vshCmdCompleteCloseStdinStderr) < 0)
             return false;
+
+        ctl->stderr_closed = true;
     }
 
-    if (!(hooks && hooks->connHandler && hooks->connHandler(ctl)))
-        return false;
+    /* Attempt connecting so that we can also do completions based on e.g.
+     * object names work. Failure to connect is not fatal because we want
+     * at least argument completion */
+    if (hooks && hooks->connHandler)
+        ignore_value(hooks->connHandler(ctl));
 
     vshReadlineInit(ctl);
 

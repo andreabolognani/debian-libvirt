@@ -2495,11 +2495,12 @@ static int lxcFreezeContainer(virDomainObj *vm)
     int check_interval = 1; /* In milliseconds */
     int exp = 10;
     int waited_time = 0;
-    g_autofree char *state = NULL;
     virLXCDomainObjPrivate *priv = vm->privateData;
 
     while (waited_time < timeout) {
+        virCgroupFreezerState state;
         int r;
+
         /*
          * Writing "FROZEN" to the "freezer.state" freezes the group,
          * i.e., the container, temporarily transiting "FREEZING" state.
@@ -2507,7 +2508,8 @@ static int lxcFreezeContainer(virDomainObj *vm)
          * to "FROZEN".
          * (see linux-2.6/Documentation/cgroups/freezer-subsystem.txt)
          */
-        r = virCgroupSetFreezerState(priv->cgroup, "FROZEN");
+        r = virCgroupSetFreezerState(priv->cgroup,
+                                     VIR_CGROUP_FREEZER_STATE_FROZEN);
 
         /*
          * Returning EBUSY explicitly indicates that the group is
@@ -2540,9 +2542,9 @@ static int lxcFreezeContainer(virDomainObj *vm)
             VIR_DEBUG("Reading freezer.state failed with errno: %d", r);
             goto error;
         }
-        VIR_DEBUG("Read freezer.state: %s", state);
+        VIR_DEBUG("Read freezer.state: %d", state);
 
-        if (STREQ(state, "FROZEN"))
+        if (state == VIR_CGROUP_FREEZER_STATE_FROZEN)
             return 0;
 
         waited_time += check_interval;
@@ -2563,7 +2565,7 @@ static int lxcFreezeContainer(virDomainObj *vm)
      * activate the group again and return an error.
      * This is likely to fall the group back again gracefully.
      */
-    virCgroupSetFreezerState(priv->cgroup, "THAWED");
+    virCgroupSetFreezerState(priv->cgroup, VIR_CGROUP_FREEZER_STATE_THAWED);
     return -1;
 }
 
@@ -2643,7 +2645,8 @@ static int lxcDomainResume(virDomainPtr dom)
                        "%s", _("domain is already running"));
         goto endjob;
     } else if (state == VIR_DOMAIN_PAUSED) {
-        if (virCgroupSetFreezerState(priv->cgroup, "THAWED") < 0) {
+        if (virCgroupSetFreezerState(priv->cgroup,
+                                     VIR_CGROUP_FREEZER_STATE_THAWED) < 0) {
             virReportError(VIR_ERR_OPERATION_FAILED,
                            "%s", _("Resume operation failed"));
             goto endjob;
@@ -3553,8 +3556,7 @@ lxcDomainAttachDeviceNetLive(virLXCDriver *driver,
             if (virNetDevBandwidthSet(net->ifname, actualBandwidth, flags) < 0)
                 goto cleanup;
         } else {
-            VIR_WARN("setting bandwidth on interfaces of "
-                     "type '%s' is not implemented yet: %s",
+            VIR_WARN("setting bandwidth on interfaces of type '%s' is not implemented yet: %s",
                      virDomainNetTypeToString(actualType), virGetLastErrorMessage());
         }
     }
@@ -4785,10 +4787,12 @@ lxcNodeGetCPUStats(virConnectPtr conn,
                    int *nparams,
                    unsigned int flags)
 {
+    virCheckFlags(0, -1);
+
     if (virNodeGetCPUStatsEnsureACL(conn) < 0)
         return -1;
 
-    return virHostCPUGetStats(cpuNum, params, nparams, flags);
+    return virHostCPUGetStats(cpuNum, params, nparams);
 }
 
 
@@ -4799,10 +4803,12 @@ lxcNodeGetMemoryStats(virConnectPtr conn,
                       int *nparams,
                       unsigned int flags)
 {
+    virCheckFlags(0, -1);
+
     if (virNodeGetMemoryStatsEnsureACL(conn) < 0)
         return -1;
 
-    return virHostMemGetStats(cellNum, params, nparams, flags);
+    return virHostMemGetStats(cellNum, params, nparams);
 }
 
 
@@ -4840,10 +4846,12 @@ lxcNodeGetMemoryParameters(virConnectPtr conn,
                            int *nparams,
                            unsigned int flags)
 {
+    virCheckFlags(VIR_TYPED_PARAM_STRING_OKAY, -1);
+
     if (virNodeGetMemoryParametersEnsureACL(conn) < 0)
         return -1;
 
-    return virHostMemGetParameters(params, nparams, flags);
+    return virHostMemGetParameters(params, nparams);
 }
 
 
@@ -4853,10 +4861,12 @@ lxcNodeSetMemoryParameters(virConnectPtr conn,
                            int nparams,
                            unsigned int flags)
 {
+    virCheckFlags(0, -1);
+
     if (virNodeSetMemoryParametersEnsureACL(conn) < 0)
         return -1;
 
-    return virHostMemSetParameters(params, nparams, flags);
+    return virHostMemSetParameters(params, nparams);
 }
 
 
@@ -4866,10 +4876,12 @@ lxcNodeGetCPUMap(virConnectPtr conn,
                  unsigned int *online,
                  unsigned int flags)
 {
+    virCheckFlags(0, -1);
+
     if (virNodeGetCPUMapEnsureACL(conn) < 0)
         return -1;
 
-    return virHostCPUGetMap(cpumap, online, flags);
+    return virHostCPUGetMap(cpumap, online);
 }
 
 
@@ -4879,10 +4891,12 @@ lxcNodeSuspendForDuration(virConnectPtr conn,
                           unsigned long long duration,
                           unsigned int flags)
 {
+    virCheckFlags(0, -1);
+
     if (virNodeSuspendForDurationEnsureACL(conn) < 0)
         return -1;
 
-    return virNodeSuspend(target, duration, flags);
+    return virNodeSuspend(target, duration);
 }
 
 

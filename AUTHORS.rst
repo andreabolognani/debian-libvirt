@@ -97,13 +97,14 @@ Patches have also been contributed by:
 
 * Aaron M. Brown <aaronmbr@linux.ibm.com>
 * Abhiram Tilak <atp.exp@gmail.com>
-* Achill Gilgenast via Devel <devel@lists.libvirt.org>
+* Achill Gilgenast <achill@achill.org>
 * Adam Julis <ajulis@redhat.com>
 * Adam Litke <agl@us.ibm.com>
 * Adam Walters <adam@pandorasboxen.com>
 * Adolfo Jayme Barrientos <fitoschido@gmail.com>
 * Adrian Brzezinski <adrian.brzezinski@eo.pl>
 * Akarshan Biswas <akarshan.biswas@gmail.com>
+* Akash Kulhalli <akash.kulhalli@oracle.com>
 * Akihiko Odaki <akihiko.odaki@daynix.com>
 * Akihiko Odaki <odaki@rsg.ci.i.u-tokyo.ac.jp>
 * Alan Pevec <apevec@redhat.com>
@@ -348,7 +349,7 @@ Patches have also been contributed by:
 * Elizaveta Tereshkina <etereshkina@astralinux.ru>
 * Elizaveta Tereshkina <teryoshkina.ea@gmail.com>
 * Emilio Herrera <ehespinosa57@gmail.com>
-* Enrique Llorente via Devel <devel@lists.libvirt.org>
+* Enrique Llorente <ellorent@redhat.com>
 * Eric Blake <eblake@redhat.com>
 * Eric Farman <farman@linux.ibm.com>
 * Eric Farman <farman@linux.vnet.ibm.com>
@@ -423,7 +424,6 @@ Patches have also been contributed by:
 * Halil Pasic <pasic@linux.ibm.com>
 * Han Cheng <hanc.fnst@cn.fujitsu.com>
 * Han Han <hhan@redhat.com>
-* Han Han via Devel <devel@lists.libvirt.org>
 * Hao Liu <hliu@redhat.com>
 * Haonan Wang <hnwanga1@gmail.com>
 * Hao Peng <peng.hao2@zte.com.cn>
@@ -502,6 +502,7 @@ Patches have also been contributed by:
 * Jean-Baptiste Rouault <jean-baptiste.rouault@diateam.net>
 * Jean-Louis Dupond <jean-louis@dupond.be>
 * Jean-Marc Liger <jean-marc.liger@parisdescartes.fr>
+* Jedrzej Wasiukiewicz <jedrzej.wasiukiewicz@intel.com>
 * Jens Petersen <petersen@redhat.com>
 * Jens Schmidt <farblos@vodafonemail.de>
 * Jérémie Tarot <silopolis@gmail.com>
@@ -520,7 +521,6 @@ Patches have also been contributed by:
 * Jie Wang <wangjie88@huawei.com>
 * JieWang <wangjie88@huawei.com>
 * Jim Fehlig <jfehlig@suse.com>
-* Jim Fehlig via Devel <devel@lists.libvirt.org>
 * Jim Meyering <meyering@redhat.com>
 * Jim Paris <jim@jtan.com>
 * Jim Spentzos <jimspentzos2000@gmail.com>
@@ -542,6 +542,7 @@ Patches have also been contributed by:
 * John Morrissey <jwm@horde.net>
 * John Williams <john.williams@petalogix.com>
 * Jonas Eriksson <jonas.j.eriksson@ericsson.com>
+* Jonathan Davies <jonathan.davies@nutanix.com>
 * Jonathan Lebon <jlebon@redhat.com>
 * Jonathan Toppins <jtoppins@cumulusnetworks.com>
 * Jonathan Watt <jwatt@jwatt.org>
@@ -574,7 +575,6 @@ Patches have also been contributed by:
 * Kiarie Kahurani <davidkiarie4@gmail.com>
 * Kim InSoo <simmon@nplob.com>
 * Kirill Shchetiniuk <kshcheti@redhat.com>
-* Kirill Shchetiniuk via Devel <devel@lists.libvirt.org>
 * Klaus Ethgen <Klaus@Ethgen.de>
 * Koichi Murase <myoga.murase@gmail.com>
 * Konrad Rzeszutek Wilk <konrad@kernel.org>
@@ -626,6 +626,7 @@ Patches have also been contributed by:
 * Lorin Hochstein <lorin@isi.edu>
 * Lubomir Rintel <lkundrak@v3.sk>
 * Lucas Amaral <lucaaamaral@gmail.com>
+* Lucas Kornicki <lucas.kornicki@nutanix.com>
 * Ludek Janda <ljanda@redhat.com>
 * Ludovic Beliveau <ludovic.beliveau@windriver.com>
 * Luiz Capitulino <lcapitulino@redhat.com>
@@ -722,7 +723,6 @@ Patches have also been contributed by:
 * minglei.liu <minglei.liu@smartx.com>
 * Minoru Usui <usui@mxm.nes.nec.co.jp>
 * Miroslav Los <mirlos@cisco.com>
-* Miroslav Los via Devel <devel@lists.libvirt.org>
 * Mooli Tayer <mtayer@redhat.com>
 * MORITA Kazutaka <morita.kazutaka@lab.ntt.co.jp>
 * Moshe Levi <moshele@mellanox.com>
@@ -735,7 +735,6 @@ Patches have also been contributed by:
 * Narayana Murty N <nnmlinux@linux.ibm.com>
 * Natanael Copa <ncopa@alpinelinux.org>
 * Nathan Chen <nathanc@nvidia.com>
-* Nathan Chen via Devel <devel@lists.libvirt.org>
 * Nathan <nathan95@live.it>
 * Neal Gompa <ngompa13@gmail.com>
 * Nehal J Wani <nehaljw.kkd1@gmail.com>
@@ -753,7 +752,6 @@ Patches have also been contributed by:
 * Nico Pache <npache@redhat.com>
 * Niels de Vos <ndevos@redhat.com>
 * Nikolai Barybin <nikolai.barybin@virtuozzo.com>
-* Nikolai Barybin via Devel <devel@lists.libvirt.org>
 * Nikolay Shirokovskiy <nshirokovskiy@openvz.org>
 * Nikolay Shirokovskiy <nshirokovskiy@virtuozzo.com>
 * Nikos Mavrogiannopoulos <nmav@redhat.com>
@@ -833,6 +831,7 @@ Patches have also been contributed by:
 * Qiao Nuohan <qiaonuohan@cn.fujitsu.com>
 * Qiaowei Ren <qiaowei.ren@intel.com>
 * Radoslaw Biernacki <radoslaw.biernacki@linaro.org>
+* Radoslaw Smigielski <rsmigiel@redhat.com>
 * Radostin Stoyanov <rstoyanov1@gmail.com>
 * Radu Caragea <dmns_serp@yahoo.com>
 * Rafael Fonseca <r4f4rfs@gmail.com>
@@ -937,6 +936,7 @@ Patches have also been contributed by:
 * Sławek Kapłoński <slawek@kaplonski.pl>
 * Soren Hansen <soren@linux2go.dk>
 * Spencer Shimko <sshimko@tresys.com>
+* Srihari Parimi <sparimi@redhat.com>
 * Sri Ramanujam <sramanujam@datto.com>
 * Srivatsa S. Bhat <srivatsa.bhat@linux.vnet.ibm.com>
 * Stefan Bader <stefan.bader@canonical.com>
@@ -959,6 +959,7 @@ Patches have also been contributed by:
 * Sukadev Bhattiprolu <sukadev@linux.vnet.ibm.com>
 * Sukrit Bhatnagar <skrtbhtngr@gmail.com>
 * Supriya Kannery <supriyak@linux.vnet.ibm.com>
+* Surya Gupta <surygupt@redhat.com>
 * Suyang Chen <dawson0xff@gmail.com>
 * Swapnil Ingle <swapnil.ingle@nutanix.com>
 * Syed Humaid <syedhumaidbinharoon@gmail.com>

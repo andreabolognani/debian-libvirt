@@ -39,13 +39,13 @@
 #include "bhyve_firmware.h"
 #include "bhyve_monitor.h"
 #include "bhyve_process.h"
+#include "bhyve_rctl.h"
 #include "datatypes.h"
 #include "virerror.h"
 #include "virhook.h"
 #include "virlog.h"
 #include "virfile.h"
 #include "viralloc.h"
-#include "vircommand.h"
 #include "virstring.h"
 #include "virpidfile.h"
 #include "virprocess.h"
@@ -53,6 +53,7 @@
 #include "virnetdevbridge.h"
 #include "virnetdevtap.h"
 #include "virtime.h"
+#include "virutil.h"
 
 #define VIR_FROM_THIS   VIR_FROM_BHYVE
 
@@ -138,7 +139,8 @@ bhyveSetResourceLimits(struct _bhyveConn *driver, virDomainObj *vm)
 {
     virBlkioDevice *device;
 
-    if (vm->def->blkio.ndevices != 1)
+    if ((vm->def->blkio.ndevices != 1) &&
+        !virMemoryLimitIsSet(vm->def->mem.hard_limit))
         return 0;
 
     if ((bhyveDriverGetBhyveCaps(driver) & BHYVE_CAP_RCTL) == 0) {
@@ -147,29 +149,131 @@ bhyveSetResourceLimits(struct _bhyveConn *driver, virDomainObj *vm)
         return -1;
     }
 
-    device = &vm->def->blkio.devices[0];
+    if (vm->def->blkio.ndevices == 1) {
+        device = &vm->def->blkio.devices[0];
 
-#define BHYVE_APPLY_RCTL_RULE(field, type, format) \
-    do { \
-        if ((field)) { \
-            g_autofree char *rule = NULL; \
-            g_autoptr(virCommand) cmd = virCommandNewArgList("rctl", "-a", NULL); \
-            virCommandAddArgFormat(cmd, "process:%d:" type ":throttle=" format, \
-                                   vm->pid, (field)); \
-            if (virCommandRun(cmd, NULL) < 0) \
-                return -1; \
-         } \
-    } while (0)
+        bhyveRctlSetIoLimits(vm->pid, device);
+    }
 
-    BHYVE_APPLY_RCTL_RULE(device->riops, "readiops", "%u");
-    BHYVE_APPLY_RCTL_RULE(device->wiops, "writeiops", "%u");
-    BHYVE_APPLY_RCTL_RULE(device->rbps, "readbps", "%llu");
-    BHYVE_APPLY_RCTL_RULE(device->wbps, "writebps", "%llu");
-
-#undef BHYVE_APPLY_RCTL_RULE
+    /* rctl(8) uses bytes for these values and def->mem.* uses kibibytes */
+    if (virMemoryLimitIsSet(vm->def->mem.hard_limit))
+        if (bhyveRctlSetMemoryHardLimit(vm->pid, vm->def->mem.hard_limit) < 0)
+            return -1;
 
     return 0;
 }
+
+virDomainChrDef *
+bhyveFindAgentConfig(virDomainDef *def)
+{
+    size_t i;
+
+    for (i = 0; i < def->nchannels; i++) {
+        virDomainChrDef *channel = def->channels[i];
+
+        if (channel->targetType != VIR_DOMAIN_CHR_CHANNEL_TARGET_TYPE_VIRTIO)
+            continue;
+
+
+        if (STREQ_NULLABLE(channel->target.name, "org.qemu.guest_agent.0")) {
+            return channel;
+        }
+    }
+
+    return NULL;
+}
+
+static void
+bhyveProcessHandleAgentEOF(qemuAgent *agent,
+                           virDomainObj *vm)
+{
+    bhyveDomainObjPrivate *priv;
+
+    virObjectLock(vm);
+    VIR_INFO("Received EOF from agent on %p '%s'", vm, vm->def->name);
+
+    priv = vm->privateData;
+
+    if (!priv->agent) {
+        VIR_DEBUG("Agent freed already");
+        goto unlock;
+    }
+
+    qemuAgentClose(agent);
+    priv->agent = NULL;
+    priv->agentError = false;
+
+    virObjectUnlock(vm);
+    return;
+
+ unlock:
+    virObjectUnlock(vm);
+    return;
+}
+
+/*
+ * This is invoked when there is some kind of error
+ * parsing data to/from the agent. The VM can continue
+ * to run, but no further agent commands will be
+ * allowed
+ */
+static void
+bhyveProcessHandleAgentError(qemuAgent *agent G_GNUC_UNUSED,
+                             virDomainObj *vm)
+{
+    bhyveDomainObjPrivate *priv;
+
+    virObjectLock(vm);
+    VIR_INFO("Received error from agent on %p '%s'", vm, vm->def->name);
+
+    priv = vm->privateData;
+
+    priv->agentError = true;
+
+    virObjectUnlock(vm);
+}
+
+static qemuAgentCallbacks agentCallbacks = {
+    .eofNotify = bhyveProcessHandleAgentEOF,
+    .errorNotify = bhyveProcessHandleAgentError,
+};
+
+int
+bhyveConnectAgent(struct _bhyveConn *driver G_GNUC_UNUSED, virDomainObj *vm)
+{
+    bhyveDomainObjPrivate *priv = vm->privateData;
+    qemuAgent *agent = NULL;
+    virDomainChrDef *config = bhyveFindAgentConfig(vm->def);
+
+    if (!config)
+        return 0;
+
+    if (priv->agent)
+        return 0;
+
+    agent = qemuAgentOpen(vm,
+                          config->source,
+                          virEventThreadGetContext(priv->eventThread),
+                          &agentCallbacks,
+                          BHYVE_DOMAIN_PRIVATE(vm)->agentTimeout);
+
+    if (!virDomainObjIsActive(vm)) {
+        qemuAgentClose(agent);
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       _("guest crashed while connecting to the guest agent"));
+        return -1;
+    }
+
+    priv->agent = agent;
+    if (!priv->agent) {
+        VIR_WARN("Cannot connect to QEMU guest agent for %s", vm->def->name);
+        priv->agentError = true;
+        virResetLastError();
+    }
+
+    return 0;
+}
+
 
 static int
 virBhyveProcessStartImpl(struct _bhyveConn *driver,
@@ -292,6 +396,9 @@ virBhyveProcessStartImpl(struct _bhyveConn *driver,
     vm->def->id = vm->pid;
     virDomainObjSetState(vm, VIR_DOMAIN_RUNNING, reason);
     priv->mon = bhyveMonitorOpen(vm, driver);
+
+    if (virBhyveDomainObjStartWorker(vm) < 0)
+        goto cleanup;
 
     if (virDomainObjSave(vm, driver->xmlopt,
                          BHYVE_STATE_DIR) < 0)
@@ -515,7 +622,8 @@ virBhyveProcessStop(struct _bhyveConn *driver,
                     virDomainObj *vm,
                     virDomainShutoffReason reason)
 {
-    int ret = -1;
+    int ret = 0;
+    size_t i = 0;
     g_autoptr(virCommand) cmd = NULL;
     bhyveDomainObjPrivate *priv = vm->privateData;
 
@@ -531,14 +639,18 @@ virBhyveProcessStop(struct _bhyveConn *driver,
         return -1;
     }
 
-    if (!(cmd = virBhyveProcessBuildDestroyCmd(driver, vm->def)))
-        return -1;
-
-    if (virCommandRun(cmd, NULL) < 0)
-        goto cleanup;
-
+    /* Destroy monitor before running the actual destroy command to prevent
+     * it from detecting VM shutdown and entering this cleanup routine again */
     if ((priv != NULL) && (priv->mon != NULL))
          bhyveMonitorClose(priv->mon);
+
+    cmd = virBhyveProcessBuildDestroyCmd(driver, vm->def);
+    if (virCommandRun(cmd, NULL) < 0) {
+        /* Only failure of the actual destroy command warrants unsuccessful return code,
+         * other failures are not considered critical */
+        ret = -1;
+        VIR_WARN("Failed to run the domain destroy command");
+    }
 
     bhyveProcessStopHook(driver, vm, VIR_HOOK_BHYVE_OP_STOPPED);
 
@@ -554,7 +666,18 @@ virBhyveProcessStop(struct _bhyveConn *driver,
         }
     }
 
-    ret = 0;
+    /* UNIX sockets cleanup */
+    for (i = 0; i < vm->def->nchannels; i++) {
+        virDomainChrDef *channel = vm->def->channels[i];
+
+        if (channel->source->type != VIR_DOMAIN_CHR_TYPE_UNIX)
+            continue;
+        if (channel->targetType != VIR_DOMAIN_CHR_CHANNEL_TARGET_TYPE_VIRTIO)
+            continue;
+
+        if (virFileExists(channel->source->data.nix.path))
+            virFileRemove(channel->source->data.nix.path, 0, 0);
+    }
 
     virCloseCallbacksDomainRemove(vm, NULL, bhyveProcessAutoDestroy);
 
@@ -563,8 +686,6 @@ virBhyveProcessStop(struct _bhyveConn *driver,
     vm->def->id = -1;
 
     bhyveProcessStopHook(driver, vm, VIR_HOOK_BHYVE_OP_RELEASE);
-
- cleanup:
     virPidFileDelete(BHYVE_STATE_DIR, vm->def->name);
     bhyveProcessRemoveDomainStatus(BHYVE_STATE_DIR, vm->def->name);
 
@@ -699,6 +820,9 @@ virBhyveProcessReconnect(virDomainObj *vm,
 
         virDomainNetNotifyActualDevice(conn, vm->def, net);
     }
+
+    if (virBhyveDomainObjStartWorker(vm) < 0)
+        goto cleanup;
 
  cleanup:
     if (ret < 0) {

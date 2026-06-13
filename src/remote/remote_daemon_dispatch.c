@@ -1322,6 +1322,31 @@ remoteRelayDomainEventMemoryDeviceSizeChange(virConnectPtr conn,
     return 0;
 }
 
+static int
+remoteRelayDomainEventVcpuRemoved(virConnectPtr conn,
+                                  virDomainPtr dom,
+                                  unsigned int vcpuid,
+                                  void *opaque)
+{
+    daemonClientEventCallback *callback = opaque;
+    remote_domain_event_vcpu_removed_msg data;
+
+    if (callback->callbackID < 0 ||
+        !remoteRelayDomainEventCheckACL(callback->client, conn, dom))
+        return -1;
+
+    memset(&data, 0, sizeof(data));
+    data.callbackID = callback->callbackID;
+    data.vcpuid = vcpuid;
+    make_nonnull_domain(&data.dom, dom);
+
+    remoteDispatchObjectEventSend(callback->client, remoteProgram,
+                                  REMOTE_PROC_DOMAIN_EVENT_VCPU_REMOVED,
+                                  (xdrproc_t)xdr_remote_domain_event_vcpu_removed_msg,
+                                  &data);
+    return 0;
+}
+
 
 static int
 remoteRelayDomainEventNICMACChange(virConnectPtr conn,
@@ -1349,6 +1374,39 @@ remoteRelayDomainEventNICMACChange(virConnectPtr conn,
     remoteDispatchObjectEventSend(callback->client, remoteProgram,
                                   REMOTE_PROC_DOMAIN_EVENT_NIC_MAC_CHANGE,
                                   (xdrproc_t)xdr_remote_domain_event_nic_mac_change_msg,
+                                  &data);
+    return 0;
+}
+
+
+static int
+remoteRelayDomainEventChannelLifecycle(virConnectPtr conn,
+                                       virDomainPtr dom,
+                                       const char *channelName,
+                                       int state,
+                                       int reason,
+                                       void *opaque)
+{
+    daemonClientEventCallback *callback = opaque;
+    remote_domain_event_callback_channel_lifecycle_msg data = { 0 };
+
+    if (callback->callbackID < 0 ||
+        !remoteRelayDomainEventCheckACL(callback->client, conn, dom))
+        return -1;
+
+    VIR_DEBUG("Relaying domain channel lifecycle event %s %d, callback %d, "
+              "name %s, state %d, reason %d",
+              dom->name, dom->id, callback->callbackID, channelName, state, reason);
+
+    data.callbackID = callback->callbackID;
+    make_nonnull_domain(&data.dom, dom);
+    data.channelName = g_strdup(channelName);
+    data.state = state;
+    data.reason = reason;
+
+    remoteDispatchObjectEventSend(callback->client, remoteProgram,
+                                  REMOTE_PROC_DOMAIN_EVENT_CALLBACK_CHANNEL_LIFECYCLE,
+                                  (xdrproc_t)xdr_remote_domain_event_callback_channel_lifecycle_msg,
                                   &data);
     return 0;
 }
@@ -1383,6 +1441,8 @@ static virConnectDomainEventGenericCallback domainEventCallbacks[] = {
     VIR_DOMAIN_EVENT_CALLBACK(remoteRelayDomainEventMemoryFailure),
     VIR_DOMAIN_EVENT_CALLBACK(remoteRelayDomainEventMemoryDeviceSizeChange),
     VIR_DOMAIN_EVENT_CALLBACK(remoteRelayDomainEventNICMACChange),
+    VIR_DOMAIN_EVENT_CALLBACK(remoteRelayDomainEventVcpuRemoved),
+    VIR_DOMAIN_EVENT_CALLBACK(remoteRelayDomainEventChannelLifecycle),
 };
 
 G_STATIC_ASSERT(G_N_ELEMENTS(domainEventCallbacks) == VIR_DOMAIN_EVENT_ID_LAST);
@@ -1781,6 +1841,11 @@ remoteClientFreePrivateCallbacks(struct daemonClientPrivate *priv)
 void remoteClientFree(void *data)
 {
     struct daemonClientPrivate *priv = data;
+
+    VIR_DEBUG("priv=%p, conn=%p, interfaceConn=%p, networkConn=%p, nodedevConn=%p, nwfilterConn=%p, secretConn=%p, storageConn=%p",
+              priv, priv->conn, priv->interfaceConn, priv->networkConn,
+              priv->nodedevConn, priv->nwfilterConn, priv->secretConn,
+              priv->storageConn);
 
     if (priv->conn)
         virConnectClose(priv->conn);

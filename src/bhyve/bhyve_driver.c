@@ -53,6 +53,7 @@
 #include "virstring.h"
 #include "cpu/cpu.h"
 #include "viraccessapicheck.h"
+#include "viraccessapicheckqemu.h"
 #include "virhostcpu.h"
 #include "virhostmem.h"
 #include "virportallocator.h"
@@ -69,6 +70,7 @@
 #include "bhyve_domain.h"
 #include "bhyve_process.h"
 #include "bhyve_capabilities.h"
+#include "bhyve_rctl.h"
 
 #define VIR_FROM_THIS   VIR_FROM_BHYVE
 
@@ -1145,10 +1147,12 @@ bhyveNodeGetCPUStats(virConnectPtr conn,
                      int *nparams,
                      unsigned int flags)
 {
+    virCheckFlags(0, -1);
+
     if (virNodeGetCPUStatsEnsureACL(conn) < 0)
         return -1;
 
-    return virHostCPUGetStats(cpuNum, params, nparams, flags);
+    return virHostCPUGetStats(cpuNum, params, nparams);
 }
 
 static int
@@ -1158,10 +1162,12 @@ bhyveNodeGetMemoryStats(virConnectPtr conn,
                         int *nparams,
                         unsigned int flags)
 {
+    virCheckFlags(0, -1);
+
     if (virNodeGetMemoryStatsEnsureACL(conn) < 0)
         return -1;
 
-    return virHostMemGetStats(cellNum, params, nparams, flags);
+    return virHostMemGetStats(cellNum, params, nparams);
 }
 
 static int
@@ -1359,10 +1365,12 @@ bhyveNodeGetCPUMap(virConnectPtr conn,
                    unsigned int *online,
                    unsigned int flags)
 {
+    virCheckFlags(0, -1);
+
     if (virNodeGetCPUMapEnsureACL(conn) < 0)
         return -1;
 
-    return virHostCPUGetMap(cpumap, online, flags);
+    return virHostCPUGetMap(cpumap, online);
 }
 
 static int
@@ -1371,10 +1379,12 @@ bhyveNodeGetMemoryParameters(virConnectPtr conn,
                              int *nparams,
                              unsigned int flags)
 {
+    virCheckFlags(VIR_TYPED_PARAM_STRING_OKAY, -1);
+
     if (virNodeGetMemoryParametersEnsureACL(conn) < 0)
         return -1;
 
-    return virHostMemGetParameters(params, nparams, flags);
+    return virHostMemGetParameters(params, nparams);
 }
 
 static int
@@ -1383,10 +1393,12 @@ bhyveNodeSetMemoryParameters(virConnectPtr conn,
                              int nparams,
                              unsigned int flags)
 {
+    virCheckFlags(0, -1);
+
     if (virNodeSetMemoryParametersEnsureACL(conn) < 0)
         return -1;
 
-    return virHostMemSetParameters(params, nparams, flags);
+    return virHostMemSetParameters(params, nparams);
 }
 
 static char *
@@ -1895,6 +1907,165 @@ bhyveDomainInterfaceAddresses(virDomainPtr domain,
 }
 
 
+static qemuAgent *
+bhyveDomainObjEnterAgent(virDomainObj *obj)
+{
+    bhyveDomainObjPrivate *priv = obj->privateData;
+    qemuAgent *agent = priv->agent;
+
+    VIR_DEBUG("Entering agent (agent=%p vm=%p name=%s)",
+              priv->agent, obj, obj->def->name);
+
+    virObjectLock(agent);
+    virObjectRef(agent);
+    virObjectUnlock(obj);
+
+    return agent;
+}
+
+
+static void
+bhyveDomainObjExitAgent(virDomainObj *obj, qemuAgent *agent)
+{
+    virObjectUnlock(agent);
+    virObjectUnref(agent);
+    virObjectLock(obj);
+
+    VIR_DEBUG("Exited agent (agent=%p vm=%p name=%s)",
+              agent, obj, obj->def->name);
+}
+
+
+static bool
+bhyveDomainAgentAvailable(virDomainObj *vm,
+                          bool reportError)
+{
+    bhyveDomainObjPrivate *priv = vm->privateData;
+
+    if (virDomainObjGetState(vm, NULL) != VIR_DOMAIN_RUNNING) {
+        if (reportError) {
+            virReportError(VIR_ERR_OPERATION_INVALID, "%s",
+                           _("domain is not running"));
+        }
+        return false;
+    }
+
+    if (!priv->agent) {
+        if (bhyveFindAgentConfig(vm->def)) {
+            if (reportError) {
+                virReportError(VIR_ERR_AGENT_UNRESPONSIVE, "%s",
+                               _("QEMU guest agent is not connected"));
+            }
+            return false;
+        } else {
+            if (reportError) {
+                virReportError(VIR_ERR_ARGUMENT_UNSUPPORTED, "%s",
+                               _("QEMU guest agent is not configured"));
+            }
+            return false;
+        }
+    }
+    return true;
+}
+
+
+static int
+bhyveDomainEnsureAgent(virDomainObj *vm,
+                       bool reportError)
+{
+    bhyveDomainObjPrivate *priv = vm->privateData;
+
+    if (virDomainObjGetState(vm, NULL) != VIR_DOMAIN_RUNNING) {
+        if (reportError) {
+            virReportError(VIR_ERR_OPERATION_INVALID, "%s",
+                           _("domain is not running"));
+        }
+        return -1;
+    }
+
+    if (priv->agent)
+        return 0;
+
+    if (!priv->eventThread &&
+        virBhyveDomainObjStartWorker(vm) < 0)
+        return -1;
+
+    if (bhyveConnectAgent(NULL, vm) < 0)
+        return -1;
+
+    return 0;
+}
+
+
+static int
+bhyveDomainGetHostnameAgent(virDomainObj *vm,
+                            char **hostname)
+{
+    qemuAgent *agent;
+    int ret = -1;
+
+    if (virDomainObjBeginAgentJob(vm, VIR_AGENT_JOB_QUERY) < 0)
+        return -1;
+
+    if (virDomainObjCheckActive(vm) < 0)
+        goto endjob;
+
+    if (bhyveDomainEnsureAgent(vm, true) < 0)
+        goto endjob;
+
+    agent = bhyveDomainObjEnterAgent(vm);
+    ret = qemuAgentGetHostname(agent, hostname, true);
+    bhyveDomainObjExitAgent(vm, agent);
+
+ endjob:
+    virDomainObjEndAgentJob(vm);
+    return ret;
+}
+
+
+static char *
+bhyveDomainQemuAgentCommand(virDomainPtr domain,
+                            const char *cmd,
+                            int timeout,
+                            unsigned int flags)
+{
+    virDomainObj *vm;
+    int ret = -1;
+    char *result = NULL;
+    qemuAgent *agent;
+
+    virCheckFlags(0, NULL);
+
+    if (!(vm = bhyveDomObjFromDomain(domain)))
+        goto cleanup;
+
+    if (virDomainQemuAgentCommandEnsureACL(domain->conn, vm->def) < 0)
+        goto cleanup;
+
+    if (virDomainObjBeginAgentJob(vm, VIR_AGENT_JOB_MODIFY) < 0)
+        goto cleanup;
+
+    if (virDomainObjCheckActive(vm) < 0)
+        goto endjob;
+
+    if (!bhyveDomainAgentAvailable(vm, true))
+        goto endjob;
+
+    agent = bhyveDomainObjEnterAgent(vm);
+    ret = qemuAgentArbitraryCommand(agent, cmd, &result, timeout);
+    bhyveDomainObjExitAgent(vm, agent);
+    if (ret < 0)
+        VIR_FREE(result);
+
+ endjob:
+    virDomainObjEndAgentJob(vm);
+
+ cleanup:
+    virDomainObjEndAPI(&vm);
+    return result;
+}
+
+
 static int
 bhyveDomainGetHostnameLease(virDomainObj *vm,
                             char **hostname)
@@ -1961,7 +2132,15 @@ bhyveDomainGetHostname(virDomainPtr domain,
     virDomainObj *vm = NULL;
     char *hostname = NULL;
 
-    virCheckFlags(VIR_DOMAIN_GET_HOSTNAME_LEASE, NULL);
+    virCheckFlags(VIR_DOMAIN_GET_HOSTNAME_LEASE |
+                  VIR_DOMAIN_GET_HOSTNAME_AGENT, NULL);
+
+    VIR_EXCLUSIVE_FLAGS_RET(VIR_DOMAIN_GET_HOSTNAME_LEASE,
+                            VIR_DOMAIN_GET_HOSTNAME_AGENT,
+                            NULL);
+
+    if (!(flags & VIR_DOMAIN_GET_HOSTNAME_AGENT))
+        flags |= VIR_DOMAIN_GET_HOSTNAME_LEASE;
 
     if (!(vm = bhyveDomObjFromDomain(domain)))
         return NULL;
@@ -1969,8 +2148,13 @@ bhyveDomainGetHostname(virDomainPtr domain,
     if (virDomainGetHostnameEnsureACL(domain->conn, vm->def) < 0)
         goto cleanup;
 
-    if (bhyveDomainGetHostnameLease(vm, &hostname) < 0)
-        goto cleanup;
+    if (flags & VIR_DOMAIN_GET_HOSTNAME_LEASE) {
+        if (bhyveDomainGetHostnameLease(vm, &hostname) < 0)
+            goto cleanup;
+    } else if (flags & VIR_DOMAIN_GET_HOSTNAME_AGENT) {
+        if (bhyveDomainGetHostnameAgent(vm, &hostname) < 0)
+            goto cleanup;
+    }
 
     if (!hostname) {
         virReportError(VIR_ERR_NO_HOSTNAME,
@@ -1982,6 +2166,133 @@ bhyveDomainGetHostname(virDomainPtr domain,
  cleanup:
     virDomainObjEndAPI(&vm);
     return hostname;
+}
+
+
+#define BHYVE_NB_MEM_PARAM  1
+#define BHYVE_ASSIGN_MEM_PARAM(index, name, value) \
+    if (index < *nparams && \
+        virTypedParameterAssign(&params[index], name, VIR_TYPED_PARAM_ULLONG, \
+                                value) < 0) \
+        goto cleanup
+
+static int
+bhyveDomainGetMemoryParameters(virDomainPtr domain,
+                               virTypedParameterPtr params,
+                               int *nparams,
+                               unsigned int flags)
+{
+    virDomainObj *vm = NULL;
+    virDomainDef *persistentDef = NULL;
+    int ret = -1;
+    unsigned long long mem_hard_limit;
+
+    virCheckFlags(VIR_DOMAIN_AFFECT_LIVE |
+                  VIR_DOMAIN_AFFECT_CONFIG |
+                  VIR_TYPED_PARAM_STRING_OKAY, -1);
+
+    if (!(vm = bhyveDomObjFromDomain(domain)))
+        return -1;
+
+    if (virDomainGetMemoryParametersEnsureACL(domain->conn, vm->def) < 0)
+        goto cleanup;
+
+    if (virDomainObjGetDefs(vm, flags, NULL, &persistentDef) < 0)
+        goto cleanup;
+
+    if ((*nparams) == 0) {
+        *nparams = BHYVE_NB_MEM_PARAM;
+        ret = 0;
+        goto cleanup;
+    }
+
+    if (persistentDef) {
+        mem_hard_limit = persistentDef->mem.hard_limit;
+    } else {
+        if (bhyveRctlGetMemoryHardLimit(vm->pid, &mem_hard_limit) < 0)
+            goto cleanup;
+    }
+
+    BHYVE_ASSIGN_MEM_PARAM(0, VIR_DOMAIN_MEMORY_HARD_LIMIT, mem_hard_limit);
+
+    if (BHYVE_NB_MEM_PARAM < *nparams)
+        *nparams = BHYVE_NB_MEM_PARAM;
+    ret = 0;
+
+ cleanup:
+    virDomainObjEndAPI(&vm);
+    return ret;
+}
+#undef BHYVE_ASSIGN_MEM_PARAM
+
+static int
+bhyveDomainSetMemoryParameters(virDomainPtr domain,
+                               virTypedParameterPtr params,
+                               int nparams,
+                               unsigned int flags)
+{
+    struct _bhyveConn *privconn = domain->conn->privateData;
+    virDomainDef *def = NULL;
+    virDomainDef *persistentDef = NULL;
+    virDomainObj *vm = NULL;
+    int ret = -1;
+    unsigned long long hard_limit = 0;
+
+    virCheckFlags(VIR_DOMAIN_AFFECT_LIVE |
+                  VIR_DOMAIN_AFFECT_CONFIG, -1);
+
+    if (virTypedParamsValidate(params, nparams,
+                               VIR_DOMAIN_MEMORY_HARD_LIMIT,
+                               VIR_TYPED_PARAM_ULLONG,
+                               NULL) < 0)
+        return -1;
+
+
+    if (!(vm = bhyveDomObjFromDomain(domain)))
+        return -1;
+
+    if (virDomainSetMemoryParametersEnsureACL(domain->conn, vm->def, flags) < 0)
+        goto cleanup;
+
+    if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
+        goto cleanup;
+
+    if (virDomainObjGetDefs(vm, flags, &def, &persistentDef) < 0)
+        goto endjob;
+
+    if (virTypedParamsGetULLong(params, nparams, VIR_DOMAIN_MEMORY_HARD_LIMIT, &hard_limit) < 0)
+        return -1;
+
+    if (def) {
+        if ((bhyveDriverGetBhyveCaps(privconn) & BHYVE_CAP_RCTL) == 0) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("Cannot set resource limits: RACCT/RCTL is either not supported or not enabled"));
+            goto endjob;
+        }
+
+        if (bhyveRctlSetMemoryHardLimit(vm->pid, hard_limit) < 0)
+            goto endjob;
+
+        def->mem.hard_limit = hard_limit;
+        if (virDomainObjSave(vm, privconn->xmlopt, BHYVE_STATE_DIR) < 0)
+            VIR_WARN("Failed to save status on vm %s", vm->def->name);
+    }
+
+    if (persistentDef) {
+        persistentDef->mem.hard_limit = hard_limit;
+
+        if (virDomainDefSave(persistentDef, privconn->xmlopt, BHYVE_CONFIG_DIR) < 0)
+            goto endjob;
+    }
+
+    ret = 0;
+
+ endjob:
+    virDomainObjEndJob(vm);
+
+ cleanup:
+    virDomainObjEndAPI(&vm);
+    return ret;
 }
 
 static virHypervisorDriver bhyveHypervisorDriver = {
@@ -2052,6 +2363,9 @@ static virHypervisorDriver bhyveHypervisorDriver = {
     .domainGetVcpuPinInfo = bhyveDomainGetVcpuPinInfo, /* 12.1.0 */
     .domainInterfaceAddresses = bhyveDomainInterfaceAddresses, /* 12.3.0 */
     .domainGetHostname = bhyveDomainGetHostname, /* 12.3.0 */
+    .domainQemuAgentCommand = bhyveDomainQemuAgentCommand, /* 12.4.0 */
+    .domainGetMemoryParameters = bhyveDomainGetMemoryParameters, /* 12.4.0 */
+    .domainSetMemoryParameters = bhyveDomainSetMemoryParameters, /* 12.4.0 */
 };
 
 

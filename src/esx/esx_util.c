@@ -24,6 +24,7 @@
 #include <config.h>
 
 #include "internal.h"
+#include "viralloc.h"
 #include "virlog.h"
 #include "viruuid.h"
 #include "vmx.h"
@@ -42,6 +43,7 @@ esxUtil_ParseUri(esxUtil_ParsedUri **parsedUri, virURI *uri)
     size_t i;
     int noVerify;
     int autoAnswer;
+    int legacy_uuid;
     char *tmp;
 
     ESX_VI_CHECK_ARG_LIST(parsedUri);
@@ -87,6 +89,16 @@ esxUtil_ParseUri(esxUtil_ParsedUri **parsedUri, virURI *uri)
             }
 
             (*parsedUri)->autoAnswer = autoAnswer != 0;
+        } else if (STRCASEEQ(queryParam->name, "legacy_uuid")) {
+            if (virStrToLong_i(queryParam->value, NULL, 10, &legacy_uuid) < 0 ||
+                (legacy_uuid != 0 && legacy_uuid != 1)) {
+                virReportError(VIR_ERR_INVALID_ARG,
+                               _("Query parameter 'legacy_uuid' has unexpected value '%1$s' (should be 0 or 1)"),
+                               queryParam->value);
+                goto cleanup;
+            }
+
+            (*parsedUri)->legacy_uuid = legacy_uuid != 0;
         } else if (STRCASEEQ(queryParam->name, "proxy")) {
             /* Expected format: [<type>://]<hostname>[:<port>] */
             (*parsedUri)->proxy = true;
@@ -165,13 +177,14 @@ esxUtil_FreeParsedUri(esxUtil_ParsedUri **parsedUri)
     if (!parsedUri || !(*parsedUri))
         return;
 
-    g_free((*parsedUri)->transport);
-    g_free((*parsedUri)->vCenter);
-    g_free((*parsedUri)->proxy_hostname);
-    g_free((*parsedUri)->path);
-    g_free((*parsedUri)->cacert);
 
-    g_free(*parsedUri);
+    VIR_FREE((*parsedUri)->transport);
+    VIR_FREE((*parsedUri)->vCenter);
+    VIR_FREE((*parsedUri)->proxy_hostname);
+    VIR_FREE((*parsedUri)->path);
+    VIR_FREE((*parsedUri)->cacert);
+
+    VIR_FREE(*parsedUri);
 }
 
 
