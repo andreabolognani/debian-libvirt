@@ -1,6 +1,7 @@
 <domain type='vmware'>
   <name>RHEL7_10_NICs</name>
-  <uuid>42359420-99dc-4261-5264-ba58ddae20e4</uuid>
+  <uuid>50351de6-7d56-29ab-9d72-c7f9ea3fcfd0</uuid>
+  <hwuuid>42359420-99dc-4261-5264-ba58ddae20e4</hwuuid>
   <memory unit='KiB'>2097152</memory>
   <currentMemory unit='KiB'>2097152</currentMemory>
   <vcpu placement='static'>8</vcpu>
@@ -9,6 +10,7 @@
   </cputune>
   <os>
     <type arch='x86_64'>hvm</type>
+    <nvram>[datastore] directory/RHEL7_6.nvram</nvram>
   </os>
   <cpu>
     <topology sockets='4' dies='1' clusters='1' cores='2' threads='1'/>

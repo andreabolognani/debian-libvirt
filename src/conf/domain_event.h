@@ -192,6 +192,12 @@ virDomainEventDeviceRemovalFailedNewFromObj(virDomainObj *obj,
 virObjectEvent *
 virDomainEventDeviceRemovalFailedNewFromDom(virDomainPtr dom,
                                             const char *devAlias);
+virObjectEvent *
+virDomainEventVcpuRemovedNewFromObj(virDomainObj *obj,
+                                    unsigned int vcpuid);
+virObjectEvent *
+virDomainEventVcpuRemovedNewFromDom(virDomainPtr dom,
+                                    unsigned int vcpuid);
 
 virObjectEvent *
 virDomainEventTunableNewFromObj(virDomainObj *obj,
@@ -289,6 +295,18 @@ virDomainEventNICMACChangeNewFromDom(virDomainPtr dom,
                                      const char *oldMAC,
                                      const char *newMAC);
 
+virObjectEvent *
+virDomainEventChannelLifecycleNewFromObj(virDomainObj *obj,
+                                         const char *channelName,
+                                         int state,
+                                         int reason);
+
+virObjectEvent *
+virDomainEventChannelLifecycleNewFromDom(virDomainPtr dom,
+                                         const char *channelName,
+                                         int state,
+                                         int reason);
+
 int
 virDomainEventStateRegister(virConnectPtr conn,
                             virObjectEventState *state,
@@ -333,6 +351,11 @@ virDomainEventStateDeregister(virConnectPtr conn,
                               virObjectEventState *state,
                               virConnectDomainEventCallback callback)
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2) ATTRIBUTE_NONNULL(3);
+
+
+#define VIR_CONNECT_DOMAIN_QEMU_MONITOR_EVENT_REGISTER_FLAGS \
+    VIR_CONNECT_DOMAIN_QEMU_MONITOR_EVENT_REGISTER_REGEX | \
+    VIR_CONNECT_DOMAIN_QEMU_MONITOR_EVENT_REGISTER_NOCASE
 
 int
 virDomainQemuMonitorEventStateRegisterID(virConnectPtr conn,

@@ -63,7 +63,22 @@ struct _virTypedParameterRemote {
     virTypedParameterRemoteValue value;
 };
 
+int
+virTypedParamValidateType(virTypedParameterPtr param,
+                          unsigned int expected_type)
+    G_GNUC_WARN_UNUSED_RESULT;
 
+struct _virTypedParamValidationTemplate {
+    const char name[VIR_TYPED_PARAM_FIELD_LENGTH];  /* parameter name */
+    unsigned int typeflags;
+};
+typedef struct _virTypedParamValidationTemplate virTypedParamValidationTemplate;
+
+int
+virTypedParamsValidateTemplate(virTypedParameterPtr params,
+                               int nparams,
+                               const virTypedParamValidationTemplate *templates)
+    G_GNUC_WARN_UNUSED_RESULT;
 int
 virTypedParamsValidate(virTypedParameterPtr params,
                        int nparams,
@@ -134,7 +149,8 @@ virTypedParamsSerialize(virTypedParameterPtr params,
                         unsigned int *remote_params_len,
                         unsigned int flags);
 
-VIR_ENUM_DECL(virTypedParameter);
+char *
+virTypedParamDebugstr(virTypedParameterPtr param);
 
 #define VIR_TYPED_PARAMS_DEBUG(params, nparams) \
     do { \
@@ -142,12 +158,8 @@ VIR_ENUM_DECL(virTypedParameter);
         if (!params) \
             break; \
         for (_i = 0; _i < (nparams); _i++) { \
-            char *_value = virTypedParameterToString((params) + _i); \
-            VIR_DEBUG("params[\"%s\"]=(%s)%s", \
-                      (params)[_i].field, \
-                      virTypedParameterTypeToString((params)[_i].type), \
-                      NULLSTR(_value)); \
-            VIR_FREE(_value); \
+            g_autofree char *_debugstr = virTypedParamDebugstr((params) + _i); \
+            VIR_DEBUG("%s", _debugstr); \
         } \
     } while (0)
 

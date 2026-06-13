@@ -291,8 +291,7 @@ qemuDomainObjPrivateXMLParseJobNBD(virDomainObj *vm,
 
     if (n > 0) {
         if (vm->job->asyncJob != VIR_ASYNC_JOB_MIGRATION_OUT) {
-            VIR_WARN("Found disks marked for migration but we were not "
-                     "migrating");
+            VIR_WARN("Found disks marked for migration but we were not migrating");
             n = 0;
         }
         for (i = 0; i < n; i++) {
@@ -5140,11 +5139,9 @@ qemuDomainObjEnterMonitorInternal(virDomainObj *obj,
             return -1;
         }
     } else if (obj->job->asyncOwner == virThreadSelfID()) {
-        VIR_WARN("This thread seems to be the async job owner; entering"
-                 " monitor without asking for a nested job is dangerous");
+        VIR_WARN("This thread seems to be the async job owner; entering monitor without asking for a nested job is dangerous");
     } else if (obj->job->owner != virThreadSelfID()) {
-        VIR_WARN("Entering a monitor without owning a job. "
-                 "Job %s owner %s (%llu)",
+        VIR_WARN("Entering a monitor without owning a job. Job %s owner %s (%llu)",
                  virDomainJobTypeToString(obj->job->active),
                  obj->job->ownerAPI, obj->job->owner);
     }
@@ -9863,15 +9860,7 @@ qemuDomainPrepareStorageSourceFDs(virStorageSource *src,
 
     for (i = 0; i < fdt->nfds; i++) {
         g_autofree char *idx = g_strdup_printf("%zu", i);
-        int tmpfd;
-
-        if (fdt->testfds) {
-            /* when testing we want to use stable FD numbers provided by the test
-             * case */
-            tmpfd = dup2(fdt->fds[i], fdt->testfds[i]);
-        } else {
-            tmpfd = dup(fdt->fds[i]);
-        }
+        int tmpfd = dup(fdt->fds[i]);
 
         if (tmpfd < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
@@ -11094,8 +11083,7 @@ syncNicRxFilterMacAddr(char *ifname, virNetDevRxFilter *guestFilter,
 
         /* set new MAC address from guest to associated macvtap device */
         if (virNetDevSetMAC(ifname, &guestFilter->mac) < 0) {
-            VIR_WARN("Couldn't set new MAC address %s to device %s "
-                     "while responding to NIC_RX_FILTER_CHANGED",
+            VIR_WARN("Couldn't set new MAC address %s to device %s while responding to NIC_RX_FILTER_CHANGED",
                      newMacStr, ifname);
         } else {
             VIR_DEBUG("device %s MAC address set to %s", ifname, newMacStr);
@@ -11127,8 +11115,7 @@ syncNicRxFilterGuestMulticast(char *ifname, virNetDevRxFilter *guestFilter,
             virMacAddrFormat(&guestFilter->multicast.table[i], macstr);
 
             if (virNetDevAddMulti(ifname, &guestFilter->multicast.table[i]) < 0) {
-                VIR_WARN("Couldn't add new multicast MAC address %s to "
-                         "device %s while responding to NIC_RX_FILTER_CHANGED",
+                VIR_WARN("Couldn't add new multicast MAC address %s to device %s while responding to NIC_RX_FILTER_CHANGED",
                          macstr, ifname);
             } else {
                 VIR_DEBUG("Added multicast MAC %s to %s interface",
@@ -11162,8 +11149,7 @@ syncNicRxFilterHostMulticast(char *ifname, virNetDevRxFilter *guestFilter,
             virMacAddrFormat(&hostFilter->multicast.table[i], macstr);
 
             if (virNetDevDelMulti(ifname, &hostFilter->multicast.table[i]) < 0) {
-                VIR_WARN("Couldn't delete multicast MAC address %s from "
-                         "device %s while responding to NIC_RX_FILTER_CHANGED",
+                VIR_WARN("Couldn't delete multicast MAC address %s from device %s while responding to NIC_RX_FILTER_CHANGED",
                          macstr, ifname);
             } else {
                 VIR_DEBUG("Deleted multicast MAC %s from %s interface",
@@ -11196,8 +11182,7 @@ syncNicRxFilterPromiscMode(char *ifname,
 
     if (setpromisc) {
         if (virNetDevSetPromiscuous(ifname, promisc) < 0) {
-            VIR_WARN("Couldn't set PROMISC flag to %s for device %s "
-                     "while responding to NIC_RX_FILTER_CHANGED",
+            VIR_WARN("Couldn't set PROMISC flag to %s for device %s while responding to NIC_RX_FILTER_CHANGED",
                      promisc ? "true" : "false", ifname);
         }
     }
@@ -11214,9 +11199,8 @@ syncNicRxFilterMultiMode(char *ifname, virNetDevRxFilter *guestFilter,
         switch (guestFilter->multicast.mode) {
         case VIR_NETDEV_RX_FILTER_MODE_ALL:
             if (virNetDevSetRcvAllMulti(ifname, true) < 0) {
-                VIR_WARN("Couldn't set allmulticast flag to 'on' for "
-                         "device %s while responding to "
-                         "NIC_RX_FILTER_CHANGED", ifname);
+                VIR_WARN("Couldn't set allmulticast flag to 'on' for device %s while responding to NIC_RX_FILTER_CHANGED",
+                         ifname);
             }
             break;
 
@@ -11227,16 +11211,13 @@ syncNicRxFilterMultiMode(char *ifname, virNetDevRxFilter *guestFilter,
             }
 
             if (virNetDevSetRcvMulti(ifname, true) < 0) {
-                VIR_WARN("Couldn't set multicast flag to 'on' for "
-                         "device %s while responding to "
-                         "NIC_RX_FILTER_CHANGED", ifname);
+                VIR_WARN("Couldn't set multicast flag to 'on' for device %s while responding to NIC_RX_FILTER_CHANGED",
+                         ifname);
             }
 
             if (virNetDevSetRcvAllMulti(ifname,
                                         guestFilter->multicast.overflow) < 0) {
-                VIR_WARN("Couldn't set allmulticast flag to '%s' for "
-                         "device %s while responding to "
-                         "NIC_RX_FILTER_CHANGED",
+                VIR_WARN("Couldn't set allmulticast flag to '%s' for device %s while responding to NIC_RX_FILTER_CHANGED",
                          virTristateSwitchTypeToString(virTristateSwitchFromBool(guestFilter->multicast.overflow)),
                          ifname);
             }
@@ -11244,15 +11225,12 @@ syncNicRxFilterMultiMode(char *ifname, virNetDevRxFilter *guestFilter,
 
         case VIR_NETDEV_RX_FILTER_MODE_NONE:
             if (virNetDevSetRcvAllMulti(ifname, false) < 0) {
-                VIR_WARN("Couldn't set allmulticast flag to 'off' for "
-                         "device %s while responding to "
-                         "NIC_RX_FILTER_CHANGED", ifname);
+                VIR_WARN("Couldn't set allmulticast flag to 'off' for device %s while responding to NIC_RX_FILTER_CHANGED",
+                         ifname);
             }
 
             if (virNetDevSetRcvMulti(ifname, false) < 0) {
-                VIR_WARN("Couldn't set multicast flag to 'off' for "
-                         "device %s while responding to "
-                         "NIC_RX_FILTER_CHANGED",
+                VIR_WARN("Couldn't set multicast flag to 'off' for device %s while responding to NIC_RX_FILTER_CHANGED",
                          ifname);
             }
             break;

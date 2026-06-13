@@ -69,8 +69,7 @@ virStorageBackendZFSVolModeNeeded(void)
 
     ret = virCommandRun(cmd, &exit_code);
     if ((ret < 0) || (exit_code != 2)) {
-        VIR_WARN("Command 'zfs get' either failed "
-                 "to run or exited with unexpected status");
+        VIR_WARN("Command 'zfs get' either failed to run or exited with unexpected status");
         return ret;
     }
 
@@ -132,8 +131,10 @@ virStorageBackendZFSParseVol(virStoragePoolObj *pool,
 
     if (vol == NULL)
         volume = virStorageVolDefFindByName(pool, vol_name);
-    else
+    else if (STREQ(vol_name, vol->name))
         volume = vol;
+    else
+        return 0;
 
     if (volume == NULL) {
         volume = g_new0(virStorageVolDef, 1);

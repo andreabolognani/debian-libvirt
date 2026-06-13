@@ -7,6 +7,7 @@
   <feature policy='require' name='ht'/>
   <feature policy='require' name='cmt'/>
   <feature policy='require' name='ospke'/>
+  <feature policy='require' name='cet-ss'/>
   <feature policy='require' name='flush-l1d'/>
   <feature policy='require' name='mbm_total'/>
   <feature policy='require' name='mbm_local'/>
@@ -32,6 +33,7 @@
   <feature policy='require' name='avic'/>
   <feature policy='require' name='v-vmsave-vmload'/>
   <feature policy='require' name='vgif'/>
+  <feature policy='require' name='gmet'/>
   <feature policy='require' name='fs-gs-base-ns'/>
   <feature policy='require' name='perfmon-v2'/>
   <feature policy='require' name='rdctl-no'/>

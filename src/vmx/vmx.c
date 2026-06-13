@@ -599,6 +599,7 @@ static int virVMXParseSerial(virVMXContext *ctx, virConf *conf, int port,
 static int virVMXParseParallel(virVMXContext *ctx, virConf *conf, int port,
                                virDomainChrDef **def);
 static int virVMXParseSVGA(virConf *conf, virDomainVideoDef **def);
+static int virVMXParseTPM(virConf *conf, virDomainTPMDef **def);
 
 static int virVMXFormatVNC(virDomainGraphicsDef *def, virBuffer *buffer);
 static int virVMXFormatDisk(virVMXContext *ctx, virDomainDiskDef *def,
@@ -1415,6 +1416,7 @@ virVMXParseConfig(virVMXContext *ctx,
     long long coresPerSocket = 0;
     virCPUDef *cpu = NULL;
     char *firmware = NULL;
+    g_autofree char *nvram = NULL;
     size_t saved_ndisks = 0;
 
     if (ctx->parseFileName == NULL) {
@@ -1490,10 +1492,18 @@ virVMXParseConfig(virVMXContext *ctx,
         def->scsiBusMaxUnit = SCSI_SUPER_WIDE_BUS_MAX_CONT_UNIT;
     }
 
-    /* vmx:uuid.bios -> def:uuid */
+    /* vmx:uuid.bios -> def:hwuuid */
     /* FIXME: Need to handle 'uuid.action = "create"' */
-    if (virVMXGetConfigUUID(conf, "uuid.bios", def->uuid, true) < 0)
+    if (virVMXGetConfigUUID(conf, "uuid.bios", def->hw_uuid, true) < 0)
         goto cleanup;
+
+    /* vmx:vc.uuid -> def:uuid */
+    if (virVMXGetConfigUUID(conf, "vc.uuid", def->uuid, true) < 0)
+        goto cleanup;
+
+    /* Fallback to legacy behaviour if there is no vc.uuid */
+    if (!virUUIDIsValid(def->uuid))
+        memcpy(def->uuid, def->hw_uuid, VIR_UUID_BUFLEN);
 
     /* vmx:displayName -> def:name */
     if (virVMXGetConfigString(conf, "displayName", &def->name, true) < 0)
@@ -1938,6 +1948,15 @@ virVMXParseConfig(virVMXContext *ctx,
 
     def->nvideos = 1;
 
+    /* def:tpms */
+    {
+        virDomainTPMDef *tpm = NULL;
+        if (virVMXParseTPM(conf, &tpm) < 0)
+            goto cleanup;
+        if (tpm)
+            VIR_APPEND_ELEMENT(def->tpms, def->ntpms, tpm);
+    }
+
     /* def:sounds */
     /* FIXME */
 
@@ -2022,6 +2041,22 @@ virVMXParseConfig(virVMXContext *ctx,
             VIR_TRISTATE_BOOL_YES;
     }
 
+    /* vmx:nvram */
+    if (virVMXGetConfigString(conf, "nvram", &nvram, true) < 0) {
+        goto cleanup;
+    }
+
+    if (nvram != NULL) {
+        g_autoptr(virStorageSource) n = virStorageSourceNew();
+
+        def->os.loader = virDomainLoaderDefNew();
+
+        n->type = VIR_STORAGE_TYPE_FILE;
+        if (ctx->parseFileName(nvram, ctx->opaque, &(n->path), false) < 0)
+            goto cleanup;
+        def->os.loader->nvram = g_steal_pointer(&n);
+    }
+
     if (virDomainDefPostParse(def, VIR_DOMAIN_DEF_PARSE_ABI_UPDATE,
                               xmlopt, NULL) < 0)
         goto cleanup;
@@ -2083,8 +2118,7 @@ virVMXParseVNC(virConf *conf, virDomainGraphicsDef **def)
     VIR_FREE(listenAddr);
 
     if (port < 0) {
-        VIR_WARN("VNC is enabled but VMX entry 'RemoteDisplay.vnc.port' "
-                  "is missing, the VNC port is unknown");
+        VIR_WARN("VNC is enabled but VMX entry 'RemoteDisplay.vnc.port' is missing, the VNC port is unknown");
 
         (*def)->data.vnc.port = 0;
         (*def)->data.vnc.autoport = true;
@@ -3367,6 +3401,27 @@ virVMXParseSVGA(virConf *conf, virDomainVideoDef **def)
     return result;
 }
 
+static int
+virVMXParseTPM(virConf *conf, virDomainTPMDef **def)
+{
+    bool vtpm_present = false;
+
+    /* vmx:vtpm.present */
+    if (virVMXGetConfigBoolean(conf, "vtpm.present", &vtpm_present,
+                               false, true) < 0) {
+        return -1;
+    }
+
+    if (!vtpm_present)
+        return 0;
+
+    *def = g_new0(virDomainTPMDef, 1);
+    (*def)->type = VIR_DOMAIN_TPM_TYPE_EMULATOR;
+    (*def)->model = VIR_DOMAIN_TPM_MODEL_CRB;
+    (*def)->data.emulator.version = VIR_DOMAIN_TPM_VERSION_2_0;
+
+    return 0;
+}
 
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -3701,6 +3756,39 @@ virVMXFormatConfig(virVMXContext *ctx, virDomainXMLOption *xmlopt, virDomainDef 
             goto cleanup;
     }
 
+    /* def:vTPM */
+    if (def->ntpms > 0) {
+        /* Validate TPM requirements */
+        if (def->ntpms > 1) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("VMware only supports a single TPM device"));
+            goto cleanup;
+        }
+
+        if (virtualHW_version < 14) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("vTPM requires virtual hardware version 14 or higher"));
+            goto cleanup;
+        }
+
+        if (def->os.firmware != VIR_DOMAIN_OS_DEF_FIRMWARE_EFI) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("vTPM requires EFI firmware"));
+            goto cleanup;
+        }
+
+        /* VMware vTPM specifically requires TPM 2.0 */
+        if (def->tpms[0]->model != VIR_DOMAIN_TPM_MODEL_CRB ||
+            def->tpms[0]->type != VIR_DOMAIN_TPM_TYPE_EMULATOR ||
+            def->tpms[0]->data.emulator.version != VIR_DOMAIN_TPM_VERSION_2_0) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("VMware driver only supports TPM 2.0 with the CRB model"));
+            goto cleanup;
+        }
+
+        virBufferAddLit(&buffer, "vtpm.present = \"TRUE\"\n");
+    }
+
     /* def:inputs */
     /* FIXME */
 
@@ -3737,6 +3825,16 @@ virVMXFormatConfig(virVMXContext *ctx, virDomainXMLOption *xmlopt, virDomainDef 
     /* vmx:firmware */
     if (def->os.firmware == VIR_DOMAIN_OS_DEF_FIRMWARE_EFI)
         virBufferAddLit(&buffer, "firmware = \"efi\"\n");
+
+    /* vmx:nvram */
+    if (def->os.loader && def->os.loader->nvram && def->os.loader->nvram->path) {
+        g_autofree char *nvramPath = NULL;
+
+        nvramPath = ctx->formatFileName(def->os.loader->nvram->path, ctx->opaque);
+        if (nvramPath != NULL) {
+            virBufferAsprintf(&buffer, "nvram = \"%s\"\n", nvramPath);
+        }
+    }
 
     if (virtualHW_version >= 7) {
         if (hasSCSI) {
@@ -3788,8 +3886,7 @@ virVMXFormatVNC(virDomainGraphicsDef *def, virBuffer *buffer)
     virBufferAddLit(buffer, "RemoteDisplay.vnc.enabled = \"true\"\n");
 
     if (def->data.vnc.autoport) {
-        VIR_WARN("VNC autoport is enabled, but the automatically assigned "
-                  "VNC port cannot be read back");
+        VIR_WARN("VNC autoport is enabled, but the automatically assigned VNC port cannot be read back");
     } else {
         if (def->data.vnc.port < 5900 || def->data.vnc.port > 5964) {
             VIR_WARN("VNC port %d it out of [5900..5964] range",
@@ -4229,7 +4326,6 @@ virVMXFormatEthernet(virDomainNetDef *def, int controller,
 
     return 0;
 }
-
 
 
 static int

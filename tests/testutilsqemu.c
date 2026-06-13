@@ -714,45 +714,21 @@ testQemuInfoSetArgs(testQemuInfo *info,
         case ARG_FD_GROUP: {
             virDomainFDTuple *new = virDomainFDTupleNew();
             const char *fdname = va_arg(argptr, char *);
-            VIR_AUTOCLOSE fakefd = open("/dev/zero", O_RDWR);
             bool writable = va_arg(argptr, int);
             size_t i;
 
             new->nfds = va_arg(argptr, unsigned int);
             new->fds = g_new0(int, new->nfds);
-            new->testfds = g_new0(int, new->nfds);
             new->writable = writable;
 
             for (i = 0; i < new->nfds; i++) {
-                new->testfds[i] = va_arg(argptr, unsigned int);
-
-                if (fcntl(new->testfds[i], F_GETFD) != -1) {
-                    fprintf(stderr, "fd '%d' is already in use\n", new->fds[i]);
-                    abort();
-                }
-
-                if ((new->fds[i] = dup(fakefd)) < 0) {
-                    fprintf(stderr, "failed to duplicate fake fd: %s",
-                            g_strerror(errno));
-                    abort();
-                }
+                new->fds[i] = virTestMakeDummyFD(g_strdup_printf("@%s-%zu@", fdname, i));
             }
 
             if (!info->args.fds)
                 info->args.fds = virHashNew(g_object_unref);
 
             g_hash_table_insert(info->args.fds, g_strdup(fdname), new);
-            break;
-        }
-
-        case ARG_VDPA_FD: {
-            const char *vdpadev = va_arg(argptr, char *);
-            int vdpafd = va_arg(argptr, unsigned int);
-
-            if (!info->args.vdpafds)
-                info->args.vdpafds = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
-
-            g_hash_table_insert(info->args.vdpafds, g_strdup(vdpadev), GINT_TO_POINTER(vdpafd));
             break;
         }
 
@@ -986,7 +962,6 @@ testQemuInfoFree(testQemuInfo *info)
     g_clear_pointer(&info->args.fakeCapsAdd, virBitmapFree);
     g_clear_pointer(&info->args.fakeCapsDel, virBitmapFree);
     g_clear_pointer(&info->args.fds, g_hash_table_unref);
-    g_clear_pointer(&info->args.vdpafds, g_hash_table_unref);
     g_clear_object(&info->nbdkitCaps);
     g_clear_pointer(&info->args.fakeNbdkitCaps, virBitmapFree);
     g_free(info);
@@ -1037,6 +1012,7 @@ testQemuPrepareHostBackendChardevOne(virDomainDeviceDef *dev,
             return 0;
     } else {
         devalias = "monitor";
+        fakesourcefd = virTestMakeDummyFD(g_strdup("@mon-fd@"));
     }
 
     switch ((virDomainChrType) chardev->type) {
@@ -1055,19 +1031,18 @@ testQemuPrepareHostBackendChardevOne(virDomainDeviceDef *dev,
         break;
 
     case VIR_DOMAIN_CHR_TYPE_FILE:
-        fakesourcefd = 1750;
-
-        if (fcntl(fakesourcefd, F_GETFD) != -1)
-            abort();
-
         charpriv->sourcefd = qemuFDPassNew(devalias, priv);
+        if (fakesourcefd == -1)
+            fakesourcefd = virTestMakeDummyFD(g_strdup_printf("@%s-fd@", devalias));
         qemuFDPassAddFD(charpriv->sourcefd, &fakesourcefd, "-source");
         break;
 
     case VIR_DOMAIN_CHR_TYPE_UNIX:
         if (chardev->data.nix.listen) {
             g_autofree char *name = g_strdup_printf("%s-source", devalias);
-            fakesourcefd = 1729;
+
+            if (fakesourcefd == -1)
+                fakesourcefd = virTestMakeDummyFD(g_strdup_printf("@%s-fd@", devalias));
 
             charpriv->directfd = qemuFDPassDirectNew(name, &fakesourcefd);
         }
@@ -1080,13 +1055,9 @@ testQemuPrepareHostBackendChardevOne(virDomainDeviceDef *dev,
     }
 
     if (chardev->logfile) {
-        int fd = 1751;
-
-        if (fcntl(fd, F_GETFD) != -1)
-            abort();
+        int fd = virTestMakeDummyFD(g_strdup_printf("@%s-log-fd@", devalias));
 
         charpriv->logfd = qemuFDPassNew(devalias, priv);
-
         qemuFDPassAddFD(charpriv->logfd, &fd, "-log");
     }
 

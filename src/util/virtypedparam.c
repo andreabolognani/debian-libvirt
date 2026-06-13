@@ -30,8 +30,10 @@
 
 #define VIR_FROM_THIS VIR_FROM_NONE
 
+VIR_ENUM_DECL(virTypedParameter);
+
 VIR_ENUM_IMPL(virTypedParameter,
-              VIR_TYPED_PARAM_LAST,
+              VIR_TYPED_PARAM_UNSIGNED + 1,
               "unknown",
               "int",
               "uint",
@@ -40,7 +42,48 @@ VIR_ENUM_IMPL(virTypedParameter,
               "double",
               "boolean",
               "string",
+              "", /* VIR_TYPED_PARAM_LAST */
+              "uint, ullong", /* VIR_TYPED_PARAM_UNSIGNED */
 );
+
+
+/**
+ * virTypedParamValidateType:
+ * @param: typed parameter to validate
+ * @expected_type: type to look for
+ *
+ * Validates that @param is a parameter of @expected type. If @expected_type is
+ * VIR_TYPED_PARAM_UNSIGNED, both VIR_TYPED_PARAM_UINT and VIR_TYPED_PARAM_ULLONG
+ * are accepted.
+ *
+ * Returns 0 on success; -1 on error and reports an error.
+ */
+int
+virTypedParamValidateType(virTypedParameterPtr param,
+                          unsigned int expected_type)
+{
+    if (param->type <= 0 || param->type >= VIR_TYPED_PARAM_LAST) {
+        virReportError(VIR_ERR_INVALID_ARG,
+                       _("unknown type ('%1$d') of parameter '%2$s'"),
+                       param->type, param->field);
+        return -1;
+    }
+
+    if (!(param->type == expected_type ||
+          (expected_type == VIR_TYPED_PARAM_UNSIGNED &&
+           (param->type == VIR_TYPED_PARAM_UINT ||
+            param->type == VIR_TYPED_PARAM_ULLONG)))) {
+        virReportError(VIR_ERR_INVALID_ARG,
+                       _("invalid type '%1$s' for parameter '%2$s', expected '%3$s'"),
+                       virTypedParameterTypeToString(expected_type),
+                       param->field,
+                       virTypedParameterTypeToString(param->type));
+        return -1;
+    }
+
+    return 0;
+}
+
 
 static int
 virTypedParamsSortName(const void *left,
@@ -51,101 +94,63 @@ virTypedParamsSortName(const void *left,
     return strcmp(param_left->field, param_right->field);
 }
 
+static int
+virTypedParamsSortTemplate(const void *left,
+                           const void *right,
+                           void *opaque G_GNUC_UNUSED)
+{
+    const virTypedParamValidationTemplate *param_left = left;
+    const virTypedParamValidationTemplate *param_right = right;
+    return strcmp(param_left->name, param_right->name);
+}
+
 /* Validate that PARAMS contains only recognized parameter names with
  * correct types, and with no duplicates except for parameters
  * specified with VIR_TYPED_PARAM_MULTIPLE flag in type.
  * Pass in as many name/type pairs as appropriate, and pass NULL to end
  * the list of accepted parameters.  Return 0 on success, -1 on failure
  * with error message already issued.  */
-int
-virTypedParamsValidate(virTypedParameterPtr params, int nparams, ...)
+static int
+virTypedParamsValidateInternal(virTypedParameterPtr params,
+                               size_t nparams,
+                               virTypedParamValidationTemplate *templates,
+                               size_t ntemplates)
 {
-    va_list ap;
     size_t i;
     size_t j;
-    const char *name;
     const char *last_name = NULL;
-    size_t nkeys = 0;
-    size_t nkeysalloc = 0;
-    g_autofree virTypedParameterPtr sorted = NULL;
-    g_autofree virTypedParameterPtr keys = NULL;
+    g_autofree virTypedParameterPtr sorted = g_new0(virTypedParameter, nparams);
 
-    if (!nparams) {
-        return 0;
-    }
-
-    va_start(ap, nparams);
-
-    sorted = g_new0(virTypedParameter, nparams);
-
-    /* Here we intentionally don't copy values */
     memcpy(sorted, params, sizeof(*params) * nparams);
     g_qsort_with_data(sorted, nparams,
                       sizeof(*sorted), virTypedParamsSortName, NULL);
 
-    name = va_arg(ap, const char *);
-    while (name) {
-        int type = va_arg(ap, int);
-        VIR_RESIZE_N(keys, nkeysalloc, nkeys, 1);
+    g_qsort_with_data(templates, ntemplates,
+                      sizeof(*templates), virTypedParamsSortTemplate, NULL);
 
-        if (virStrcpyStatic(keys[nkeys].field, name) < 0) {
-            virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("Field name '%1$s' too long"), name);
-            va_end(ap);
-            return -1;
-        }
-
-        keys[nkeys].type = type & ~VIR_TYPED_PARAM_MULTIPLE;
-        /* Value is not used anyway */
-        keys[nkeys].value.i = type & VIR_TYPED_PARAM_MULTIPLE;
-
-        nkeys++;
-        name = va_arg(ap, const char *);
-    }
-
-    va_end(ap);
-
-    g_qsort_with_data(keys, nkeys, sizeof(*keys), virTypedParamsSortName, NULL);
-
-    for (i = 0, j = 0; i < nparams && j < nkeys;) {
-        if (STRNEQ(sorted[i].field, keys[j].field)) {
+    for (i = 0, j = 0; i < nparams && j < ntemplates;) {
+        if (STRNEQ(sorted[i].field, templates[j].name)) {
             j++;
         } else {
-            const char *expecttype = virTypedParameterTypeToString(keys[j].type);
-            int type = sorted[i].type;
+            unsigned int expected_type = templates[j].typeflags & ~VIR_TYPED_PARAM_MULTIPLE;
+            bool multiple = templates[j].typeflags & VIR_TYPED_PARAM_MULTIPLE;
 
-            if (STREQ_NULLABLE(last_name, sorted[i].field) &&
-                !(keys[j].value.i & VIR_TYPED_PARAM_MULTIPLE)) {
+            if (STREQ_NULLABLE(last_name, sorted[i].field) && !multiple) {
                 virReportError(VIR_ERR_INVALID_ARG,
                                _("parameter '%1$s' occurs multiple times"),
                                sorted[i].field);
                 return -1;
             }
 
-            if (keys[j].type == VIR_TYPED_PARAM_UNSIGNED &&
-                (type == VIR_TYPED_PARAM_UINT ||
-                 type == VIR_TYPED_PARAM_ULLONG)) {
-                type = VIR_TYPED_PARAM_UNSIGNED;
-                expecttype = "uint, ullong";
-            }
-
-            if (type != keys[j].type) {
-                const char *badtype;
-
-                badtype = virTypedParameterTypeToString(sorted[i].type);
-                if (!badtype)
-                    badtype = virTypedParameterTypeToString(0);
-                virReportError(VIR_ERR_INVALID_ARG,
-                               _("invalid type '%1$s' for parameter '%2$s', expected '%3$s'"),
-                               badtype, sorted[i].field, expecttype);
+            if (virTypedParamValidateType(sorted + i, expected_type) < 0)
                 return -1;
-            }
+
             last_name = sorted[i].field;
             i++;
         }
     }
 
-    if (j == nkeys && i != nparams) {
+    if (j == ntemplates && i != nparams) {
         virReportError(VIR_ERR_ARGUMENT_UNSUPPORTED,
                        _("parameter '%1$s' not supported"),
                        sorted[i].field);
@@ -153,6 +158,68 @@ virTypedParamsValidate(virTypedParameterPtr params, int nparams, ...)
     }
 
     return 0;
+}
+
+
+/* Validate that PARAMS contains only recognized parameter names with
+ * correct types, and with no duplicates except for parameters
+ * specified with VIR_TYPED_PARAM_MULTIPLE flag in type.
+ * Pass in as many name/type pairs as appropriate, and pass NULL to end
+ * the list of accepted parameters.  Return 0 on success, -1 on failure
+ * with error message already issued.  */
+int
+virTypedParamsValidate(virTypedParameterPtr params,
+                       int nparams,
+                       ...)
+{
+    va_list ap;
+    const char *name;
+    g_autofree virTypedParamValidationTemplate *templates = NULL;
+    size_t ntemplates = 0;
+    size_t ntemplatesalloc = 0;
+
+    if (nparams == 0)
+        return 0;
+
+    va_start(ap, nparams);
+
+    for (name = va_arg(ap, const char *); name; name = va_arg(ap, const char *)) {
+        VIR_RESIZE_N(templates, ntemplatesalloc, ntemplates, 1);
+
+        if (virStrcpy((char *)templates[ntemplates].name, name, VIR_TYPED_PARAM_FIELD_LENGTH) < 0) {
+            virReportError(VIR_ERR_INTERNAL_ERROR,
+                           _("Field name '%1$s' too long"), name);
+            va_end(ap);
+            return -1;
+        }
+
+        templates[ntemplates].typeflags = va_arg(ap, unsigned int);
+        ntemplates++;
+    }
+
+    va_end(ap);
+
+    return virTypedParamsValidateInternal(params, nparams, templates, ntemplates);
+}
+
+
+int
+virTypedParamsValidateTemplate(virTypedParameterPtr params,
+                               int nparams,
+                               const virTypedParamValidationTemplate *templates)
+{
+    size_t ntemplates = 0;
+    g_autofree virTypedParamValidationTemplate *templ_copy = NULL;
+
+    /* we need to copy the list of templates because
+     * 'virTypedParamsValidateInternal' will need to sort it */
+    while (*templates[ntemplates].name != '\0')
+        ntemplates++;
+
+    templ_copy = g_new0(virTypedParamValidationTemplate, ntemplates);
+    memcpy(templ_copy, templates, sizeof(*templates) * ntemplates);
+
+    return virTypedParamsValidateInternal(params, nparams, templ_copy, ntemplates);
 }
 
 
@@ -1074,4 +1141,29 @@ virTypedParamListAddDouble(virTypedParamList *list,
     va_start(ap, namefmt);
     virTypedParamSetNameVPrintf(list, par, namefmt, ap);
     va_end(ap);
+}
+
+
+/**
+ * virTypedParamDebugstr:
+ * @param: typed parameter
+ *
+ * Format @param into a string used for debug prints in public API handlers.
+ * This must make sure to work on unknown typed parameter types.
+ *
+ * Returns the formatted string; caller must free it.
+ */
+char *
+virTypedParamDebugstr(virTypedParameterPtr param)
+{
+    g_autofree char *value = virTypedParameterToString(param);
+    int type = param->type;
+
+    if (type < 0 || type > VIR_TYPED_PARAM_LAST)
+        type = 0;
+
+    return g_strdup_printf("params[\"%s\"]=(%s)%s",
+                           param->field,
+                           virTypedParameterTypeToString(type),
+                           NULLSTR(value));
 }

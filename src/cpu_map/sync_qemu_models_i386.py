@@ -52,6 +52,8 @@ def translate_feature(name, model):
         "CPUID_7_0_EBX_SMAP": "smap",
         "CPUID_7_0_EBX_SMEP": "smep",
         "CPUID_7_0_EBX_TSC_ADJUST": "tsc_adjust",
+        "CPUID_7_0_EBX_ZERO_FCS_FDS": "zero-fcs-fds",
+        "CPUID_7_0_EBX_FDP_EXCPTN_ONLY": "fdp-excptn-only",
         "CPUID_7_0_ECX_AVX512BITALG": "avx512bitalg",
         "CPUID_7_0_ECX_AVX512VNNI": "avx512vnni",
         "CPUID_7_0_ECX_AVX512_VBMI": "avx512vbmi",
@@ -83,6 +85,10 @@ def translate_feature(name, model):
         "CPUID_7_0_EDX_STIBP": "stibp",
         "CPUID_7_0_EDX_TSX_LDTRK": "tsx-ldtrk",
         "CPUID_7_0_EDX_AVX512_VP2INTERSECT": "avx512-vp2intersect",
+        "CPUID_7_0_ECX_CET_SHSTK": "cet-ss",
+        "CPUID_7_0_EDX_CET_IBT": "cet-ibt",
+        "CPUID_7_0_EDX_FLUSH_L1D": "flush-l1d",
+        "CPUID_7_0_EDX_MD_CLEAR": "md-clear",
         "CPUID_7_1_EAX_AMX_FP16": "amx-fp16",
         "CPUID_7_1_EAX_AVX512_BF16": "avx512-bf16",
         "CPUID_7_1_EAX_AVX_IFMA": "avx-ifma",
@@ -96,21 +102,37 @@ def translate_feature(name, model):
         "CPUID_7_1_EAX_SM3": "sm3",
         "CPUID_7_1_EAX_SM4": "sm4",
         "CPUID_7_1_EAX_AVX_VNNI": "avx-vnni",
+        "CPUID_7_1_EAX_MOVRS": "movrs",
+        "CPUID_7_1_EAX_FRED": "fred",
+        "CPUID_7_1_EAX_LKGS": "lkgs",
+        "CPUID_7_1_EAX_WRMSRNS": "wrmsrns",
         "CPUID_7_1_ECX_MSR_IMM": "msr-imm",
         "CPUID_7_1_EDX_AVX_NE_CONVERT": "avx-ne-convert",
         "CPUID_7_1_EDX_AVX_VNNI_INT8": "avx-vnni-int8",
         "CPUID_7_1_EDX_PREFETCHITI": "prefetchiti",
         "CPUID_7_1_EDX_AVX10": "avx10",
         "CPUID_7_1_EDX_AVX_VNNI_INT16": "avx-vnni-int16",
+        "CPUID_7_1_EDX_APXF": "apxf",
+        "CPUID_7_1_EDX_AMX_COMPLEX": "amx-complex",
         "CPUID_7_2_EDX_MCDT_NO": "mcdt-no",
         "CPUID_7_2_EDX_PSFD": "intel-psfd",
         "CPUID_7_2_EDX_IPRED_CTRL": "ipred-ctrl",
         "CPUID_7_2_EDX_RRSBA_CTRL": "rrsba-ctrl",
         "CPUID_7_2_EDX_BHI_CTRL": "bhi-ctrl",
         "CPUID_7_2_EDX_DDPD_U": "ddpd-u",
+        "CPUID_1E_1_EAX_AMX_AVX512": "amx-avx512",
+        "CPUID_1E_1_EAX_AMX_BF16_ALIAS": "amx-bf16-alias",
+        "CPUID_1E_1_EAX_AMX_COMPLEX_ALIAS": "amx-complex-alias",
+        "CPUID_1E_1_EAX_AMX_FP16_ALIAS": "amx-fp16-alias",
+        "CPUID_1E_1_EAX_AMX_FP8": "amx-fp8",
+        "CPUID_1E_1_EAX_AMX_INT8_ALIAS": "amx-int8-alias",
+        "CPUID_1E_1_EAX_AMX_MOVRS": "amx-movrs",
+        "CPUID_1E_1_EAX_AMX_TF32": "amx-tf32",
         "CPUID_24_0_EBX_AVX10_128": "avx10-128",
         "CPUID_24_0_EBX_AVX10_256": "avx10-256",
         "CPUID_24_0_EBX_AVX10_512": "avx10-512",
+        "CPUID_24_1_ECX_AVX10_VNNI_INT": "avx10-vnni-int",
+        "CPUID_29_0_EBX_APX_NCI_NDD_NF": "apx-nci-ndd-nf",
         "CPUID_APM_INVTSC": "invtsc",
         "CPUID_8000_0007_EBX_OVERFLOW_RECOV": "overflow-recov",
         "CPUID_8000_0007_EBX_SUCCOR": "succor",
@@ -220,6 +242,7 @@ def translate_feature(name, model):
         "CPUID_SVM_PFTHRESHOLD": "pfthreshold",
         "CPUID_SVM_V_VMSAVE_VMLOAD": "v-vmsave-vmload",
         "CPUID_SVM_VGIF": "vgif",
+        "CPUID_SVM_GMET": "gmet",
         "CPUID_TSC": "tsc",
         "CPUID_VME": "vme",
         "CPUID_XSAVE_XGETBV1": "xgetbv1",
@@ -287,6 +310,7 @@ def translate_feature(name, model):
         "VMX_SECONDARY_EXEC_XSAVES": "vmx-xsaves",
         "VMX_SECONDARY_EXEC_TSC_SCALING": "vmx-tsc-scaling",
         "VMX_SECONDARY_EXEC_ENABLE_USER_WAIT_PAUSE": "vmx-enable-user-wait-pause",
+        "VMX_SECONDARY_EXEC_MODE_BASED_EPT_EXEC": "vmx-mbec",
 
         # FEAT_VMX_PINBASED_CTLS
         "VMX_PIN_BASED_EXT_INTR_MASK": "vmx-intr-exit",
@@ -307,6 +331,8 @@ def translate_feature(name, model):
         "VMX_VM_EXIT_CLEAR_BNDCFGS": "vmx-exit-clear-bndcfgs",
         "VMX_VM_EXIT_CLEAR_IA32_RTIT_CTL": "vmx-exit-clear-rtit-ctl",
         "VMX_VM_EXIT_LOAD_IA32_PKRS": "vmx-exit-load-pkrs",
+        "VMX_VM_EXIT_SAVE_CET": "vmx-exit-save-cet",
+        "VMX_VM_EXIT_ACTIVATE_SECONDARY_CONTROLS": "vmx-exit-secondary-ctls",
 
         # FEAT_VMX_ENTRY_CTLS
         "VMX_VM_ENTRY_LOAD_DEBUG_CONTROLS": "vmx-entry-noload-debugctl",
@@ -317,6 +343,8 @@ def translate_feature(name, model):
         "VMX_VM_ENTRY_LOAD_BNDCFGS": "vmx-entry-load-bndcfgs",
         "VMX_VM_ENTRY_LOAD_IA32_RTIT_CTL": "vmx-entry-load-rtit-ctl",
         "VMX_VM_ENTRY_LOAD_IA32_PKRS": "vmx-entry-load-pkrs",
+        "VMX_VM_ENTRY_LOAD_CET": "vmx-entry-load-cet",
+        "VMX_VM_ENTRY_LOAD_IA32_FRED": "vmx-entry-load-fred",
 
         # FEAT_VMX_MISC
         "MSR_VMX_MISC_STORE_LMA": "vmx-store-lma",
@@ -346,6 +374,7 @@ def translate_feature(name, model):
         "MSR_VMX_BASIC_INS_OUTS": "vmx-ins-outs",
         "MSR_VMX_BASIC_TRUE_CTLS": "vmx-true-ctls",
         "MSR_VMX_BASIC_ANY_ERRCODE": "vmx-any-errcode",
+        "MSR_VMX_BASIC_NESTED_EXCEPTION": "vmx-nested-exception",
 
         # FEAT_VMX_VMFUNC
         "MSR_VMX_VMFUNC_EPT_SWITCHING": "vmx-eptp-switching",
@@ -520,8 +549,8 @@ def expand_model(outdir, model):
     }
 
     if ".family" in model and ".model" in model:
-        result["signature"].append((model.pop(".family"),
-                                    model.pop(".model"),
+        result["signature"].append((str(int(model.pop(".family"), base=0)),
+                                    str(int(model.pop(".model"), base=0)),
                                     None))
 
     for k in [k for k in model if k.startswith(".features")]:
@@ -636,7 +665,7 @@ def update_index(outdir, models):
         group = groups[-1]
         children = group.getchildren()
         if children:
-            last = children()[-1]
+            last = children[-1]
             group_indent = last.tail
             indent = f"{group_indent}  "
             last.tail = indent

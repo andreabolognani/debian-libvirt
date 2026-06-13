@@ -84,6 +84,35 @@ VIR_ENUM_IMPL(qemuMigrationJobPhase,
               "finish_resume",
 );
 
+const virTypedParamValidationTemplate qemuMigrationParametersValidation[] = {
+    { VIR_MIGRATE_PARAM_URI, VIR_TYPED_PARAM_STRING },
+    { VIR_MIGRATE_PARAM_DEST_NAME, VIR_TYPED_PARAM_STRING },
+    { VIR_MIGRATE_PARAM_DEST_XML, VIR_TYPED_PARAM_STRING },
+    { VIR_MIGRATE_PARAM_BANDWIDTH, VIR_TYPED_PARAM_ULLONG },
+    { VIR_MIGRATE_PARAM_GRAPHICS_URI, VIR_TYPED_PARAM_STRING },
+    { VIR_MIGRATE_PARAM_LISTEN_ADDRESS, VIR_TYPED_PARAM_STRING },
+    { VIR_MIGRATE_PARAM_MIGRATE_DISKS, VIR_TYPED_PARAM_STRING | VIR_TYPED_PARAM_MULTIPLE },
+    { VIR_MIGRATE_PARAM_MIGRATE_DISKS_DETECT_ZEROES, VIR_TYPED_PARAM_STRING | VIR_TYPED_PARAM_MULTIPLE },
+    { VIR_MIGRATE_PARAM_MIGRATE_DISKS_TARGET_ZERO, VIR_TYPED_PARAM_STRING | VIR_TYPED_PARAM_MULTIPLE },
+    { VIR_MIGRATE_PARAM_DISKS_PORT, VIR_TYPED_PARAM_INT },
+    { VIR_MIGRATE_PARAM_COMPRESSION, VIR_TYPED_PARAM_STRING | VIR_TYPED_PARAM_MULTIPLE },
+    { VIR_MIGRATE_PARAM_COMPRESSION_MT_LEVEL, VIR_TYPED_PARAM_INT },
+    { VIR_MIGRATE_PARAM_COMPRESSION_MT_THREADS, VIR_TYPED_PARAM_INT },
+    { VIR_MIGRATE_PARAM_COMPRESSION_MT_DTHREADS, VIR_TYPED_PARAM_INT },
+    { VIR_MIGRATE_PARAM_COMPRESSION_XBZRLE_CACHE, VIR_TYPED_PARAM_ULLONG },
+    { VIR_MIGRATE_PARAM_PERSIST_XML, VIR_TYPED_PARAM_STRING },
+    { VIR_MIGRATE_PARAM_AUTO_CONVERGE_INITIAL, VIR_TYPED_PARAM_INT },
+    { VIR_MIGRATE_PARAM_AUTO_CONVERGE_INCREMENT, VIR_TYPED_PARAM_INT },
+    { VIR_MIGRATE_PARAM_BANDWIDTH_POSTCOPY, VIR_TYPED_PARAM_ULLONG },
+    { VIR_MIGRATE_PARAM_PARALLEL_CONNECTIONS, VIR_TYPED_PARAM_INT },
+    { VIR_MIGRATE_PARAM_COMPRESSION_ZLIB_LEVEL, VIR_TYPED_PARAM_INT },
+    { VIR_MIGRATE_PARAM_COMPRESSION_ZSTD_LEVEL, VIR_TYPED_PARAM_INT },
+    { VIR_MIGRATE_PARAM_TLS_DESTINATION, VIR_TYPED_PARAM_STRING },
+    { VIR_MIGRATE_PARAM_DISKS_URI, VIR_TYPED_PARAM_STRING },
+    { VIR_MIGRATE_PARAM_BANDWIDTH_AVAIL_SWITCHOVER, VIR_TYPED_PARAM_ULLONG },
+    { "", 0 }
+};
+
 
 static bool ATTRIBUTE_NONNULL(1)
 qemuMigrationJobIsAllowed(virDomainObj *vm)
@@ -1867,8 +1896,8 @@ qemuMigrationSrcPostcopyFailed(virDomainObj *vm)
         virDomainObjIsFailedPostcopy(vm, vm->job))
         return;
 
-    VIR_WARN("Migration of domain %s failed during post-copy; "
-             "leaving the domain paused", vm->def->name);
+    VIR_WARN("Migration of domain %s failed during post-copy; leaving the domain paused",
+             vm->def->name);
 
     vm->job->asyncPaused = true;
     virDomainObjSetState(vm, VIR_DOMAIN_PAUSED,
@@ -1899,8 +1928,8 @@ qemuMigrationDstPostcopyFailed(virDomainObj *vm)
         virDomainObjIsFailedPostcopy(vm, vm->job))
         return;
 
-    VIR_WARN("Incoming migration of domain '%s' failed during post-copy; "
-             "leaving the domain running", vm->def->name);
+    VIR_WARN("Incoming migration of domain '%s' failed during post-copy; leaving the domain running",
+             vm->def->name);
 
     vm->job->asyncPaused = true;
     if (state == VIR_DOMAIN_RUNNING) {
@@ -2532,8 +2561,7 @@ qemuMigrationAnyConnectionClosed(virDomainObj *vm,
             VIR_DEBUG("Migration protocol interrupted in post-copy mode");
             postcopy = true;
         } else {
-            VIR_WARN("Migration of domain %s finished but we don't know if the "
-                     "domain was successfully started on destination or not",
+            VIR_WARN("Migration of domain %s finished but we don't know if the domain was successfully started on destination or not",
                      vm->def->name);
         }
         break;

@@ -32,6 +32,8 @@
 
 VIR_LOG_INIT("util.object");
 
+#define VIR_OBJECT_DEBUG_REFCOUNT 1
+
 static unsigned int magicCounter = 0xCAFE0000;
 
 struct _virClass {
@@ -48,6 +50,9 @@ struct _virClass {
 typedef struct _virObjectPrivate virObjectPrivate;
 struct _virObjectPrivate {
     virClass *klass;
+#if VIR_OBJECT_DEBUG_REFCOUNT
+    int refs; /* Informative reference count used for PROBE and debug  messages. */
+#endif /* VIR_OBJECT_DEBUG_REFCOUNT */
 };
 
 
@@ -253,7 +258,10 @@ virObjectNew(virClass *klass)
 
     priv = vir_object_get_instance_private(obj);
     priv->klass = klass;
-    PROBE(OBJECT_NEW, "obj=%p classname=%s", obj, priv->klass->name);
+#if VIR_OBJECT_DEBUG_REFCOUNT
+    priv->refs = 1;
+#endif /*VIR_OBJECT_DEBUG_REFCOUNT */
+    PROBE_DEBUG(OBJECT_NEW, "obj=%p classname=%s", obj, priv->klass->name);
 
     return obj;
 }
@@ -310,13 +318,14 @@ virObjectRWLockableNew(virClass *klass)
     return obj;
 }
 
+
 static void vir_object_finalize(GObject *gobj)
 {
     virObject *obj = VIR_OBJECT(gobj);
     virObjectPrivate *priv = vir_object_get_instance_private(obj);
     virClass *klass = priv->klass;
 
-    PROBE(OBJECT_DISPOSE, "obj=%p", gobj);
+    PROBE_DEBUG(OBJECT_DISPOSE, "obj=%p classname=%s", gobj, klass->name);
 
     while (klass) {
         if (klass->dispose)
@@ -370,12 +379,20 @@ void
 virObjectUnref(void *anyobj)
 {
     virObject *obj = anyobj;
+    virObjectPrivate *priv;
+    int refs = -1;
 
     if (VIR_OBJECT_NOTVALID(obj))
         return;
 
+    priv = vir_object_get_instance_private(obj);
+#if VIR_OBJECT_DEBUG_REFCOUNT
+    refs = g_atomic_int_add(&priv->refs, -1) - 1;
+#endif /* VIR_OBJECT_DEBUG_REFCOUNT */
+    PROBE_DEBUG(OBJECT_UNREF, "obj=%p classname=%s refs=%d",
+                obj, priv->klass->name, refs);
+
     g_object_unref(anyobj);
-    PROBE(OBJECT_UNREF, "obj=%p", obj);
 }
 
 
@@ -392,12 +409,20 @@ void *
 virObjectRef(void *anyobj)
 {
     virObject *obj = anyobj;
+    virObjectPrivate *priv;
+    int refs = -1;
 
     if (VIR_OBJECT_NOTVALID(obj))
         return NULL;
 
     g_object_ref(obj);
-    PROBE(OBJECT_REF, "obj=%p", obj);
+
+    priv = vir_object_get_instance_private(obj);
+#if VIR_OBJECT_DEBUG_REFCOUNT
+    refs = g_atomic_int_add(&priv->refs, 1) + 1;
+#endif /* VIR_OBJECT_DEBUG_REFCOUNT */
+    PROBE_DEBUG(OBJECT_REF, "obj=%p classname=%s refs=%d",
+                obj, priv->klass->name, refs);
     return anyobj;
 }
 

@@ -20,6 +20,7 @@
   <feature name='pku'/>
   <feature name='ospke'/>
   <feature name='avx512vbmi2'/>
+  <feature name='cet-ss'/>
   <feature name='gfni'/>
   <feature name='vaes'/>
   <feature name='vpclmulqdq'/>
@@ -51,6 +52,7 @@
   <feature name='svm-lock'/>
   <feature name='decodeassists'/>
   <feature name='avic'/>
+  <feature name='gmet'/>
   <feature name='vnmi'/>
   <feature name='svme-addr-chk'/>
   <feature name='no-nested-data-bp'/>

@@ -7773,6 +7773,16 @@ virDomainSetVcpus(virDomainPtr domain, unsigned int nvcpus)
  * be used with live guests and is incompatible with VIR_DOMAIN_VCPU_MAXIMUM.
  * The usage of this flag may require a guest agent configured.
  *
+ * If @flags includes VIR_DOMAIN_VCPU_ASYNC_UNPLUG, live vCPU hot-unplug
+ * request(s) are fired without waiting for the guest to comply. Success in
+ * this mode only means that the unplug request(s) were accepted. Final
+ * completion is reported by VIR_DOMAIN_EVENT_ID_VCPU_REMOVED, carrying the
+ * XML ``<vcpu id='...'>`` value for each removed vCPU. Rejected unplug
+ * requests continue to be reported through the event
+ * VIR_DOMAIN_EVENT_ID_DEVICE_REMOVAL_FAILED. The success event may be
+ * delivered before this API call returns. This flag has no effect when this
+ * operation results in an increase in the live vCPU count.
+ *
  * Not all hypervisors can support all flag combinations.
  *
  * Returns 0 in case of success, -1 in case of failure.
@@ -13125,7 +13135,7 @@ virDomainSetGuestVcpus(virDomainPtr domain,
  * @domain: pointer to domain object
  * @vcpumap: text representation of a bitmap of vcpus to set
  * @state: 0 to disable/1 to enable cpus described by @vcpumap
- * @flags: bitwise-OR of virDomainModificationImpact
+ * @flags: bitwise-OR of virDomainSetVcpuFlags
  *
  * Enables/disables individual vcpus described by @vcpumap in the hypervisor.
  *
@@ -13133,6 +13143,16 @@ virDomainSetGuestVcpus(virDomainPtr domain,
  * hotpluggable entity (which may contain multiple vCPUs on certain platforms).
  *
  * Note that OSes and hypervisors may require vCPU 0 to stay online.
+ *
+ * If @flags includes VIR_DOMAIN_SETVCPU_ASYNC_UNPLUG, live vCPU disable
+ * (i.e. hot-unplug) request(s) are fired without waiting for the guest to
+ * comply. Success in this mode means only that the unplug request(s) were
+ * accepted. Final completion is reported by VIR_DOMAIN_EVENT_ID_VCPU_REMOVED,
+ * carrying the XML ``<vcpu id='...'>`` value for each removed vCPU. Rejected
+ * unplug requests continue to be reported by the event ID
+ * VIR_DOMAIN_EVENT_ID_DEVICE_REMOVAL_FAILED.
+ * The success event may be delivered before this API call returns. This flag
+ * has no effect when the selected vCPUs are enabled.
  *
  * Returns 0 on success, -1 on error.
  *

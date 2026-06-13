@@ -236,7 +236,8 @@ qemuConnectAgent(virQEMUDriver *driver, virDomainObj *vm)
     agent = qemuAgentOpen(vm,
                           config->source,
                           virEventThreadGetContext(priv->eventThread),
-                          &agentCallbacks);
+                          &agentCallbacks,
+                          QEMU_DOMAIN_PRIVATE(vm)->agentTimeout);
 
     if (!virDomainObjIsActive(vm)) {
         qemuAgentClose(agent);
@@ -2252,7 +2253,6 @@ qemuProcessRefreshChannelVirtioState(virQEMUDriver *driver,
     size_t i;
     int agentReason = VIR_CONNECT_DOMAIN_EVENT_AGENT_LIFECYCLE_REASON_CHANNEL;
     qemuMonitorChardevInfo *entry;
-    virObjectEvent *event = NULL;
     g_autofree char *id = NULL;
 
     if (booted)
@@ -2260,6 +2260,8 @@ qemuProcessRefreshChannelVirtioState(virQEMUDriver *driver,
 
     for (i = 0; i < vm->def->nchannels; i++) {
         virDomainChrDef *chr = vm->def->channels[i];
+        virObjectEvent *events[2] = { 0 };
+
         if (chr->targetType == VIR_DOMAIN_CHR_CHANNEL_TARGET_TYPE_VIRTIO) {
 
             VIR_FREE(id);
@@ -2270,11 +2272,21 @@ qemuProcessRefreshChannelVirtioState(virQEMUDriver *driver,
                 !entry->state)
                 continue;
 
-            if (entry->state != VIR_DOMAIN_CHR_DEVICE_STATE_DEFAULT &&
-                STREQ_NULLABLE(chr->target.name, "org.qemu.guest_agent.0") &&
-                (event = virDomainEventAgentLifecycleNewFromObj(vm, entry->state,
-                                                                agentReason)))
-                virObjectEventStateQueue(driver->domainEventState, event);
+            if (entry->state != VIR_DOMAIN_CHR_DEVICE_STATE_DEFAULT) {
+                events[0] = virDomainEventChannelLifecycleNewFromObj(vm,
+                                                                     chr->target.name,
+                                                                     entry->state,
+                                                                     agentReason);
+                if (STREQ_NULLABLE(chr->target.name, "org.qemu.guest_agent.0")) {
+                    events[1] = virDomainEventAgentLifecycleNewFromObj(vm,
+                                                                       entry->state,
+                                                                       agentReason);
+                }
+
+                /* emit agent then channel when emitting both events */
+                virObjectEventStateQueue(driver->domainEventState, events[1]);
+                virObjectEventStateQueue(driver->domainEventState, events[0]);
+            }
 
             chr->state = entry->state;
         }
@@ -7773,14 +7785,10 @@ qemuProcessGetPassedIommuFd(virDomainObj *vm)
         return -1;
     }
 
-    if (fdt->testfds) {
-        iommufd = dup2(fdt->fds[0], fdt->testfds[0]);
-    } else {
-        iommufd = dup(fdt->fds[0]);
+    iommufd = dup(fdt->fds[0]);
 
-        if (qemuSecuritySetImageFDLabel(priv->driver->securityManager, vm->def, iommufd) < 0)
-            return -1;
-    }
+    if (qemuSecuritySetImageFDLabel(priv->driver->securityManager, vm->def, iommufd) < 0)
+        return -1;
 
     priv->iommufd = qemuFDPassDirectNew("iommufd", &iommufd);
 

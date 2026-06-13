@@ -330,6 +330,24 @@ typedef enum {
 } virDomainModificationImpact;
 
 /**
+ * virDomainSetVcpuFlags:
+ *
+ * These flags must be used when calling the `virDomainSetVcpu` API.
+ *
+ * Since: 12.4.0
+ */
+typedef enum {
+    /* Alias of VIR_DOMAIN_AFFECT_CURRENT. (Since: 12.4.0)  */
+    VIR_DOMAIN_SETVCPU_AFFECT_CURRENT = VIR_DOMAIN_AFFECT_CURRENT,
+    /* Alias of VIR_DOMAIN_AFFECT_LIVE. (Since: 12.4.0)  */
+    VIR_DOMAIN_SETVCPU_AFFECT_LIVE = VIR_DOMAIN_AFFECT_LIVE,
+    /* Alias of VIR_DOMAIN_AFFECT_CONFIG. (Since: 12.4.0)  */
+    VIR_DOMAIN_SETVCPU_AFFECT_CONFIG = VIR_DOMAIN_AFFECT_CONFIG,
+    /* Do not wait for the guest to comply with the request (Since: 12.4.0) */
+    VIR_DOMAIN_SETVCPU_ASYNC_UNPLUG = 1 << 2
+} virDomainSetVcpuFlags;
+
+/**
  * virDomainInfo:
  *
  * a virDomainInfo is a structure filled by virDomainGetInfo() and extracting
@@ -2605,6 +2623,7 @@ typedef enum {
     VIR_DOMAIN_VCPU_MAXIMUM = (1 << 2), /* Max rather than current count (Since: 0.8.5) */
     VIR_DOMAIN_VCPU_GUEST   = (1 << 3), /* Modify state of the cpu in the guest (Since: 1.1.0) */
     VIR_DOMAIN_VCPU_HOTPLUGGABLE = (1 << 4), /* Make vcpus added hot(un)pluggable (Since: 2.4.0) */
+    VIR_DOMAIN_VCPU_ASYNC_UNPLUG = (1 << 5), /* Don't wait for the guest to comply with unplug request(s) (Since: 12.4.0) */
 } virDomainVcpuFlags;
 
 int                     virDomainSetVcpus       (virDomainPtr domain,
@@ -4400,6 +4419,71 @@ struct _virDomainStatsRecord {
  */
 # define VIR_DOMAIN_STATS_MEMORY_BANDWIDTH_MONITOR_SUFFIX_NODE_SUFFIX_BYTES_TOTAL ".bytes.total"
 
+
+/**
+ * VIR_DOMAIN_STATS_CPU_ENERGY_MONITOR_COUNT:
+ *
+ * The number of energy monitors for this domain, as an unsigned int.
+ *
+ * Since: 12.4.0
+ */
+# define VIR_DOMAIN_STATS_CPU_ENERGY_MONITOR_COUNT "cpu.energy.monitor.count"
+
+/**
+ * VIR_DOMAIN_STATS_CPU_ENERGY_MONITOR_PREFIX:
+ *
+ * Prefix for an individual energy monitor group.  Concatenate
+ * with the monitor index and one of the "cpu.energy.monitor.<i>." suffix
+ * macros below to form a full parameter name.
+ *
+ * Since: 12.4.0
+ */
+# define VIR_DOMAIN_STATS_CPU_ENERGY_MONITOR_PREFIX "cpu.energy.monitor."
+
+/**
+ * VIR_DOMAIN_STATS_CPU_ENERGY_MONITOR_SUFFIX_NAME:
+ *
+ * Name of the monitor group as a string.
+ *
+ * Since: 12.4.0
+ */
+# define VIR_DOMAIN_STATS_CPU_ENERGY_MONITOR_SUFFIX_NAME ".name"
+
+/**
+ * VIR_DOMAIN_STATS_CPU_ENERGY_MONITOR_SUFFIX_VCPUS:
+ *
+ * vCPU set covered by the monitor group as a string.
+ *
+ * Since: 12.4.0
+ */
+# define VIR_DOMAIN_STATS_CPU_ENERGY_MONITOR_SUFFIX_VCPUS ".vcpus"
+
+/**
+ * VIR_DOMAIN_STATS_CPU_ENERGY_MONITOR_SUFFIX_PKG_COUNT:
+ *
+ * Number of PERF_PKG nodes the monitor group exposes, as an unsigned int.
+ *
+ * Since: 12.4.0
+ */
+# define VIR_DOMAIN_STATS_CPU_ENERGY_MONITOR_SUFFIX_PKG_COUNT ".pkg.count"
+
+/**
+ * VIR_DOMAIN_STATS_CPU_ENERGY_MONITOR_SUFFIX_PKG_PREFIX:
+ *
+ * Prefix for a single mon_PERF_PKG node inside a monitor group.
+ *
+ * Since: 12.4.0
+ */
+# define VIR_DOMAIN_STATS_CPU_ENERGY_MONITOR_SUFFIX_PKG_PREFIX ".pkg."
+
+/**
+ * VIR_DOMAIN_STATS_CPU_ENERGY_MONITOR_SUFFIX_PKG_SUFFIX_ID:
+ *
+ * Kernel-assigned mon_PERF_PKG node id, as an unsigned int.
+ *
+ * Since: 12.4.0
+ */
+# define VIR_DOMAIN_STATS_CPU_ENERGY_MONITOR_SUFFIX_PKG_SUFFIX_ID ".id"
 
 /**
  * VIR_DOMAIN_STATS_DIRTYRATE_CALC_STATUS:
@@ -6966,6 +7050,27 @@ typedef void (*virConnectDomainEventDeviceRemovalFailedCallback)(virConnectPtr c
                                                                  void *opaque);
 
 /**
+ * virConnectDomainEventVcpuRemovedCallback:
+ * @conn: connection object
+ * @dom: domain on which the event occurred
+ * @vcpuid: libvirt XML vCPU id
+ * @opaque: application specified data
+ *
+ * This callback occurs when a vCPU is removed from the domain.
+ *
+ * The @vcpuid value matches the ``<vcpu id='...'>`` value from the domain XML.
+ *
+ * The callback signature to use when registering for an event of type
+ * VIR_DOMAIN_EVENT_ID_VCPU_REMOVED with virConnectDomainEventRegisterAny().
+ *
+ * Since: 12.4.0
+ */
+typedef void (*virConnectDomainEventVcpuRemovedCallback)(virConnectPtr conn,
+                                                         virDomainPtr dom,
+                                                         unsigned int vcpuid,
+                                                         void *opaque);
+
+/**
  * virConnectDomainEventMetadataChangeCallback:
  * @conn: connection object
  * @dom: domain on which the event occurred
@@ -7568,6 +7673,66 @@ typedef void (*virConnectDomainEventNICMACChangeCallback)(virConnectPtr conn,
                                                           const char *newMAC,
                                                           void *opaque);
 
+
+/**
+ * virConnectDomainEventChannelLifecycleState:
+ *
+ * Since: 12.4.0
+ */
+typedef enum {
+    VIR_CONNECT_DOMAIN_EVENT_CHANNEL_LIFECYCLE_STATE_CONNECTED = 1, /* channel connected (Since: 12.4.0) */
+    VIR_CONNECT_DOMAIN_EVENT_CHANNEL_LIFECYCLE_STATE_DISCONNECTED = 2, /* channel disconnected (Since: 12.4.0) */
+
+# ifdef VIR_ENUM_SENTINELS
+    VIR_CONNECT_DOMAIN_EVENT_CHANNEL_LIFECYCLE_STATE_LAST /* (Since: 12.4.0) */
+# endif
+} virConnectDomainEventChannelLifecycleState;
+
+/**
+ * virConnectDomainEventChannelLifecycleReason:
+ *
+ * Since: 12.4.0
+ */
+typedef enum {
+    VIR_CONNECT_DOMAIN_EVENT_CHANNEL_LIFECYCLE_REASON_UNKNOWN = 0, /* unknown state change reason (Since: 12.4.0) */
+    VIR_CONNECT_DOMAIN_EVENT_CHANNEL_LIFECYCLE_REASON_DOMAIN_STARTED = 1, /* state changed due to domain start (Since: 12.4.0) */
+    VIR_CONNECT_DOMAIN_EVENT_CHANNEL_LIFECYCLE_REASON_CHANNEL = 2, /* channel state changed (Since: 12.4.0) */
+
+# ifdef VIR_ENUM_SENTINELS
+    VIR_CONNECT_DOMAIN_EVENT_CHANNEL_LIFECYCLE_REASON_LAST /* (Since: 12.4.0) */
+# endif
+} virConnectDomainEventChannelLifecycleReason;
+
+/**
+ * virConnectDomainEventChannelLifecycleCallback:
+ * @conn: connection object
+ * @dom: domain on which the event occurred
+ * @channelName: the name of the channel on which the event occurred
+ * @state: new state of the guest channel, one of virConnectDomainEventChannelLifecycleState
+ * @reason: reason for state change, one of virConnectDomainEventChannelLifecycleReason
+ * @opaque: application specified data
+ *
+ * This callback occurs when libvirt detects a change in the state of a guest
+ * virtio-serial channel. Unlike VIR_DOMAIN_EVENT_ID_AGENT_LIFECYCLE which is
+ * tied to the QEMU guest agent channel ("org.qemu.guest_agent.0"), this event
+ * is emitted for every virtio-serial channel attached to the domain,
+ * including the guest agent channel.
+ *
+ * The hypervisor must support virtio-serial port state notifications for the
+ * event to be delivered.
+ *
+ * The callback signature to use when registering for an event of type
+ * VIR_DOMAIN_EVENT_ID_CHANNEL_LIFECYCLE with virConnectDomainEventRegisterAny()
+ *
+ * Since: 12.4.0
+ */
+typedef void (*virConnectDomainEventChannelLifecycleCallback)(virConnectPtr conn,
+                                                              virDomainPtr dom,
+                                                              const char *channelName,
+                                                              int state,
+                                                              int reason,
+                                                              void *opaque);
+
 /**
  * VIR_DOMAIN_EVENT_CALLBACK:
  *
@@ -7617,6 +7782,8 @@ typedef enum {
     VIR_DOMAIN_EVENT_ID_MEMORY_FAILURE = 25,  /* virConnectDomainEventMemoryFailureCallback (Since: 6.9.0) */
     VIR_DOMAIN_EVENT_ID_MEMORY_DEVICE_SIZE_CHANGE = 26, /* virConnectDomainEventMemoryDeviceSizeChangeCallback (Since: 7.9.0) */
     VIR_DOMAIN_EVENT_ID_NIC_MAC_CHANGE = 27, /* virConnectDomainEventNICMACChangeCallback (Since: 11.2.0) */
+    VIR_DOMAIN_EVENT_ID_VCPU_REMOVED = 28, /* virConnectDomainEventVcpuRemovedCallback (Since: 12.4.0) */
+    VIR_DOMAIN_EVENT_ID_CHANNEL_LIFECYCLE = 29, /* virConnectDomainEventChannelLifecycleCallback (Since: 12.4.0) */
 
 # ifdef VIR_ENUM_SENTINELS
     VIR_DOMAIN_EVENT_ID_LAST

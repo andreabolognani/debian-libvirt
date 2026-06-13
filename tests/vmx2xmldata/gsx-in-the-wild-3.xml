@@ -1,11 +1,13 @@
 <domain type='vmware'>
   <name>Router</name>
   <uuid>564ddebe-e86f-d586-0854-a0879cc4be5a</uuid>
+  <hwuuid>564ddebe-e86f-d586-0854-a0879cc4be5a</hwuuid>
   <memory unit='KiB'>32768</memory>
   <currentMemory unit='KiB'>32768</currentMemory>
   <vcpu placement='static'>1</vcpu>
   <os>
     <type arch='i686'>hvm</type>
+    <nvram>[datastore] directory/Debian-System3.nvram</nvram>
   </os>
   <clock offset='utc'/>
   <on_poweroff>destroy</on_poweroff>
