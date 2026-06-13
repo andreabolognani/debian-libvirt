@@ -1,8 +1,9 @@
-libvirt (12.4.0-1) UNRELEASED; urgency=medium
+libvirt (12.4.0-1) unstable; urgency=medium
 
   * [cad230c] New upstream version 12.4.0
+  * [f8de382] common: Add several CPU models
 
- -- Andrea Bolognani <eof@kiyuko.org>  Sat, 13 Jun 2026 23:11:38 +0200
+ -- Andrea Bolognani <eof@kiyuko.org>  Sun, 14 Jun 2026 00:31:15 +0200
 
 libvirt (12.3.0-1) unstable; urgency=medium
 
