@@ -1,8 +1,10 @@
-libvirt (12.5.0-1) UNRELEASED; urgency=medium
+libvirt (12.5.0-1) unstable; urgency=medium
 
   * [5942ad9] New upstream version 12.5.0
+  * [e7bac77] control: Bump Standards-Version to 4.7.4
+    - No changes needed
 
- -- Andrea Bolognani <eof@kiyuko.org>  Fri, 03 Jul 2026 20:36:46 +0200
+ -- Andrea Bolognani <eof@kiyuko.org>  Fri, 03 Jul 2026 22:10:28 +0200
 
 libvirt (12.4.0-1) unstable; urgency=medium
 
