@@ -116,6 +116,7 @@ VIR_ONCE_GLOBAL_INIT(virQEMUConfig);
 #define QEMU_BRIDGE_HELPER "qemu-bridge-helper"
 #define QEMU_PR_HELPER "qemu-pr-helper"
 #define QEMU_RDP "qemu-rdp"
+#define QEMU_VNC "qemu-vnc"
 #define QEMU_DBUS_DAEMON "dbus-daemon"
 
 
@@ -242,6 +243,7 @@ virQEMUDriverConfig *virQEMUDriverConfigNew(bool privileged,
     cfg->autostartDir = g_strdup_printf("%s/qemu/autostart", cfg->configBaseDir);
     cfg->slirpStateDir = g_strdup_printf("%s/slirp", cfg->stateDir);
     cfg->rdpStateDir = g_strdup_printf("%s/rdp", cfg->stateDir);
+    cfg->vncStateDir = g_strdup_printf("%s/vnc", cfg->stateDir);
     cfg->passtStateDir = g_strdup_printf("%s/passt", cfg->stateDir);
     cfg->dbusStateDir = g_strdup_printf("%s/dbus", cfg->stateDir);
 
@@ -289,6 +291,7 @@ virQEMUDriverConfig *virQEMUDriverConfigNew(bool privileged,
     cfg->slirpHelperName = g_strdup(QEMU_SLIRP_HELPER);
     cfg->dbusDaemonName = g_strdup(QEMU_DBUS_DAEMON);
     cfg->qemuRdpName = g_strdup(QEMU_RDP);
+    cfg->qemuVncName = g_strdup(QEMU_VNC);
 
     cfg->securityDefaultConfined = true;
     cfg->securityRequireConfined = false;
@@ -368,6 +371,7 @@ static void virQEMUDriverConfigDispose(void *obj)
     g_free(cfg->passtStateDir);
     g_free(cfg->dbusStateDir);
     g_free(cfg->rdpStateDir);
+    g_free(cfg->vncStateDir);
 
     g_free(cfg->libDir);
     g_free(cfg->cacheDir);
@@ -419,6 +423,7 @@ static void virQEMUDriverConfigDispose(void *obj)
     g_free(cfg->slirpHelperName);
     g_free(cfg->dbusDaemonName);
     g_free(cfg->qemuRdpName);
+    g_free(cfg->qemuVncName);
 
     g_free(cfg->autoDumpPath);
 
@@ -854,6 +859,9 @@ virQEMUDriverConfigLoadProcessEntry(virQEMUDriverConfig *cfg,
         return -1;
 
     if (virConfGetValueString(conf, "qemu_rdp", &cfg->qemuRdpName) < 0)
+        return -1;
+
+    if (virConfGetValueString(conf, "qemu_vnc", &cfg->qemuVncName) < 0)
         return -1;
 
     if (virConfGetValueBool(conf, "set_process_name", &cfg->setProcessName) < 0)
@@ -1753,7 +1761,8 @@ virQEMUDriverGetDomainCapabilities(virQEMUDriver *driver,
                                    virQEMUCaps *qemuCaps,
                                    const char *machine,
                                    virArch arch,
-                                   virDomainVirtType virttype)
+                                   virDomainVirtType virttype,
+                                   unsigned int flags)
 {
     g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
     g_autoptr(virDomainCaps) domCaps = NULL;
@@ -1787,7 +1796,8 @@ virQEMUDriverGetDomainCapabilities(virQEMUDriver *driver,
                                   qemuCaps,
                                   driver->hostarch,
                                   domCaps,
-                                  driver->privileged) < 0)
+                                  driver->privileged,
+                                  flags) < 0)
         return NULL;
 
     return g_steal_pointer(&domCaps);

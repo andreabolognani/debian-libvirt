@@ -795,6 +795,9 @@ typedef enum {
      * combined with features reported by QEMU. This is used for backward
      * compatible comparison between a guest CPU and a host CPU. */
     VIR_QEMU_CAPS_HOST_CPU_FULL,
+    /* Expanded host CPU definition with features that are implicitly enabled
+     * by the selected CPU model. */
+    VIR_QEMU_CAPS_HOST_CPU_EXPANDED,
 } virQEMUCapsHostCPUType;
 
 virCPUDef *virQEMUCapsGetHostModel(virQEMUCaps *qemuCaps,
@@ -865,7 +868,8 @@ char * virQEMUCapsGetDefaultEmulator(virArch hostarch,
 virFileCache *virQEMUCapsCacheNew(const char *libDir,
                                     const char *cacheDir,
                                     uid_t uid,
-                                    gid_t gid);
+                                    gid_t gid,
+                                    virBitmap *maskedCaps);
 virQEMUCaps *virQEMUCapsCacheLookup(virFileCache *cache,
                                       const char *binary);
 virQEMUCaps *virQEMUCapsCacheLookupCopy(virFileCache *cache,
@@ -878,6 +882,8 @@ virQEMUCaps *virQEMUCapsCacheLookupDefault(virFileCache *cache,
                                              virArch *retArch,
                                              virDomainVirtType *retVirttype,
                                              const char **retMachine);
+
+virQEMUCaps *virQEMUCapsNewCopy(virQEMUCaps *qemuCaps);
 
 virCaps *virQEMUCapsInit(virFileCache *cache);
 
@@ -903,7 +909,8 @@ int virQEMUCapsFillDomainCaps(virQEMUDriverConfig *cfg,
                               virQEMUCaps *qemuCaps,
                               virArch hostarch,
                               virDomainCaps *domCaps,
-                              bool privileged);
+                              bool privileged,
+                              unsigned int flags);
 
 void virQEMUCapsFillDomainMemoryBackingCaps(virQEMUCaps *qemuCaps,
                                             virDomainCapsMemoryBacking *memoryBacking);

@@ -592,7 +592,7 @@ domcapabilities
    domcapabilities [virttype] [emulatorbin] [arch] [machine]
                    [--xpath EXPRESSION] [--wrap]
                    [--disable-deprecated-features]
-                   [--expand-cpu-features]
+                   [--expand-cpu-features] [--supported-cpu-features]
 
 
 Print an XML document describing the domain capabilities for the
@@ -640,8 +640,15 @@ flagged as deprecated for the CPU model by the hypervisor. These
 features will be paired with the "disable" policy.
 
 The **--expand-cpu-features** option will cause the host-model CPU definition
-to contain all CPU features supported on the host including those implicitly
-enabled by the selected CPU model.
+to contain all required CPU features including those implicitly enabled by the
+selected CPU model. Without this flag features that are part of the CPU model
+itself will not be listed.
+
+The **--supported-cpu-features** option will update the host-model CPU
+definition with features that are supported on the host, but will not be
+enabled by default when starting a domain with host-model CPU. Using both
+**--supported-cpu-features** and **--expand-cpu-features** will provide a
+complete list of features that can be enabled on the host.
 
 
 pool-capabilities
@@ -2320,6 +2327,47 @@ Both *--live* and *--config* flags may be given, but *--current* is
 exclusive. If no flag is specified, behavior is different depending
 on hypervisor.
 
+
+domifannounce
+-------------
+
+**Syntax**
+
+::
+
+   domifannounce domain [interface-device] [parameters]
+
+
+Request that a domain inject "gratuitous" ARP responses into the
+outbound data stream of a specific network interface of the domain (or
+if no interface-device is given, inject ARP responses on the outbound
+data stream of all interfaces of the domain). This can be helpful to
+re-sync network switches in the broadcast domain of said interfaces
+when the network topology has changed. This is usually done
+automatically when a domain is started, or after it has migrated (for
+example, that is the behavior of QEMU), but a more complicated setup
+where the topology changes around an already active domain (or
+possibly all the plumbing isn't yet connected and passing traffic at
+the time the automatic announcement takes place) might benefit from a
+manually triggered announce.
+
+The optional parameters are:
+
+- *--initial n*
+
+  initial delay before first announcement (milliseconds) default: 50
+
+- *--max n*
+
+  maximum delay between announcements (milliseconds) default: 550
+
+- *--rounds n*
+
+  total number of announcements default: 5
+
+- *--step n*
+
+  increment added to delay (milliseconds) after each announcement default 50
 
 dominfo
 -------
@@ -5538,14 +5586,18 @@ detach-interface
 
 ::
 
-   detach-interface domain type [--mac mac]
+   detach-interface domain [type] [--mac mac]
       [[[--live] [--config] | [--current]] | [--persistent]] [--print-xml]
 
 Detach a network interface from a domain.
-*type* can be either *network* to indicate a physical network device or
-*bridge* to indicate a bridge to a device. It is recommended to use the
-*mac* option to distinguish between the interfaces if more than one are
-present on the domain.
+
+In case when multiple interfaces are present in the *type* and/or
+*--mac* must be used to narrow down the selection to 1 interface.
+
+*type* can be either *network* to indicate a physical network device
+*bridge* to indicate a bridge to a device.
+
+*--mac* can select the interface based on the configured MAC address.
 
 If *--live* is specified, affect a running domain.
 If *--config* is specified, affect the next startup of a persistent guest.

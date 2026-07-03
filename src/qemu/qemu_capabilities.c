@@ -795,6 +795,9 @@ struct _virQEMUCapsHostCPUData {
     unsigned int physAddrSize;
     /* Host CPU definition reported in domain capabilities. */
     virCPUDef *reported;
+    /* Expanded host CPU definition with features that are implicitly enabled
+     * by the selected CPU model. */
+    virCPUDef *expanded;
     /* Migratable host CPU definition used for updating guest CPU. */
     virCPUDef *migratable;
     /* CPU definition with features detected by libvirt using virCPUGetHost
@@ -1975,6 +1978,9 @@ virQEMUCapsHostCPUDataCopy(virQEMUCapsHostCPUData *dst,
     if (src->reported)
         dst->reported = virCPUDefCopy(src->reported);
 
+    if (src->expanded)
+        dst->expanded = virCPUDefCopy(src->expanded);
+
     if (src->migratable)
         dst->migratable = virCPUDefCopy(src->migratable);
 
@@ -1988,6 +1994,7 @@ virQEMUCapsHostCPUDataClear(virQEMUCapsHostCPUData *cpuData)
 {
     qemuMonitorCPUModelInfoFree(cpuData->info);
     virCPUDefFree(cpuData->reported);
+    virCPUDefFree(cpuData->expanded);
     virCPUDefFree(cpuData->migratable);
     virCPUDefFree(cpuData->full);
 
@@ -2088,7 +2095,8 @@ virQEMUCapsAccelCopy(virQEMUCapsAccel *dst,
 }
 
 
-virQEMUCaps *virQEMUCapsNewCopy(virQEMUCaps *qemuCaps)
+virQEMUCaps *
+virQEMUCapsNewCopy(virQEMUCaps *qemuCaps)
 {
     g_autoptr(virQEMUCaps) ret = virQEMUCapsNewBinary(qemuCaps->binary);
     size_t i;
@@ -2314,6 +2322,9 @@ virQEMUCapsGetHostModel(virQEMUCaps *qemuCaps,
         /* 'full' is non-NULL only if we have data from both QEMU and
          * virCPUGetHost */
         return cpuData->full ? cpuData->full : cpuData->reported;
+
+    case VIR_QEMU_CAPS_HOST_CPU_EXPANDED:
+        return cpuData->expanded;
     }
 
     return NULL;
@@ -2325,6 +2336,7 @@ virQEMUCapsSetHostModel(virQEMUCaps *qemuCaps,
                         virDomainVirtType type,
                         unsigned int physAddrSize,
                         virCPUDef *reported,
+                        virCPUDef *expanded,
                         virCPUDef *migratable,
                         virCPUDef *full)
 {
@@ -2333,6 +2345,7 @@ virQEMUCapsSetHostModel(virQEMUCaps *qemuCaps,
     cpuData = &virQEMUCapsGetAccel(qemuCaps, type)->hostCPU;
     cpuData->physAddrSize = physAddrSize;
     cpuData->reported = reported;
+    cpuData->expanded = expanded;
     cpuData->migratable = migratable;
     cpuData->full = full;
 }
@@ -4100,11 +4113,11 @@ virQEMUCapsInitHostCPUModel(virQEMUCaps *qemuCaps,
                             virArch hostArch,
                             virDomainVirtType type)
 {
-    virCPUDef *cpu = NULL;
-    virCPUDef *cpuExpanded = NULL;
-    virCPUDef *migCPU = NULL;
-    virCPUDef *hostCPU = NULL;
-    virCPUDef *fullCPU = NULL;
+    g_autoptr(virCPUDef) cpu = NULL;
+    g_autoptr(virCPUDef) cpuExpanded = NULL;
+    g_autoptr(virCPUDef) migCPU = NULL;
+    g_autoptr(virCPUDef) hostCPU = NULL;
+    g_autoptr(virCPUDef) fullCPU = NULL;
     unsigned int physAddrSize = 0;
     size_t i;
     int rc;
@@ -4115,9 +4128,17 @@ virQEMUCapsInitHostCPUModel(virQEMUCaps *qemuCaps,
     if (!(cpu = virQEMUCapsNewHostCPUModel()))
         goto error;
 
-    if ((rc = virQEMUCapsInitCPUModel(qemuCaps, type, cpu, false)) < 0) {
+    if ((rc = virQEMUCapsInitCPUModel(qemuCaps, type, cpu, false)) < 0)
         goto error;
-    } else if (rc == 1) {
+
+    if (rc == 2) {
+        VIR_DEBUG("QEMU does not provide CPU model for arch=%s virttype=%s",
+                  virArchToString(qemuCaps->arch),
+                  virDomainVirtTypeToString(type));
+        goto error;
+    }
+
+    if (rc == 1) {
         g_autoptr(virDomainCapsCPUModels) cpuModels = NULL;
 
         VIR_DEBUG("No host CPU model info from QEMU; probing host CPU directly");
@@ -4128,19 +4149,16 @@ virQEMUCapsInitHostCPUModel(virQEMUCaps *qemuCaps,
 
         virCPUDefCopyModelFilter(cpu, hostCPU, true, virQEMUCapsCPUFilterFeatures,
                                  &qemuCaps->arch);
-    } else if (rc == 2) {
-        VIR_DEBUG("QEMU does not provide CPU model for arch=%s virttype=%s",
-                  virArchToString(qemuCaps->arch),
-                  virDomainVirtTypeToString(type));
+    }
+
+    cpuExpanded = virCPUDefCopy(cpu);
+    if (virCPUExpandFeatures(qemuCaps->arch, cpuExpanded) < 0)
         goto error;
-    } else if (virQEMUCapsTypeIsAccelerated(type) &&
-               virCPUGetHostIsSupported(qemuCaps->arch)) {
+
+    if (rc == 0 &&
+        virQEMUCapsTypeIsAccelerated(type) &&
+        virCPUGetHostIsSupported(qemuCaps->arch)) {
         if (!(fullCPU = virQEMUCapsProbeHostCPU(qemuCaps->arch, NULL)))
-            goto error;
-
-        cpuExpanded = virCPUDefCopy(cpu);
-
-        if (virCPUExpandFeatures(qemuCaps->arch, cpuExpanded) < 0)
             goto error;
 
         for (i = 0; i < cpuExpanded->nfeatures; i++) {
@@ -4153,9 +4171,10 @@ virQEMUCapsInitHostCPUModel(virQEMUCaps *qemuCaps,
     if (!(migCPU = virQEMUCapsNewHostCPUModel()))
         goto error;
 
-    if ((rc = virQEMUCapsInitCPUModel(qemuCaps, type, migCPU, true)) < 0) {
+    if ((rc = virQEMUCapsInitCPUModel(qemuCaps, type, migCPU, true)) < 0)
         goto error;
-    } else if (rc == 1) {
+
+    if (rc == 1) {
         VIR_DEBUG("CPU migratability not provided by QEMU");
 
         virCPUDefFree(migCPU);
@@ -4178,19 +4197,16 @@ virQEMUCapsInitHostCPUModel(virQEMUCaps *qemuCaps,
     if (virQEMUCapsTypeIsAccelerated(type))
         virHostCPUGetPhysAddrSize(hostArch, &physAddrSize);
 
-    virQEMUCapsSetHostModel(qemuCaps, type, physAddrSize, cpu, migCPU, fullCPU);
+    virQEMUCapsSetHostModel(qemuCaps, type, physAddrSize,
+                            g_steal_pointer(&cpu),
+                            g_steal_pointer(&cpuExpanded),
+                            g_steal_pointer(&migCPU),
+                            g_steal_pointer(&fullCPU));
 
- cleanup:
-    virCPUDefFree(cpuExpanded);
-    virCPUDefFree(hostCPU);
     return;
 
  error:
-    virCPUDefFree(cpu);
-    virCPUDefFree(migCPU);
-    virCPUDefFree(fullCPU);
     virResetLastError();
-    goto cleanup;
 }
 
 
@@ -4536,6 +4552,11 @@ struct _virQEMUCapsCachePriv {
     /* cache whether /dev/kvm is usable as runUid:runGuid */
     virTristateBool kvmUsable;
     time_t kvmCtime;
+
+    /* qemu.conf allows masking out supported capabilities via
+     * 'capabilities_filter' configuration. 'maskedCaps' if non-NULL
+     * maps out which bits are to be removed */
+    virBitmap *maskedCaps;
 };
 typedef struct _virQEMUCapsCachePriv virQEMUCapsCachePriv;
 
@@ -4549,6 +4570,7 @@ virQEMUCapsCachePrivFree(void *privData)
     g_free(priv->kernelVersion);
     virCPUDataFree(priv->cpuData);
     g_free(priv->hostCPUSignature);
+    virBitmapFree(priv->maskedCaps);
     g_free(priv);
 }
 
@@ -6043,6 +6065,10 @@ virQEMUCapsLogProbeFailure(const char *binary)
                   meta,
                   _("Failed to probe capabilities for %1$s: %2$s"),
                   binary, virGetLastErrorMessage());
+
+    virReportError(VIR_ERR_INTERNAL_ERROR,
+                   _("Failed to probe capabilities for %1$s: %2$s"),
+                   binary, virGetLastErrorMessage());
 }
 
 
@@ -6108,7 +6134,8 @@ virQEMUCapsNewForBinaryInternal(virArch hostArch,
                                 const char *hostCPUSignature,
                                 unsigned int microcodeVersion,
                                 const char *kernelVersion,
-                                virCPUData* cpuData)
+                                virCPUData* cpuData,
+                                virBitmap *maskedCaps)
 {
     g_autoptr(virQEMUCaps) qemuCaps = virQEMUCapsNewBinary(binary);
     struct stat sb;
@@ -6146,6 +6173,10 @@ virQEMUCapsNewForBinaryInternal(virArch hostArch,
 
     qemuCaps->libvirtCtime = virGetSelfLastChanged();
     qemuCaps->libvirtVersion = LIBVIR_VERSION_NUMBER;
+
+    /* If we have capabilities masked out via qemu.conf apply them here */
+    if (maskedCaps)
+        virBitmapSubtract(qemuCaps->flags, maskedCaps);
 
     if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_KVM))
         virQEMUCapsInitHostCPUModel(qemuCaps, hostArch, VIR_DOMAIN_VIRT_KVM);
@@ -6187,7 +6218,8 @@ virQEMUCapsNewData(const char *binary,
                                            priv->hostCPUSignature,
                                            virHostCPUGetMicrocodeVersion(priv->hostArch),
                                            priv->kernelVersion,
-                                           priv->cpuData);
+                                           priv->cpuData,
+                                           priv->maskedCaps);
 }
 
 
@@ -6226,7 +6258,8 @@ virFileCache *
 virQEMUCapsCacheNew(const char *libDir,
                     const char *cacheDir,
                     uid_t runUid,
-                    gid_t runGid)
+                    gid_t runGid,
+                    virBitmap *maskedCaps)
 {
     g_autofree char *capsCacheDir = NULL;
     virFileCache *cache = NULL;
@@ -6256,9 +6289,11 @@ virQEMUCapsCacheNew(const char *libDir,
         priv->kernelVersion = g_strdup_printf("%s %s", uts.release, uts.version);
 
     priv->cpuData = virCPUDataGetHost();
+    priv->maskedCaps = maskedCaps;
     return cache;
 
  error:
+    virBitmapFree(maskedCaps);
     virObjectUnref(cache);
     return NULL;
 }
@@ -6354,7 +6389,7 @@ virQEMUCapsCacheLookupDefault(virFileCache *cache,
     if (!binary) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                        _("unable to find any emulator to serve '%1$s' architecture"),
-                       archStr);
+                       virArchToString(arch));
         return NULL;
     }
 
@@ -6607,60 +6642,132 @@ virQEMUCapsFillDomainOSCaps(virDomainCapsOS *os,
 
 
 static void
+virQEMUCapsFillDomainCPUHostPassthrough(virQEMUCaps *qemuCaps,
+                                        virDomainCaps *domCaps)
+{
+    domCaps->cpu.hostPassthrough = true;
+
+    domCaps->cpu.hostPassthroughMigratable.report = true;
+    if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_CPU_MIGRATABLE)) {
+        VIR_DOMAIN_CAPS_ENUM_SET(domCaps->cpu.hostPassthroughMigratable,
+                                 VIR_TRISTATE_SWITCH_ON);
+    }
+    VIR_DOMAIN_CAPS_ENUM_SET(domCaps->cpu.hostPassthroughMigratable,
+                             VIR_TRISTATE_SWITCH_OFF);
+}
+
+
+static void
+virQEMUCapsFillDomainCPUMaximum(virDomainCaps *domCaps)
+{
+    domCaps->cpu.maximum = true;
+
+    domCaps->cpu.maximumMigratable.report = true;
+    VIR_DOMAIN_CAPS_ENUM_SET(domCaps->cpu.maximumMigratable,
+                             VIR_TRISTATE_SWITCH_ON);
+    VIR_DOMAIN_CAPS_ENUM_SET(domCaps->cpu.maximumMigratable,
+                             VIR_TRISTATE_SWITCH_OFF);
+}
+
+
+static void
+virQEMUCapsFillDomainCPUHostModel(virQEMUCaps *qemuCaps,
+                                  virDomainCaps *domCaps,
+                                  unsigned int flags)
+{
+    virQEMUCapsHostCPUType cpuType;
+    virCPUDef *cpu;
+    virArch arch = domCaps->arch;
+
+    if (flags & VIR_CONNECT_GET_DOMAIN_CAPABILITIES_EXPAND_CPU_FEATURES)
+        cpuType = VIR_QEMU_CAPS_HOST_CPU_EXPANDED;
+    else
+        cpuType = VIR_QEMU_CAPS_HOST_CPU_REPORTED;
+
+    cpu = virCPUDefCopy(virQEMUCapsGetHostModel(qemuCaps, domCaps->virttype,
+                                                cpuType));
+
+    cpu->addr = virQEMUCapsGetHostPhysAddr(qemuCaps, domCaps->virttype);
+
+    if (flags & VIR_CONNECT_GET_DOMAIN_CAPABILITIES_DISABLE_DEPRECATED_FEATURES) {
+        virQEMUCapsUpdateCPUDeprecatedFeatures(qemuCaps, domCaps->virttype,
+                                               cpu, VIR_CPU_FEATURE_DISABLE);
+    }
+
+    if (flags & VIR_CONNECT_GET_DOMAIN_CAPABILITIES_SUPPORTED_CPU_FEATURES) {
+        uint32_t index = 0x10a; /* arch-capabilities MSR */
+        uint64_t msr = 0;
+
+        /* While the arch-capabilities MSR is not defined on AMD CPUs, KVM has
+         * always been emulating them. Unfortunately, this may cause some
+         * Windows version to crash so QEMU decided to mask the MSR by default.
+         * When asked for all CPU features supported on a host we need to add
+         * the affected features to the host-model.
+         */
+        if (ARCH_IS_X86(arch) &&
+            STREQ_NULLABLE(cpu->vendor, "AMD") &&
+            virCPUCheckFeature(arch, cpu, "arch-capabilities") == 0 &&
+            virHostCPUGetMSRFromKVM(index, &msr) == 0) {
+            g_autoptr(virCPUData) data = virCPUDataNew(arch);
+            virCPUFeaturePolicy policy = VIR_CPU_FEATURE_REQUIRE;
+
+            virCPUx86DataAddMSR(data, index, msr);
+            virCPUUpdateFeatures(arch, cpu, data, policy);
+            virCPUDefUpdateFeature(cpu, "arch-capabilities", policy);
+        }
+    }
+
+    virCPUDefSortFeatures(cpu);
+    domCaps->cpu.hostModel = cpu;
+}
+
+
+static void
+virQEMUCapsFillDomainCPUCustom(virQEMUCaps *qemuCaps,
+                               virDomainCaps *domCaps)
+{
+    const char *forbidden[] = { "host", NULL };
+    g_auto(GStrv) models = NULL;
+
+    if (virCPUGetModels(domCaps->arch, &models) >= 0) {
+        domCaps->cpu.custom = virQEMUCapsGetCPUModels(qemuCaps,
+                                                      domCaps->virttype,
+                                                      (const char **)models,
+                                                      forbidden);
+    } else {
+        domCaps->cpu.custom = NULL;
+    }
+}
+
+
+static void
 virQEMUCapsFillDomainCPUCaps(virQEMUCaps *qemuCaps,
                              virArch hostarch,
-                             virDomainCaps *domCaps)
+                             virDomainCaps *domCaps,
+                             unsigned int flags)
 {
     if (virQEMUCapsIsCPUModeSupported(qemuCaps, hostarch, domCaps->virttype,
                                       VIR_CPU_MODE_HOST_PASSTHROUGH,
                                       domCaps->machine)) {
-        domCaps->cpu.hostPassthrough = true;
-
-        domCaps->cpu.hostPassthroughMigratable.report = true;
-        if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_CPU_MIGRATABLE)) {
-            VIR_DOMAIN_CAPS_ENUM_SET(domCaps->cpu.hostPassthroughMigratable,
-                                     VIR_TRISTATE_SWITCH_ON);
-        }
-        VIR_DOMAIN_CAPS_ENUM_SET(domCaps->cpu.hostPassthroughMigratable,
-                                 VIR_TRISTATE_SWITCH_OFF);
+        virQEMUCapsFillDomainCPUHostPassthrough(qemuCaps, domCaps);
     }
 
     if (virQEMUCapsIsCPUModeSupported(qemuCaps, hostarch, domCaps->virttype,
                                       VIR_CPU_MODE_MAXIMUM,
                                       domCaps->machine)) {
-        domCaps->cpu.maximum = true;
-
-        domCaps->cpu.maximumMigratable.report = true;
-        VIR_DOMAIN_CAPS_ENUM_SET(domCaps->cpu.maximumMigratable,
-                                 VIR_TRISTATE_SWITCH_ON);
-        VIR_DOMAIN_CAPS_ENUM_SET(domCaps->cpu.maximumMigratable,
-                                 VIR_TRISTATE_SWITCH_OFF);
+        virQEMUCapsFillDomainCPUMaximum(domCaps);
     }
 
     if (virQEMUCapsIsCPUModeSupported(qemuCaps, hostarch, domCaps->virttype,
                                       VIR_CPU_MODE_HOST_MODEL,
                                       domCaps->machine)) {
-        virCPUDef *cpu = virQEMUCapsGetHostModel(qemuCaps, domCaps->virttype,
-                                                   VIR_QEMU_CAPS_HOST_CPU_REPORTED);
-        domCaps->cpu.hostModel = virCPUDefCopy(cpu);
-        domCaps->cpu.hostModel->addr = virQEMUCapsGetHostPhysAddr(qemuCaps,
-                                                                  domCaps->virttype);
+        virQEMUCapsFillDomainCPUHostModel(qemuCaps, domCaps, flags);
     }
 
     if (virQEMUCapsIsCPUModeSupported(qemuCaps, hostarch, domCaps->virttype,
                                       VIR_CPU_MODE_CUSTOM,
                                       domCaps->machine)) {
-        const char *forbidden[] = { "host", NULL };
-        g_auto(GStrv) models = NULL;
-
-        if (virCPUGetModels(domCaps->arch, &models) >= 0) {
-            domCaps->cpu.custom = virQEMUCapsGetCPUModels(qemuCaps,
-                                                          domCaps->virttype,
-                                                          (const char **)models,
-                                                          forbidden);
-        } else {
-            domCaps->cpu.custom = NULL;
-        }
+        virQEMUCapsFillDomainCPUCustom(qemuCaps, domCaps);
     }
 }
 
@@ -7283,7 +7390,8 @@ virQEMUCapsFillDomainCaps(virQEMUDriverConfig *cfg,
                           virQEMUCaps *qemuCaps,
                           virArch hostarch,
                           virDomainCaps *domCaps,
-                          bool privileged)
+                          bool privileged,
+                          unsigned int flags)
 {
     virDomainCapsOS *os = &domCaps->os;
     virDomainCapsDeviceDisk *disk = &domCaps->disk;
@@ -7326,7 +7434,7 @@ virQEMUCapsFillDomainCaps(virQEMUDriverConfig *cfg,
                                     firmwares, nfirmwares) < 0)
         return -1;
 
-    virQEMUCapsFillDomainCPUCaps(qemuCaps, hostarch, domCaps);
+    virQEMUCapsFillDomainCPUCaps(qemuCaps, hostarch, domCaps, flags);
     virQEMUCapsFillDomainMemoryBackingCaps(qemuCaps, memoryBacking);
     virQEMUCapsFillDomainDeviceDiskCaps(qemuCaps, domCaps->machine, disk);
     virQEMUCapsFillDomainDeviceGraphicsCaps(cfg, qemuCaps, graphics);

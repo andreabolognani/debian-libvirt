@@ -31,6 +31,8 @@
 #include <sys/ioctl.h>
 
 #include "qemu_driver.h"
+#define LIBVIRT_QEMU_DRIVERPRIV_H_ALLOW
+#include "qemu_driverpriv.h"
 #include "qemu_agent.h"
 #include "qemu_alias.h"
 #include "qemu_block.h"
@@ -41,6 +43,7 @@
 #include "qemu_hotplug.h"
 #include "qemu_monitor.h"
 #include "qemu_passt.h"
+#include "qemu_vnc.h"
 #include "qemu_process.h"
 #include "qemu_migration.h"
 #include "qemu_migration_params.h"
@@ -138,9 +141,6 @@ VIR_ENUM_IMPL(qemuDumpFormat,
               "kdump-snappy",
               "win-dmp",
 );
-
-
-static void qemuProcessEventHandler(void *data, void *opaque);
 
 static int qemuStateCleanup(void);
 
@@ -538,6 +538,7 @@ qemuStateInitialize(bool privileged,
     const char *defsecmodel = NULL;
     g_autoptr(virIdentity) identity = virIdentityGetCurrent();
     virDomainDriverAutoStartConfig autostartCfg;
+    g_autoptr(virBitmap) maskedCaps = NULL;
 
     qemu_driver = g_new0(virQEMUDriver, 1);
 
@@ -656,6 +657,11 @@ qemuStateInitialize(bool privileged,
     if (g_mkdir_with_parents(cfg->rdpStateDir, 0777) < 0) {
         virReportSystemError(errno, _("Failed to create rdp state dir %1$s"),
                              cfg->rdpStateDir);
+        goto error;
+    }
+    if (g_mkdir_with_parents(cfg->vncStateDir, 0777) < 0) {
+        virReportSystemError(errno, _("Failed to create vnc state dir %1$s"),
+                             cfg->vncStateDir);
         goto error;
     }
 
@@ -830,15 +836,42 @@ qemuStateInitialize(bool privileged,
                                  (int)cfg->group);
             goto error;
         }
+        if (chown(cfg->vncStateDir, cfg->user, cfg->group) < 0) {
+            virReportSystemError(errno,
+                                 _("unable to set ownership of '%1$s' to %2$d:%3$d"),
+                                 cfg->vncStateDir, (int)cfg->user,
+                                 (int)cfg->group);
+            goto error;
+        }
 
         run_uid = cfg->user;
         run_gid = cfg->group;
     }
 
+    if (cfg->capabilityfilters) {
+        int tmp;
+        char **next;
+
+        maskedCaps = virBitmapNew(0);
+
+        for (next = cfg->capabilityfilters; *next; next++) {
+            if ((tmp = virQEMUCapsTypeFromString(*next)) < 0) {
+                virReportError(VIR_ERR_CONF_SYNTAX,
+                               _("invalid capability_filters capability '%1$s'"),
+                               *next);
+                return -1;
+            }
+
+            virBitmapSetBitExpand(maskedCaps, tmp);
+        }
+    }
+
+
     qemu_driver->qemuCapsCache = virQEMUCapsCacheNew(cfg->libDir,
                                                      cfg->cacheDir,
                                                      run_uid,
-                                                     run_gid);
+                                                     run_gid,
+                                                     g_steal_pointer(&maskedCaps));
     if (!qemu_driver->qemuCapsCache)
         goto error;
 
@@ -4158,7 +4191,9 @@ processShutdownCompletedEvent(virDomainObj *vm)
 }
 
 
-static void qemuProcessEventHandler(void *data, void *opaque)
+void
+qemuProcessEventHandler(void *data,
+                        void *opaque)
 {
     struct qemuProcessEvent *processEvent = data;
     virDomainObj *vm = processEvent->vm;
@@ -4339,8 +4374,8 @@ qemuDomainSetVcpusFlags(virDomainPtr dom,
     bool useAgent = !!(flags & VIR_DOMAIN_VCPU_GUEST);
     int ret = -1;
 
-    virCheckFlags(VIR_DOMAIN_AFFECT_LIVE |
-                  VIR_DOMAIN_AFFECT_CONFIG |
+    virCheckFlags(VIR_DOMAIN_VCPU_LIVE |
+                  VIR_DOMAIN_VCPU_CONFIG |
                   VIR_DOMAIN_VCPU_MAXIMUM |
                   VIR_DOMAIN_VCPU_GUEST |
                   VIR_DOMAIN_VCPU_HOTPLUGGABLE |
@@ -15083,6 +15118,11 @@ qemuDomainOpenGraphics(virDomainPtr dom,
     }
     switch (vm->def->graphics[idx]->type) {
     case VIR_DOMAIN_GRAPHICS_TYPE_VNC:
+        if (QEMU_DOMAIN_GRAPHICS_PRIVATE(vm->def->graphics[idx])->vnc) {
+            ret = qemuVncAddClient(vm, fd,
+                                   (flags & VIR_DOMAIN_OPEN_GRAPHICS_SKIPAUTH) != 0);
+            goto endjob;
+        }
         protocol = "vnc";
         break;
     case VIR_DOMAIN_GRAPHICS_TYPE_SPICE:
@@ -15122,6 +15162,25 @@ qemuDomainOpenGraphics(virDomainPtr dom,
     return ret;
 }
 
+
+static int
+qemuSocketPair(int pair[2],
+               virSecurityManager *mgr,
+               virDomainDef *vm)
+{
+    if (qemuSecuritySetSocketLabel(mgr, vm) < 0)
+        return -1;
+
+    if (socketpair(AF_UNIX, SOCK_STREAM, 0, pair) < 0)
+        return -1;
+
+    if (qemuSecurityClearSocketLabel(mgr, vm) < 0)
+        return -1;
+
+    return 0;
+}
+
+
 static int
 qemuDomainOpenGraphicsFD(virDomainPtr dom,
                          unsigned int idx,
@@ -15154,6 +15213,18 @@ qemuDomainOpenGraphicsFD(virDomainPtr dom,
     }
     switch (vm->def->graphics[idx]->type) {
     case VIR_DOMAIN_GRAPHICS_TYPE_VNC:
+        if (QEMU_DOMAIN_GRAPHICS_PRIVATE(vm->def->graphics[idx])->vnc) {
+            if (qemuSocketPair(pair, driver->securityManager, vm->def) < 0)
+                goto cleanup;
+
+            if (qemuVncAddClient(vm, pair[1],
+                                 (flags & VIR_DOMAIN_OPEN_GRAPHICS_SKIPAUTH) != 0) < 0)
+                goto cleanup;
+
+            ret = pair[0];
+            pair[0] = -1;
+            goto cleanup;
+        }
         protocol = "vnc";
         break;
     case VIR_DOMAIN_GRAPHICS_TYPE_SPICE:
@@ -15177,13 +15248,7 @@ qemuDomainOpenGraphicsFD(virDomainPtr dom,
         goto cleanup;
     }
 
-    if (qemuSecuritySetSocketLabel(driver->securityManager, vm->def) < 0)
-        goto cleanup;
-
-    if (socketpair(PF_UNIX, SOCK_STREAM, 0, pair) < 0)
-        goto cleanup;
-
-    if (qemuSecurityClearSocketLabel(driver->securityManager, vm->def) < 0)
+    if (qemuSocketPair(pair, driver->securityManager, vm->def) < 0)
         goto cleanup;
 
     if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
@@ -16965,7 +17030,8 @@ qemuConnectGetDomainCapabilities(virConnectPtr conn,
     g_autoptr(virDomainCaps) domCaps = NULL;
 
     virCheckFlags(VIR_CONNECT_GET_DOMAIN_CAPABILITIES_DISABLE_DEPRECATED_FEATURES |
-                  VIR_CONNECT_GET_DOMAIN_CAPABILITIES_EXPAND_CPU_FEATURES,
+                  VIR_CONNECT_GET_DOMAIN_CAPABILITIES_EXPAND_CPU_FEATURES |
+                  VIR_CONNECT_GET_DOMAIN_CAPABILITIES_SUPPORTED_CPU_FEATURES,
                   NULL);
 
     if (virConnectGetDomainCapabilitiesEnsureACL(conn) < 0)
@@ -16982,20 +17048,9 @@ qemuConnectGetDomainCapabilities(virConnectPtr conn,
 
     if (!(domCaps = virQEMUDriverGetDomainCapabilities(driver,
                                                        qemuCaps, machine,
-                                                       arch, virttype)))
+                                                       arch, virttype,
+                                                       flags)))
         return NULL;
-
-    if (flags & VIR_CONNECT_GET_DOMAIN_CAPABILITIES_DISABLE_DEPRECATED_FEATURES) {
-        virQEMUCapsUpdateCPUDeprecatedFeatures(qemuCaps, virttype,
-                                               domCaps->cpu.hostModel,
-                                               VIR_CPU_FEATURE_DISABLE);
-    }
-
-    if (flags & VIR_CONNECT_GET_DOMAIN_CAPABILITIES_EXPAND_CPU_FEATURES) {
-        virCPUDef *cpu = domCaps->cpu.hostModel;
-        if (cpu && virCPUExpandFeatures(arch, cpu) < 0)
-            return NULL;
-    }
 
     return virDomainCapsFormat(domCaps);
 }
@@ -18767,76 +18822,6 @@ qemuDomainGetFSInfoAgent(virDomainObj *vm,
     return ret;
 }
 
-static virDomainFSInfoPtr
-qemuAgentFSInfoToPublic(qemuAgentFSInfo *agent,
-                        virDomainDef *vmdef)
-{
-    virDomainFSInfoPtr ret = NULL;
-    size_t i;
-
-    ret = g_new0(virDomainFSInfo, 1);
-
-    ret->mountpoint = g_strdup(agent->mountpoint);
-    ret->name = g_strdup(agent->name);
-    ret->fstype = g_strdup(agent->fstype);
-
-    if (agent->disks)
-        ret->devAlias = g_new0(char *, agent->ndisks);
-
-    for (i = 0; i < agent->ndisks; i++) {
-        qemuAgentDiskAddress *agentdisk = agent->disks[i];
-        virDomainDiskDef *diskDef;
-
-        diskDef = virDomainDiskByAddress(vmdef,
-                                         &agentdisk->pci_controller,
-                                         agentdisk->ccw_addr,
-                                         agentdisk->bus,
-                                         agentdisk->target,
-                                         agentdisk->unit);
-        if (diskDef != NULL)
-            ret->devAlias[ret->ndevAlias++] = g_strdup(diskDef->dst);
-        else
-            VIR_DEBUG("Missing target name for '%s'.", ret->mountpoint);
-    }
-
-    return ret;
-}
-
-/* Returns: 0 on success
- *          -1 otherwise
- */
-static int
-virDomainFSInfoFormat(qemuAgentFSInfo **agentinfo,
-                      int nagentinfo,
-                      virDomainDef *vmdef,
-                      virDomainFSInfoPtr **info)
-{
-    int ret = -1;
-    virDomainFSInfoPtr *info_ret = NULL;
-    size_t i;
-
-    info_ret = g_new0(virDomainFSInfoPtr, nagentinfo);
-
-    for (i = 0; i < nagentinfo; i++) {
-        if (!(info_ret[i] = qemuAgentFSInfoToPublic(agentinfo[i], vmdef)))
-            goto cleanup;
-    }
-
-    *info = g_steal_pointer(&info_ret);
-    ret = nagentinfo;
-
- cleanup:
-    if (info_ret) {
-        for (i = 0; i < nagentinfo; i++) {
-            /* if there was an error, free any memory we've allocated for the
-             * return value */
-            virDomainFSInfoFree(info_ret[i]);
-        }
-        g_free(info_ret);
-    }
-    return ret;
-}
-
 static int
 qemuDomainGetFSInfo(virDomainPtr dom,
                     virDomainFSInfoPtr **info,
@@ -18864,7 +18849,7 @@ qemuDomainGetFSInfo(virDomainPtr dom,
     if (virDomainObjCheckActive(vm) < 0)
         goto endjob;
 
-    ret = virDomainFSInfoFormat(agentinfo, nfs, vm->def, info);
+    ret = qemuAgentFSInfoFormat(agentinfo, nfs, vm->def, info);
 
  endjob:
     virDomainObjEndJob(vm);
@@ -19385,8 +19370,8 @@ qemuDomainSetVcpu(virDomainPtr dom,
     ssize_t lastvcpu;
     int ret = -1;
 
-    virCheckFlags(VIR_DOMAIN_AFFECT_LIVE |
-                  VIR_DOMAIN_AFFECT_CONFIG |
+    virCheckFlags(VIR_DOMAIN_SETVCPU_AFFECT_LIVE |
+                  VIR_DOMAIN_SETVCPU_AFFECT_CONFIG |
                   VIR_DOMAIN_SETVCPU_ASYNC_UNPLUG, -1);
 
     if (state != 0 && state != 1) {
@@ -20412,7 +20397,7 @@ qemuDomainAuthorizedSSHKeysSet(virDomainPtr dom,
     if (virDomainAuthorizedSshKeysSetEnsureACL(dom->conn, vm->def) < 0)
         goto cleanup;
 
-    if (virDomainObjBeginAgentJob(vm, VIR_AGENT_JOB_QUERY) < 0)
+    if (virDomainObjBeginAgentJob(vm, VIR_AGENT_JOB_MODIFY) < 0)
         goto cleanup;
 
     if (!qemuDomainAgentAvailable(vm, true))
@@ -20646,6 +20631,7 @@ qemuDomainGraphicsReload(virDomainPtr domain,
     int ret = -1;
     virDomainObj *vm = NULL;
     qemuDomainObjPrivate *priv;
+    size_t j;
 
     virCheckFlagsGoto(0, cleanup);
 
@@ -20686,6 +20672,16 @@ qemuDomainGraphicsReload(virDomainPtr domain,
     }
 
     priv = vm->privateData;
+
+    for (j = 0; j < vm->def->ngraphics; j++) {
+        virDomainGraphicsDef *gfx = vm->def->graphics[j];
+
+        if (gfx->type == VIR_DOMAIN_GRAPHICS_TYPE_VNC &&
+            QEMU_DOMAIN_GRAPHICS_PRIVATE(gfx)->vnc) {
+            ret = qemuVncReloadCertificates(vm);
+            goto endjob;
+        }
+    }
 
     qemuDomainObjEnterMonitor(vm);
 
@@ -20925,6 +20921,84 @@ qemuDomainDelThrottleGroup(virDomainPtr dom,
     }
 
     ret = 0;
+
+ endjob:
+    virDomainObjEndJob(vm);
+
+ cleanup:
+    virDomainObjEndAPI(&vm);
+    return ret;
+}
+
+
+
+
+static int
+qemuDomainAnnounceInterface(virDomainPtr dom,
+                            const char *device,
+                            virTypedParameterPtr params,
+                            int nparams,
+                            unsigned int flags)
+{
+    virDomainObj *vm = NULL;
+    int ret = -1;
+    qemuDomainObjPrivate *priv;
+    const char *alias = NULL;
+    unsigned int initial = 0;
+    unsigned int max = 0;
+    unsigned int rounds = 0;
+    unsigned int step = 0;
+
+    /* no flags supported */
+    virCheckFlags(0, -1);
+
+    if (virTypedParamsValidate(params, nparams,
+                               VIR_DOMAIN_ANNOUNCE_INTERFACE_INITIAL, VIR_TYPED_PARAM_UINT,
+                               VIR_DOMAIN_ANNOUNCE_INTERFACE_MAX, VIR_TYPED_PARAM_UINT,
+                               VIR_DOMAIN_ANNOUNCE_INTERFACE_ROUNDS, VIR_TYPED_PARAM_UINT,
+                               VIR_DOMAIN_ANNOUNCE_INTERFACE_STEP, VIR_TYPED_PARAM_UINT,
+                               NULL) < 0)
+        return -1;
+
+    if (params && nparams) {
+        virTypedParamsGetUInt(params, nparams, VIR_DOMAIN_ANNOUNCE_INTERFACE_INITIAL, &initial);
+        virTypedParamsGetUInt(params, nparams, VIR_DOMAIN_ANNOUNCE_INTERFACE_MAX, &max);
+        virTypedParamsGetUInt(params, nparams, VIR_DOMAIN_ANNOUNCE_INTERFACE_ROUNDS, &rounds);
+        virTypedParamsGetUInt(params, nparams, VIR_DOMAIN_ANNOUNCE_INTERFACE_STEP, &step);
+    }
+
+    if (!(vm = qemuDomainObjFromDomain(dom)))
+        return -1;
+    priv = vm->privateData;
+
+    if (virDomainAnnounceInterfaceEnsureACL(dom->conn, vm->def) < 0)
+        goto cleanup;
+
+    if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
+        goto cleanup;
+
+    if (virDomainObjCheckActive(vm) < 0)
+        goto endjob;
+
+    /* the user is sending either the interface MAC address or the
+     * name of the tap device (because that's how other APIs are
+     * implemented), but qemu's announce-self command expects the
+     * device id (known in libvirt as the "alias id"), so we need to
+     * find the <interface> and grab the alias from there
+     */
+
+    if (device) {
+        virDomainNetDef *net = NULL;
+
+        if (!(net = virDomainNetFind(vm->def, device)))
+            goto endjob;
+
+        alias = net->info.alias;
+    }
+
+    qemuDomainObjEnterMonitor(vm);
+    ret = qemuMonitorAnnounceSelf(priv->mon, alias, initial, max, rounds, step);
+    qemuDomainObjExitMonitor(vm);
 
  endjob:
     virDomainObjEndJob(vm);
@@ -21189,6 +21263,7 @@ static virHypervisorDriver qemuHypervisorDriver = {
     .domainSetAutostartOnce = qemuDomainSetAutostartOnce, /* 11.2.0 */
     .domainSetThrottleGroup = qemuDomainSetThrottleGroup, /* 11.2.0 */
     .domainDelThrottleGroup = qemuDomainDelThrottleGroup, /* 11.2.0 */
+    .domainAnnounceInterface = qemuDomainAnnounceInterface /* 12.5.0 */
 };
 
 

@@ -93,6 +93,64 @@ bhyveAutostartDomain(virDomainObj *vm, void *opaque)
     }
 }
 
+
+static qemuAgent *
+bhyveDomainObjEnterAgent(virDomainObj *obj)
+{
+    bhyveDomainObjPrivate *priv = obj->privateData;
+    qemuAgent *agent = priv->agent;
+
+    VIR_DEBUG("Entering agent (agent=%p vm=%p name=%s)",
+              priv->agent, obj, obj->def->name);
+
+    virObjectLock(agent);
+    virObjectRef(agent);
+    virObjectUnlock(obj);
+
+    return agent;
+}
+
+
+static void
+bhyveDomainObjExitAgent(virDomainObj *obj, qemuAgent *agent)
+{
+    virObjectUnlock(agent);
+    virObjectUnref(agent);
+    virObjectLock(obj);
+
+    VIR_DEBUG("Exited agent (agent=%p vm=%p name=%s)",
+              agent, obj, obj->def->name);
+}
+
+
+static int
+bhyveDomainEnsureAgent(virDomainObj *vm,
+                       bool reportError)
+{
+    bhyveDomainObjPrivate *priv = vm->privateData;
+
+    if (virDomainObjGetState(vm, NULL) != VIR_DOMAIN_RUNNING) {
+        if (reportError) {
+            virReportError(VIR_ERR_OPERATION_INVALID, "%s",
+                           _("domain is not running"));
+        }
+        return -1;
+    }
+
+    if (priv->agent)
+        return 0;
+
+    if (!priv->eventThread &&
+        virBhyveDomainObjStartWorker(vm) < 0)
+        return -1;
+
+    if (bhyveConnectAgent(NULL, vm) < 0)
+        return -1;
+
+    return 0;
+}
+
+
 /**
  * bhyveDriverGetCapabilities:
  *
@@ -982,15 +1040,87 @@ bhyveDomainDestroy(virDomainPtr dom)
 }
 
 static int
+bhyveDomainShutdownSignal(virDomainObj *vm,
+                          bool isReboot)
+{
+    bhyveDomainObjPrivate *priv;
+
+    if (isReboot) {
+        priv = vm->privateData;
+        bhyveMonitorSetReboot(priv->mon);
+    }
+
+    return virBhyveProcessShutdown(vm);
+}
+
+static int
+bhyveDomainShutdownFlagsAgent(virDomainObj *vm,
+                              bool isReboot,
+                              bool reportError)
+{
+    int ret = -1;
+    qemuAgent *agent;
+    int agentFlag = isReboot ? QEMU_AGENT_SHUTDOWN_REBOOT :
+        QEMU_AGENT_SHUTDOWN_POWERDOWN;
+
+    if (virDomainObjBeginAgentJob(vm, VIR_AGENT_JOB_MODIFY) < 0)
+        return -1;
+
+    if (virDomainObjGetState(vm, NULL) != VIR_DOMAIN_RUNNING) {
+        virReportError(VIR_ERR_OPERATION_INVALID,
+                       "%s", _("domain is not running"));
+        goto endjob;
+    }
+
+    if (bhyveDomainEnsureAgent(vm, reportError) < 0)
+        goto endjob;
+
+    agent = bhyveDomainObjEnterAgent(vm);
+    qemuAgentShutdown(agent, agentFlag);
+    bhyveDomainObjExitAgent(vm, agent);
+    ret = 0;
+
+ endjob:
+    virDomainObjEndAgentJob(vm);
+    return ret;
+}
+
+static int
+bhyveDomainRebootAgent(virDomainObj *vm, bool isReboot, bool reportError)
+{
+    return bhyveDomainShutdownFlagsAgent(vm, isReboot, reportError);
+}
+
+static int
 bhyveDomainShutdownFlags(virDomainPtr dom, unsigned int flags)
 {
     virDomainObj *vm;
+    bhyveDomainObjPrivate *priv;
     int ret = -1;
+    bool isReboot = false;
+    bool useAgent = false;
+    bool agentRequested, signalRequested;
+    bool agentForced;
 
-    virCheckFlags(0, -1);
+    virCheckFlags(VIR_DOMAIN_SHUTDOWN_SIGNAL |
+                  VIR_DOMAIN_SHUTDOWN_GUEST_AGENT, -1);
 
     if (!(vm = bhyveDomObjFromDomain(dom)))
         goto cleanup;
+
+    if (vm->def->onPoweroff == VIR_DOMAIN_LIFECYCLE_ACTION_RESTART ||
+        vm->def->onPoweroff == VIR_DOMAIN_LIFECYCLE_ACTION_RESTART_RENAME) {
+        isReboot = true;
+        VIR_INFO("Domain on_poweroff setting overridden, attempting reboot");
+    }
+
+    priv = vm->privateData;
+    agentRequested = flags & VIR_DOMAIN_SHUTDOWN_GUEST_AGENT;
+    signalRequested = flags & VIR_DOMAIN_SHUTDOWN_SIGNAL;
+
+    /* Prefer agent unless we were requested to not to. */
+    if (agentRequested || !flags)
+        useAgent = true;
 
     if (virDomainShutdownFlagsEnsureACL(dom->conn, vm->def, flags) < 0)
         goto cleanup;
@@ -998,7 +1128,27 @@ bhyveDomainShutdownFlags(virDomainPtr dom, unsigned int flags)
     if (virDomainObjCheckActive(vm) < 0)
         goto cleanup;
 
-    ret = virBhyveProcessShutdown(vm);
+    agentForced = agentRequested && !signalRequested;
+    if (useAgent) {
+        ret = bhyveDomainShutdownFlagsAgent(vm, isReboot, agentForced);
+        if (((ret < 0) || (priv->agent != NULL)) && agentForced)
+            goto cleanup;
+    }
+
+    /* If we are not enforced to use just an agent, try signal
+     * shutdown as well in case agent did not succeed.
+     */
+    if (!useAgent || (((ret < 0) ||
+        (priv->agent != NULL)) && (signalRequested || !flags))) {
+        /* Even if agent failed, we have to check if guest went away
+         * by itself while our locks were down.  */
+        if (useAgent && !virDomainObjIsActive(vm)) {
+            ret = 0;
+            goto cleanup;
+        }
+
+        ret = bhyveDomainShutdownSignal(vm, isReboot);
+    }
 
  cleanup:
     virDomainObjEndAPI(&vm);
@@ -1018,11 +1168,30 @@ bhyveDomainReboot(virDomainPtr dom, unsigned int flags)
     virDomainObj *vm;
     bhyveDomainObjPrivate *priv;
     int ret = -1;
+    bool isReboot = true;
+    bool useAgent = false;
+    bool agentRequested, signalRequested;
+    bool agentForced;
 
-    virCheckFlags(VIR_DOMAIN_REBOOT_ACPI_POWER_BTN, -1);
+    virCheckFlags(VIR_DOMAIN_REBOOT_SIGNAL |
+                  VIR_DOMAIN_REBOOT_GUEST_AGENT, -1);
 
     if (!(vm = bhyveDomObjFromDomain(dom)))
         goto cleanup;
+
+    if (vm->def->onReboot == VIR_DOMAIN_LIFECYCLE_ACTION_DESTROY ||
+        vm->def->onReboot == VIR_DOMAIN_LIFECYCLE_ACTION_PRESERVE) {
+        isReboot = false;
+        VIR_INFO("Domain on_reboot setting overridden, shutting down");
+    }
+
+    priv = vm->privateData;
+    agentRequested = flags & VIR_DOMAIN_REBOOT_GUEST_AGENT;
+    signalRequested = flags & VIR_DOMAIN_REBOOT_SIGNAL;
+
+    /* Prefer agent unless we were requested to not to. */
+    if (agentRequested || !flags)
+        useAgent = true;
 
     if (virDomainRebootEnsureACL(conn, vm->def, flags) < 0)
         goto cleanup;
@@ -1030,10 +1199,20 @@ bhyveDomainReboot(virDomainPtr dom, unsigned int flags)
     if (virDomainObjCheckActive(vm) < 0)
         goto cleanup;
 
-    priv = vm->privateData;
-    bhyveMonitorSetReboot(priv->mon);
+    agentForced = agentRequested && !signalRequested;
+    if (useAgent) {
+        ret = bhyveDomainRebootAgent(vm, isReboot, agentForced);
+        if (((ret < 0) || (priv->agent != NULL)) && agentForced)
+            goto cleanup;
+    }
 
-    ret = virBhyveProcessShutdown(vm);
+    /* If we are not enforced to use just an agent, try signal
+     * reboot as well in case agent did not succeed.
+     */
+    if (!useAgent || (((ret < 0) ||
+        (priv->agent != NULL)) && (signalRequested || !flags))) {
+        ret = bhyveDomainShutdownSignal(vm, isReboot);
+    }
 
  cleanup:
     virDomainObjEndAPI(&vm);
@@ -1866,6 +2045,7 @@ bhyveDomainInterfaceAddresses(virDomainPtr domain,
                               unsigned int flags)
 {
     virDomainObj *vm = NULL;
+    qemuAgent *agent;
     int ret = -1;
 
     virCheckFlags(0, -1);
@@ -1880,18 +2060,28 @@ bhyveDomainInterfaceAddresses(virDomainPtr domain,
         goto cleanup;
 
     switch (source) {
+    case VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_AGENT:
+        if (virDomainObjBeginAgentJob(vm, VIR_AGENT_JOB_QUERY) < 0)
+            goto cleanup;
+
+        if (bhyveDomainEnsureAgent(vm, true) < 0)
+            goto endjob;
+
+        agent = bhyveDomainObjEnterAgent(vm);
+        ret = qemuAgentGetInterfaces(agent, ifaces, true);
+        bhyveDomainObjExitAgent(vm, agent);
+
+    endjob:
+        virDomainObjEndAgentJob(vm);
+
+        break;
+
     case VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_ARP:
         ret = virDomainNetARPInterfaces(vm->def, ifaces);
         break;
 
     case VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_LEASE:
         ret = virDomainNetDHCPInterfaces(vm->def, ifaces);
-        break;
-
-    case VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_AGENT:
-        virReportError(VIR_ERR_ARGUMENT_UNSUPPORTED,
-                       _("Unsupported IP address data source %1$d"),
-                       source);
         break;
 
     default:
@@ -1904,96 +2094,6 @@ bhyveDomainInterfaceAddresses(virDomainPtr domain,
  cleanup:
     virDomainObjEndAPI(&vm);
     return ret;
-}
-
-
-static qemuAgent *
-bhyveDomainObjEnterAgent(virDomainObj *obj)
-{
-    bhyveDomainObjPrivate *priv = obj->privateData;
-    qemuAgent *agent = priv->agent;
-
-    VIR_DEBUG("Entering agent (agent=%p vm=%p name=%s)",
-              priv->agent, obj, obj->def->name);
-
-    virObjectLock(agent);
-    virObjectRef(agent);
-    virObjectUnlock(obj);
-
-    return agent;
-}
-
-
-static void
-bhyveDomainObjExitAgent(virDomainObj *obj, qemuAgent *agent)
-{
-    virObjectUnlock(agent);
-    virObjectUnref(agent);
-    virObjectLock(obj);
-
-    VIR_DEBUG("Exited agent (agent=%p vm=%p name=%s)",
-              agent, obj, obj->def->name);
-}
-
-
-static bool
-bhyveDomainAgentAvailable(virDomainObj *vm,
-                          bool reportError)
-{
-    bhyveDomainObjPrivate *priv = vm->privateData;
-
-    if (virDomainObjGetState(vm, NULL) != VIR_DOMAIN_RUNNING) {
-        if (reportError) {
-            virReportError(VIR_ERR_OPERATION_INVALID, "%s",
-                           _("domain is not running"));
-        }
-        return false;
-    }
-
-    if (!priv->agent) {
-        if (bhyveFindAgentConfig(vm->def)) {
-            if (reportError) {
-                virReportError(VIR_ERR_AGENT_UNRESPONSIVE, "%s",
-                               _("QEMU guest agent is not connected"));
-            }
-            return false;
-        } else {
-            if (reportError) {
-                virReportError(VIR_ERR_ARGUMENT_UNSUPPORTED, "%s",
-                               _("QEMU guest agent is not configured"));
-            }
-            return false;
-        }
-    }
-    return true;
-}
-
-
-static int
-bhyveDomainEnsureAgent(virDomainObj *vm,
-                       bool reportError)
-{
-    bhyveDomainObjPrivate *priv = vm->privateData;
-
-    if (virDomainObjGetState(vm, NULL) != VIR_DOMAIN_RUNNING) {
-        if (reportError) {
-            virReportError(VIR_ERR_OPERATION_INVALID, "%s",
-                           _("domain is not running"));
-        }
-        return -1;
-    }
-
-    if (priv->agent)
-        return 0;
-
-    if (!priv->eventThread &&
-        virBhyveDomainObjStartWorker(vm) < 0)
-        return -1;
-
-    if (bhyveConnectAgent(NULL, vm) < 0)
-        return -1;
-
-    return 0;
 }
 
 
@@ -2048,7 +2148,7 @@ bhyveDomainQemuAgentCommand(virDomainPtr domain,
     if (virDomainObjCheckActive(vm) < 0)
         goto endjob;
 
-    if (!bhyveDomainAgentAvailable(vm, true))
+    if (bhyveDomainEnsureAgent(vm, true) < 0)
         goto endjob;
 
     agent = bhyveDomainObjEnterAgent(vm);
@@ -2295,6 +2395,294 @@ bhyveDomainSetMemoryParameters(virDomainPtr domain,
     return ret;
 }
 
+static int
+bhyveDomainGetFSInfoAgent(virDomainObj *vm,
+                          qemuAgentFSInfo ***info)
+{
+    int ret = -1;
+    qemuAgent *agent;
+
+    if (virDomainObjBeginAgentJob(vm, VIR_AGENT_JOB_QUERY) < 0)
+        return ret;
+
+    if (virDomainObjCheckActive(vm) < 0)
+        goto endjob;
+
+    if (bhyveDomainEnsureAgent(vm, true) < 0)
+        goto endjob;
+
+    agent = bhyveDomainObjEnterAgent(vm);
+    ret = qemuAgentGetFSInfo(agent, info, true);
+    bhyveDomainObjExitAgent(vm, agent);
+
+ endjob:
+    virDomainObjEndAgentJob(vm);
+    return ret;
+}
+
+static int
+bhyveDomainGetFSInfo(virDomainPtr dom,
+                     virDomainFSInfoPtr **info,
+                     unsigned int flags)
+{
+    virDomainObj *vm;
+    qemuAgentFSInfo **agentinfo = NULL;
+    int ret = -1;
+    int nfs = 0;
+
+    virCheckFlags(0, ret);
+
+    if (!(vm = bhyveDomObjFromDomain(dom)))
+        return ret;
+
+    if (virDomainGetFSInfoEnsureACL(dom->conn, vm->def) < 0)
+        goto cleanup;
+
+    if ((nfs = bhyveDomainGetFSInfoAgent(vm, &agentinfo)) < 0)
+        goto cleanup;
+
+    if (virDomainObjBeginJob(vm, VIR_JOB_QUERY) < 0)
+        goto cleanup;
+
+    if (virDomainObjCheckActive(vm) < 0)
+        goto endjob;
+
+    ret = qemuAgentFSInfoFormat(agentinfo, nfs, vm->def, info);
+
+ endjob:
+    virDomainObjEndJob(vm);
+
+ cleanup:
+    if (agentinfo) {
+        size_t i;
+        for (i = 0; i < nfs; i++)
+            qemuAgentFSInfoFree(agentinfo[i]);
+        g_free(agentinfo);
+    }
+    virDomainObjEndAPI(&vm);
+    return ret;
+}
+
+static int
+bhyveDomainGetTime(virDomainPtr domain,
+                   long long *seconds,
+                   unsigned int *nseconds,
+                   unsigned int flags)
+{
+    virDomainObj *vm = NULL;
+    qemuAgent *agent;
+    int ret = -1;
+    int rv;
+
+    virCheckFlags(0, ret);
+
+    if (!(vm = bhyveDomObjFromDomain(domain)))
+        return ret;
+
+    if (virDomainGetTimeEnsureACL(domain->conn, vm->def) < 0)
+        goto cleanup;
+
+    if (virDomainObjBeginAgentJob(vm, VIR_AGENT_JOB_QUERY) < 0)
+        goto cleanup;
+
+    if (virDomainObjCheckActive(vm) < 0)
+        goto endjob;
+
+    if (bhyveDomainEnsureAgent(vm, true) < 0)
+        goto endjob;
+
+    agent = bhyveDomainObjEnterAgent(vm);
+    rv = qemuAgentGetTime(agent, seconds, nseconds);
+    bhyveDomainObjExitAgent(vm, agent);
+
+    if (rv < 0)
+        goto endjob;
+
+    ret = 0;
+
+ endjob:
+    virDomainObjEndAgentJob(vm);
+
+ cleanup:
+    virDomainObjEndAPI(&vm);
+    return ret;
+}
+
+static int
+bhyveDomainSetTime(virDomainPtr domain,
+                   long long seconds,
+                   unsigned int nseconds,
+                   unsigned int flags)
+{
+    virDomainObj *vm = NULL;
+    qemuAgent *agent;
+    bool rtcSync = flags & VIR_DOMAIN_TIME_SYNC;
+    int ret = -1;
+    int rv;
+
+    virCheckFlags(VIR_DOMAIN_TIME_SYNC, ret);
+
+    if (!(vm = bhyveDomObjFromDomain(domain)))
+        return ret;
+
+    if (virDomainSetTimeEnsureACL(domain->conn, vm->def) < 0)
+        goto cleanup;
+
+    if (virDomainObjBeginAgentJob(vm, VIR_AGENT_JOB_MODIFY) < 0)
+        goto cleanup;
+
+    if (virDomainObjCheckActive(vm) < 0)
+        goto endjob;
+
+    if (bhyveDomainEnsureAgent(vm, true) < 0)
+        goto endjob;
+
+    agent = bhyveDomainObjEnterAgent(vm);
+    rv = qemuAgentSetTime(agent, seconds, nseconds, rtcSync);
+    bhyveDomainObjExitAgent(vm, agent);
+
+    if (rv < 0)
+        goto endjob;
+
+    ret = 0;
+
+ endjob:
+    virDomainObjEndAgentJob(vm);
+
+ cleanup:
+    virDomainObjEndAPI(&vm);
+    return ret;
+}
+
+static int
+bhyveDomainSetUserPassword(virDomainPtr domain,
+                           const char *user,
+                           const char *password,
+                           unsigned int flags)
+{
+    virDomainObj *vm = NULL;
+    qemuAgent *agent;
+    int ret = -1;
+    int rv;
+
+    virCheckFlags(VIR_DOMAIN_PASSWORD_ENCRYPTED, -1);
+
+    if (!(vm = bhyveDomObjFromDomain(domain)))
+        return ret;
+
+    if (virDomainSetUserPasswordEnsureACL(domain->conn, vm->def) < 0)
+        goto cleanup;
+
+    if (virDomainObjBeginAgentJob(vm, VIR_AGENT_JOB_MODIFY) < 0)
+        goto cleanup;
+
+    if (virDomainObjCheckActive(vm) < 0)
+        goto endjob;
+
+    if (bhyveDomainEnsureAgent(vm, true) < 0)
+        goto endjob;
+
+    agent = bhyveDomainObjEnterAgent(vm);
+    rv = qemuAgentSetUserPassword(agent, user, password,
+                                  flags & VIR_DOMAIN_PASSWORD_ENCRYPTED);
+    bhyveDomainObjExitAgent(vm, agent);
+
+    if (rv < 0)
+        goto endjob;
+
+    ret = 0;
+
+ endjob:
+    virDomainObjEndAgentJob(vm);
+
+ cleanup:
+    virDomainObjEndAPI(&vm);
+    return ret;
+}
+
+static int
+bhyveDomainAuthorizedSSHKeysGet(virDomainPtr domain,
+                                const char *user,
+                                char ***keys,
+                                unsigned int flags)
+{
+    virDomainObj *vm = NULL;
+    qemuAgent *agent;
+    int rv = -1;
+
+    virCheckFlags(0, -1);
+
+    if (!(vm = bhyveDomObjFromDomain(domain)))
+        return -1;
+
+    if (virDomainAuthorizedSshKeysGetEnsureACL(domain->conn, vm->def) < 0)
+        goto cleanup;
+
+    if (virDomainObjBeginAgentJob(vm, VIR_AGENT_JOB_QUERY) < 0)
+        goto cleanup;
+
+    if (virDomainObjCheckActive(vm) < 0)
+        goto endjob;
+
+    if (bhyveDomainEnsureAgent(vm, true) < 0)
+        goto endjob;
+
+    agent = bhyveDomainObjEnterAgent(vm);
+    rv = qemuAgentSSHGetAuthorizedKeys(agent, user, keys);
+    bhyveDomainObjExitAgent(vm, agent);
+
+ endjob:
+    virDomainObjEndAgentJob(vm);
+ cleanup:
+    virDomainObjEndAPI(&vm);
+    return rv;
+}
+
+static int
+bhyveDomainAuthorizedSSHKeysSet(virDomainPtr domain,
+                                const char *user,
+                                const char **keys,
+                                unsigned int nkeys,
+                                unsigned int flags)
+{
+    virDomainObj *vm = NULL;
+    qemuAgent *agent;
+    const bool append = flags & VIR_DOMAIN_AUTHORIZED_SSH_KEYS_SET_APPEND;
+    const bool remove = flags & VIR_DOMAIN_AUTHORIZED_SSH_KEYS_SET_REMOVE;
+    int rv = -1;
+
+    virCheckFlags(VIR_DOMAIN_AUTHORIZED_SSH_KEYS_SET_APPEND |
+                  VIR_DOMAIN_AUTHORIZED_SSH_KEYS_SET_REMOVE, -1);
+
+    if (!(vm = bhyveDomObjFromDomain(domain)))
+        return -1;
+
+    if (virDomainAuthorizedSshKeysSetEnsureACL(domain->conn, vm->def) < 0)
+        goto cleanup;
+
+    if (virDomainObjBeginAgentJob(vm, VIR_AGENT_JOB_MODIFY) < 0)
+        goto cleanup;
+
+    if (virDomainObjCheckActive(vm) < 0)
+        goto endjob;
+
+    if (bhyveDomainEnsureAgent(vm, true) < 0)
+        goto endjob;
+
+    agent = bhyveDomainObjEnterAgent(vm);
+    if (remove)
+        rv = qemuAgentSSHRemoveAuthorizedKeys(agent, user, keys, nkeys);
+    else
+        rv = qemuAgentSSHAddAuthorizedKeys(agent, user, keys, nkeys, !append);
+    bhyveDomainObjExitAgent(vm, agent);
+
+ endjob:
+    virDomainObjEndAgentJob(vm);
+ cleanup:
+    virDomainObjEndAPI(&vm);
+    return rv;
+}
+
 static virHypervisorDriver bhyveHypervisorDriver = {
     .name = "bhyve",
     .connectURIProbe = bhyveConnectURIProbe,
@@ -2366,6 +2754,12 @@ static virHypervisorDriver bhyveHypervisorDriver = {
     .domainQemuAgentCommand = bhyveDomainQemuAgentCommand, /* 12.4.0 */
     .domainGetMemoryParameters = bhyveDomainGetMemoryParameters, /* 12.4.0 */
     .domainSetMemoryParameters = bhyveDomainSetMemoryParameters, /* 12.4.0 */
+    .domainGetFSInfo = bhyveDomainGetFSInfo, /* 12.5.0 */
+    .domainGetTime = bhyveDomainGetTime, /* 12.6.0 */
+    .domainSetTime = bhyveDomainSetTime, /* 12.6.0 */
+    .domainSetUserPassword = bhyveDomainSetUserPassword, /* 12.6.0 */
+    .domainAuthorizedSSHKeysGet = bhyveDomainAuthorizedSSHKeysGet, /* 12.6.0 */
+    .domainAuthorizedSSHKeysSet = bhyveDomainAuthorizedSSHKeysSet, /* 12.6.0 */
 };
 
 

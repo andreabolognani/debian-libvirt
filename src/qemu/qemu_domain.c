@@ -1039,6 +1039,7 @@ qemuDomainGraphicsPrivateDispose(void *obj)
     g_free(priv->tlsAlias);
     g_clear_pointer(&priv->secinfo, qemuDomainSecretInfoFree);
     g_clear_pointer(&priv->rdp, qemuRdpFree);
+    g_clear_pointer(&priv->vnc, qemuVncFree);
 }
 
 
@@ -4289,6 +4290,8 @@ virDomainControllerModelSCSI
 qemuDomainDefaultSCSIControllerModel(const virDomainDef *def,
                                      virQEMUCaps *qemuCaps)
 {
+    size_t i;
+
     /* For machine types with built-in SCSI controllers, the choice
      * of model is obvious */
     if (qemuDomainHasBuiltinESP(def))
@@ -4304,6 +4307,19 @@ qemuDomainDefaultSCSIControllerModel(const virDomainDef *def,
     /* pSeries has its own special default */
     if (qemuDomainIsPSeries(def))
         return VIR_DOMAIN_CONTROLLER_MODEL_SCSI_IBMVSCSI;
+
+    /* Inherit the model from any peer SCSI controller already
+     * resolved on this domain. */
+    for (i = 0; i < def->ncontrollers; i++) {
+        const virDomainControllerDef *peer = def->controllers[i];
+
+        if (peer->type != VIR_DOMAIN_CONTROLLER_TYPE_SCSI)
+            continue;
+        if (peer->model == VIR_DOMAIN_CONTROLLER_MODEL_SCSI_DEFAULT ||
+            peer->model == VIR_DOMAIN_CONTROLLER_MODEL_SCSI_AUTO)
+            continue;
+        return peer->model;
+    }
 
     /* If there is no preference, base the choice on device
      * availability. In this case, lsilogic is favored over
@@ -5357,12 +5373,18 @@ qemuDomainMakeCPUMigratable(virArch arch,
         if (virCPUx86GetAddedFeatures(cpu->model, &data.added) < 0)
             return -1;
 
-        /* Drop features marked as added in a cpu model, but only
-         * when they are not mentioned in origCPU, i.e., when they were not
-         * explicitly mentioned by the user.
-         */
+        /* Drop features marked as added in a CPU model unless they were
+         * explicitly requested, so the migratable definition stays
+         * compatible with destinations that do not know them. For host-model
+         * the expanded definition is itself the requested CPU, so keep all of
+         * its features; for a custom CPU keep only those listed in origCPU. */
         if (data.added) {
-            g_auto(GStrv) keep = virCPUDefListExplicitFeatures(origCPU);
+            g_auto(GStrv) keep = NULL;
+
+            if (origCPU->mode == VIR_CPU_MODE_HOST_MODEL)
+                keep = virCPUDefListExplicitFeatures(cpu);
+            else
+                keep = virCPUDefListExplicitFeatures(origCPU);
             data.keep = keep;
 
             virCPUDefFilterFeatures(cpu, qemuDomainDropAddedCPUFeatures, &data);
@@ -9256,23 +9278,6 @@ qemuDomainVcpuPersistOrder(virDomainDef *def)
 }
 
 
-bool
-qemuDomainSupportsVideoVga(const virDomainVideoDef *video,
-                           virQEMUCaps *qemuCaps)
-{
-    if (video->type == VIR_DOMAIN_VIDEO_TYPE_VIRTIO) {
-        if (video->backend == VIR_DOMAIN_VIDEO_BACKEND_TYPE_VHOSTUSER) {
-            if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_VHOST_USER_VGA))
-                return false;
-        } else if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_VIRTIO_VGA)) {
-            return false;
-        }
-    }
-
-    return true;
-}
-
-
 /**
  * qemuDomainNeedsVFIO:
  * @def: domain definition to check
@@ -11737,4 +11742,83 @@ qemuDomainMachineSupportsFloppy(const char *machine,
         return false;
 
     return true;
+}
+
+
+/**
+ * qemuDomainUpdateCustomCapabilities:
+ * @def: domain definition
+ * @qemuCaps: qemu capabilities
+ * @qemuCapsCopy: if non-NULL filled filled with a valid virQEMUCaps pointer (see below)
+ *
+ * Updates @qemuCaps based on the qemu namespace XML config for modifying
+ * capabilities:
+ *
+ *  <domain type='qemu' xmlns:qemu='http://libvirt.org/schemas/domain/qemu/1.0'>
+ *    <qemu:capabilities>
+ *      <qemu:add capability='blockdev'/>
+ *      <qemu:del capability='drive'/>
+ *    </qemu:capabilities>
+ *  </domain>
+ *
+ *  If @qemuCapsCopy is NULL, @qemuCaps is directly modified.
+ *
+ *  If @qemuCapsCopy is non-NULL, it's always filled with a virQEMUCaps instance
+ *  that the caller needs to unref. The following applies:
+ *   - no caps modification needed: @qemuCaps is ref'd and filled into @qemuCapsCopy
+ *   - caps modifications are needed: @qemuCaps is copied into @qemuCapsCopy and
+ *                                    modifications happen on the copy
+ *
+ *  Returns 0 on success (including when no modification was needed), -1 on
+ *  error and reports libvirt errors.
+ */
+int
+qemuDomainUpdateCustomCapabilities(const virDomainDef *def,
+                                   virQEMUCaps *qemuCaps,
+                                   virQEMUCaps **qemuCapsCopy)
+{
+    qemuDomainXmlNsDef *nsdef = def->namespaceData;
+    char **next;
+    int tmp;
+
+    if (!nsdef ||
+        (!nsdef->capsadd && !nsdef->capsdel)) {
+
+        if (qemuCapsCopy)
+            *qemuCapsCopy = virObjectRef(qemuCaps);
+
+        return 0;
+    }
+
+    if (qemuCapsCopy) {
+        *qemuCapsCopy = virQEMUCapsNewCopy(qemuCaps);
+
+        qemuCaps = *qemuCapsCopy;
+    }
+
+    for (next = nsdef->capsadd; next && *next; next++) {
+        if ((tmp = virQEMUCapsTypeFromString(*next)) < 0) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                           _("invalid qemu namespace capability '%1$s'"),
+                           *next);
+            return -1;
+        }
+
+        virQEMUCapsSet(qemuCaps, tmp);
+    }
+
+    for (next = nsdef->capsdel; next && *next; next++) {
+        if ((tmp = virQEMUCapsTypeFromString(*next)) < 0) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                           _("invalid qemu namespace capability '%1$s'"),
+                           *next);
+            return -1;
+        }
+
+        virQEMUCapsClear(qemuCaps, tmp);
+    }
+
+    virQEMUCapsInitProcessCapsInterlock(qemuCaps);
+
+    return 0;
 }

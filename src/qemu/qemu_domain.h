@@ -36,6 +36,7 @@
 #include "qemu_migration_params.h"
 #include "qemu_nbdkit.h"
 #include "qemu_rdp.h"
+#include "qemu_vnc.h"
 #include "qemu_slirp.h"
 #include "qemu_fd.h"
 #include "virchrdev.h"
@@ -417,6 +418,7 @@ struct _qemuDomainGraphicsPrivate {
     char *tlsAlias;
     qemuDomainSecretInfo *secinfo;
     qemuRdp *rdp;
+    qemuVnc *vnc;
 };
 
 
@@ -978,9 +980,6 @@ bool qemuDomainVcpuHotplugIsInOrder(virDomainDef *def)
 void qemuDomainVcpuPersistOrder(virDomainDef *def)
     ATTRIBUTE_NONNULL(1);
 
-bool qemuDomainSupportsVideoVga(const virDomainVideoDef *video,
-                                virQEMUCaps *qemuCaps);
-
 bool qemuDomainNeedsVFIO(const virDomainDef *def);
 
 int qemuDomainGetHostdevPath(virDomainHostdevDef *dev,
@@ -1190,3 +1189,9 @@ qemuDomainMachineSupportsFloppy(const char *machine,
 
 virObject *
 qemuDomainHostdevPrivateNew(void);
+
+int
+qemuDomainUpdateCustomCapabilities(const virDomainDef *def,
+                                   virQEMUCaps *qemuCaps,
+                                   virQEMUCaps **qemuCapsCopy)
+    ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2) G_GNUC_WARN_UNUSED_RESULT;

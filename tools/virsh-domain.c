@@ -837,6 +837,7 @@ static const vshCmdOptDef opts_attach_interface[] = {
      .type = VSH_OT_STRING,
      .positional = true,
      .required = true,
+     .completer = virshDomainNetTypeCompleter,
      .help = N_("network interface type")
     },
     {.name = "source",
@@ -3814,6 +3815,88 @@ cmdDomIftune(vshControl *ctl, const vshCmd *cmd)
     vshError(ctl, "%s", _("Unable to set interface parameters"));
     goto cleanup;
 }
+
+
+/* "domifannounce" command
+ */
+static const vshCmdInfo info_domifannounce = {
+    .help = N_("trigger domain to announce virtual interface to network"),
+    .desc = N_("trigger a live domain to announce one or more virtual interfaces to their attached networks"),
+
+};
+
+static const vshCmdOptDef opts_domifannounce[] = {
+    VIRSH_COMMON_OPT_DOMAIN_FULL(0),
+    {.name = "interface",
+     .type = VSH_OT_STRING,
+     .positional = true,
+     .completer = virshDomainInterfaceCompleter,
+     .help = N_("interface device (MAC Address)")
+    },
+    {.name = VIR_DOMAIN_ANNOUNCE_INTERFACE_INITIAL,
+     .type = VSH_OT_INT,
+     .help = N_("initial delay before first announcement (milliseconds)")},
+    {.name = VIR_DOMAIN_ANNOUNCE_INTERFACE_MAX,
+     .type = VSH_OT_INT,
+     .help = N_("maximum delay between announcements (milliseconds)")},
+    {.name = VIR_DOMAIN_ANNOUNCE_INTERFACE_ROUNDS,
+     .type = VSH_OT_INT,
+     .help = N_("total number of announcements")},
+    {.name = VIR_DOMAIN_ANNOUNCE_INTERFACE_STEP,
+     .type = VSH_OT_INT,
+     .help = N_("increment added to delay (milliseconds) after each announcement")},
+    {.name = NULL}
+};
+
+static bool
+cmdDomIfAnnounce(vshControl *ctl, const vshCmd *cmd)
+{
+    g_autoptr(virshDomain) dom = NULL;
+    const char *name = NULL;
+    const char *device = NULL;
+    virTypedParameterPtr params = NULL;
+    int nparams = 0;
+    int maxparams = 0;
+    unsigned int val;
+    bool ret = false;
+    int rv;
+
+    if (!(dom = virshCommandOptDomain(ctl, cmd, &name)))
+        return false;
+
+    if (vshCommandOptString(ctl, cmd, "interface", &device) < 0)
+        return false;
+
+    if ((rv = vshCommandOptUInt(ctl, cmd, VIR_DOMAIN_ANNOUNCE_INTERFACE_INITIAL, &val)) < 0)
+        goto cleanup;
+    else if (rv > 0 && virTypedParamsAddUInt(&params, &nparams, &maxparams, VIR_DOMAIN_ANNOUNCE_INTERFACE_INITIAL, val) < 0)
+        goto cleanup;
+
+    if ((rv = vshCommandOptUInt(ctl, cmd, VIR_DOMAIN_ANNOUNCE_INTERFACE_MAX, &val)) < 0)
+        goto cleanup;
+    else if (rv > 0 && virTypedParamsAddUInt(&params, &nparams, &maxparams, VIR_DOMAIN_ANNOUNCE_INTERFACE_MAX, val) < 0)
+        goto cleanup;
+
+    if ((rv = vshCommandOptUInt(ctl, cmd, VIR_DOMAIN_ANNOUNCE_INTERFACE_ROUNDS, &val)) < 0)
+        goto cleanup;
+    else if (rv > 0 && virTypedParamsAddUInt(&params, &nparams, &maxparams, VIR_DOMAIN_ANNOUNCE_INTERFACE_ROUNDS, val) < 0)
+        goto cleanup;
+
+    if ((rv = vshCommandOptUInt(ctl, cmd, VIR_DOMAIN_ANNOUNCE_INTERFACE_STEP, &val)) < 0)
+        goto cleanup;
+    else if (rv > 0 && virTypedParamsAddUInt(&params, &nparams, &maxparams, VIR_DOMAIN_ANNOUNCE_INTERFACE_STEP, val) < 0)
+        goto cleanup;
+
+    if (virDomainAnnounceInterface(dom, device, params, nparams, 0) < 0)
+        goto cleanup;
+
+    vshPrintExtra(ctl, _("Interface announcement sent for domain '%1$s'"), name);
+    ret = true;
+ cleanup:
+    virTypedParamsFree(params, nparams);
+    return ret;
+}
+
 
 /*
  * "suspend" command
@@ -7691,14 +7774,13 @@ cmdSetvcpus(vshControl *ctl, const vshCmd *cmd)
     VSH_EXCLUSIVE_OPTIONS_VAR(current, live);
     VSH_EXCLUSIVE_OPTIONS_VAR(current, config);
     VSH_EXCLUSIVE_OPTIONS_VAR(guest, config);
-    VSH_EXCLUSIVE_OPTIONS_VAR(async, guest);
 
     VSH_REQUIRE_OPTION_VAR(maximum, config);
 
     if (config)
-        flags |= VIR_DOMAIN_AFFECT_CONFIG;
+        flags |= VIR_DOMAIN_VCPU_CONFIG;
     if (live)
-        flags |= VIR_DOMAIN_AFFECT_LIVE;
+        flags |= VIR_DOMAIN_VCPU_LIVE;
     if (guest)
         flags |= VIR_DOMAIN_VCPU_GUEST;
     if (maximum)
@@ -7864,12 +7946,11 @@ cmdSetvcpu(vshControl *ctl, const vshCmd *cmd)
 
     VSH_EXCLUSIVE_OPTIONS("current", "live");
     VSH_EXCLUSIVE_OPTIONS("current", "config");
-    VSH_EXCLUSIVE_OPTIONS("async", "enable");
 
     if (config)
-        flags |= VIR_DOMAIN_AFFECT_CONFIG;
+        flags |= VIR_DOMAIN_SETVCPU_AFFECT_CONFIG;
     if (live)
-        flags |= VIR_DOMAIN_AFFECT_LIVE;
+        flags |= VIR_DOMAIN_SETVCPU_AFFECT_LIVE;
     if (async)
         flags |= VIR_DOMAIN_SETVCPU_ASYNC_UNPLUG;
 
@@ -12702,7 +12783,6 @@ static const vshCmdOptDef opts_detach_interface[] = {
     {.name = "type",
      .type = VSH_OT_STRING,
      .positional = true,
-     .required = true,
      .help = N_("network interface type")
     },
     {.name = "mac",
@@ -12736,7 +12816,7 @@ virshDomainDetachInterface(char *doc,
     g_autoptr(xmlDoc) xml = NULL;
     g_autoptr(xmlXPathContext) ctxt = NULL;
     g_autofree char *detach_xml = NULL;
-    g_autofree char *xpath = g_strdup_printf("/domain/devices/interface[@type='%s']", type);
+    g_autofree char *xpath = NULL;
     g_autofree xmlNodePtr *nodes = NULL;
     ssize_t nnodes;
     xmlNodePtr matchNode = NULL;
@@ -12747,8 +12827,16 @@ virshDomainDetachInterface(char *doc,
         return false;
     }
 
+    if (type)
+        xpath = g_strdup_printf("/domain/devices/interface[@type='%s']", type);
+    else
+        xpath = g_strdup("/domain/devices/interface");
+
     if ((nnodes = virXPathNodeSet(xpath, ctxt, &nodes)) <= 0) {
-        vshError(ctl, _("No interface found whose type is %1$s"), type);
+        if (type)
+            vshError(ctl, _("No interface found whose type is %1$s"), type);
+        else
+            vshError(ctl, "%s", _("Domain has no interfaces"));
         return false;
     }
 
@@ -14168,6 +14256,12 @@ const vshCmdDef domManagementCmds[] = {
      .handler = cmdDomid,
      .opts = opts_domid,
      .info = &info_domid,
+     .flags = 0
+    },
+    {.name = "domifannounce",
+     .handler = cmdDomIfAnnounce,
+     .opts = opts_domifannounce,
+     .info = &info_domifannounce,
      .flags = 0
     },
     {.name = "domif-setlink",

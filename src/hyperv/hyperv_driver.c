@@ -44,6 +44,7 @@
 #include "snapshot_conf.h"
 #include "virfdstream.h"
 #include "virfile.h"
+#include "cpu_conf.h"
 
 #define VIR_FROM_THIS VIR_FROM_HYPERV
 
@@ -56,23 +57,28 @@ VIR_LOG_INIT("hyperv.hyperv_driver");
  */
 
 static int
-hypervGetProcessorsByName(hypervPrivate *priv, const char *name,
-                          Win32_Processor **processorList)
+hypervGetProcessorList(hypervPrivate *priv, const char *computer_name,
+                       Win32_Processor **processorList)
 {
     g_auto(virBuffer) query = VIR_BUFFER_INITIALIZER;
-    virBufferEscapeSQL(&query,
-                       "ASSOCIATORS OF {Win32_ComputerSystem.Name='%s'} "
-                       "WHERE AssocClass = Win32_ComputerSystemProcessor "
-                       "ResultClass = Win32_Processor",
-                       name);
+    if (computer_name) {
+        virBufferEscapeSQL(&query,
+                           "ASSOCIATORS OF {Win32_ComputerSystem.Name='%s'} "
+                           "WHERE AssocClass = Win32_ComputerSystemProcessor "
+                           "ResultClass = Win32_Processor",
+                           computer_name);
+
+    } else {
+        virBufferAddLit(&query, WIN32_PROCESSOR_WQL_SELECT);
+    }
 
     if (hypervGetWmiClass(Win32_Processor, processorList) < 0)
         return -1;
 
-    if (!processorList) {
+    if (!*processorList) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("Could not look up processor(s) on '%1$s'"),
-                       name);
+                       computer_name);
         return -1;
     }
 
@@ -1933,7 +1939,7 @@ hypervNodeGetInfo(virConnectPtr conn, virNodeInfoPtr info)
     if (hypervGetPhysicalSystemList(priv, &computerSystem) < 0)
         return -1;
 
-    if (hypervGetProcessorsByName(priv, computerSystem->data->Name, &processorList) < 0) {
+    if (hypervGetProcessorList(priv, computerSystem->data->Name, &processorList) < 0) {
         return -1;
     }
 
@@ -2761,6 +2767,28 @@ hypervDomainGetXMLDesc(virDomainPtr domain, unsigned int flags)
     if (virDomainDefSetVcpus(def, processorSettingData->data->VirtualQuantity) < 0)
         return NULL;
 
+    if (processorSettingData->data->ExposeVirtualizationExtensions) {
+        g_autoptr(Win32_Processor) processors = NULL;
+        const char *cpuFeature = NULL;
+
+        if (hypervGetProcessorList(priv, NULL, &processors) < 0)
+            return NULL;
+
+        if (STREQ_NULLABLE(processors->data->Manufacturer, "GenuineIntel"))
+            cpuFeature = "vmx";
+        else if (STREQ_NULLABLE(processors->data->Manufacturer, "AuthenticAMD"))
+            cpuFeature = "svm";
+
+        if (cpuFeature) {
+            def->cpu = virCPUDefNew();
+            def->cpu->mode = VIR_CPU_MODE_HOST_PASSTHROUGH;
+            def->cpu->type = VIR_CPU_TYPE_GUEST;
+
+            if (virCPUDefAddFeature(def->cpu, cpuFeature, VIR_CPU_FEATURE_REQUIRE) < 0)
+                return NULL;
+        }
+    }
+
     def->os.type = VIR_DOMAIN_OSTYPE_HVM;
 
     /* Generation 2 VMs use UEFI firmware */
@@ -2940,8 +2968,7 @@ hypervDomainUndefineFlags(virDomainPtr domain, unsigned int flags)
 
     virBufferEscapeSQL(&eprQuery, MSVM_COMPUTERSYSTEM_WQL_SELECT "WHERE Name = '%s'", uuid_string);
 
-    if (hypervAddEprParam(params, "AffectedSystem", &eprQuery, Msvm_ComputerSystem_WmiInfo) < 0)
-        return -1;
+    hypervAddEprParam(params, "AffectedSystem", &eprQuery, Msvm_ComputerSystem_WmiInfo);
 
     /* actually destroy the VM */
     if (hypervInvokeMethod(priv, &params, NULL) < 0)
@@ -3027,9 +3054,8 @@ hypervDomainDefineXMLFlags(virConnectPtr conn,
         }
     }
 
-    if (hypervAddEmbeddedParam(params, "SystemSettings",
-                               &defineSystemParam, Msvm_VirtualSystemSettingData_WmiInfo) < 0)
-        goto error;
+    hypervAddEmbeddedParam(params, "SystemSettings",
+                           &defineSystemParam, Msvm_VirtualSystemSettingData_WmiInfo);
 
     /* create the VM */
     if (hypervInvokeMethod(priv, &params, NULL) < 0)
@@ -3285,9 +3311,8 @@ hypervDomainSetAutostart(virDomainPtr domain, int autostart)
     if (hypervSetEmbeddedProperty(autostartParam, "InstanceID", vssd->data->InstanceID) < 0)
         return -1;
 
-    if (hypervAddEmbeddedParam(params, "SystemSettings",
-                               &autostartParam, Msvm_VirtualSystemSettingData_WmiInfo) < 0)
-        return -1;
+    hypervAddEmbeddedParam(params, "SystemSettings",
+                           &autostartParam, Msvm_VirtualSystemSettingData_WmiInfo);
 
     if (hypervInvokeMethod(priv, &params, NULL) < 0)
         return -1;
@@ -3711,8 +3736,7 @@ hypervDomainSendKey(virDomainPtr domain, unsigned int codeset,
         if (!params)
             return -1;
 
-        if (hypervAddSimpleParam(params, "keyCode", keycodeStr) < 0)
-            return -1;
+        hypervAddSimpleParam(params, "keyCode", keycodeStr);
 
         if (hypervInvokeMethod(priv, &params, NULL) < 0)
             return -1;
@@ -3731,8 +3755,7 @@ hypervDomainSendKey(virDomainPtr domain, unsigned int codeset,
         if (!params)
             return -1;
 
-        if (hypervAddSimpleParam(params, "keyCode", keycodeStr) < 0)
-            return -1;
+        hypervAddSimpleParam(params, "keyCode", keycodeStr);
 
         if (hypervInvokeMethod(priv, &params, NULL) < 0)
             return -1;
@@ -4212,9 +4235,8 @@ hypervDomainSnapshotCreateXML(virDomainPtr domain,
     if (!params)
         return NULL;
 
-    if (hypervAddEprParam(params, "AffectedSystem", &eprQuery,
-                          Msvm_ComputerSystem_WmiInfo) < 0)
-        return NULL;
+    hypervAddEprParam(params, "AffectedSystem", &eprQuery,
+                      Msvm_ComputerSystem_WmiInfo);
 
     snapshotSettings = hypervCreateEmbeddedParam(Msvm_VirtualSystemSnapshotSettingData_WmiInfo);
     if (!snapshotSettings)
@@ -4226,9 +4248,8 @@ hypervDomainSnapshotCreateXML(virDomainPtr domain,
                                   HYPERV_SNAPSHOT_CONSISTENCY_CRASH_CONSISTENT) < 0)
         return NULL;
 
-    if (hypervAddEmbeddedParam(params, "SnapshotSettings", &snapshotSettings,
-                               Msvm_VirtualSystemSnapshotSettingData_WmiInfo) < 0)
-        return NULL;
+    hypervAddEmbeddedParam(params, "SnapshotSettings", &snapshotSettings,
+                           Msvm_VirtualSystemSnapshotSettingData_WmiInfo);
 
     hypervAddSimpleParam(params, "SnapshotType", HYPERV_SNAPSHOT_TYPE_FULL);
 
@@ -4278,9 +4299,8 @@ hypervDomainSnapshotDelete(virDomainSnapshotPtr snapshot,
     if (!params)
         return -1;
 
-    if (hypervAddEprParam(params, "AffectedSnapshot", &eprQuery,
-                          Msvm_VirtualSystemSettingData_WmiInfo) < 0)
-        return -1;
+    hypervAddEprParam(params, "AffectedSnapshot", &eprQuery,
+                      Msvm_VirtualSystemSettingData_WmiInfo);
 
     /* Invoke the method */
     if (hypervInvokeMethod(priv, &params, NULL) < 0)

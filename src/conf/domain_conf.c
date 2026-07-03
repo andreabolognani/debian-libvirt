@@ -910,6 +910,17 @@ VIR_ENUM_IMPL(virDomainVideoVGAConf,
               "off",
 );
 
+VIR_ENUM_IMPL(virDomainVideoVirtioDevice,
+              VIR_DOMAIN_VIDEO_VIRTIO_DEVICE_LAST,
+              "",
+              "virtio-vga",
+              "virtio-gpu",
+              "virtio-vga-gl",
+              "virtio-gpu-gl",
+              "vhost-user-vga",
+              "vhost-user-gpu",
+);
+
 VIR_ENUM_IMPL(virDomainInput,
               VIR_DOMAIN_INPUT_TYPE_LAST,
               "mouse",
@@ -13816,6 +13827,14 @@ virDomainVideoModelDefParseXML(virDomainVideoDef *def,
                               VIR_DOMAIN_VIDEO_TYPE_DEFAULT) < 0)
         return -1;
 
+    if (def->type == VIR_DOMAIN_VIDEO_TYPE_VIRTIO) {
+        if (virXMLPropEnumDefault(node, "device",
+                                  virDomainVideoVirtioDeviceTypeFromString,
+                                  VIR_XML_PROP_NONZERO, &def->virtiodevice,
+                                  VIR_DOMAIN_VIDEO_VIRTIO_DEVICE_DEFAULT) < 0)
+            return -1;
+    }
+
     if (virXMLPropUInt(node, "ram", 10, VIR_XML_PROP_NONE, &def->ram) < 0)
         return -1;
 
@@ -21694,6 +21713,18 @@ virDomainVideoDefCheckABIStability(virDomainVideoDef *src,
         return false;
     }
 
+    /* While 'src->virtiodevice' vs 'dst->virtiodevice' match is considered
+     * guest ABI (both the device looks different to the guest OS and qemu
+     * refuses to migrate into wrong device) we deliberately omit the check
+     * here due to historical reasons.
+     *
+     * The actual values were not recorded in the XML after picking a device
+     * based on capabilities and thus, if the host configuration changes
+     * different defaults can be picked. Users might want to fix their
+     * saveimage or migration by specifying the proper model which will differ
+     * from the one that will be auto-picked via post-parse callback when the
+     * XML is loaded for the first time */
+
     if (!virDomainVirtioOptionsCheckABIStability(src->virtio, dst->virtio))
         return false;
 
@@ -27319,6 +27350,9 @@ static void
 virDomainVideoAccelDefFormat(virBuffer *buf,
                              virDomainVideoAccelDef *def)
 {
+    if (!def)
+        return;
+
     virBufferAddLit(buf, "<acceleration");
     if (def->accel3d) {
         virBufferAsprintf(buf, " accel3d='%s'",
@@ -27336,6 +27370,9 @@ static void
 virDomainVideoResolutionDefFormat(virBuffer *buf,
                                   virDomainVideoResolutionDef *def)
 {
+    if (!def)
+        return;
+
     virBufferAddLit(buf, "<resolution");
     if (def->x && def->y) {
         virBufferAsprintf(buf, " x='%u' y='%u'",
@@ -27350,7 +27387,10 @@ virDomainVideoDefFormat(virBuffer *buf,
                         unsigned int flags)
 {
     const char *model = virDomainVideoTypeToString(def->type);
-    g_auto(virBuffer) driverBuf = VIR_BUFFER_INITIALIZER;
+    g_auto(virBuffer) childBuf = VIR_BUFFER_INIT_CHILD(buf);
+    g_auto(virBuffer) driverAttrBuf = VIR_BUFFER_INITIALIZER;
+    g_auto(virBuffer) modelAttrBuf = VIR_BUFFER_INITIALIZER;
+    g_auto(virBuffer) modelChildBuf = VIR_BUFFER_INIT_CHILD(&childBuf);
 
     if (!model) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
@@ -27358,60 +27398,50 @@ virDomainVideoDefFormat(virBuffer *buf,
         return -1;
     }
 
-    virBufferAddLit(buf, "<video>\n");
-    virBufferAdjustIndent(buf, 2);
-    virDomainVirtioOptionsFormat(&driverBuf, def->virtio);
-    if (virBufferUse(&driverBuf) || (def->driver && def->driver->vgaconf) ||
-        def->backend != VIR_DOMAIN_VIDEO_BACKEND_TYPE_DEFAULT) {
-        virBufferAddLit(buf, "<driver");
-        if (virBufferUse(&driverBuf))
-            virBufferAddBuffer(buf, &driverBuf);
-        if (def->driver && def->driver->vgaconf)
-            virBufferAsprintf(buf, " vgaconf='%s'",
-                              virDomainVideoVGAConfTypeToString(def->driver->vgaconf));
-        if (def->backend != VIR_DOMAIN_VIDEO_BACKEND_TYPE_DEFAULT)
-            virBufferAsprintf(buf, " name='%s'",
-                              virDomainVideoBackendTypeToString(def->backend));
-        virBufferAddLit(buf, "/>\n");
-    }
-    virBufferAsprintf(buf, "<model type='%s'",
-                      model);
+    virDomainVirtioOptionsFormat(&driverAttrBuf, def->virtio);
+    if (def->driver && def->driver->vgaconf)
+        virBufferAsprintf(&driverAttrBuf, " vgaconf='%s'",
+                          virDomainVideoVGAConfTypeToString(def->driver->vgaconf));
+    if (def->backend != VIR_DOMAIN_VIDEO_BACKEND_TYPE_DEFAULT)
+        virBufferAsprintf(&driverAttrBuf, " name='%s'",
+                          virDomainVideoBackendTypeToString(def->backend));
+
+    virXMLFormatElement(&childBuf, "driver", &driverAttrBuf, NULL);
+
+    virBufferAsprintf(&modelAttrBuf, " type='%s'", model);
     if (def->ram)
-        virBufferAsprintf(buf, " ram='%u'", def->ram);
+        virBufferAsprintf(&modelAttrBuf, " ram='%u'", def->ram);
     if (def->vram)
-        virBufferAsprintf(buf, " vram='%u'", def->vram);
+        virBufferAsprintf(&modelAttrBuf, " vram='%u'", def->vram);
     if (def->vram64)
-        virBufferAsprintf(buf, " vram64='%u'", def->vram64);
+        virBufferAsprintf(&modelAttrBuf, " vram64='%u'", def->vram64);
     if (def->vgamem)
-        virBufferAsprintf(buf, " vgamem='%u'", def->vgamem);
+        virBufferAsprintf(&modelAttrBuf, " vgamem='%u'", def->vgamem);
     if (def->heads)
-        virBufferAsprintf(buf, " heads='%u'", def->heads);
+        virBufferAsprintf(&modelAttrBuf, " heads='%u'", def->heads);
     if (def->primary)
-        virBufferAddLit(buf, " primary='yes'");
+        virBufferAddLit(&modelAttrBuf, " primary='yes'");
     if (def->blob != VIR_TRISTATE_SWITCH_ABSENT)
-        virBufferAsprintf(buf, " blob='%s'", virTristateSwitchTypeToString(def->blob));
+        virBufferAsprintf(&modelAttrBuf, " blob='%s'", virTristateSwitchTypeToString(def->blob));
     if (def->edid != VIR_TRISTATE_SWITCH_ABSENT)
-        virBufferAsprintf(buf, " edid='%s'", virTristateSwitchTypeToString(def->edid));
-    if (def->accel || def->res) {
-        virBufferAddLit(buf, ">\n");
-        virBufferAdjustIndent(buf, 2);
-        if (def->accel)
-            virDomainVideoAccelDefFormat(buf, def->accel);
-        if (def->res)
-            virDomainVideoResolutionDefFormat(buf, def->res);
-        virBufferAdjustIndent(buf, -2);
-        virBufferAddLit(buf, "</model>\n");
-    } else {
-        virBufferAddLit(buf, "/>\n");
-    }
+        virBufferAsprintf(&modelAttrBuf, " edid='%s'", virTristateSwitchTypeToString(def->edid));
 
-    virDomainDeviceInfoFormat(buf, &def->info, flags);
+    if (def->virtiodevice != VIR_DOMAIN_VIDEO_VIRTIO_DEVICE_DEFAULT)
+        virBufferAsprintf(&modelAttrBuf, " device='%s'",
+                          virDomainVideoVirtioDeviceTypeToString(def->virtiodevice));
 
-    virBufferAdjustIndent(buf, -2);
-    virBufferAddLit(buf, "</video>\n");
+    virDomainVideoAccelDefFormat(&modelChildBuf, def->accel);
+    virDomainVideoResolutionDefFormat(&modelChildBuf, def->res);
+
+    virXMLFormatElement(&childBuf, "model", &modelAttrBuf, &modelChildBuf);
+
+    virDomainDeviceInfoFormat(&childBuf, &def->info, flags);
+
+    virXMLFormatElement(buf, "video", NULL, &childBuf);
 
     return 0;
 }
+
 
 static int
 virDomainInputDefFormat(virBuffer *buf,

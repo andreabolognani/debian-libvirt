@@ -106,8 +106,12 @@ const char *virTestCounterNext(void);
 char *virTestFakeRootDirInit(void);
 void virTestFakeRootDirCleanup(char *fakerootdir);
 
+struct _virTestDummyFDContext {
+    GHashTable *hints;
+    GSList *errors;
+};
 
-typedef GHashTable virTestDummyFDContext;
+typedef struct _virTestDummyFDContext virTestDummyFDContext;
 
 void virTestDummyFDContextFree(virTestDummyFDContext *ctxt);
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(virTestDummyFDContext, virTestDummyFDContextFree);
@@ -119,6 +123,8 @@ void virTestDummyFDContextMarkFD(int fd,
 
 void virTestMakeDummyMarkDup(int newfd,
                              int oldfd);
+
+void virTestDummyFDContextMarkError(char *error);
 
 int virTestMakeDummyFD(char *hint);
 

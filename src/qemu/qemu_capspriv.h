@@ -25,8 +25,6 @@
 
 #pragma once
 
-virQEMUCaps *virQEMUCapsNewCopy(virQEMUCaps *qemuCaps);
-
 virQEMUCaps *
 virQEMUCapsNewForBinaryInternal(virArch hostArch,
                                 const char *binary,
@@ -36,7 +34,8 @@ virQEMUCapsNewForBinaryInternal(virArch hostArch,
                                 const char *hostCPUSignature,
                                 unsigned int microcodeVersion,
                                 const char *kernelVersion,
-                                virCPUData* cpuData);
+                                virCPUData* cpuData,
+                                virBitmap *maskedCaps);
 
 int virQEMUCapsLoadCache(virArch hostArch,
                          virQEMUCaps *qemuCaps,

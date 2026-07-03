@@ -238,18 +238,33 @@ static qemuAgentCallbacks agentCallbacks = {
     .errorNotify = bhyveProcessHandleAgentError,
 };
 
+/**
+ * bhyveConnectAgent:
+ * @driver: driver object
+ * @vm: domain object
+ *
+ * Connect to the guest agent via the UNIX socket specified in the domain
+ * definition. On success, bhyveDomainObjPrivate's agent field should
+ * point to the agent instance.
+ *
+ * Returns: 0 on success,
+ *          -1 on error
+ */
 int
 bhyveConnectAgent(struct _bhyveConn *driver G_GNUC_UNUSED, virDomainObj *vm)
 {
     bhyveDomainObjPrivate *priv = vm->privateData;
     qemuAgent *agent = NULL;
-    virDomainChrDef *config = bhyveFindAgentConfig(vm->def);
-
-    if (!config)
-        return 0;
+    virDomainChrDef *config = NULL;
 
     if (priv->agent)
         return 0;
+
+    if (!(config = bhyveFindAgentConfig(vm->def))) {
+        virReportError(VIR_ERR_ARGUMENT_UNSUPPORTED, "%s",
+                       _("QEMU guest agent is not configured"));
+        return -1;
+    }
 
     agent = qemuAgentOpen(vm,
                           config->source,
@@ -266,9 +281,10 @@ bhyveConnectAgent(struct _bhyveConn *driver G_GNUC_UNUSED, virDomainObj *vm)
 
     priv->agent = agent;
     if (!priv->agent) {
-        VIR_WARN("Cannot connect to QEMU guest agent for %s", vm->def->name);
-        priv->agentError = true;
-        virResetLastError();
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("Cannot connect to QEMU guest agent for %1$s"),
+                       vm->def->name);
+        return -1;
     }
 
     return 0;
