@@ -177,6 +177,7 @@ Patches have also been contributed by:
 * Balázs Meskó <meskobalazs@mailbox.org>
 * Bamvor Jian Zhang <bamv2005@gmail.com>
 * Bamvor Jian Zhang <bjzhang@suse.com>
+* Baptiste Daroussin <baptiste.daroussin@ovhcloud.com>
 * Barrett Schonefeld <bschoney@utexas.edu>
 * Bastian Germann <bastiangermann@fishpost.de>
 * Bastien Orivel <bastien.orivel@diateam.net>
@@ -270,6 +271,7 @@ Patches have also been contributed by:
 * Daniel Gollub <gollub@b1-systems.de>
 * Daniel Hansel <daniel.hansel@linux.vnet.ibm.com>
 * Daniel Henrique Barboza <dbarboza@ventanamicro.com>
+* Daniel Hora <dhora@redhat.com>
 * Daniel J Walsh <dwalsh@redhat.com>
 * Daniel Letai <dani@letai.org.il>
 * Daniel Liu <srwx4096@gmail.com>
@@ -827,6 +829,7 @@ Patches have also been contributed by:
 * Pritesh Kothari <pritesh.kothari@sun.com>
 * Purna Pavan Chandra Aekkaladevi <paekkaladevi@linux.microsoft.com>
 * Purna Pavan Chandra <paekkaladevi@linux.microsoft.com>
+* PUSHKARAJ PATIL <pushkaraj.patil@in.ibm.com>
 * QiangWei Zhang <zhang.qiangwei@zte.com.cn>
 * Qiao Nuohan <qiaonuohan@cn.fujitsu.com>
 * Qiaowei Ren <qiaowei.ren@intel.com>
@@ -1127,6 +1130,7 @@ Patches have also been contributed by:
 * Анастасия Белова <abelova@astralinux.ru>
 * Дамјан Георгиевски <gdamjan@gmail.com>
 * Марк Коренберг <socketpair@gmail.com>
+* Марко Костић (Marko Kostić) <marko.m.kostic@gmail.com>
 
 
 The libvirt logo was designed by Diana Fong

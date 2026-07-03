@@ -204,10 +204,8 @@ hypervCheckParams(hypervInvokeParamsList *params)
  *
  * Add a param of type HYPERV_SIMPLE_PARAM, which is essentially a serialized
  * key/value pair.
- *
- * Returns -1 on failure, 0 on success.
  */
-int
+void
 hypervAddSimpleParam(hypervInvokeParamsList *params, const char *name,
                      const char *value)
 {
@@ -222,8 +220,6 @@ hypervAddSimpleParam(hypervInvokeParamsList *params, const char *name,
     p->simple.value = value;
 
     params->nbParams++;
-
-    return 0;
 }
 
 
@@ -235,9 +231,9 @@ hypervAddSimpleParam(hypervInvokeParamsList *params, const char *name,
  * @query: WQL filter
  * @eprInfo: WmiInfo of the object being filtered
  *
- * Adds an EPR param to the params list. Returns -1 on failure, 0 on success.
+ * Adds an EPR param to the params list.
  */
-int
+void
 hypervAddEprParam(hypervInvokeParamsList *params,
                   const char *name,
                   virBuffer *query,
@@ -253,8 +249,6 @@ hypervAddEprParam(hypervInvokeParamsList *params,
     p->epr.query = query;
     p->epr.info = classInfo;
     params->nbParams++;
-
-    return 0;
 }
 
 
@@ -320,11 +314,9 @@ hypervSetEmbeddedProperty(GHashTable *table,
  * Add a GHashTable containing object properties as an embedded param to
  * an invocation list.
  *
- * Upon successful return the @table is consumed and the pointer is cleared out.
- *
- * Returns -1 on failure, 0 on success.
+ * Upon return the @table is consumed and the pointer is cleared out.
  */
-int
+void
 hypervAddEmbeddedParam(hypervInvokeParamsList *params,
                        const char *name,
                        GHashTable **table,
@@ -340,8 +332,6 @@ hypervAddEmbeddedParam(hypervInvokeParamsList *params,
     p->embedded.table = g_steal_pointer(table);
     p->embedded.info = classInfo;
     params->nbParams++;
-
-    return 0;
 }
 
 
@@ -1672,8 +1662,7 @@ hypervImageManagementServiceGetVHDSD(hypervPrivate *priv,
     params = hypervCreateInvokeParamsList("GetVirtualHardDiskSettingData",
                                           MSVM_IMAGEMANAGEMENTSERVICE_SELECTOR,
                                           Msvm_ImageManagementService_WmiInfo);
-    if (hypervAddSimpleParam(params, "Path", vhdPath) < 0)
-        return -1;
+    hypervAddSimpleParam(params, "Path", vhdPath);
 
     if (hypervInvokeMethod(priv, &params, &response) < 0)
         return -1;
@@ -1735,14 +1724,10 @@ hypervMsvmVSMSAddResourceSettings(virDomainPtr domain,
     if (!params)
         return -1;
 
-    if (hypervAddEprParam(params, "AffectedConfiguration",
-                          &eprQuery, Msvm_VirtualSystemSettingData_WmiInfo) < 0)
-        return -1;
+    hypervAddEprParam(params, "AffectedConfiguration",
+                      &eprQuery, Msvm_VirtualSystemSettingData_WmiInfo);
 
-    if (hypervAddEmbeddedParam(params, "ResourceSettings", &resourceSettings, wmiInfo) < 0) {
-        hypervFreeEmbeddedParam(resourceSettings);
-        return -1;
-    }
+    hypervAddEmbeddedParam(params, "ResourceSettings", &resourceSettings, wmiInfo);
 
     if (hypervInvokeMethod(priv, &params, response) < 0)
         return -1;
@@ -1768,10 +1753,7 @@ hypervMsvmVSMSModifyResourceSettings(hypervPrivate *priv,
     if (!params)
         return -1;
 
-    if (hypervAddEmbeddedParam(params, "ResourceSettings", &resourceSettings, wmiInfo) < 0) {
-        hypervFreeEmbeddedParam(resourceSettings);
-        return -1;
-    }
+    hypervAddEmbeddedParam(params, "ResourceSettings", &resourceSettings, wmiInfo);
 
     if (hypervInvokeMethod(priv, &params, NULL) < 0)
         return -1;

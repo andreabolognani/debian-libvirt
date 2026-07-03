@@ -1549,6 +1549,9 @@ typedef enum {
     VIR_CONNECT_GET_DOMAIN_CAPABILITIES_DISABLE_DEPRECATED_FEATURES = (1 << 0),
     /* Report all host model CPU features. (Since: 12.2.0) */
     VIR_CONNECT_GET_DOMAIN_CAPABILITIES_EXPAND_CPU_FEATURES = (1 << 1),
+    /* Report all CPU features supported on the host, even those that will not
+     * be enabled by host-model CPU mode. (Since: 12.5.0) */
+    VIR_CONNECT_GET_DOMAIN_CAPABILITIES_SUPPORTED_CPU_FEATURES = (1 << 2),
 } virConnectGetDomainCapabilitiesFlags;
 
 char * virConnectGetDomainCapabilities(virConnectPtr conn,
@@ -9049,5 +9052,51 @@ virDomainDelThrottleGroup(virDomainPtr dom,
                           const char *group,
                           unsigned int flags);
 
+/**
+ * VIR_DOMAIN_ANNOUNCE_INTERFACE_INITIAL:
+ *
+ * Initial delay in milliseconds before the first announce packet is
+ * sent. If unspecified or 0, a default value of 50 will be used.
+ *
+ * Since: 12.5.0
+ */
+# define VIR_DOMAIN_ANNOUNCE_INTERFACE_INITIAL "initial"
+
+/**
+ * VIR_DOMAIN_ANNOUNCE_INTERFACE_MAX:
+ *
+ * Maximum delay in milliseconds between packets.  If unspecified or 0,
+ * a default value of 550 will be used.
+ *
+ * Since: 12.5.0
+ */
+# define VIR_DOMAIN_ANNOUNCE_INTERFACE_MAX "max"
+
+/**
+ * VIR_DOMAIN_ANNOUNCE_INTERFACE_ROUNDS:
+ *
+ * The number of packets to send. If unspecified or 0, a default value
+ * of 5 will be used.
+ *
+ * Since: 12.5.0
+ */
+# define VIR_DOMAIN_ANNOUNCE_INTERFACE_ROUNDS "rounds"
+
+/**
+ * VIR_DOMAIN_ANNOUNCE_INTERFACE_STEP:
+ *
+ * Increment added to the delay (in milliseconds) after each packet is
+ * sent. If unspecified or 0, a default value of 50 will be used.
+ *
+ * Since: 12.5.0
+ */
+# define VIR_DOMAIN_ANNOUNCE_INTERFACE_STEP "step"
+
+int
+virDomainAnnounceInterface(virDomainPtr dom,
+                           const char *device,
+                           virTypedParameterPtr params,
+                           int nparams,
+                           unsigned int flags);
 
 #endif /* LIBVIRT_DOMAIN_H */

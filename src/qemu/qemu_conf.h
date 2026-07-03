@@ -112,6 +112,7 @@ struct _virQEMUDriverConfig {
     char *passtStateDir;
     char *dbusStateDir;
     char *rdpStateDir;
+    char *vncStateDir;
     /* These two directories are ones QEMU processes use (so must match
      * the QEMU user/group */
     char *libDir;
@@ -198,6 +199,7 @@ struct _virQEMUDriverConfig {
     char *slirpHelperName;
     char *dbusDaemonName;
     char *qemuRdpName;
+    char *qemuVncName;
 
     bool macFilter;
 
@@ -383,7 +385,8 @@ virQEMUDriverGetDomainCapabilities(virQEMUDriver *driver,
                                    virQEMUCaps *qemuCaps,
                                    const char *machine,
                                    virArch arch,
-                                   virDomainVirtType virttype);
+                                   virDomainVirtType virttype,
+                                   unsigned int flags);
 
 int qemuDriverAllocateID(virQEMUDriver *driver);
 virDomainXMLOption *virQEMUDriverCreateXMLConf(virQEMUDriver *driver,

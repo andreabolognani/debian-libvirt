@@ -5601,6 +5601,41 @@ qemuProcessGraphicsSetupRenderNode(virDomainGraphicsDef *graphics,
 }
 
 
+static bool
+qemuHasNonP2PDbusGraphics(virDomainDef *def)
+{
+    size_t i;
+
+    for (i = 0; i < def->ngraphics; i++) {
+        virDomainGraphicsDef *g = def->graphics[i];
+
+        if (g->type == VIR_DOMAIN_GRAPHICS_TYPE_DBUS && !g->data.dbus.p2p)
+            return true;
+    }
+
+    return false;
+}
+
+
+static int
+qemuPrepareGraphicsVnc(virQEMUDriver *driver,
+                       virDomainDef *def,
+                       virDomainGraphicsDef *gfx)
+{
+    g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
+
+    if (!qemuHasNonP2PDbusGraphics(def))
+        return 0;
+
+    if (!qemuVncAvailable(cfg->qemuVncName))
+        return 0;
+
+    QEMU_DOMAIN_GRAPHICS_PRIVATE(gfx)->vnc = qemuVncNew();
+
+    return 0;
+}
+
+
 static int
 qemuProcessSetupGraphics(virQEMUDriver *driver,
                          virDomainObj *vm,
@@ -5621,6 +5656,10 @@ qemuProcessSetupGraphics(virQEMUDriver *driver,
             return -1;
 
         if (qemuProcessGraphicsSetupDBus(driver, graphics, vm) < 0)
+            return -1;
+
+        if (graphics->type == VIR_DOMAIN_GRAPHICS_TYPE_VNC &&
+            qemuPrepareGraphicsVnc(driver, vm->def, graphics) < 0)
             return -1;
     }
 
@@ -5872,56 +5911,6 @@ qemuProcessStartValidate(virQEMUDriver *driver,
 }
 
 
-static int
-qemuProcessStartUpdateCustomCaps(virDomainObj *vm)
-{
-    qemuDomainObjPrivate *priv = vm->privateData;
-    g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(priv->driver);
-    qemuDomainXmlNsDef *nsdef = vm->def->namespaceData;
-    char **next;
-    int tmp;
-
-    if (cfg->capabilityfilters) {
-        for (next = cfg->capabilityfilters; *next; next++) {
-            if ((tmp = virQEMUCapsTypeFromString(*next)) < 0) {
-                virReportError(VIR_ERR_INTERNAL_ERROR,
-                               _("invalid capability_filters capability '%1$s'"),
-                               *next);
-                return -1;
-            }
-
-            virQEMUCapsClear(priv->qemuCaps, tmp);
-        }
-    }
-
-    if (nsdef) {
-        for (next = nsdef->capsadd; next && *next; next++) {
-            if ((tmp = virQEMUCapsTypeFromString(*next)) < 0) {
-                virReportError(VIR_ERR_INTERNAL_ERROR,
-                               _("invalid qemu namespace capability '%1$s'"),
-                               *next);
-                return -1;
-            }
-
-            virQEMUCapsSet(priv->qemuCaps, tmp);
-        }
-
-        for (next = nsdef->capsdel; next && *next; next++) {
-            if ((tmp = virQEMUCapsTypeFromString(*next)) < 0) {
-                virReportError(VIR_ERR_INTERNAL_ERROR,
-                               _("invalid qemu namespace capability '%1$s'"),
-                               *next);
-                return -1;
-            }
-
-            virQEMUCapsClear(priv->qemuCaps, tmp);
-        }
-    }
-
-    return 0;
-}
-
-
 /**
  * qemuProcessPrepareQEMUCaps:
  * @vm: domain object
@@ -5945,11 +5934,8 @@ qemuProcessPrepareQEMUCaps(virDomainObj *vm,
         return -1;
 
     /* Update qemu capabilities according to lists passed in via namespace */
-    if (qemuProcessStartUpdateCustomCaps(vm) < 0)
+    if (qemuDomainUpdateCustomCapabilities(vm->def, priv->qemuCaps, NULL) < 0)
         return -1;
-
-    /* re-process capability lockouts since we might have removed capabilities */
-    virQEMUCapsInitProcessCapsInterlock(priv->qemuCaps);
 
     return 0;
 }
@@ -6186,7 +6172,6 @@ qemuProcessPrepareGraphics(virDomainObj *vm)
         if (gfx->type == VIR_DOMAIN_GRAPHICS_TYPE_RDP &&
             qemuPrepareGraphicsRdp(priv->driver, gfx) < 0)
             return -1;
-
     }
 
     return 0;
@@ -10254,6 +10239,8 @@ static qemuMonitorCallbacks callbacks = {
 static void
 qemuProcessQMPStop(qemuProcessQMP *proc)
 {
+    virErrorPtr err;
+
     if (proc->mon) {
         virObjectUnlock(proc->mon);
         g_clear_pointer(&proc->mon, qemuMonitorClose);
@@ -10270,10 +10257,12 @@ qemuProcessQMPStop(qemuProcessQMP *proc)
     virDomainObjEndAPI(&proc->vm);
 
     if (proc->pid != 0) {
+        virErrorPreserveLast(&err);
         VIR_DEBUG("Killing QMP caps process %lld", (long long)proc->pid);
         virProcessKillPainfully(proc->pid, true);
         virResetLastError();
         proc->pid = 0;
+        virErrorRestore(&err);
     }
 
     if (proc->pidfile)

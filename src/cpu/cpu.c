@@ -1125,18 +1125,6 @@ virCPUConvertLegacy(virArch arch,
 }
 
 
-static int
-virCPUFeatureCompare(const void *p1,
-                     const void *p2,
-                     void *opaque G_GNUC_UNUSED)
-{
-    const virCPUFeatureDef *f1 = p1;
-    const virCPUFeatureDef *f2 = p2;
-
-    return strcmp(f1->name, f2->name);
-}
-
-
 /**
  * virCPUExpandFeatures:
  *
@@ -1168,8 +1156,7 @@ virCPUExpandFeatures(virArch arch,
         driver->expandFeatures(cpu) < 0)
         return -1;
 
-    g_qsort_with_data(cpu->features, cpu->nfeatures, sizeof(*cpu->features),
-                      virCPUFeatureCompare, NULL);
+    virCPUDefSortFeatures(cpu);
 
     VIR_DEBUG("nfeatures=%zu", cpu->nfeatures);
     return 0;
@@ -1369,6 +1356,40 @@ virCPUGetCanonicalModel(virArch arch,
         return NULL;
 
     return driver->getCanonicalModel(model);
+}
+
+
+/** virCPUUpdateFeatures:
+ *
+ * @arch: CPU architecture
+ * @cpu: CPU definition to update
+ * @cpuData: CPU data describing features
+ * @policy: to be used by the updated features
+ *
+ * Updates features described in @cpuData to use the specified @policy. Missing
+ * features will be automatically added to the CPU definition.
+ *
+ * Returns 0 on success, -1 otherwise.
+ */
+int
+virCPUUpdateFeatures(virArch arch,
+                     virCPUDef *cpu,
+                     virCPUData *cpuData,
+                     virCPUFeaturePolicy policy)
+{
+    struct cpuArchDriver *driver;
+
+    VIR_DEBUG("arch=%s, cpu=%p, model=%s, policy=%s",
+              virArchToString(arch), cpu, NULLSTR(cpu->model),
+              virCPUFeaturePolicyTypeToString(policy));
+
+    if (!(driver = cpuGetSubDriver(arch)))
+        return -1;
+
+    if (!driver->updateFeatures)
+        return 0;
+
+    return driver->updateFeatures(cpu, cpuData, policy);
 }
 
 

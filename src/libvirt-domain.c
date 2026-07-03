@@ -3605,11 +3605,13 @@ virDomainMigrateCheckNotLocal(const char *dconnuri)
         return -1;
 
     /*
-     * If someone migrates explicitly to a unix socket, then they have to know
-     * what they are doing and it most probably was not a mistake.
+     * If someone migrates explicitly to a unix socket or an ext command, then
+     * they have to know what they are doing and it most probably was not
+     * a mistake.
      */
     if ((tempuri->server && STRPREFIX(tempuri->server, "localhost")) ||
-        (!tempuri->server && !virURICheckUnixSocket(tempuri))) {
+        (!tempuri->server && !virURICheckUnixSocket(tempuri) &&
+         !virURICheckExtCommand(tempuri))) {
         virReportInvalidArg(dconnuri, "%s",
                             _("Attempt to migrate guest to the same host"));
         return -1;
@@ -7803,11 +7805,11 @@ virDomainSetVcpusFlags(virDomainPtr domain, unsigned int nvcpus,
     virCheckReadOnlyGoto(domain->conn->flags, error);
 
     VIR_REQUIRE_FLAG_GOTO(VIR_DOMAIN_VCPU_MAXIMUM,
-                          VIR_DOMAIN_AFFECT_CONFIG,
+                          VIR_DOMAIN_VCPU_CONFIG,
                           error);
 
     VIR_EXCLUSIVE_FLAGS_GOTO(VIR_DOMAIN_VCPU_GUEST,
-                             VIR_DOMAIN_AFFECT_CONFIG,
+                             VIR_DOMAIN_VCPU_CONFIG,
                              error);
 
     virCheckNonZeroArgGoto(nvcpus, error);
@@ -12353,9 +12355,17 @@ virDomainSetUserPassword(virDomainPtr dom,
  * passthrough and so on.
  *
  * If @flags includes VIR_CONNECT_GET_DOMAIN_CAPABILITIES_EXPAND_CPU_FEATURES,
- * libvirt will explicitly list all CPU features (in host-model CPU definition)
- * that are supported on the host. Without this flag features that are part of
- * the CPU model itself will not be listed.
+ * libvirt will explicitly list all CPU features that will be enabled for
+ * host-model CPU mode. Without this flag features that are part of the CPU
+ * model itself will not be listed.
+ *
+ * Adding VIR_CONNECT_GET_DOMAIN_CAPABILITIES_SUPPORTED_CPU_FEATURES to @flags
+ * tells libvirt to update the host-model CPU definition with features that are
+ * supported on the host, but will not be enabled by default when starting a
+ * domain with host-model CPU. Use both
+ * VIR_CONNECT_GET_DOMAIN_CAPABILITIES_SUPPORTED_CPU_FEATURES and
+ * VIR_CONNECT_GET_DOMAIN_CAPABILITIES_EXPAND_CPU_FEATURES flags to get a
+ * complete list of features that can be enabled on the host.
  *
  * Returns NULL in case of error or an XML string
  * defining the capabilities.
@@ -14306,5 +14316,70 @@ virDomainDelThrottleGroup(virDomainPtr dom,
 
  error:
     virDispatchError(dom->conn);
+    return -1;
+}
+
+
+/**
+ * virDomainAnnounceInterface:
+ * @dom: pointer to domain object
+ * @device: the interface name or mac address, or NULL to announce all interfaces
+ * @params: pointer to typed parameters object
+ * @nparams: number of parameters in @params
+ * @flags: currently unused, pass 0
+ *
+ * Cause this domain to "announce" its network interfaces by injecting
+ * a series of "gratuitous ARP" packets into the outgoing data stream
+ * for the interface matching @device (or all interfaces). This should
+ * cause local switches to direct traffic for that MAC address
+ * correctly after a topology change.
+ *
+ * See VIR_DOMAIN_ANNOUNCE_INTERFACE_* for detailed descriptions of
+ * accepted parameters.
+ *
+ * Returns: 0 on success,
+ *         -1 otherwise.
+ *
+ * Since: 12.5.0
+ */
+int
+virDomainAnnounceInterface(virDomainPtr dom,
+                           const char *device,
+                           virTypedParameterPtr params,
+                           int nparams,
+                           unsigned int flags)
+{
+    virConnectPtr conn;
+
+    VIR_DEBUG("dom=%p, device='%s' params=%p nparams=%d flags=0x%x",
+              dom, NULLSTR(device), params, nparams, flags);
+    VIR_TYPED_PARAMS_DEBUG(params, nparams);
+
+    virResetLastError();
+
+    virCheckDomainReturn(dom, -1);
+
+    conn = dom->conn;
+
+    virCheckReadOnlyGoto(conn->flags, error);
+    if (nparams != 0)
+        virCheckNonNullArgGoto(params, error);
+    else
+        virCheckNullArgGoto(params, error);
+
+    if (virTypedParameterValidateSet(conn, params, nparams) < 0)
+        goto error;
+
+    if (conn->driver->domainAnnounceInterface) {
+        int ret = conn->driver->domainAnnounceInterface(dom, device, params, nparams, flags);
+        if (ret < 0)
+            goto error;
+        return ret;
+    }
+
+    virReportUnsupportedError();
+
+ error:
+    virDispatchError(conn);
     return -1;
 }

@@ -59,6 +59,13 @@ bool qemuRdpAvailable(const char *helper G_GNUC_UNUSED)
 }
 
 
+/* Enough to tell capabilities code that qemu-vnc is usable */
+bool qemuVncAvailable(const char *helper G_GNUC_UNUSED)
+{
+    return true;
+}
+
+
 bool
 virTPMSwtpmSetupCapsGet(virTPMSwtpmSetupFeature cap)
 {
@@ -343,6 +350,8 @@ int qemuTestDriverInit(virQEMUDriver *driver)
     cfg->dbusStateDir = g_strdup("/var/run/libvirt/qemu/dbus");
     VIR_FREE(cfg->rdpStateDir);
     cfg->rdpStateDir = g_strdup("/var/run/libvirt/qemu/rdp");
+    VIR_FREE(cfg->vncStateDir);
+    cfg->vncStateDir = g_strdup("/var/run/libvirt/qemu/vnc");
 
     if (!g_mkdtemp(statedir)) {
         fprintf(stderr, "Cannot create fake stateDir");
@@ -364,7 +373,8 @@ int qemuTestDriverInit(virQEMUDriver *driver)
 
     /* Using /dev/null for libDir and cacheDir automatically produces errors
      * upon attempt to use any of them */
-    driver->qemuCapsCache = virQEMUCapsCacheNew("/dev/null", "/dev/null", 0, 0);
+    driver->qemuCapsCache = virQEMUCapsCacheNew("/dev/null", "/dev/null",
+                                                0, 0, NULL);
     if (!driver->qemuCapsCache)
         goto error;
 

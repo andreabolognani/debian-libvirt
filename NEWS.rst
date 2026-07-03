@@ -8,6 +8,102 @@ the changes introduced by each of them.
 For a more fine-grained view, use the `git log`_.
 
 
+v12.5.0 (2026-07-01)
+====================
+
+* **New features**
+
+  * bhyve: Extend the guest agent support
+
+    The bhyve driver now supports several APIs on top of the guest agent:
+
+     * Getting and setting guest OS SSH keys
+     * Setting guest OS user's password
+     * Getting and setting guest OS time
+
+    Additionally, domain rebooting and shutting down using the agent
+    is now supported.
+
+  * bhyve: Support ``on_reboot`` and ``on_poweroff`` actions
+
+    The bhyve driver now respects the domain's
+    ``on_reboot`` and ``on_poweroff`` actions.
+
+  * bhyve: Support populating SMBIOS fields
+
+    Add support for populating the SMBIOS fields as defined
+    by the ``<sysinfo type='smbios'>`` section of the domain's XML.
+
+  * qemu: Add support for standalone VNC server
+
+    Starting with this release, libvirt might spawn a standalone
+    qemu-vnc process instead of QEMU's built-in VNC server, for
+    enhanced security.
+
+* **Improvements**
+
+  * Enable hyperv driver on RHEL
+
+    The spec file now enables the Hyper-V driver when building on
+    Red Hat Enterprise Linux.
+
+  * remote: allow passing argv to the ext transport
+
+    The ext transport not only allows spawning a process (via the
+    ``command`` attribute), but as of this release also
+    specifying additional arguments to it, via ``argv``
+    attribute.
+
+  * Introduce ``VIR_CONNECT_GET_DOMAIN_CAPABILITIES_SUPPORTED_CPU_FEATURES`` flag
+
+    Some CPU features may be enabled explicitly, but should not automatically
+    become part of a host-model CPU and thus are not normally visible in domain
+    capabilities. Users can now request such features to be shown in the
+    host-model CPU in domain capabilities using the new flag. It is exposed as
+    ``--supported-cpu-features`` option for ``virsh domcapabilities``.
+
+* **Bug fixes**
+
+  * Ensure proper shutdown ordering of ``virtlogd`` and ``virtlockd``
+
+    The logging and locking helper daemons now shutdown after the daemon running
+    the ``qemu`` hypervisor driver since their services may be needed to shutdown
+    the VMs run by the qemu driver.
+
+  * qemu: Record selected ``virtio`` video device model into the XML
+
+    The ``qemu`` driver may depending on platform and installed QEMU modules
+    pick one of two distinct virtio video device types for the primary device.
+
+    The choice was not recorded in the XML and since the devices are incompatible
+    it can cause failures on migration when the destination picks the wrong
+    device. This version thus records the picked device both for running VMs
+    on upgrade and for new devices to prevent this problem in the future.
+
+  * bhyve: Guest agent related fixes
+
+    A few bugs related to the guest agent communication are fixed, from
+    not properly initializing an agent to crashing when the agent
+    socket cannot be opened.
+
+  * Fix domain capabilities on AMD CPUs
+
+    QEMU 10.1 and newer does not automatically enable features from
+    arch-capabilities MSR on AMD CPUs as they are specific for Intel CPUs and
+    KVM is just emulating them on AMD. But advertising them on AMD CPUs can
+    cause Windows guest OS to crash so they are hidden by default now. But the
+    features are still supported and can be enabled explicitly, for example,
+    when migrating existing domains. Libvirt now detects this scenario and
+    properly shows the affected features as enabled in domain capabilities when
+    requested by ``VIR_CONNECT_GET_DOMAIN_CAPABILITIES_SUPPORTED_CPU_FEATURES``
+    flag.
+
+  * vmx: Properly show all 64 disks on a SCSI controller
+
+    Due to an off-by-one error a last, 64th disk was not shown in a domain XML,
+    which is now fixed.
+
+
 v12.4.0 (2026-06-01)
 ====================
 

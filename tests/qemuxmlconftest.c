@@ -916,10 +916,20 @@ testCompareXMLToArgv(const void *data)
         goto cleanup;
     }
 
+    if (info->fdsubsts->errors) {
+        GSList *n;
+
+        for (n = info->fdsubsts->errors; n; n = n->next) {
+            VIR_TEST_VERBOSE("%s", (char *) n->data);
+        }
+
+        goto cleanup;
+    }
+
     if (testCompareXMLToArgvValidateSchema(cmd, info) < 0)
         goto cleanup;
 
-    testCompareXMLToArgvStabilizeArgs(cmd, info->fdsubsts);
+    testCompareXMLToArgvStabilizeArgs(cmd, info->fdsubsts->hints);
 
     if (virCommandToStringBuf(cmd, &actualBuf, true, false) < 0)
         goto cleanup;
@@ -1690,6 +1700,7 @@ mymain(void)
     DO_TEST_CAPS_LATEST_PARSE_ERROR("disk-scsi-product-length");
     DO_TEST_CAPS_LATEST("controller-virtio-scsi");
     DO_TEST_CAPS_LATEST("controller-scsi-auto");
+    DO_TEST_CAPS_LATEST("controller-scsi-inherit-model");
     DO_TEST_FULL("controller-scsi-default-unavailable", ".x86_64-latest",
                  ARG_CAPS_ARCH, "x86_64",
                  ARG_CAPS_VER, "latest",
@@ -1831,6 +1842,10 @@ mymain(void)
     DO_TEST_CAPS_LATEST("graphics-dbus-usbredir");
 
     DO_TEST_CAPS_LATEST("graphics-rdp");
+
+    DO_TEST_CAPS_LATEST("graphics-vnc-standalone");
+    DO_TEST_CAPS_LATEST("graphics-vnc-standalone-socket");
+    DO_TEST_CAPS_LATEST("graphics-vnc-standalone-p2p");
 
     DO_TEST_CAPS_LATEST("input-usbmouse");
     DO_TEST_CAPS_LATEST("input-usbtablet");
@@ -2619,9 +2634,38 @@ mymain(void)
     DO_TEST_CAPS_LATEST("video-virtio-gpu-sdl-gl");
     DO_TEST_CAPS_LATEST("video-virtio-gpu-secondary");
     DO_TEST_CAPS_LATEST("video-virtio-vga");
+    DO_TEST_FULL("video-virtio-vga", ".x86_64-latest.QEMU_CAPS_DEVICE_VIRTIO_VGA-disabled",
+                 ARG_CAPS_ARCH, "x86_64",
+                 ARG_CAPS_VER, "latest",
+                 ARG_QEMU_CAPS_DEL, QEMU_CAPS_DEVICE_VIRTIO_VGA, QEMU_CAPS_LAST,
+                 ARG_END);
+    DO_TEST_CAPS_LATEST("video-virtio-vga-device-downgrade");
     DO_TEST_CAPS_LATEST("video-virtio-blob-on");
     DO_TEST_CAPS_LATEST("video-virtio-blob-off");
     DO_TEST_CAPS_LATEST("video-virtio-vga-gpu-gl");
+    DO_TEST_FULL("video-virtio-vga-gpu-gl", ".x86_64-latest.QEMU_CAPS_VIRTIO_VGA_GL-disabled",
+                 ARG_CAPS_ARCH, "x86_64",
+                 ARG_CAPS_VER, "latest",
+                 ARG_QEMU_CAPS_DEL, QEMU_CAPS_VIRTIO_VGA_GL, QEMU_CAPS_LAST,
+                 ARG_END);
+    DO_TEST_FULL("video-virtio-vga-gpu-gl", ".x86_64-latest.QEMU_CAPS_VIRTIO_VGA_GL-disabled-ABI_UPDATE",
+                 ARG_CAPS_ARCH, "x86_64",
+                 ARG_CAPS_VER, "latest",
+                 ARG_QEMU_CAPS_DEL, QEMU_CAPS_VIRTIO_VGA_GL, QEMU_CAPS_LAST,
+                 ARG_PARSEFLAGS, VIR_DOMAIN_DEF_PARSE_ABI_UPDATE,
+                 ARG_END);
+    DO_TEST_FULL("video-virtio-vga-gpu-gl", ".x86_64-latest.QEMU_CAPS_VIRTIO_GPU_GL_PCI-disabled",
+                 ARG_CAPS_ARCH, "x86_64",
+                 ARG_CAPS_VER, "latest",
+                 ARG_QEMU_CAPS_DEL, QEMU_CAPS_VIRTIO_GPU_GL_PCI, QEMU_CAPS_LAST,
+                 ARG_END);
+    DO_TEST_FULL("video-virtio-vga-gpu-gl", ".x86_64-latest.QEMU_CAPS_VIRTIO_GPU_GL_PCI-disabled-ABI_UPDATE",
+                 ARG_CAPS_ARCH, "x86_64",
+                 ARG_CAPS_VER, "latest",
+                 ARG_QEMU_CAPS_DEL, QEMU_CAPS_VIRTIO_GPU_GL_PCI, QEMU_CAPS_LAST,
+                 ARG_PARSEFLAGS, VIR_DOMAIN_DEF_PARSE_ABI_UPDATE,
+                 ARG_FLAGS, FLAG_EXPECT_PARSE_ERROR,
+                 ARG_END);
     DO_TEST_CAPS_LATEST("video-virtio-edid-none");
     DO_TEST_CAPS_LATEST("video-virtio-edid-off");
     DO_TEST_CAPS_LATEST("video-virtio-edid-on");
