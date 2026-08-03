@@ -617,7 +617,7 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     QEMU_CAPS_MACHINE_CONFIDENTAL_GUEST_SUPPORT, /* -machine confidential-guest-support */
     X_QEMU_CAPS_QUERY_DISPLAY_OPTIONS, /* 'query-display-options' qmp command present */
     QEMU_CAPS_S390_PV_GUEST, /* -object s390-pv-guest,... */
-    QEMU_CAPS_SET_ACTION, /* 'set-action' QMP command */
+    X_QEMU_CAPS_SET_ACTION, /* 'set-action' QMP command */
     QEMU_CAPS_VIRTIO_BLK_QUEUE_SIZE, /* virtio-blk-*.queue-size */
 
     /* 410 */
@@ -741,6 +741,7 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
 
     /* 495 */
     QEMU_CAPS_BLOCKDEV_MIRROR_TARGET_IS_ZERO, /* 'blockdev-mirror' supports 'target-is-zero' */
+    QEMU_CAPS_OBJECT_MONITOR_QMP, /* 'monitor-qmp' -object */
 
     QEMU_CAPS_LAST /* this must always be the last item */
 } virQEMUCapsFlags;

@@ -842,13 +842,13 @@ host/guest with many LUNs. :since:`Since 1.2.8 (QEMU only)`
    ``thread_pool_max`` which allow setting lower and upper boundary for number
    of worker threads for given IOThread. While the former can be value of zero,
    the latter can't. :since:`Since 8.5.0`
-   :since:`Since 9.4.0` an optional sub-element ``poll`` with can be used to
+   :since:`Since 9.4.0` an optional sub-element ``poll`` can be used to
    override the hypervisor-default interval of polling for the iothread before
    it switches back to events. The optional attribute ``max`` sets the maximum
    time polling should be used in nanoseconds. Setting ``max`` to ``0`` disables
    polling. Attributes ``grow`` and ``shrink`` override (or disable when set to
-   ``0`` the default steps for increasing/decreasing the polling interval if
-   the set interval is deemed insufficient or extensive.
+   ``0``) the default steps for increasing/decreasing the polling interval if
+   the set interval is deemed insufficient or excessive.
 ``defaultiothread``
    This element represents the default event loop within hypervisor, where I/O
    requests from devices not assigned to a specific IOThread are processed.
@@ -2044,6 +2044,9 @@ The ``on_crash`` event supports these additional actions :since:`since 0.8.4`.
 ``coredump-restart``
    The crashed domain's core will be dumped, and then the domain will be
    restarted with the same configuration
+``preserve-running``
+   The crashed domain will continue to run. This is useful if the guest OS can
+   do an internal crash dump and reboot itself. :since:`Since 12.6.0`
 
 :since:`Since 3.9.0`, the lifecycle events can be configured via the
 `virDomainSetLifecycleAction <html/libvirt-libvirt-domain.html#virDomainSetLifecycleAction>`__

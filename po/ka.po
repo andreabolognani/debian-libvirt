@@ -9,7 +9,7 @@ msgstr ""
 "Project-Id-Version: libvirt 8.4.0\n"
 "Report-Msgid-Bugs-To: https://libvirt.org/bugs.html\n"
 "POT-Creation-Date: 2026-01-09 09:51+0000\n"
-"PO-Revision-Date: 2026-03-03 10:20+0000\n"
+"PO-Revision-Date: 2026-07-12 03:18+0000\n"
 "Last-Translator: Temuri Doghonadze <temuri.doghonadze@gmail.com>\n"
 "Language-Team: Georgian <https://translate.fedoraproject.org/projects/"
 "libvirt/libvirt/ka/>\n"
@@ -18,7 +18,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=n != 1;\n"
-"X-Generator: Weblate 5.16.1\n"
+"X-Generator: Weblate 2026.7.1\n"
 
 msgid ""
 "\n"
@@ -2496,10 +2496,10 @@ msgid "CPU throttling rate increment for auto-convergence"
 msgstr ""
 
 msgid "CPU time"
-msgstr ""
+msgstr "CPU-ის დრო"
 
 msgid "CPU time:"
-msgstr ""
+msgstr "CPU-ის დრო:"
 
 msgid "CPU topology doesn't match maximum vcpu count"
 msgstr ""
@@ -7058,7 +7058,7 @@ msgid "Failed to create snapshot dir %1$s"
 msgstr ""
 
 msgid "Failed to create socket"
-msgstr ""
+msgstr "სოკეტის შექმნის შეცდომა"
 
 #, c-format
 msgid "Failed to create state dir %1$s"
@@ -7073,7 +7073,7 @@ msgid "Failed to create symlink '%1$s' to '%2$s'"
 msgstr ""
 
 msgid "Failed to create thread"
-msgstr ""
+msgstr "ნაკადის შექმნის შეცდომა"
 
 msgid "Failed to create thread for receiving migration data"
 msgstr ""
@@ -7248,10 +7248,10 @@ msgid "Failed to detach device with alias %1$s"
 msgstr ""
 
 msgid "Failed to detach disk"
-msgstr ""
+msgstr "დისკის მოხსნა ჩავარდა"
 
 msgid "Failed to detach interface"
-msgstr ""
+msgstr "ინტერფეისის მოხსნის შეცდომა"
 
 #, c-format
 msgid "Failed to determine broadcast address for '%1$s/%2$d'"
@@ -11239,7 +11239,7 @@ msgid "Metadata removed"
 msgstr ""
 
 msgid "Metadata:"
-msgstr ""
+msgstr "მეტამონაცემები:"
 
 msgid "MethodFault is missing 'type' property"
 msgstr ""
@@ -14224,7 +14224,7 @@ msgid "Resume operation failed"
 msgstr ""
 
 msgid "Resumed"
-msgstr ""
+msgstr "გაგრძელდა"
 
 msgid "Resuming after dump failed"
 msgstr ""
@@ -17683,7 +17683,7 @@ msgid "Unable to create pipes"
 msgstr ""
 
 msgid "Unable to create socket"
-msgstr ""
+msgstr "სოკეტის შექმნა შეუძლებელია"
 
 #, c-format
 msgid "Unable to create socket object: %1$s"

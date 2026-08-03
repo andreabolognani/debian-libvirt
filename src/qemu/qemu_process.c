@@ -1359,8 +1359,7 @@ qemuProcessHandleGuestPanic(qemuMonitor *mon G_GNUC_UNUSED,
 {
     virObjectLock(vm);
 
-    qemuProcessEventSubmit(vm, QEMU_PROCESS_EVENT_GUESTPANIC,
-                           vm->def->onCrash, 0, info);
+    qemuProcessEventSubmit(vm, QEMU_PROCESS_EVENT_GUESTPANIC, 0, 0, info);
 
     virObjectUnlock(vm);
 }
@@ -6880,42 +6879,6 @@ qemuProcessPrepareDomainHostdevs(virDomainObj *vm,
 }
 
 
-/**
- * qemuProcessRebootAllowed:
- * @def: domain definition
- *
- * This function encapsulates the logic which dictated whether '-no-reboot' was
- * used instead of '-no-shutdown' which is used  QEMU versions which don't
- * support the 'set-action' QMP command.
- */
-bool
-qemuProcessRebootAllowed(const virDomainDef *def)
-{
-    return def->onReboot != VIR_DOMAIN_LIFECYCLE_ACTION_DESTROY ||
-           def->onPoweroff != VIR_DOMAIN_LIFECYCLE_ACTION_DESTROY ||
-           (def->onCrash != VIR_DOMAIN_LIFECYCLE_ACTION_DESTROY &&
-            def->onCrash != VIR_DOMAIN_LIFECYCLE_ACTION_COREDUMP_DESTROY);
-}
-
-
-static void
-qemuProcessPrepareAllowReboot(virDomainObj *vm)
-{
-    virDomainDef *def = vm->def;
-    qemuDomainObjPrivate *priv = vm->privateData;
-
-    /* with 'set-action' QMP command we don't need to keep this around as
-     * we always update qemu with the proper state */
-    if (virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_SET_ACTION))
-        return;
-
-    if (priv->allowReboot != VIR_TRISTATE_BOOL_ABSENT)
-        return;
-
-    priv->allowReboot = virTristateBoolFromBool(qemuProcessRebootAllowed(def));
-}
-
-
 static int
 qemuProcessUpdateSEVInfo(virDomainObj *vm)
 {
@@ -7086,8 +7049,6 @@ qemuProcessPrepareDomain(virQEMUDriver *driver,
 
     /* Track if this domain remembers original owner */
     priv->rememberOwner = cfg->rememberOwner;
-
-    qemuProcessPrepareAllowReboot(vm);
 
     /*
      * Normally PCI addresses are assigned in the virDomainCreate
@@ -8214,24 +8175,45 @@ qemuProcessSetupLifecycleActions(virDomainObj *vm,
                                  virDomainAsyncJob asyncJob)
 {
     qemuDomainObjPrivate *priv = vm->privateData;
+    qemuMonitorActionShutdown shutdown = QEMU_MONITOR_ACTION_SHUTDOWN_KEEP;
+    qemuMonitorActionReboot reboot = QEMU_MONITOR_ACTION_REBOOT_KEEP;
+    qemuMonitorActionWatchdog watchdog = QEMU_MONITOR_ACTION_WATCHDOG_KEEP;
+    qemuMonitorActionPanic panic = QEMU_MONITOR_ACTION_PANIC_KEEP;
     int rc;
-
-    if (!(virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_SET_ACTION)))
-        return 0;
 
     /* for now we handle only onReboot->destroy here as an alternative to
      * '-no-reboot' on the commandline */
-    if (vm->def->onReboot != VIR_DOMAIN_LIFECYCLE_ACTION_DESTROY)
+    if (vm->def->onReboot == VIR_DOMAIN_LIFECYCLE_ACTION_DESTROY)
+        reboot = QEMU_MONITOR_ACTION_REBOOT_SHUTDOWN;
+
+    switch (vm->def->onCrash) {
+    case VIR_DOMAIN_LIFECYCLE_ACTION_PRESERVE_RUNNING:
+        panic = QEMU_MONITOR_ACTION_PANIC_NONE;
+        break;
+
+    case VIR_DOMAIN_LIFECYCLE_ACTION_DESTROY:
+    case VIR_DOMAIN_LIFECYCLE_ACTION_RESTART:
+    case VIR_DOMAIN_LIFECYCLE_ACTION_PRESERVE:
+    case VIR_DOMAIN_LIFECYCLE_ACTION_RESTART_RENAME:
+    case VIR_DOMAIN_LIFECYCLE_ACTION_COREDUMP_DESTROY:
+    case VIR_DOMAIN_LIFECYCLE_ACTION_COREDUMP_RESTART:
+        panic = QEMU_MONITOR_ACTION_PANIC_PAUSE;
+        break;
+
+    case VIR_DOMAIN_LIFECYCLE_ACTION_LAST:
+        break;
+    }
+
+    if (shutdown == QEMU_MONITOR_ACTION_SHUTDOWN_KEEP &&
+        reboot == QEMU_MONITOR_ACTION_REBOOT_KEEP &&
+        watchdog == QEMU_MONITOR_ACTION_WATCHDOG_KEEP &&
+        panic == QEMU_MONITOR_ACTION_PANIC_KEEP)
         return 0;
 
     if (qemuDomainObjEnterMonitorAsync(vm, asyncJob) < 0)
         return -1;
 
-    rc = qemuMonitorSetAction(priv->mon,
-                              QEMU_MONITOR_ACTION_SHUTDOWN_KEEP,
-                              QEMU_MONITOR_ACTION_REBOOT_SHUTDOWN,
-                              QEMU_MONITOR_ACTION_WATCHDOG_KEEP,
-                              QEMU_MONITOR_ACTION_PANIC_KEEP);
+    rc = qemuMonitorSetAction(priv->mon, shutdown, reboot, watchdog, panic);
 
     qemuDomainObjExitMonitor(vm);
     if (rc < 0)
@@ -9909,10 +9891,6 @@ qemuProcessReconnect(void *opaque)
     if (qemuExtDevicesInitPaths(cfg, obj->def) < 0)
         goto error;
 
-    /* If we are connecting to a guest started by old libvirt there is no
-     * allowReboot in status XML and we need to initialize it. */
-    qemuProcessPrepareAllowReboot(obj);
-
     if (qemuHostdevUpdateActiveDomainDevices(driver, obj->def) < 0)
         goto error;
 
@@ -10147,9 +10125,7 @@ qemuProcessReconnect(void *opaque)
          * domain crashed; otherwise, if the monitor was started,
          * then we can blame ourselves, else we failed before the
          * monitor started so we don't really know. */
-        if (!priv->mon && tryMonReconn &&
-            (priv->allowReboot == VIR_TRISTATE_BOOL_YES ||
-             virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_SET_ACTION)))
+        if (!priv->mon && tryMonReconn)
             state = VIR_DOMAIN_SHUTOFF_CRASHED;
         else if (priv->mon)
             state = VIR_DOMAIN_SHUTOFF_DAEMON;
