@@ -19,7 +19,7 @@ export DPKG_GENSYMBOLS_CHECK_LEVEL
 include debian/arches.mk
 
 ifeq ($(DEB_HOST_ARCH_OS), linux)
-    WITH_DAEMONS              = -Ddriver_libvirtd=enabled -Dhost_validate=enabled -Dssh_proxy=enabled
+    WITH_DAEMONS              = -Ddriver_libvirtd=enabled -Dlibvirtd=enabled -Dhost_validate=enabled -Dssh_proxy=enabled
     WITH_ESX                  = -Ddriver_esx=enabled -Dcurl=enabled
     WITH_VMWARE               = -Ddriver_vmware=enabled
     WITH_STORAGE_FS           = -Dstorage_fs=enabled
@@ -57,7 +57,7 @@ ifeq ($(DEB_HOST_ARCH_OS), linux)
     WITH_LXC                  = -Ddriver_lxc=enabled
     WITH_LOGIN_SHELL          = -Dlogin_shell=enabled
 else
-    WITH_DAEMONS              = -Ddriver_libvirtd=disabled -Dhost_validate=disabled -Dssh_proxy=disabled
+    WITH_DAEMONS              = -Ddriver_libvirtd=disabled -Dlibvirtd=disabled -Dhost_validate=disabled -Dssh_proxy=disabled
     WITH_ESX                  = -Ddriver_esx=disabled -Dcurl=disabled
     WITH_VMWARE               = -Ddriver_vmware=disabled
     WITH_STORAGE_FS           = -Dstorage_fs=disabled
