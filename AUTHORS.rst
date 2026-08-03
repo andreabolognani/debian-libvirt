@@ -446,6 +446,7 @@ Patches have also been contributed by:
 * Henning Schild <henning.schild@siemens.com>
 * Henrik Persson E <henrik.e.persson@ericsson.com>
 * Hero Phương <herophuong93@gmail.com>
+* HE WEI（ギカク） <skyexpoc@gmail.com>
 * hexin <hexin15@baidu.com>
 * Hiroki Narukawa <hnarukaw@yahoo-corp.jp>
 * Hongbin Lu <hongbin034@gmail.com>
@@ -476,6 +477,7 @@ Patches have also been contributed by:
 * Ivan Kardykov <kardykov@tabit.pro>
 * Ivan Teterevkov <ivan.teterevkov@nutanix.com>
 * Jaak Ristioja <jaak@ristioja.ee>
+* Jaehoon Kim <jhkim@linux.ibm.com>
 * Jakob Meng <jakobmeng@web.de>
 * Jakub Kuczys <me@jacken.men>
 * Jakub Palacky <jpalacky@redhat.com>
@@ -552,6 +554,7 @@ Patches have also been contributed by:
 * Jonathon Jongsma <jjongsma@redhat.com>
 * Jon Kohler <jon@nutanix.com>
 * joo es <jonnyse@users.noreply.translate.fedoraproject.org>
+* Jordan Petridis <jpetridis@gnome.org>
 * Josh Durgin <josh.durgin@inktank.com>
 * Josh Stone <jistone@redhat.com>
 * Jovanka Gulicoska <jovanka.gulicoska@gmail.com>
@@ -699,6 +702,7 @@ Patches have also been contributed by:
 * Menno Lageman <menno.lageman@oracle.com>
 * Michael Ablassmeier <abi@grinser.de>
 * Michael Avdienko <whitearchey@gmail.com>
+* Michael Bommarito <michael.bommarito@gmail.com>
 * Michael Chapman <mike@very.puzzling.org>
 * Michael Ellerman <michael@ellerman.id.au>
 * Michael R. Hines <mrhines@us.ibm.com>
@@ -758,6 +762,7 @@ Patches have also been contributed by:
 * Nikolay Shirokovskiy <nshirokovskiy@virtuozzo.com>
 * Nikos Mavrogiannopoulos <nmav@redhat.com>
 * Nikunj A. Dadhania <nikunj@linux.vnet.ibm.com>
+* Nimish Jain <unauthorizen@gmail.com>
 * ning.bo <ning.bo9@zte.com.cn>
 * Nishank Trivedi <nistrive@cisco.com>
 * Nishith Shah <nishithshah.2211@gmail.com>

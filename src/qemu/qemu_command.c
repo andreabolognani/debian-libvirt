@@ -5357,8 +5357,21 @@ qemuBuildMonitorCommandLine(virCommand *cmd,
                                 priv->qemuCaps) < 0)
         return -1;
 
-    virCommandAddArg(cmd, "-mon");
-    virCommandAddArg(cmd, "chardev=charmonitor,id=monitor,mode=control");
+    if (virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_OBJECT_MONITOR_QMP)) {
+        g_autoptr(virJSONValue) props = NULL;
+
+        if (qemuMonitorCreateObjectProps(&props, "monitor-qmp",
+                                         "monitor",
+                                         "s:chardev", "charmonitor",
+                                         NULL) < 0)
+            return -1;
+
+        if (qemuBuildObjectCommandlineFromJSON(cmd, props) < 0)
+            return -1;
+    } else {
+        virCommandAddArg(cmd, "-mon");
+        virCommandAddArg(cmd, "chardev=charmonitor,id=monitor,mode=control");
+    }
 
     return 0;
 }
@@ -6171,16 +6184,9 @@ qemuBuildPMCommandLine(virCommand *cmd,
 {
     virQEMUCaps *qemuCaps = priv->qemuCaps;
 
-    if (virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_SET_ACTION)) {
-        /* with new qemu we always want '-no-shutdown' on startup and we set
-         * all the other behaviour later during startup */
-        virCommandAddArg(cmd, "-no-shutdown");
-    } else {
-        if (priv->allowReboot == VIR_TRISTATE_BOOL_NO)
-            virCommandAddArg(cmd, "-no-reboot");
-        else
-            virCommandAddArg(cmd, "-no-shutdown");
-    }
+    /* with new qemu we always want '-no-shutdown' on startup and we set
+     * all the other behaviour later during startup */
+    virCommandAddArg(cmd, "-no-shutdown");
 
     /* Use old syntax of -no-acpi only if qemu didn't report that it supports the
      * new syntax */

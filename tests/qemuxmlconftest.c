@@ -2367,6 +2367,10 @@ mymain(void)
 
     /* host-model cpu expansion depends on the cpu reported by qemu and thus
      * we invoke it for all real capability dumps we have */
+
+    /* these test cases also test the old style of QMP monitor specification
+     * via '-mon' option which was replaced starting from qemu-11.1 with a
+     * QMP object */
     DO_TEST_CAPS_VER("cpu-host-model-kvm", "7.2.0");
     DO_TEST_CAPS_VER("cpu-host-model-kvm", "8.0.0");
     DO_TEST_CAPS_VER("cpu-host-model-kvm", "8.1.0");
@@ -3189,6 +3193,7 @@ mymain(void)
 
     DO_TEST_CAPS_LATEST("crypto-builtin");
 
+    /* this test case also tests 'preserve-running' onCrash action */
     DO_TEST_CAPS_LATEST("async-teardown");
     DO_TEST_CAPS_ARCH_LATEST("s390-async-teardown", "s390x");
     DO_TEST_CAPS_ARCH_LATEST("s390-async-teardown-no-attrib", "s390x");

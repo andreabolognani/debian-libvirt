@@ -1,6 +1,6 @@
 project(
   'libvirt', 'c',
-  version: '12.5.0',
+  version: '12.6.0',
   license: 'LGPLv2+',
   meson_version: '>= 0.57.0',
   default_options: [
@@ -21,7 +21,7 @@ po_dir = meson.project_source_root() / 'po'
 
 # figure out if we are building from git
 
-git = run_command('test', '-e', '.git', check: false).returncode() == 0
+git = run_command('test', '-d', '.git', check: false).returncode() == 0
 
 if git and not get_option('no_git')
   run_command('git', 'submodule', 'update', '--init', check: true)
@@ -1483,7 +1483,6 @@ if udev_dep.found() and not pciaccess_dep.found()
   error('You must install the pciaccess module to build with udev')
 endif
 
-
 # build driver options
 
 remote_default_mode = get_option('remote_default_mode')
@@ -1511,6 +1510,10 @@ if not get_option('driver_libvirtd').disabled()
   if use_libvirtd
     conf.set('WITH_LIBVIRTD', 1)
   endif
+endif
+
+if not get_option('libvirtd').disabled() and conf.has('WITH_LIBVIRTD')
+  conf.set('WITH_MONOLITHIC_LIBVIRTD', 1)
 endif
 
 if not get_option('driver_bhyve').disabled() and host_machine.system() == 'freebsd'
@@ -2252,6 +2255,7 @@ driver_summary = {
   'Libvirtd': conf.has('WITH_LIBVIRTD'),
   'libxl': conf.has('WITH_LIBXL'),
   'LXC': conf.has('WITH_LXC'),
+  'Monolithic libvirtd': conf.has('WITH_MONOLITHIC_LIBVIRTD'),
   'Network': conf.has('WITH_NETWORK'),
   'OpenVZ': conf.has('WITH_OPENVZ'),
   'QEMU': conf.has('WITH_QEMU'),

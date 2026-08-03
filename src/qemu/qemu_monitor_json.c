@@ -214,7 +214,7 @@ qemuMonitorJSONIOProcessLine(qemuMonitor *mon,
 {
     g_autoptr(virJSONValue) obj = NULL;
 
-    VIR_DEBUG("Line [%s]", line);
+    VIR_DEBUG("mon=0x%p line=[%s]", mon, line);
 
     if (!(obj = virJSONValueFromString(line)))
         return -1;
@@ -7860,28 +7860,6 @@ qemuMonitorJSONSetBlockThreshold(qemuMonitor *mon,
     if (!(cmd = qemuMonitorJSONMakeCommand("block-set-write-threshold",
                                            "s:node-name", nodename,
                                            "U:write-threshold", threshold,
-                                           NULL)))
-        return -1;
-
-    if (qemuMonitorJSONCommand(mon, cmd, &reply) < 0)
-        return -1;
-
-    if (qemuMonitorJSONCheckError(cmd, reply) < 0)
-        return -1;
-
-    return 0;
-}
-
-
-int
-qemuMonitorJSONSetWatchdogAction(qemuMonitor *mon,
-                                 const char *action)
-{
-    g_autoptr(virJSONValue) cmd = NULL;
-    g_autoptr(virJSONValue) reply = NULL;
-
-    if (!(cmd = qemuMonitorJSONMakeCommand("watchdog-set-action",
-                                           "s:action", action,
                                            NULL)))
         return -1;
 

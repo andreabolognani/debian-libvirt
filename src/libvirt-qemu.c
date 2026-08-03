@@ -51,6 +51,9 @@ VIR_LOG_INIT("libvirt-qemu");
  *     libvirt is possible as a means to test new QEMU features before
  *     they have support in libvirt, but no guarantees are made to safety
  *
+ * QEMU expects the command @cmd to be in the QMP format which is documented at
+ * https://www.qemu.org/docs/master/interop/qmp-spec.html
+ *
  * If VIR_DOMAIN_QEMU_MONITOR_COMMAND_HMP is set, the command is
  * considered to be a human monitor command and libvirt will automatically
  * convert it into QMP if needed.  In that case the @result will also
@@ -122,6 +125,9 @@ virDomainQemuMonitorCommand(virDomainPtr domain, const char *cmd,
  *   - A @cmd that alters state not tracked by the current version of
  *     libvirt is possible as a means to test new QEMU features before
  *     they have support in libvirt, but no guarantees are made to safety
+ *
+ * QEMU expects the command @cmd to be in the QMP format which is documented at
+ * https://www.qemu.org/docs/master/interop/qmp-spec.html
  *
  * If VIR_DOMAIN_QEMU_MONITOR_COMMAND_HMP is set, the command is
  * considered to be a human monitor command and libvirt will automatically
@@ -196,6 +202,9 @@ virDomainQemuMonitorCommandWithFiles(virDomainPtr domain,
  * @pid_value: the UNIX process ID of the external QEMU process
  * @flags: optional flags, currently unused
  *
+ * This API is not functional since libvirt 5.5.0 as support in the QEMU driver
+ * was removed.
+ *
  * This API is QEMU specific, so it will only work with hypervisor
  * connections to the QEMU driver.
  *
@@ -269,6 +278,11 @@ virDomainQemuAttach(virConnectPtr conn,
  * Execute an arbitrary Guest Agent command.
  *
  * Issue @cmd to the guest agent running in @domain.
+ *
+ * The QEMU guest agent expects the command @cmd to be in the QEMU Guest Agent
+ * Protocol format documented at:
+ * https://www.qemu.org/docs/master/interop/qemu-ga-ref.html
+ *
  * @timeout must be -2, -1, 0 or positive.
  * VIR_DOMAIN_QEMU_AGENT_COMMAND_BLOCK(-2): meaning to block forever waiting for
  * a result.
@@ -276,7 +290,8 @@ virDomainQemuAttach(virConnectPtr conn,
  * VIR_DOMAIN_QEMU_AGENT_COMMAND_NOWAIT(0): does not wait.
  * positive value: wait for @timeout seconds
  *
- * Returns strings if success, NULL in failure.
+ * Returns string containing the verbatim reply from the guest agent on
+ * success, NULL on failure.
  *
  * Since: 0.10.0
  */

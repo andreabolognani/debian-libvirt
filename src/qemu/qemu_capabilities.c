@@ -643,7 +643,7 @@ VIR_ENUM_IMPL(virQEMUCaps,
               "confidential-guest-support", /* QEMU_CAPS_MACHINE_CONFIDENTAL_GUEST_SUPPORT */
               "query-display-options", /* X_QEMU_CAPS_QUERY_DISPLAY_OPTIONS */
               "s390-pv-guest", /* QEMU_CAPS_S390_PV_GUEST */
-              "set-action", /* QEMU_CAPS_SET_ACTION */
+              "set-action", /* X_QEMU_CAPS_SET_ACTION */
               "virtio-blk.queue-size", /* QEMU_CAPS_VIRTIO_BLK_QUEUE_SIZE */
 
               /* 410 */
@@ -767,6 +767,7 @@ VIR_ENUM_IMPL(virQEMUCaps,
 
               /* 495 */
               "blockdev-mirror.target-is-zero", /* QEMU_CAPS_BLOCKDEV_MIRROR_TARGET_IS_ZERO */
+              "object-monitor-qmp", /* QEMU_CAPS_OBJECT_MONITOR_QMP */
     );
 
 
@@ -1288,7 +1289,6 @@ struct virQEMUCapsStringFlags virQEMUCapsCommands[] = {
     { "query-cpu-definitions", QEMU_CAPS_QUERY_CPU_DEFINITIONS },
     { "query-cpu-model-baseline", QEMU_CAPS_QUERY_CPU_MODEL_BASELINE },
     { "query-cpu-model-comparison", QEMU_CAPS_QUERY_CPU_MODEL_COMPARISON },
-    { "set-action", QEMU_CAPS_SET_ACTION },
     { "query-dirty-rate", QEMU_CAPS_QUERY_DIRTY_RATE },
     { "sev-inject-launch-secret", QEMU_CAPS_SEV_INJECT_LAUNCH_SECRET },
     { "calc-dirty-rate", QEMU_CAPS_CALC_DIRTY_RATE },
@@ -1480,6 +1480,7 @@ struct virQEMUCapsStringFlags virQEMUCapsObjectTypes[] = {
     { "iommufd", QEMU_CAPS_OBJECT_IOMMUFD },
     { "uefi-vars-x64", QEMU_CAPS_DEVICE_UEFI_VARS },
     { "uefi-vars-sysbus", QEMU_CAPS_DEVICE_UEFI_VARS },
+    { "monitor-qmp", QEMU_CAPS_OBJECT_MONITOR_QMP },
 };
 
 

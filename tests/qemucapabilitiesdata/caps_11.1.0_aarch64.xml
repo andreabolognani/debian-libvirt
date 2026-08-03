@@ -122,7 +122,6 @@
   <flag name='input-linux'/>
   <flag name='virtio-gpu-gl-pci'/>
   <flag name='confidential-guest-support'/>
-  <flag name='set-action'/>
   <flag name='virtio-blk.queue-size'/>
   <flag name='virtio-mem-pci'/>
   <flag name='memory-backend-file.reserve'/>
@@ -188,9 +187,10 @@
   <flag name='uefi-vars'/>
   <flag name='query-block-flat'/>
   <flag name='blockdev-mirror.target-is-zero'/>
-  <version>11000050</version>
+  <flag name='object-monitor-qmp'/>
+  <version>11000090</version>
   <microcodeVersion>61700287</microcodeVersion>
-  <package>v11.0.0-1600-g5611a9268d</package>
+  <package>v11.1.0-rc0</package>
   <arch>aarch64</arch>
   <hostCPU type='kvm' model='host' migratability='no'>
     <property name='sve768' type='boolean' value='false'/>
