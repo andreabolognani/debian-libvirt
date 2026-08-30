@@ -23,6 +23,7 @@ backport/network-reject-line-breaks-before-writing-dnsmasq-DNS-con.patch
 backport/tests-cover-line-break-rejection-in-DNS-TXT-and-SRV-recor.patch
 backport/src-fix-crash-searching-for-XML-context-string-on-errors.patch
 backport/util-virFileChownFiles-do-not-follow-symlinks.patch
+backport/storage-create-images-with-a-private-umask-during-qemu-im.patch
 debian/Debianize-libvirt-guests.patch
 debian/apparmor_profiles_local_include.patch
 debian/Use-sensible-editor-by-default.patch
