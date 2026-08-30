@@ -1,3 +1,29 @@
+libvirt (11.3.0-3+deb13u3) trixie; urgency=medium
+
+  * [7061212] patches: Add backports
+    - backport/qemuMonitorJSONMigrate-Drop-detach-QMP-option.patch
+      - Closes: #1145836
+  * [eaa378a] patches: Add backports
+    - backport/remote-Fix-integer-overflow-in-RPC-handler-[...]
+      - CVE-2026-18917
+  * [1b35d45] patches: Add backports
+    - backport/conf-reject-line-breaks-in-DNS-TXT-record-[...]
+    - backport/conf-reject-line-breaks-in-DNS-SRV-domain-[...]
+    - backport/network-reject-line-breaks-before-writing-[...]
+    - backport/tests-cover-line-break-rejection-in-DNS-[...]
+      - CVE-2026-61477
+  * [4378d69] patches: Add backports
+    - backport/src-fix-crash-searching-for-XML-context-string-[...]
+      - CVE-2026-61478
+  * [fd7eaa5] patches: Add backports
+    - backport/util-virFileChownFiles-do-not-follow-symlinks.patch
+      - CVE-2026-63622
+  * [eccf219] patches: Add backports
+    - backport/storage-create-images-with-a-private-umask-[...]
+      - CVE-2026-63623
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Sun, 30 Aug 2026 15:59:50 +0200
+
 libvirt (11.3.0-3+deb13u2) trixie; urgency=medium
 
   * [c5ef2ce] patches: Add backports
