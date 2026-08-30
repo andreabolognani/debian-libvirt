@@ -1,0 +1,45 @@
+From: Michael Bommarito <michael.bommarito@gmail.com>
+Date: Fri, 10 Jul 2026 07:06:59 -0400
+Subject: conf: reject line breaks in DNS SRV domain and target
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+The <dns><srv> domain and target attributes flow through the same
+dnsmasq configuration emitter as TXT values, written into srv-host=
+lines. Like the TXT value they accept XML numeric character
+references for LF and CR and are not otherwise constrained, unlike
+service and protocol which already have allow-lists. An embedded
+line break ends the srv-host= directive and begins a new one.
+
+Reject LF and CR in the SRV domain and target during XML parsing,
+reusing the helper added for TXT values.
+
+CVE-2026-61477
+
+Fixes: 6612d1adb794 ("network: fix problems with SRV records")
+Reviewed-by: Daniel P. Berrangé <berrange@redhat.com>
+Signed-off-by: Michael Bommarito <michael.bommarito@gmail.com>
+(cherry picked from commit 289ffa796d737a79a4c05d07232ebd75def9a12a)
+
+Forwarded: not-needed
+Origin: https://gitlab.com/libvirt/libvirt/-/commits/289ffa796d737a79a4c05d07232ebd75def9a12a
+---
+ src/conf/network_conf.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/src/conf/network_conf.c b/src/conf/network_conf.c
+index 9c3cd2a..24c629b 100644
+--- a/src/conf/network_conf.c
++++ b/src/conf/network_conf.c
+@@ -792,6 +792,10 @@ virNetworkDNSSrvDefParseXML(const char *networkName,
+     def->domain = virXMLPropString(node, "domain");
+     def->target = virXMLPropString(node, "target");
+ 
++    if (virNetworkDNSDefCheckLineBreaks("SRV", "domain", def->domain) < 0 ||
++        virNetworkDNSDefCheckLineBreaks("SRV", "target", def->target) < 0)
++        goto error;
++
+     ret = virXPathUInt("string(./@port)", ctxt, &def->port);
+     if (ret >= 0 && !def->target) {
+         virReportError(VIR_ERR_XML_DETAIL,

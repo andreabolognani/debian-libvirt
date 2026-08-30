@@ -1,0 +1,197 @@
+From: Michael Bommarito <michael.bommarito@gmail.com>
+Date: Fri, 10 Jul 2026 07:07:01 -0400
+Subject: tests: cover line-break rejection in DNS TXT and SRV records
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+Add negative tests that feed XML numeric character references for LF
+(&#10;) and CR (&#13;) into the DNS TXT value and SRV domain/target
+attributes, covering both the network XML parse path and the update
+API. Literal newlines are insufficient because XML parsers normalize
+raw attribute whitespace to spaces; the numeric references are what
+survive to the configuration emitter.
+
+CVE-2026-61477
+
+Reviewed-by: Daniel P. Berrangé <berrange@redhat.com>
+Signed-off-by: Michael Bommarito <michael.bommarito@gmail.com>
+(cherry picked from commit 3cfc77963b512d809348fca07f97fe924fac9a05)
+
+Forwarded: not-needed
+Origin: https://gitlab.com/libvirt/libvirt/-/commits/3cfc77963b512d809348fca07f97fe924fac9a05
+---
+ .../nat-network-dns-srv-record-domain-newline.xml          | 14 ++++++++++++++
+ .../nat-network-dns-srv-record-target-newline.xml          | 14 ++++++++++++++
+ .../nat-network-dns-txt-record-newline.xml}                | 11 ++++++-----
+ tests/networkxml2xmltest.c                                 |  3 +++
+ tests/networkxml2xmlupdatein/dns-txt-record-newline.xml    |  1 +
+ tests/networkxml2xmlupdatein/srv-record-target-newline.xml |  1 +
+ tests/networkxml2xmlupdatetest.c                           | 12 ++++++++++++
+ tests/virschematest.c                                      | 11 ++++++++++-
+ 8 files changed, 61 insertions(+), 6 deletions(-)
+ create mode 100644 tests/networkxml2confdata/nat-network-dns-srv-record-domain-newline.xml
+ create mode 100644 tests/networkxml2confdata/nat-network-dns-srv-record-target-newline.xml
+ copy tests/{networkxml2xmlout/netboot-proxy-network.xml => networkxml2confdata/nat-network-dns-txt-record-newline.xml} (52%)
+ create mode 100644 tests/networkxml2xmlupdatein/dns-txt-record-newline.xml
+ create mode 100644 tests/networkxml2xmlupdatein/srv-record-target-newline.xml
+
+diff --git a/tests/networkxml2confdata/nat-network-dns-srv-record-domain-newline.xml b/tests/networkxml2confdata/nat-network-dns-srv-record-domain-newline.xml
+new file mode 100644
+index 0000000..2a1a5e4
+--- /dev/null
++++ b/tests/networkxml2confdata/nat-network-dns-srv-record-domain-newline.xml
+@@ -0,0 +1,14 @@
++<network>
++  <name>default</name>
++  <uuid>81ff0d90-c91e-6742-64da-4a736edb9a9b</uuid>
++  <forward dev='eth1' mode='nat'/>
++  <bridge name='virbr0' stp='on' delay='0'/>
++  <dns>
++    <srv service='ldap' protocol='tcp' domain='example.com&#13;dhcp-script=/tmp/payload' target='server.example.com'/>
++  </dns>
++  <ip address='192.168.122.1' netmask='255.255.255.0'>
++    <dhcp>
++      <range start='192.168.122.2' end='192.168.122.254'/>
++    </dhcp>
++  </ip>
++</network>
+diff --git a/tests/networkxml2confdata/nat-network-dns-srv-record-target-newline.xml b/tests/networkxml2confdata/nat-network-dns-srv-record-target-newline.xml
+new file mode 100644
+index 0000000..f3f722a
+--- /dev/null
++++ b/tests/networkxml2confdata/nat-network-dns-srv-record-target-newline.xml
+@@ -0,0 +1,14 @@
++<network>
++  <name>default</name>
++  <uuid>81ff0d90-c91e-6742-64da-4a736edb9a9b</uuid>
++  <forward dev='eth1' mode='nat'/>
++  <bridge name='virbr0' stp='on' delay='0'/>
++  <dns>
++    <srv service='ldap' protocol='tcp' domain='example.com' target='server.example.com&#10;dhcp-script=/tmp/payload'/>
++  </dns>
++  <ip address='192.168.122.1' netmask='255.255.255.0'>
++    <dhcp>
++      <range start='192.168.122.2' end='192.168.122.254'/>
++    </dhcp>
++  </ip>
++</network>
+diff --git a/tests/networkxml2xmlout/netboot-proxy-network.xml b/tests/networkxml2confdata/nat-network-dns-txt-record-newline.xml
+similarity index 52%
+copy from tests/networkxml2xmlout/netboot-proxy-network.xml
+copy to tests/networkxml2confdata/nat-network-dns-txt-record-newline.xml
+index a5b7c1e..02408a1 100644
+--- a/tests/networkxml2xmlout/netboot-proxy-network.xml
++++ b/tests/networkxml2confdata/nat-network-dns-txt-record-newline.xml
+@@ -1,13 +1,14 @@
+ <network>
+-  <name>netboot</name>
++  <name>default</name>
+   <uuid>81ff0d90-c91e-6742-64da-4a736edb9a9b</uuid>
+-  <forward mode='nat'/>
+-  <bridge name='virbr1' stp='off' delay='1'/>
+-  <domain name='example.com'/>
++  <forward dev='eth1' mode='nat'/>
++  <bridge name='virbr0' stp='on' delay='0'/>
++  <dns>
++    <txt name='example' value='example value&#10;dhcp-script=/tmp/payload'/>
++  </dns>
+   <ip address='192.168.122.1' netmask='255.255.255.0'>
+     <dhcp>
+       <range start='192.168.122.2' end='192.168.122.254'/>
+-      <bootp file='pxeboot.img' server='10.20.30.40'/>
+     </dhcp>
+   </ip>
+ </network>
+diff --git a/tests/networkxml2xmltest.c b/tests/networkxml2xmltest.c
+index 0783d84..c828c72 100644
+--- a/tests/networkxml2xmltest.c
++++ b/tests/networkxml2xmltest.c
+@@ -126,7 +126,10 @@ mymain(void)
+     DO_TEST("netboot-proxy-network");
+     DO_TEST("netboot-tftp");
+     DO_TEST("nat-network-dns-txt-record");
++    DO_TEST_PARSE_ERROR("nat-network-dns-txt-record-newline");
+     DO_TEST("nat-network-dns-srv-record");
++    DO_TEST_PARSE_ERROR("nat-network-dns-srv-record-domain-newline");
++    DO_TEST_PARSE_ERROR("nat-network-dns-srv-record-target-newline");
+     DO_TEST("nat-network-dns-srv-records");
+     DO_TEST("nat-network-dns-srv-record-minimal");
+     DO_TEST("nat-network-dns-hosts");
+diff --git a/tests/networkxml2xmlupdatein/dns-txt-record-newline.xml b/tests/networkxml2xmlupdatein/dns-txt-record-newline.xml
+new file mode 100644
+index 0000000..13ed040
+--- /dev/null
++++ b/tests/networkxml2xmlupdatein/dns-txt-record-newline.xml
+@@ -0,0 +1 @@
++<txt name='example' value='example value&#10;dhcp-script=/tmp/payload'/>
+diff --git a/tests/networkxml2xmlupdatein/srv-record-target-newline.xml b/tests/networkxml2xmlupdatein/srv-record-target-newline.xml
+new file mode 100644
+index 0000000..f29385d
+--- /dev/null
++++ b/tests/networkxml2xmlupdatein/srv-record-target-newline.xml
+@@ -0,0 +1 @@
++<srv service='ldap' protocol='tcp' target='server.example.com&#10;dhcp-script=/tmp/payload'/>
+diff --git a/tests/networkxml2xmlupdatetest.c b/tests/networkxml2xmlupdatetest.c
+index 60931a2..f579699 100644
+--- a/tests/networkxml2xmlupdatetest.c
++++ b/tests/networkxml2xmlupdatetest.c
+@@ -288,6 +288,10 @@ mymain(void)
+ 
+ 
+     section = VIR_NETWORK_SECTION_DNS_TXT;
++    DO_TEST_FAIL("insert-dns-txt-record-newline",
++                 "dns-txt-record-newline",
++                 "nat-network-dns-txt-record",
++                 VIR_NETWORK_UPDATE_COMMAND_ADD_FIRST);
+     DO_TEST("insert-dns-txt-record",
+             "dns-txt-record-snowman",
+             "nat-network-dns-txt-record",
+@@ -311,6 +315,10 @@ mymain(void)
+             "nat-network-dns-txt-record",
+             "nat-network-dns-txt-modify-ok",
+             VIR_NETWORK_UPDATE_COMMAND_MODIFY);
++    DO_TEST_FAIL("modify-dns-txt-record-newline",
++                 "dns-txt-record-newline",
++                 "nat-network-dns-txt-record",
++                 VIR_NETWORK_UPDATE_COMMAND_MODIFY);
+     DO_TEST_FAIL("modify-missing-dns-txt-record",
+             "dns-txt-record-modify-fail",
+             "nat-network-dns-txt-record",
+@@ -328,6 +336,10 @@ mymain(void)
+             "nat-network",
+             "nat-network-dns-srv-record",
+             VIR_NETWORK_UPDATE_COMMAND_ADD_LAST);
++    DO_TEST_FAIL("append-srv-record-target-newline",
++                 "srv-record-target-newline",
++                 "nat-network",
++                 VIR_NETWORK_UPDATE_COMMAND_ADD_LAST);
+     DO_TEST_FAIL("add-existing-dns-srv-record",
+                  "srv-record",
+                  "nat-network-dns-srv-record",
+diff --git a/tests/virschematest.c b/tests/virschematest.c
+index e08ae21..42a6c5c 100644
+--- a/tests/virschematest.c
++++ b/tests/virschematest.c
+@@ -301,11 +301,20 @@ static const struct testSchemaEntry schemaInterface[] = {
+     { .dir = "tests/interfaceschemadata" },
+ };
+ 
++/* skip tests with completely broken XML */
++static const char *skip_networkxml2confdata[] = {
++    "nat-network-dns-srv-record-domain-newline.xml",
++    "nat-network-dns-srv-record-target-newline.xml",
++    "nat-network-dns-txt-recor-record-newline.xml",
++    NULL,
++};
++
+ static const struct testSchemaEntry schemaNetwork[] = {
+     { .dir = "src/network" },
+     { .dir = "tests/networkxml2xmlin" },
+     { .dir = "tests/networkxml2xmlout" },
+-    { .dir = "tests/networkxml2confdata" },
++    { .dir = "tests/networkxml2confdata",
++      .skip = skip_networkxml2confdata },
+     { .dir = "examples/xml/test/",
+       .dirRegex = "testnet.*" },
+     { .dir = "tests/networkxml2xmlupdateout" },

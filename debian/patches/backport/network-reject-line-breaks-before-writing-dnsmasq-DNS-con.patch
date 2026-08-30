@@ -1,0 +1,95 @@
+From: Michael Bommarito <michael.bommarito@gmail.com>
+Date: Fri, 10 Jul 2026 07:07:00 -0400
+Subject: network: reject line breaks before writing dnsmasq DNS config
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+The parser now rejects line breaks in typed DNS TXT and SRV fields,
+but the dnsmasq configuration emitter is the actual trust boundary:
+any future parser gap, or a value reaching the emitter by another
+path, would again let a typed DNS field inject an arbitrary dnsmasq
+directive.
+
+Add a defensive check in networkDnsmasqConfContents() that rejects
+LF and CR in every typed DNS string immediately before it is written
+to the line-based configuration file. This sits behind the parser
+checks and keeps the emitter correct on its own.
+
+The raw <dnsmasq:options> namespace is intentionally left untouched:
+it is the documented escape hatch for arbitrary dnsmasq options, and
+sanitizing it would be a separate, deliberate behavior change.
+
+CVE-2026-61477
+
+Fixes: 8b32c80df089 ("network: put dnsmasq parameters in conf-file instead of command line")
+Reviewed-by: Daniel P. Berrangé <berrange@redhat.com>
+Signed-off-by: Michael Bommarito <michael.bommarito@gmail.com>
+(cherry picked from commit cb8974b923e3c40cde96f0c7bceaa638f7f9c72b)
+
+Forwarded: not-needed
+Origin: https://gitlab.com/libvirt/libvirt/-/commits/cb8974b923e3c40cde96f0c7bceaa638f7f9c72b
+---
+ src/network/bridge_driver.c | 28 ++++++++++++++++++++++++++++
+ 1 file changed, 28 insertions(+)
+
+diff --git a/src/network/bridge_driver.c b/src/network/bridge_driver.c
+index 34b655e..b7ec305 100644
+--- a/src/network/bridge_driver.c
++++ b/src/network/bridge_driver.c
+@@ -62,6 +62,7 @@
+ #include "virhook.h"
+ #include "virjson.h"
+ #include "virnetworkportdef.h"
++#include "virstring.h"
+ #include "virutil.h"
+ #include "virsystemd.h"
+ #include "netdev_bandwidth_conf.h"
+@@ -117,6 +118,22 @@ networkDnsmasqDefNamespaceFree(void *nsdata)
+ G_DEFINE_AUTOPTR_CLEANUP_FUNC(networkDnsmasqXmlNsDef, networkDnsmasqDefNamespaceFree);
+ 
+ 
++static int
++networkDnsmasqConfCheckLineBreaks(const char *record,
++                                  const char *field,
++                                  const char *value)
++{
++    if (virStringHasChars(value, "\r\n")) {
++        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
++                       _("DNS %1$s record %2$s must not contain line breaks"),
++                       record, field);
++        return -1;
++    }
++
++    return 0;
++}
++
++
+ static int
+ networkDnsmasqDefNamespaceParseOptions(networkDnsmasqXmlNsDef *nsdef,
+                                        xmlXPathContextPtr ctxt)
+@@ -1294,6 +1311,10 @@ networkDnsmasqConfContents(virNetworkObj *obj,
+ 
+     if (wantDNS) {
+         for (i = 0; i < dns->ntxts; i++) {
++            if (networkDnsmasqConfCheckLineBreaks("TXT", "name", dns->txts[i].name) < 0 ||
++                networkDnsmasqConfCheckLineBreaks("TXT", "value", dns->txts[i].value) < 0)
++                return -1;
++
+             virBufferAsprintf(&configbuf, "txt-record=%s,%s\n",
+                               dns->txts[i].name,
+                               dns->txts[i].value);
+@@ -1315,6 +1336,13 @@ networkDnsmasqConfContents(virNetworkObj *obj,
+                                def->name);
+                 return -1;
+             }
++
++            if (networkDnsmasqConfCheckLineBreaks("SRV", "service", dns->srvs[i].service) < 0 ||
++                networkDnsmasqConfCheckLineBreaks("SRV", "protocol", dns->srvs[i].protocol) < 0 ||
++                networkDnsmasqConfCheckLineBreaks("SRV", "domain", dns->srvs[i].domain) < 0 ||
++                networkDnsmasqConfCheckLineBreaks("SRV", "target", dns->srvs[i].target) < 0)
++                return -1;
++
+             /* RFC2782 requires that service and protocol be preceded by
+              * an underscore.
+              */

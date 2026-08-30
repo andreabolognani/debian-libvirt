@@ -1,0 +1,75 @@
+From: Michael Bommarito <michael.bommarito@gmail.com>
+Date: Fri, 10 Jul 2026 07:06:58 -0400
+Subject: conf: reject line breaks in DNS TXT record values
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+The network XML schema exposes typed DNS records through the
+<dns><txt> element. The TXT value attribute accepts XML numeric
+character references, including &#10; (LF) and &#13; (CR), which
+survive attribute-value normalization. The network driver later
+writes the value verbatim into dnsmasq's line-oriented configuration
+file as a txt-record= line, so an embedded line break ends that
+directive and starts a new one under attacker control.
+
+This is a real boundary where a management layer permits editing
+typed DNS records while withholding the raw <dnsmasq:options>
+passthrough: the injected line escapes that restriction. Direct
+read-write access to the libvirt socket is already root-equivalent,
+so for the default deployment this is schema-correctness hardening.
+
+Add a helper that rejects LF and CR and call it for the TXT value
+during XML parsing.
+
+CVE-2026-61477
+
+Fixes: 8b32c80df089 ("network: put dnsmasq parameters in conf-file instead of command line")
+Reviewed-by: Daniel P. Berrangé <berrange@redhat.com>
+Signed-off-by: Michael Bommarito <michael.bommarito@gmail.com>
+(cherry picked from commit d44836a1dc6771ac22f69755fc69bf730f0eec87)
+
+Forwarded: not-needed
+Origin: https://gitlab.com/libvirt/libvirt/-/commits/d44836a1dc6771ac22f69755fc69bf730f0eec87
+---
+ src/conf/network_conf.c | 20 ++++++++++++++++++++
+ 1 file changed, 20 insertions(+)
+
+diff --git a/src/conf/network_conf.c b/src/conf/network_conf.c
+index 8cd26de..9c3cd2a 100644
+--- a/src/conf/network_conf.c
++++ b/src/conf/network_conf.c
+@@ -724,6 +724,23 @@ virNetworkDNSHostDefParseXML(const char *networkName,
+     "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789" \
+     "_-+/*"
+ 
++
++static int
++virNetworkDNSDefCheckLineBreaks(const char *record,
++                                const char *field,
++                                const char *value)
++{
++    if (virStringHasChars(value, "\r\n")) {
++        virReportError(VIR_ERR_XML_DETAIL,
++                       _("invalid line break in DNS %1$s record %2$s attribute"),
++                       record, field);
++        return -1;
++    }
++
++    return 0;
++}
++
++
+ static int
+ virNetworkDNSSrvDefParseXML(const char *networkName,
+                             xmlNodePtr node,
+@@ -852,6 +869,9 @@ virNetworkDNSTxtDefParseXML(const char *networkName,
+         goto error;
+     }
+ 
++    if (virNetworkDNSDefCheckLineBreaks("TXT", "value", def->value) < 0)
++        goto error;
++
+     if (!(def->name || def->value)) {
+         virReportError(VIR_ERR_XML_DETAIL,
+                        _("Missing required name or value in DNS TXT record of network %1$s"),
