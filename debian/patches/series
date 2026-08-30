@@ -15,6 +15,7 @@ backport/qemu-Check-ACLs-before-parsing-the-whole-domain-XML.patch
 backport/qemu-snapshot-Set-umask-for-qemu-img-when-creating-extern.patch
 backport/qemuxmlconftest-Improve-coverage-of-disk-detect-zeroes-te.patch
 backport/qemuDomainPrepareDiskSourceData-Setup-detect_zeroes-for-a.patch
+backport/qemuMonitorJSONMigrate-Drop-detach-QMP-option.patch
 debian/Debianize-libvirt-guests.patch
 debian/apparmor_profiles_local_include.patch
 debian/Use-sensible-editor-by-default.patch

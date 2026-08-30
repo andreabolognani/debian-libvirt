@@ -1,0 +1,37 @@
+From: Peter Krempa <pkrempa@redhat.com>
+Date: Wed, 21 May 2025 09:59:53 +0200
+Subject: qemuMonitorJSONMigrate: Drop 'detach' QMP option
+
+The argument was always ignored by qemu [1], as of qemu-10.1 it will be
+deprecated. As it was always unused/ignored we can drop it without any
+extra logic.
+
+[1] qemu docs state:
+
+   3. The user Monitor's "detach" argument is invalid in QMP and
+     should not be used.
+
+Signed-off-by: Peter Krempa <pkrempa@redhat.com>
+Reviewed-by: Michal Privoznik <mprivozn@redhat.com>
+(cherry picked from commit 17e170a137911837867feb680ed5d5d132133621)
+
+Bug-Debian: https://bugs.debian.org/1145836
+
+Forwarded: not-needed
+Origin: https://gitlab.com/libvirt/libvirt/-/commits/17e170a137911837867feb680ed5d5d132133621
+---
+ src/qemu/qemu_monitor_json.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/src/qemu/qemu_monitor_json.c b/src/qemu/qemu_monitor_json.c
+index dc2eaac..9a2f279 100644
+--- a/src/qemu/qemu_monitor_json.c
++++ b/src/qemu/qemu_monitor_json.c
+@@ -3198,7 +3198,6 @@ int qemuMonitorJSONMigrate(qemuMonitor *mon,
+ {
+     bool resume = !!(flags & QEMU_MONITOR_MIGRATE_RESUME);
+     g_autoptr(virJSONValue) cmd = qemuMonitorJSONMakeCommand("migrate",
+-                                                             "b:detach", true,
+                                                              "b:resume", resume,
+                                                              "s:uri", uri,
+                                                              NULL);
