@@ -1,0 +1,68 @@
+From: =?utf-8?b?SEUgV0VJ77yI44Ku44Kr44Kv77yJ?= <skyexpoc@gmail.com>
+Date: Tue, 28 Jul 2026 17:49:02 +0100
+Subject: util: virFileChownFiles: do not follow symlinks
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+virFileChownFiles() selected entries with virFileIsRegular() (stat(), follows
+symlinks) and changed ownership with chown() (follows symlinks). A component
+that owns the target directory at a lower privilege (e.g. the swtpm/tss state
+directory) can plant a symlink to an arbitrary regular file and have the root
+caller chown that file. Use lstat() to skip non-regular entries and
+fchownat(..., AT_SYMLINK_NOFOLLOW) so a symlink final component is never
+followed.
+
+Fixes: CVE-2026-63622
+Signed-off-by: HE WEI（ギカク） <skyexpoc@gmail.com>
+[DB: use g_lstat instead of stat; use lchown instead of
+ fchownat for portability; added comment]
+Reviewed-by: Ján Tomko <jtomko@redhat.com>
+Signed-off-by: Daniel P. Berrangé <berrange@redhat.com>
+(cherry picked from commit 801160fd414ca2cc402bc01ead09b7ed4c3b8f5b)
+
+Forwarded: not-needed
+Origin: https://gitlab.com/libvirt/libvirt/-/commits/801160fd414ca2cc402bc01ead09b7ed4c3b8f5b
+---
+ src/util/virfile.c | 16 ++++++++++++++--
+ 1 file changed, 14 insertions(+), 2 deletions(-)
+
+diff --git a/src/util/virfile.c b/src/util/virfile.c
+index 7cab3d0..7abe901 100644
+--- a/src/util/virfile.c
++++ b/src/util/virfile.c
+@@ -3179,6 +3179,12 @@ int virDirIsEmpty(const char *path,
+  *
+  * Change ownership of all regular files in a directory.
+  *
++ * This will NOT follow any symlinks, to avoid security risks.
++ * It is assumed the process using content under @name will
++ * be unprivileged, thus less trusted than libvirt. If it is
++ * compromised it might attempt to create symlinks in @name to
++ * escalate privileges on a subsequent call to virFileChownFiles.
++ *
+  * Returns -1 on error, with error already reported, 0 on success.
+  */
+ #ifndef WIN32
+@@ -3195,13 +3201,19 @@ int virFileChownFiles(const char *name,
+ 
+     while ((direrr = virDirRead(dir, &ent, name)) > 0) {
+         g_autofree char *path = NULL;
++        struct stat sb;
+ 
+         path = g_build_filename(name, ent->d_name, NULL);
+ 
+-        if (!virFileIsRegular(path))
++        if (g_lstat(path, &sb) < 0) {
++            virReportSystemError(errno, _("cannot stat '%1$s'"), path);
++            return -1;
++        }
++
++        if (!S_ISREG(sb.st_mode))
+             continue;
+ 
+-        if (chown(path, uid, gid) < 0) {
++        if (lchown(path, uid, gid) < 0) {
+             virReportSystemError(errno,
+                                  _("cannot chown '%1$s' to (%2$u, %3$u)"),
+                                  ent->d_name, (unsigned int) uid,
