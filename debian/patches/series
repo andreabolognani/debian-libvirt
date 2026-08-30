@@ -21,6 +21,7 @@ backport/conf-reject-line-breaks-in-DNS-TXT-record-values.patch
 backport/conf-reject-line-breaks-in-DNS-SRV-domain-and-target.patch
 backport/network-reject-line-breaks-before-writing-dnsmasq-DNS-con.patch
 backport/tests-cover-line-break-rejection-in-DNS-TXT-and-SRV-recor.patch
+backport/src-fix-crash-searching-for-XML-context-string-on-errors.patch
 debian/Debianize-libvirt-guests.patch
 debian/apparmor_profiles_local_include.patch
 debian/Use-sensible-editor-by-default.patch

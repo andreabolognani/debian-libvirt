@@ -1,0 +1,107 @@
+From: =?utf-8?b?IkRhbmllbCBQLiBCZXJyYW5nw6ki?= <berrange@redhat.com>
+Date: Tue, 14 Jul 2026 16:32:57 +0100
+Subject: src: fix crash searching for XML context string on errors
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+When we have an XML parse error, libxml2 invokes a callback that
+receives pointers to the start of the document being parsed and the
+location where the error was triggered.
+
+In the case of a document that contains 100's of empty lines
+(ie a sequence of newlines), at some point libxml2 will advance
+the base pointer discarding the useful context.
+
+Thus when catchXMLError then searches backwards to discard empty
+lines and look for the context element, it will eventually get
+to the start of the string. When this happens the virBuffer that
+holds the context string ends up empty and then catchXMLError will
+dereference a NULL pointer.
+
+In almost all cases, the APIs which accept XML documents from
+the user are behind the primary read-write socket, however, the
+CPU baseline API is exposed to the read-only socket. Thus an
+unprivileged user can trigger a denial of service by crashing
+the libvirt daemons with a malicious XML document.
+
+Check for this empty string condition and skip inclusion of the
+XML document context in the error message.
+
+Fixes: CVE-2026-61478
+Reported-by: Rx <rx1513@altlinux.org>
+Reviewed-by: Peter Krempa <pkrempa@redhat.com>
+Signed-off-by: Daniel P. Berrangé <berrange@redhat.com>
+(cherry picked from commit 68da70aae766c6271b8d3b466374d3cc7d1a8afb)
+
+Forwarded: not-needed
+Origin: https://gitlab.com/libvirt/libvirt/-/commits/68da70aae766c6271b8d3b466374d3cc7d1a8afb
+---
+ src/util/virxml.c | 46 +++++++++++++++++++++++++++++++---------------
+ 1 file changed, 31 insertions(+), 15 deletions(-)
+
+diff --git a/src/util/virxml.c b/src/util/virxml.c
+index ad967a2..fe9447f 100644
+--- a/src/util/virxml.c
++++ b/src/util/virxml.c
+@@ -1079,7 +1079,8 @@ catchXMLError(void *ctx, const char *msg G_GNUC_UNUSED, ...)
+     contextstr = virBufferContentAndReset(&buf);
+ 
+     /* (leave buffer space for pointer + line terminator) */
+-    for  (n = 0; (n<col) && (contextstr[n] != 0); n++) {
++
++    for  (n = 0; (n<col) && contextstr && contextstr[n]; n++) {
+         if (contextstr[n] == '\t')
+             virBufferAddChar(&buf, '\t');
+         else
+@@ -1090,21 +1091,36 @@ catchXMLError(void *ctx, const char *msg G_GNUC_UNUSED, ...)
+ 
+     pointerstr = virBufferContentAndReset(&buf);
+ 
+-    if (filename) {
+-        virGenericReportError(domcode, VIR_ERR_XML_DETAIL,
+-                              _("%1$s:%2$d: %3$s%4$s\n%5$s"),
+-                              filename,
+-                              lastError->line,
+-                              lastError->message,
+-                              contextstr,
+-                              pointerstr);
++    if (contextstr) {
++        if (filename) {
++            virGenericReportError(domcode, VIR_ERR_XML_DETAIL,
++                                  _("%1$s:%2$d: %3$s%4$s\n%5$s"),
++                                  filename,
++                                  lastError->line,
++                                  lastError->message,
++                                  contextstr,
++                                  pointerstr);
++        } else {
++            virGenericReportError(domcode, VIR_ERR_XML_DETAIL,
++                                  _("at line %1$d: %2$s%3$s\n%4$s"),
++                                  lastError->line,
++                                  lastError->message,
++                                  contextstr,
++                                  pointerstr);
++        }
+     } else {
+-        virGenericReportError(domcode, VIR_ERR_XML_DETAIL,
+-                              _("at line %1$d: %2$s%3$s\n%4$s"),
+-                              lastError->line,
+-                              lastError->message,
+-                              contextstr,
+-                              pointerstr);
++        if (filename) {
++            virGenericReportError(domcode, VIR_ERR_XML_DETAIL,
++                                  _("%1$s:%2$d: %3$s"),
++                                  filename,
++                                  lastError->line,
++                                  lastError->message);
++        } else {
++            virGenericReportError(domcode, VIR_ERR_XML_DETAIL,
++                                  _("at line %1$d: %2$s"),
++                                  lastError->line,
++                                  lastError->message);
++        }
+     }
+ }
+ 
