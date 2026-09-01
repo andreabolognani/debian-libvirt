@@ -26,10 +26,10 @@ index 11005e7..81417ae 100644
 +  ### DEPRECATED ###
 +  include if exists <local/abstractions/libvirt-lxc>
 diff --git a/src/security/apparmor/libvirt-qemu b/src/security/apparmor/libvirt-qemu
-index e4aceac..ef5a1dc 100644
+index 428f9a9..a8c2c10 100644
 --- a/src/security/apparmor/libvirt-qemu
 +++ b/src/security/apparmor/libvirt-qemu
-@@ -280,3 +280,10 @@
+@@ -290,3 +290,10 @@
    owner /var/lib/libvirt/qemu/nvram/*_VARS.ms.fd rwk,
  
    include if exists <abstractions/libvirt-qemu.d>
