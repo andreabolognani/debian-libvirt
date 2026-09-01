@@ -1,8 +1,9 @@
-libvirt (12.7.0-1) UNRELEASED; urgency=medium
+libvirt (12.7.0-1) unstable; urgency=medium
 
   * [38da4c3] New upstream version 12.7.0
+    - Closes: #1145069 (CVE-2026-18917)
 
- -- Andrea Bolognani <eof@kiyuko.org>  Tue, 01 Sep 2026 22:01:22 +0200
+ -- Andrea Bolognani <eof@kiyuko.org>  Tue, 01 Sep 2026 22:08:21 +0200
 
 libvirt (12.6.0-1) unstable; urgency=medium
 
