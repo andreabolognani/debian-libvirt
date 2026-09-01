@@ -7202,6 +7202,11 @@ qemuMonitorJSONGetIOThreads(qemuMonitor *mon,
             virJSONValueObjectGetNumberUlong(child, "poll-shrink",
                                              &info->poll_shrink) == 0)
             info->poll_valid = true;
+
+        /* poll-weight is optional, only present on newer QEMU */
+        if (virJSONValueObjectGetNumberUint(child, "poll-weight",
+                                            &info->poll_weight) == 0)
+            info->set_poll_weight = true;
     }
 
     *niothreads = n;
@@ -7242,6 +7247,19 @@ qemuMonitorJSONSetIOThread(qemuMonitor *mon,
     VIR_IOTHREAD_SET_PROP_UL("poll-shrink", poll_shrink);
 
 #undef VIR_IOTHREAD_SET_PROP_UL
+
+#define VIR_IOTHREAD_SET_PROP_UINT(propName, propVal) \
+    if (iothreadInfo->set_##propVal) { \
+        memset(&prop, 0, sizeof(prop)); \
+        prop.type = QEMU_MONITOR_OBJECT_PROPERTY_UINT; \
+        prop.val.ui = iothreadInfo->propVal; \
+        if (qemuMonitorJSONSetObjectProperty(mon, path, propName, &prop) < 0) \
+            return -1; \
+    }
+
+    VIR_IOTHREAD_SET_PROP_UINT("poll-weight", poll_weight);
+
+#undef VIR_IOTHREAD_SET_PROP_UINT
 
     if (iothreadInfo->set_thread_pool_min &&
         iothreadInfo->set_thread_pool_max) {

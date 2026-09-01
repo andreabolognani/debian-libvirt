@@ -435,6 +435,7 @@ static const vshCmdOptDef opts_attach_disk[] = {
     },
     {.name = "targetbus",
      .type = VSH_OT_STRING,
+     .completer = virshDomainDiskBusCompleter,
      .help = N_("target bus of disk device")
     },
     {.name = "driver",
@@ -443,6 +444,7 @@ static const vshCmdOptDef opts_attach_disk[] = {
     },
     {.name = "subdriver",
      .type = VSH_OT_STRING,
+     .completer = virshDomainStorageFileFormatCompleter,
      .help = N_("subdriver of disk device")
     },
     {.name = "iothread",
@@ -452,14 +454,17 @@ static const vshCmdOptDef opts_attach_disk[] = {
     },
     {.name = "cache",
      .type = VSH_OT_STRING,
+     .completer = virshDomainDiskCacheCompleter,
      .help = N_("cache mode of disk device")
     },
     {.name = "io",
      .type = VSH_OT_STRING,
+     .completer = virshDomainDiskIoCompleter,
      .help = N_("io policy of disk device")
     },
     {.name = "type",
      .type = VSH_OT_STRING,
+     .completer = virshDomainDiskDeviceTypeCompleter,
      .help = N_("target device type")
     },
     {.name = "shareable",
@@ -468,10 +473,12 @@ static const vshCmdOptDef opts_attach_disk[] = {
     },
     {.name = "mode",
      .type = VSH_OT_STRING,
+     .completer = virshDomainAttachDiskModeCompleter,
      .help = N_("mode of device reading and writing")
     },
     {.name = "sourcetype",
      .type = VSH_OT_STRING,
+     .completer = virshDomainAttachDiskSourceTypeCompleter,
      .help = N_("type of source (block|file|network)")
     },
     {.name = "serial",
@@ -521,6 +528,7 @@ static const vshCmdOptDef opts_attach_disk[] = {
     },
     {.name = "source-host-socket",
      .type = VSH_OT_STRING,
+     .completer = vshCompletePathLocalExisting,
      .help = N_("host socket for source of disk device")
     },
     {.name = "throttle-groups",
@@ -2629,6 +2637,7 @@ static const vshCmdOptDef opts_blockcopy[] = {
     {.name = "dest",
      .type = VSH_OT_STRING,
      .unwanted_positional = true,
+     .completer = vshCompletePathLocalCreate,
      .help = N_("path of the copy to create")
     },
     {.name = "bandwidth",
@@ -4651,6 +4660,7 @@ static const vshCmdOptDef opts_save[] = {
      .type = VSH_OT_STRING,
      .positional = true,
      .required = true,
+     .completer = vshCompletePathLocalCreate,
      .help = N_("where to save the data")
     },
     {.name = "bypass-cache",
@@ -5911,6 +5921,7 @@ static const vshCmdOptDef opts_dump[] = {
      .type = VSH_OT_STRING,
      .positional = true,
      .required = true,
+     .completer = vshCompletePathLocalCreate,
      .help = N_("where to dump the core")
     },
     VIRSH_COMMON_OPT_LIVE(N_("perform a live core dump if supported")),
@@ -6081,7 +6092,7 @@ static const vshCmdOptDef opts_screenshot[] = {
     {.name = "file",
      .type = VSH_OT_STRING,
      .unwanted_positional = true,
-     .completer = vshCompletePathLocalExisting,
+     .completer = vshCompletePathLocalCreate,
      .help = N_("where to store the screenshot")
     },
     {.name = "screen",
@@ -8271,6 +8282,10 @@ static const vshCmdOptDef opts_iothreadset[] = {
      .unwanted_positional = true,
      .help = N_("set the value for reduction of the IOThread polling time")
     },
+    {.name = "poll-weight",
+     .type = VSH_OT_INT,
+     .help = N_("set the adaptive polling weight factor")
+    },
     {.name = "thread-pool-min",
      .type = VSH_OT_INT,
      .unwanted_positional = true,
@@ -8300,6 +8315,7 @@ cmdIOThreadSet(vshControl *ctl, const vshCmd *cmd)
     virTypedParameterPtr par;
     size_t npar = 0;
     unsigned long long poll_val;
+    unsigned int poll_weight;
     int thread_val;
     int rc;
 
@@ -8335,6 +8351,11 @@ cmdIOThreadSet(vshControl *ctl, const vshCmd *cmd)
         return false;
     if (rc > 0)
         virTypedParamListAddUnsigned(params, poll_val, VIR_DOMAIN_IOTHREAD_POLL_SHRINK);
+
+    if ((rc = vshCommandOptUInt(ctl, cmd, "poll-weight", &poll_weight)) < 0)
+        return false;
+    if (rc > 0)
+        virTypedParamListAddUInt(params, poll_weight, VIR_DOMAIN_IOTHREAD_POLL_WEIGHT);
 
     if ((rc = vshCommandOptInt(ctl, cmd, "thread-pool-min", &thread_val)) < 0)
         return false;
@@ -10915,6 +10936,7 @@ static const vshCmdOptDef opts_domxmlfromnative[] = {
      .type = VSH_OT_STRING,
      .positional = true,
      .required = true,
+     .completer = virshDomainXMLNativeFormatCompleter,
      .help = N_("source config data format")
     },
     {.name = "config",
@@ -10965,6 +10987,7 @@ static const vshCmdOptDef opts_domxmltonative[] = {
      .type = VSH_OT_STRING,
      .positional = true,
      .required = true,
+     .completer = virshDomainXMLNativeFormatCompleter,
      .help = N_("target config data type format")
     },
     {.name = "domain",
@@ -12180,6 +12203,7 @@ static const vshCmdOptDef opts_domdisplay[] = {
     {.name = "type",
      .type = VSH_OT_STRING,
      .positional = true,
+     .completer = virshDomainDisplayTypeCompleter,
      .help = N_("select particular graphical display "
                 "(e.g. \"vnc\", \"spice\", \"rdp\", \"dbus\")")
     },
@@ -13749,6 +13773,10 @@ static const vshCmdOptDef opts_guestinfo[] = {
      .type = VSH_OT_BOOL,
      .help = N_("report load averages information"),
     },
+    {.name = "devices",
+     .type = VSH_OT_BOOL,
+     .help = N_("report devices information"),
+    },
     {.name = NULL}
 };
 
@@ -13778,6 +13806,8 @@ cmdGuestInfo(vshControl *ctl, const vshCmd *cmd)
         types |= VIR_DOMAIN_GUEST_INFO_INTERFACES;
     if (vshCommandOptBool(cmd, "load"))
         types |= VIR_DOMAIN_GUEST_INFO_LOAD;
+    if (vshCommandOptBool(cmd, "devices"))
+        types |= VIR_DOMAIN_GUEST_INFO_DEVICES;
 
     if (!(dom = virshCommandOptDomain(ctl, cmd, NULL)))
         return false;

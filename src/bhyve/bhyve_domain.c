@@ -62,9 +62,38 @@ bhyveDomainObjPrivateFree(void *data)
     g_free(priv);
 }
 
+static int
+bhyveDomainObjPrivateXMLParse(xmlXPathContextPtr ctxt,
+                              virDomainObj *vm,
+                              virDomainDefParserConfig *config G_GNUC_UNUSED)
+{
+    bhyveDomainObjPrivate *priv = vm->privateData;
+
+    if (virXPathInt("string(./agentTimeout)", ctxt, &priv->agentTimeout) == -2) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       _("failed to parse agent timeout"));
+        return -1;
+    }
+
+    return 0;
+}
+
+static int
+bhyveDomainObjPrivateXMLFormat(virBuffer *buf,
+                               virDomainObj *vm)
+{
+    bhyveDomainObjPrivate *priv = vm->privateData;
+
+    virBufferAsprintf(buf, "<agentTimeout>%i</agentTimeout>\n", priv->agentTimeout);
+
+    return 0;
+}
+
 virDomainXMLPrivateDataCallbacks virBhyveDriverPrivateDataCallbacks = {
     .alloc = bhyveDomainObjPrivateAlloc,
     .free = bhyveDomainObjPrivateFree,
+    .parse = bhyveDomainObjPrivateXMLParse,
+    .format = bhyveDomainObjPrivateXMLFormat,
 };
 
 static bool
@@ -338,6 +367,13 @@ bhyveDomainDeviceDefValidate(const virDomainDeviceDef *dev,
                                _("Bhyve virtio-serial controller supports up to 16 ports"));
                 return -1;
             }
+        } else if (controller->type == VIR_DOMAIN_CONTROLLER_TYPE_NVME &&
+                   controller->opts.nvmeopts.serial) {
+            if (strchr(controller->opts.nvmeopts.serial, ',')) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                               _("Serial number may not contain ',' character"));
+                return -1;
+            }
         }
         break;
     }
@@ -421,6 +457,14 @@ bhyveDomainDeviceDefValidate(const virDomainDeviceDef *dev,
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                            _("queue configuration is only valid for NVMe bus"));
             return -1;
+        }
+
+        if (disk->bus == VIR_DOMAIN_DISK_BUS_SATA && disk->serial) {
+            if (strchr(disk->serial, ',')) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                               _("Serial number may not contain ',' character"));
+                return -1;
+            }
         }
 
         break;

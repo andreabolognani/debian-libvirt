@@ -2562,7 +2562,7 @@ int qemuAgentGetDisks(qemuAgent *agent,
     for (i = 0; i < ndata; i++) {
         qemuAgentDiskInfoFree((*disks)[i]);
     }
-    g_free(*disks);
+    g_clear_pointer(disks, g_free);
     return -1;
 }
 
@@ -2680,4 +2680,321 @@ qemuAgentFSInfoFormat(qemuAgentFSInfo **agentinfo,
         g_free(info_ret);
     }
     return ret;
+}
+
+
+void
+qemuAgentDiskInfoFormatParams(qemuAgentDiskInfo **info,
+                              int ndisks,
+                              virDomainDef *vmdef,
+                              virTypedParamList *list)
+{
+    size_t i;
+
+    virTypedParamListAddUInt(list, ndisks, VIR_DOMAIN_GUEST_INFO_DISK_COUNT);
+
+    for (i = 0; i < ndisks; i++) {
+        virTypedParamListAddString(list, info[i]->name,
+                                   VIR_DOMAIN_GUEST_INFO_DISK_PREFIX "%zu" VIR_DOMAIN_GUEST_INFO_DISK_SUFFIX_NAME, i);
+        virTypedParamListAddBoolean(list, info[i]->partition,
+                                    VIR_DOMAIN_GUEST_INFO_DISK_PREFIX "%zu" VIR_DOMAIN_GUEST_INFO_DISK_SUFFIX_PARTITION, i);
+
+        if (info[i]->dependencies) {
+            size_t ndeps = g_strv_length(info[i]->dependencies);
+            size_t j;
+
+            if (ndeps > 0)
+                virTypedParamListAddUInt(list, ndeps,
+                                         VIR_DOMAIN_GUEST_INFO_DISK_PREFIX "%zu" VIR_DOMAIN_GUEST_INFO_DISK_SUFFIX_DEPENDENCY_COUNT, i);
+
+            for (j = 0; j < ndeps; j++) {
+                virTypedParamListAddString(list, info[i]->dependencies[j],
+                                           VIR_DOMAIN_GUEST_INFO_DISK_PREFIX "%zu" VIR_DOMAIN_GUEST_INFO_DISK_SUFFIX_DEPENDENCY_PREFIX "%zu" VIR_DOMAIN_GUEST_INFO_DISK_SUFFIX_DEPENDENCY_SUFFIX_NAME, i, j);
+            }
+        }
+
+        if (info[i]->address) {
+            qemuAgentDiskAddress *address = info[i]->address;
+            virDomainDiskDef *diskdef = NULL;
+
+            if (address->serial)
+                virTypedParamListAddString(list, address->serial,
+                                           VIR_DOMAIN_GUEST_INFO_DISK_PREFIX "%zu" VIR_DOMAIN_GUEST_INFO_DISK_SUFFIX_SERIAL, i);
+
+            /* match the disk to the target in the vm definition */
+            diskdef = virDomainDiskByAddress(vmdef,
+                                             &address->pci_controller,
+                                             address->ccw_addr,
+                                             address->bus,
+                                             address->target,
+                                             address->unit);
+
+            if (diskdef && diskdef->dst)
+                virTypedParamListAddString(list, diskdef->dst,
+                                           VIR_DOMAIN_GUEST_INFO_DISK_PREFIX "%zu" VIR_DOMAIN_GUEST_INFO_DISK_SUFFIX_ALIAS, i);
+
+            if (address->bus_type)
+                virTypedParamListAddString(list, address->bus_type,
+                                           VIR_DOMAIN_GUEST_INFO_DISK_PREFIX "%zu" VIR_DOMAIN_GUEST_INFO_DISK_SUFFIX_GUEST_BUS, i);
+        }
+
+        if (info[i]->alias)
+            virTypedParamListAddString(list, info[i]->alias,
+                                       VIR_DOMAIN_GUEST_INFO_DISK_PREFIX "%zu" VIR_DOMAIN_GUEST_INFO_DISK_SUFFIX_GUEST_ALIAS, i);
+    }
+}
+
+
+void
+qemuAgentFSInfoFormatParams(qemuAgentFSInfo **fsinfo,
+                            int nfs,
+                            virDomainDef *vmdef,
+                            virTypedParamList *list)
+{
+    size_t i;
+
+    virTypedParamListAddUInt(list, nfs, VIR_DOMAIN_GUEST_INFO_FS_COUNT);
+
+    for (i = 0; i < nfs; i++) {
+        size_t j;
+
+        virTypedParamListAddString(list, fsinfo[i]->name,
+                                   VIR_DOMAIN_GUEST_INFO_FS_PREFIX "%zu" VIR_DOMAIN_GUEST_INFO_FS_SUFFIX_NAME, i);
+        virTypedParamListAddString(list, fsinfo[i]->mountpoint,
+                                   VIR_DOMAIN_GUEST_INFO_FS_PREFIX "%zu" VIR_DOMAIN_GUEST_INFO_FS_SUFFIX_MOUNTPOINT, i);
+        virTypedParamListAddString(list, fsinfo[i]->fstype,
+                                   VIR_DOMAIN_GUEST_INFO_FS_PREFIX "%zu" VIR_DOMAIN_GUEST_INFO_FS_SUFFIX_FSTYPE, i);
+
+        /* disk usage values are not returned by older guest agents, so
+         * only add the params if the value is set */
+        if (fsinfo[i]->total_bytes != -1)
+            virTypedParamListAddULLong(list, fsinfo[i]->total_bytes,
+                                       VIR_DOMAIN_GUEST_INFO_FS_PREFIX "%zu" VIR_DOMAIN_GUEST_INFO_FS_SUFFIX_TOTAL_BYTES, i);
+        if (fsinfo[i]->used_bytes != -1)
+            virTypedParamListAddULLong(list, fsinfo[i]->used_bytes,
+                                       VIR_DOMAIN_GUEST_INFO_FS_PREFIX "%zu" VIR_DOMAIN_GUEST_INFO_FS_SUFFIX_USED_BYTES, i);
+
+        virTypedParamListAddUInt(list, fsinfo[i]->ndisks,
+                                 VIR_DOMAIN_GUEST_INFO_FS_PREFIX "%zu" VIR_DOMAIN_GUEST_INFO_FS_SUFFIX_DISK_COUNT, i);
+
+        for (j = 0; j < fsinfo[i]->ndisks; j++) {
+            virDomainDiskDef *diskdef = NULL;
+            qemuAgentDiskAddress *d = fsinfo[i]->disks[j];
+
+            /* match the disk to the target in the vm definition */
+            diskdef = virDomainDiskByAddress(vmdef,
+                                             &d->pci_controller,
+                                             d->ccw_addr,
+                                             d->bus,
+                                             d->target,
+                                             d->unit);
+            if (diskdef && diskdef->dst)
+                virTypedParamListAddString(list, diskdef->dst,
+                                           VIR_DOMAIN_GUEST_INFO_FS_PREFIX "%zu" VIR_DOMAIN_GUEST_INFO_FS_SUFFIX_DISK_PREFIX "%zu" VIR_DOMAIN_GUEST_INFO_FS_SUFFIX_DISK_SUFFIX_ALIAS, i, j);
+
+            if (d->serial)
+                virTypedParamListAddString(list, d->serial,
+                                           VIR_DOMAIN_GUEST_INFO_FS_PREFIX "%zu" VIR_DOMAIN_GUEST_INFO_FS_SUFFIX_DISK_PREFIX "%zu" VIR_DOMAIN_GUEST_INFO_FS_SUFFIX_DISK_SUFFIX_SERIAL, i, j);
+
+            if (d->devnode)
+                virTypedParamListAddString(list, d->devnode,
+                                           VIR_DOMAIN_GUEST_INFO_FS_PREFIX "%zu" VIR_DOMAIN_GUEST_INFO_FS_SUFFIX_DISK_PREFIX "%zu" VIR_DOMAIN_GUEST_INFO_FS_SUFFIX_DISK_SUFFIX_DEVICE, i, j);
+        }
+    }
+}
+
+
+void
+qemuAgentInterfaceFormatParams(virDomainInterfacePtr *ifaces,
+                               int nifaces,
+                               virTypedParamList *list)
+{
+    size_t i;
+
+    virTypedParamListAddUInt(list, nifaces, VIR_DOMAIN_GUEST_INFO_IF_COUNT);
+
+    for (i = 0; i < nifaces; i++) {
+        size_t j;
+
+        virTypedParamListAddString(list, ifaces[i]->name,
+                                   VIR_DOMAIN_GUEST_INFO_IF_PREFIX "%zu" VIR_DOMAIN_GUEST_INFO_IF_SUFFIX_NAME, i);
+        virTypedParamListAddString(list, ifaces[i]->hwaddr,
+                                   VIR_DOMAIN_GUEST_INFO_IF_PREFIX "%zu" VIR_DOMAIN_GUEST_INFO_IF_SUFFIX_HWADDR, i);
+        virTypedParamListAddUInt(list, ifaces[i]->naddrs,
+                                 VIR_DOMAIN_GUEST_INFO_IF_PREFIX "%zu" VIR_DOMAIN_GUEST_INFO_IF_SUFFIX_ADDR_COUNT, i);
+
+        for (j = 0; j < ifaces[i]->naddrs; j++) {
+            switch (ifaces[i]->addrs[j].type) {
+                case VIR_IP_ADDR_TYPE_IPV4:
+                    virTypedParamListAddString(list, "ipv4",
+                                               VIR_DOMAIN_GUEST_INFO_IF_PREFIX "%zu" VIR_DOMAIN_GUEST_INFO_IF_SUFFIX_ADDR_PREFIX "%zu" VIR_DOMAIN_GUEST_INFO_IF_SUFFIX_ADDR_SUFFIX_TYPE, i, j);
+                    break;
+
+                case VIR_IP_ADDR_TYPE_IPV6:
+                    virTypedParamListAddString(list, "ipv6",
+                                               VIR_DOMAIN_GUEST_INFO_IF_PREFIX "%zu" VIR_DOMAIN_GUEST_INFO_IF_SUFFIX_ADDR_PREFIX "%zu" VIR_DOMAIN_GUEST_INFO_IF_SUFFIX_ADDR_SUFFIX_TYPE, i, j);
+                    break;
+            }
+
+            virTypedParamListAddString(list, ifaces[i]->addrs[j].addr,
+                                       VIR_DOMAIN_GUEST_INFO_IF_PREFIX "%zu" VIR_DOMAIN_GUEST_INFO_IF_SUFFIX_ADDR_PREFIX "%zu" VIR_DOMAIN_GUEST_INFO_IF_SUFFIX_ADDR_SUFFIX_ADDR, i, j);
+            virTypedParamListAddUInt(list, ifaces[i]->addrs[j].prefix,
+                                     VIR_DOMAIN_GUEST_INFO_IF_PREFIX "%zu" VIR_DOMAIN_GUEST_INFO_IF_SUFFIX_ADDR_PREFIX "%zu" VIR_DOMAIN_GUEST_INFO_IF_SUFFIX_ADDR_SUFFIX_PREFIX, i, j);
+        }
+    }
+}
+
+
+void
+qemuAgentGuestDeviceInfoFree(qemuAgentGuestDeviceInfo *info)
+{
+    if (!info)
+        return;
+
+    g_free(info->driverName);
+    g_free(info->driverVersion);
+    g_free(info->pci);
+    g_free(info);
+}
+
+
+int
+qemuAgentGetGuestDeviceInfo(qemuAgent *agent,
+                            qemuAgentGuestDeviceInfo ***info,
+                            bool report_unsupported)
+{
+    g_autoptr(virJSONValue) cmd = NULL;
+    g_autoptr(virJSONValue) reply = NULL;
+    virJSONValue *data = NULL;
+    size_t ndata;
+    size_t i;
+    int rc;
+
+    if (!(cmd = qemuAgentMakeCommand("guest-get-devices", NULL)))
+        return -1;
+
+    if ((rc = qemuAgentCommandFull(agent, cmd, &reply, agent->timeout,
+                                   report_unsupported)) < 0)
+        return rc;
+
+    if (!(data = virJSONValueObjectGetArray(reply, "return"))) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       _("qemu agent didn't return an array of devices"));
+        return -1;
+    }
+
+    ndata = virJSONValueArraySize(data);
+
+    *info = g_new0(qemuAgentGuestDeviceInfo *, ndata);
+
+    for (i = 0; i < ndata; i++) {
+        g_autoptr(qemuAgentGuestDeviceInfo) oneInfo = NULL;
+        virJSONValue *entry = virJSONValueArrayGet(data, i);
+        virJSONValue *dDate = NULL;
+        virJSONValue *idObj = NULL;
+
+        if (!entry) {
+            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                           _("array element missing in guest-get-devices return value"));
+            goto error;
+        }
+
+        oneInfo = g_new0(qemuAgentGuestDeviceInfo, 1);
+
+        oneInfo->driverName = g_strdup(virJSONValueObjectGetString(entry, "driver-name"));
+        if (!oneInfo->driverName) {
+            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                           _("'driver-name' missing in reply of guest-get-devices"));
+            goto error;
+        }
+
+        if ((dDate = virJSONValueObjectGet(entry, "driver-date"))) {
+            if (virJSONValueGetNumberLong(dDate, &oneInfo->driverDate) < 0) {
+                virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                               _("malformed 'driver-date' in reply of guest-get-devices"));
+                goto error;
+            }
+        } else {
+            oneInfo->driverDate = -1;
+        }
+
+        oneInfo->driverVersion = g_strdup(virJSONValueObjectGetString(entry, "driver-version"));
+
+        if ((idObj = virJSONValueObjectGet(entry, "id"))) {
+            const char *type = NULL;
+
+            if (!(type = virJSONValueObjectGetString(idObj, "type"))) {
+                virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                               _("missing 'type' in reply of guest-get-devices"));
+                goto error;
+            }
+
+            if (STREQ("pci", type)) {
+                g_autofree qemuAgentGuestDeviceInfoPCI *pci = NULL;
+
+                pci = g_new0(qemuAgentGuestDeviceInfoPCI, 1);
+
+                if (virJSONValueObjectGetNumberUint(idObj, "vendor-id", &pci->vendorID) < 0) {
+                    virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                                   _("missing or malformed 'vendor-id' in reply of guest-get-devices"));
+                    goto error;
+                }
+
+                if (virJSONValueObjectGetNumberUint(idObj, "device-id", &pci->deviceID) < 0) {
+                    virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                                   _("missing or malformed 'device-id' in reply of guest-get-devices"));
+                    goto error;
+                }
+
+                oneInfo->pci = g_steal_pointer(&pci);
+            }
+        }
+
+        (*info)[i] = g_steal_pointer(&oneInfo);
+    }
+
+    return ndata;
+
+ error:
+    for (i = 0; i < ndata; i++) {
+        qemuAgentGuestDeviceInfoFree((*info)[i]);
+    }
+    g_clear_pointer(info, g_free);
+    return -1;
+}
+
+
+void
+qemuAgentGuestDeviceInfoFormatParams(qemuAgentGuestDeviceInfo **devices,
+                                     size_t ndevices,
+                                     virTypedParamList *list)
+{
+    size_t i;
+
+    virTypedParamListAddUInt(list, ndevices, VIR_DOMAIN_GUEST_INFO_DEVICE_COUNT);
+
+    for (i = 0; i < ndevices; i++) {
+        virTypedParamListAddString(list, devices[i]->driverName,
+                                   VIR_DOMAIN_GUEST_INFO_DEVICE_PREFIX "%zu" VIR_DOMAIN_GUEST_INFO_DEVICE_SUFFIX_DRIVER_NAME, i);
+
+        if (devices[i]->driverDate != -1) {
+            /* Guest agent reports this in nanoseconds, our API in seconds. */
+            virTypedParamListAddLLong(list, devices[i]->driverDate / 1000000000,
+                                      VIR_DOMAIN_GUEST_INFO_DEVICE_PREFIX "%zu" VIR_DOMAIN_GUEST_INFO_DEVICE_SUFFIX_DRIVER_DATE, i);
+        }
+
+        if (devices[i]->driverVersion) {
+            virTypedParamListAddString(list, devices[i]->driverVersion,
+                                       VIR_DOMAIN_GUEST_INFO_DEVICE_PREFIX "%zu" VIR_DOMAIN_GUEST_INFO_DEVICE_SUFFIX_DRIVER_VERSION, i);
+        }
+
+        if (devices[i]->pci) {
+            virTypedParamListAddString(list, "pci",
+                                       VIR_DOMAIN_GUEST_INFO_DEVICE_PREFIX "%zu" VIR_DOMAIN_GUEST_INFO_DEVICE_SUFFIX_ID_TYPE, i);
+            virTypedParamListAddUInt(list, devices[i]->pci->vendorID,
+                                     VIR_DOMAIN_GUEST_INFO_DEVICE_PREFIX "%zu" VIR_DOMAIN_GUEST_INFO_DEVICE_SUFFIX_PCI_VENDOR, i);
+            virTypedParamListAddUInt(list, devices[i]->pci->deviceID,
+                                     VIR_DOMAIN_GUEST_INFO_DEVICE_PREFIX "%zu" VIR_DOMAIN_GUEST_INFO_DEVICE_SUFFIX_PCI_DEVICE, i);
+        }
+    }
 }

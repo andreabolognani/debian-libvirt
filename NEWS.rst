@@ -8,6 +8,107 @@ the changes introduced by each of them.
 For a more fine-grained view, use the `git log`_.
 
 
+v12.7.0 (2026-09-01)
+====================
+
+* **Security**
+
+  * CVE-2026-18917: Integer overflow in RPC handler for ``virNodeGetFreePages``
+
+    The RPC handler for ``virNodeGetFreePages`` didn't properly check for
+    overflows in multiplication of integers when calculating the amount of
+    returned data for validation and allocation of the return buffer.
+
+    Specific values could thus pass validation and cause an undersized buffer
+    to be allocated. The hypervisor driver would then fill the undersized buffer
+    based on the values prior to multiplication and thus cause a write beyond
+    the end of the allocated buffer.
+
+    This bug can be triggered via a read-only connection.
+
+  * CVE-2026-77158: Double free of disks array in ``qemuAgentGetDisks``
+
+    The qemu hypervisor driver would double-free the array of parsed disks, on
+    error code paths leading to crash of the daemon. The error code path could
+    be reached when the qemu guest agent provided malformed data as response to
+    the ``guest-get-disks`` command.
+
+  * CVE-2026-77159: ``chown()`` of swtpm log file follows symlinks
+
+    When starting up a VM with a ``swtpm`` device configured, libvirt
+    ``chown()``-s the log file of swtpm to the (unprivileged) user/group
+    running the swtpm process. The problem is that the directory containing the
+    log files is also owned by the same user/group, thus users with access
+    to that directory could install a symlink to a privileged file that the
+    libvirt daemon would follow and chown the file pointed to.
+
+* **New features**
+
+  * bhyve: implement ``virDomainGetGuestInfo()`` and ``virDomainAgentSetResponseTimeout()`` APIs
+
+    The bhyve driver now implements ``virDomainGetGuestInfo()`` which returns
+    information about the guest, and ``virDomainAgentSetResponseTimeout()``
+    which sets the guest agent response timeout.
+
+  * bhyve: allow setting disk serial numbers
+
+    The bhyve driver now allows specifying ``<serial>`` for SATA disks and NVMe
+    controllers::
+
+      <disk type='file'>
+        <serial>BHYVE-SER01-0001</serial>
+        <driver name='file' type='raw'/>
+        <source file='/tmp/freebsd1.img'/>
+        <target dev='hda' bus='sata' rotation_rate='7200'/>
+      </disk>
+      <controller type='nvme' index='0'>
+        <serial>BHYVE-NVME0-01234</serial>
+      </controller>
+
+    It also supports specifying ``<wwn>`` for NVMe disks::
+
+      <disk type='file'>
+        <driver name='file' type='raw'/>
+        <source file='/path/to/some.img'/>
+        <target dev='nvme0n1' bus='nvme'/>
+        <wwn>01000000efbeadde</wwn>
+      </disk>
+
+  * qemu: Add poll-weight support for iothreads
+
+    The qemu driver now supports the iothread poll-weight property,
+    which controls the weight of the most recent event interval in the
+    adaptive polling duration calculation.
+
+  * Add guest device info to ``virDomainGetGuestInfo()``
+
+    QEMU guest agent has 'guest-get-devices` command, which returns information
+    on guest devices (driver name, version, release date, and so on). This is
+    now exposed via ``virDomainGetGuestInfo()`` API (accessible via ``guestinfo
+    --devices`` virsh command).
+
+* **Bug fixes**
+
+  * bhyve: fix domain API calls hanging after domain shutdown
+
+  * remote: Fix stale virStream status
+
+    In a few cases it might happen that daemon held incorrect state of a
+    virStream leading to an infinite loop. This is now fixed.
+
+  * esx: Don't crash when parsing unmounted datastore
+
+    When libvirt constructs domain XML for an ESX domain it traverses through
+    all datastores to find which one stores disks for the domain. But if a
+    datastore wasn't mounted, then a crash would occur. This is now fixed.
+
+  * virsh: Don't crash when certain error messages are printed
+
+    A bug in the error printing function could cause ``virsh`` to crash when
+    certain errors (e.g. disk not found in ``virsh detach-disk``) were being
+    reported.
+
+
 v12.6.0 (2026-08-03)
 ====================
 

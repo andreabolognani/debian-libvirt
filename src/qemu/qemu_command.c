@@ -6282,6 +6282,8 @@ qemuBuildPCINestedSmmuv3DevProps(const virDomainDef *def,
 {
     g_autoptr(virJSONValue) props = NULL;
     g_autofree char *bus = NULL;
+    g_autofree char *ssidsizeStr = NULL;
+    g_autofree char *oasStr = NULL;
     virPCIDeviceAddress addr = { .bus = iommu->pci_bus };
 
     bus = qemuBuildDeviceAddressPCIGetBus(def, &addr);
@@ -6292,10 +6294,24 @@ qemuBuildPCINestedSmmuv3DevProps(const virDomainDef *def,
         return NULL;
     }
 
+    if (iommu->ssid_size >= 0) {
+        ssidsizeStr = g_strdup_printf("%u", iommu->ssid_size);
+    }
+
+    if (iommu->oas >= 0) {
+        oasStr = g_strdup_printf("%u", iommu->oas);
+    }
+
     if (virJSONValueObjectAdd(&props,
                               "s:driver", "arm-smmuv3",
                               "s:primary-bus", bus,
                               "s:id", iommu->info.alias,
+                              "T:accel", iommu->accel,
+                              "S:ats", qemuOnOffAuto(iommu->ats),
+                              "S:ril", qemuOnOffAuto(iommu->ril),
+                              "S:ssidsize", ssidsizeStr,
+                              "S:oas", oasStr,
+                              "S:cmdqv", qemuOnOffAuto(iommu->cmdqv),
                               NULL) < 0)
         return NULL;
 
@@ -7684,6 +7700,12 @@ qemuBuildIOThreadCommandLine(virCommand *cmd,
         if (iothread->set_poll_shrink &&
             virJSONValueObjectAdd(&props,
                                   "U:poll-shrink", iothread->poll_shrink,
+                                  NULL) < 0)
+            return -1;
+
+        if (iothread->set_poll_weight &&
+            virJSONValueObjectAdd(&props,
+                                  "u:poll-weight", iothread->poll_weight,
                                   NULL) < 0)
             return -1;
 

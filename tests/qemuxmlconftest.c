@@ -1442,6 +1442,7 @@ mymain(void)
     DO_TEST_CAPS_LATEST("firmware-manual-efi-nvram-network-iscsi");
     DO_TEST_CAPS_LATEST("firmware-manual-efi-nvram-network-nbd");
     DO_TEST_CAPS_LATEST("firmware-manual-efi-nvram-file");
+    DO_TEST_CAPS_LATEST("firmware-manual-efi-nvram-dev-slice");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("firmware-manual-efi-nvram-stateless");
 
     DO_TEST_CAPS_ARCH_LATEST_FULL("firmware-manual-efi-sev-snp", "x86_64",
@@ -2333,6 +2334,8 @@ mymain(void)
     DO_TEST_CAPS_LATEST("iothreads-ids");
     DO_TEST_CAPS_LATEST("iothreads-ids-partial");
     DO_TEST_CAPS_LATEST("iothreads-ids-pool-sizes");
+    DO_TEST_CAPS_LATEST("iothreads-ids-poll-weight");
+    DO_TEST_CAPS_LATEST_PARSE_ERROR("iothreads-ids-poll-weight-outofrange");
     DO_TEST_CAPS_LATEST("iothreads-disk");
     DO_TEST_CAPS_LATEST("iothreads-virtio-scsi-pci");
     DO_TEST_CAPS_LATEST("iothreads-virtio-scsi-mapping");
@@ -2992,6 +2995,9 @@ mymain(void)
     DO_TEST_CAPS_ARCH_LATEST("iommu-smmuv3", "aarch64");
     DO_TEST_CAPS_ARCH_LATEST("iommu-smmuv3-pci-bus", "aarch64");
     DO_TEST_CAPS_ARCH_LATEST("iommu-smmuv3-pci-bus-single", "aarch64");
+    DO_TEST_CAPS_ARCH_LATEST("iommu-smmuv3-pci-bus-accel", "aarch64");
+    DO_TEST_CAPS_ARCH_LATEST("iommu-smmuv3-pci-bus-accel-auto", "aarch64");
+    DO_TEST_CAPS_ARCH_LATEST("iommu-smmuv3-pci-bus-accel-cmdqv", "aarch64");
     DO_TEST_CAPS_LATEST("virtio-iommu-x86_64");
     DO_TEST_CAPS_ARCH_LATEST("virtio-iommu-aarch64", "aarch64");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("virtio-iommu-wrong-machine");

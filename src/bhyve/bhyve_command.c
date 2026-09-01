@@ -333,6 +333,9 @@ bhyveBuildAHCIControllerArgStr(const virDomainDef *def,
         if (disk->rotation_rate)
             virBufferAsprintf(&device, ",nmrr=%u", disk->rotation_rate);
 
+        if (disk->serial)
+            virBufferAsprintf(&device, ",ser=%s", disk->serial);
+
         virBufferAddBuffer(&buf, &device);
     }
 
@@ -476,6 +479,12 @@ bhyveBuildNVMeControllerArgStr(const virDomainDef *def,
             virBufferAsprintf(&opt, ",maxq=%d", disk->queues);
         if (disk->queue_size)
             virBufferAsprintf(&opt, ",qsz=%d", disk->queue_size);
+        if (disk->wwn)
+            virBufferAsprintf(&opt, ",eui64=%s%s",
+                              STRPREFIX(disk->wwn, "0x") ? "" : "0x",
+                              disk->wwn);
+        if (controller->opts.nvmeopts.serial)
+            virBufferAsprintf(&opt, ",ser=%s", controller->opts.nvmeopts.serial);
 
         nvme_opts = virBufferContentAndReset(&opt);
 

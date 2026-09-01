@@ -500,9 +500,15 @@ qemuValidateDomainDefIOThreads(const virDomainDef *def,
     for (i = 0; i < def->niothreadids; i++) {
         virDomainIOThreadIDDef *iothread = def->iothreadids[i];
 
-        if (iothread->thread_pool_min != -1 || iothread->thread_pool_max != -1) {
+        if (iothread->thread_pool_min != -1 || iothread->thread_pool_max != -1)
             needsThreadPoolCap = true;
-            break;
+
+        /* poll-weight requires QEMU_CAPS_IOTHREAD_POLL_WEIGHT */
+        if (iothread->set_poll_weight &&
+            !virQEMUCapsGet(qemuCaps, QEMU_CAPS_IOTHREAD_POLL_WEIGHT)) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("poll-weight is not supported by this QEMU binary"));
+            return -1;
         }
     }
 
@@ -707,8 +713,35 @@ qemuValidateDomainDefNvram(const virDomainDef *def,
 
     switch (src->type) {
     case VIR_STORAGE_TYPE_FILE:
-    case VIR_STORAGE_TYPE_BLOCK:
     case VIR_STORAGE_TYPE_NETWORK:
+        if (src->sliceStorage) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("slices are not supported with non-block NVRAM"));
+            return -1;
+        }
+        break;
+
+    case VIR_STORAGE_TYPE_BLOCK:
+        if (src->sliceStorage) {
+            if (src->sliceStorage->offset != 0) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                               _("offset slices are not supported with NVRAM"));
+                return -1;
+            }
+
+            switch (src->format) {
+            case VIR_STORAGE_FILE_RAW:
+            case VIR_STORAGE_FILE_NONE:
+                break;
+
+            default:
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                               _("NVRAM slices are not supported with format '%1$s'"),
+                               virStorageFileFormatTypeToString(src->format));
+                return -1;
+                break;
+            }
+        }
         break;
 
     case VIR_STORAGE_TYPE_DIR:
@@ -725,12 +758,6 @@ qemuValidateDomainDefNvram(const virDomainDef *def,
     case VIR_STORAGE_TYPE_NONE:
     case VIR_STORAGE_TYPE_LAST:
         virReportEnumRangeError(virStorageType, src->type);
-        return -1;
-    }
-
-    if (src->sliceStorage) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                        _("slices are not supported with NVRAM"));
         return -1;
     }
 
@@ -5701,6 +5728,14 @@ qemuValidateDomainDeviceDefIOMMU(const virDomainIOMMUDef *iommu,
                            virDomainIOMMUModelTypeToString(iommu->model));
             return -1;
         }
+        if (iommu->pci_bus >= 0) {
+            if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_ARM_SMMUV3_SMMU_PER_BUS)) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                               _("IOMMU device: Setting pciBus for '%1$s' is not supported with this QEMU binary"),
+                               virDomainIOMMUModelTypeToString(iommu->model));
+                return -1;
+            }
+        }
         if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_MACHINE_VIRT_IOMMU)) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                            _("IOMMU device: '%1$s' is not supported with this QEMU binary"),
@@ -5806,6 +5841,26 @@ qemuValidateDomainDeviceDefIOMMU(const virDomainIOMMUDef *iommu,
         !virQEMUCapsGet(qemuCaps, QEMU_CAPS_INTEL_IOMMU_DMA_TRANSLATION))  {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                        _("iommu: updating dma translation is not supported with this QEMU binary"));
+        return -1;
+    }
+
+    /* While QEMU_CAPS_ARM_SMMUV3_ACCEL tracks the .accel attribute of
+     * arm-smmuv3 it is also a good indicator of .ats, .ril, .ssidsize, and
+     * .oas attributes as all of them were introduced in the same release,
+     * and these features are meant to be backported all together. */
+    if (iommu->model == VIR_DOMAIN_IOMMU_MODEL_SMMUV3 &&
+        iommu->accel != VIR_TRISTATE_SWITCH_ABSENT &&
+        !virQEMUCapsGet(qemuCaps, QEMU_CAPS_ARM_SMMUV3_ACCEL)) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("iommu: accel is not supported with this QEMU binary"));
+        return -1;
+    }
+
+    if (iommu->model == VIR_DOMAIN_IOMMU_MODEL_SMMUV3 &&
+        iommu->cmdqv != VIR_TRISTATE_SWITCH_ABSENT &&
+        !virQEMUCapsGet(qemuCaps, QEMU_CAPS_ARM_SMMUV3_CMDQV)) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("iommu: cmdqv is not supported with this QEMU binary"));
         return -1;
     }
 

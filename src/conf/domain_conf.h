@@ -2902,6 +2902,8 @@ struct _virDomainIOThreadIDDef {
     bool set_poll_grow;
     unsigned long long poll_shrink;
     bool set_poll_shrink;
+    unsigned int poll_weight;
+    bool set_poll_weight;
 
     int thread_pool_min;
     int thread_pool_max;
@@ -3105,6 +3107,12 @@ struct _virDomainIOMMUDef {
     virTristateSwitch xtsup;
     virTristateSwitch pt;
     int granule; /* -1 means 'host', 0 unset, page size in KiB otherwise */
+    virTristateSwitch accel;
+    virTristateSwitch cmdqv;
+    virTristateSwitch ats;
+    virTristateSwitch ril;
+    int ssid_size;
+    int oas;
 };
 
 typedef enum {
