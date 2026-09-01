@@ -2808,6 +2808,264 @@ bhyveDomainRename(virDomainPtr domain,
     return ret;
 }
 
+static int
+bhyveDomainAgentSetResponseTimeout(virDomainPtr domain,
+                                   int timeout,
+                                   unsigned int flags)
+{
+    virDomainObj *vm = NULL;
+    bhyveDomainObjPrivate *priv = NULL;
+    struct _bhyveConn *privconn = domain->conn->privateData;
+    int ret = -1;
+
+    virCheckFlags(0, -1);
+
+    if (timeout < VIR_DOMAIN_QEMU_AGENT_COMMAND_MIN) {
+        virReportError(VIR_ERR_INVALID_ARG,
+                       _("guest agent timeout '%1$d' is less than the minimum '%2$d'"),
+                       timeout, VIR_DOMAIN_QEMU_AGENT_COMMAND_MIN);
+        return -1;
+    }
+
+    if (!(vm = bhyveDomObjFromDomain(domain)))
+        return -1;
+
+    if (virDomainAgentSetResponseTimeoutEnsureACL(domain->conn, vm->def) < 0)
+        goto cleanup;
+
+    priv = vm->privateData;
+    if (priv->agent != NULL) {
+        virObjectLock(priv->agent);
+        qemuAgentSetResponseTimeout(priv->agent, timeout);
+        virObjectUnlock(priv->agent);
+    }
+
+    priv->agentTimeout = timeout;
+
+    if (virDomainObjIsActive(vm)) {
+        if (virDomainObjSave(vm, privconn->xmlopt, BHYVE_STATE_DIR) < 0)
+            VIR_WARN("Failed to save status on vm %s", vm->def->name);
+    }
+
+    ret = 0;
+
+ cleanup:
+    virDomainObjEndAPI(&vm);
+    return ret;
+}
+
+static const unsigned int bhyveDomainGetGuestInfoSupportedTypes =
+    VIR_DOMAIN_GUEST_INFO_USERS |
+    VIR_DOMAIN_GUEST_INFO_OS |
+    VIR_DOMAIN_GUEST_INFO_TIMEZONE |
+    VIR_DOMAIN_GUEST_INFO_HOSTNAME |
+    VIR_DOMAIN_GUEST_INFO_FILESYSTEM |
+    VIR_DOMAIN_GUEST_INFO_DISKS |
+    VIR_DOMAIN_GUEST_INFO_INTERFACES |
+    VIR_DOMAIN_GUEST_INFO_LOAD |
+    VIR_DOMAIN_GUEST_INFO_DEVICES;
+
+static int
+bhyveDomainGetGuestInfoCheckSupport(unsigned int types,
+                                    unsigned int *supportedTypes)
+{
+    if (types == 0) {
+        *supportedTypes = bhyveDomainGetGuestInfoSupportedTypes;
+        return 0;
+    }
+
+    *supportedTypes = types & bhyveDomainGetGuestInfoSupportedTypes;
+
+    if (types != *supportedTypes) {
+        virReportError(VIR_ERR_INVALID_ARG,
+                       _("unsupported guest information types '0x%1$x'"),
+                       types & ~bhyveDomainGetGuestInfoSupportedTypes);
+        return -1;
+    }
+
+    return 0;
+}
+
+
+static int
+bhyveDomainGetGuestInfo(virDomainPtr domain,
+                        unsigned int types,
+                        virTypedParameterPtr *params,
+                        int *nparams,
+                        unsigned int flags)
+{
+    virDomainObj *vm = NULL;
+    qemuAgent *agent = NULL;
+    int ret = -1;
+    g_autofree char *hostname = NULL;
+    unsigned int supportedTypes;
+    bool report_unsupported = types != 0;
+    int rc;
+    size_t nfs = 0;
+    qemuAgentFSInfo **agentfsinfo = NULL;
+    size_t ndisks = 0;
+    qemuAgentDiskInfo **agentdiskinfo = NULL;
+    virDomainInterfacePtr *ifaces = NULL;
+    size_t nifaces = 0;
+    double load1m = 0;
+    double load5m = 0;
+    double load15m = 0;
+    bool format_load = false;
+    qemuAgentGuestDeviceInfo **devices = NULL;
+    size_t ndevices = 0;
+    size_t i;
+    g_autoptr(virTypedParamList) list = virTypedParamListNew();
+
+    if (bhyveDomainGetGuestInfoCheckSupport(types, &supportedTypes) < 0)
+        return -1;
+
+    virCheckFlags(0, -1);
+
+    if (!(vm = bhyveDomObjFromDomain(domain)))
+        goto cleanup;
+
+    if (virDomainGetGuestInfoEnsureACL(domain->conn, vm->def) < 0)
+        goto cleanup;
+
+    if (virDomainObjBeginAgentJob(vm, VIR_AGENT_JOB_QUERY) < 0)
+        goto cleanup;
+
+    if (bhyveDomainEnsureAgent(vm, true) < 0)
+        goto endagentjob;
+
+    agent = bhyveDomainObjEnterAgent(vm);
+
+    if (supportedTypes & VIR_DOMAIN_GUEST_INFO_USERS &&
+        qemuAgentGetUsers(agent, list, report_unsupported) == -1)
+        goto exitagent;
+
+    if (supportedTypes & VIR_DOMAIN_GUEST_INFO_OS &&
+        qemuAgentGetOSInfo(agent, list, report_unsupported) == -1)
+        goto exitagent;
+
+    if (supportedTypes & VIR_DOMAIN_GUEST_INFO_TIMEZONE &&
+        qemuAgentGetTimezone(agent, list, report_unsupported) == -1)
+        goto exitagent;
+
+    if (supportedTypes & VIR_DOMAIN_GUEST_INFO_HOSTNAME &&
+        qemuAgentGetHostname(agent, &hostname, report_unsupported) == -1)
+        goto exitagent;
+
+    if (hostname)
+        virTypedParamListAddString(list, hostname,
+                                   VIR_DOMAIN_GUEST_INFO_HOSTNAME_HOSTNAME);
+
+    if (supportedTypes & VIR_DOMAIN_GUEST_INFO_FILESYSTEM) {
+        rc = qemuAgentGetFSInfo(agent, &agentfsinfo, report_unsupported);
+        if (rc == -1)
+            goto exitagent;
+        if (rc >= 0)
+            nfs = rc;
+    }
+
+    if (supportedTypes & VIR_DOMAIN_GUEST_INFO_DISKS) {
+        rc = qemuAgentGetDisks(agent, &agentdiskinfo, report_unsupported);
+        if (rc == -1)
+            goto exitagent;
+        if (rc >= 0)
+            ndisks = rc;
+    }
+
+    if (supportedTypes & VIR_DOMAIN_GUEST_INFO_INTERFACES) {
+        rc = qemuAgentGetInterfaces(agent, &ifaces, report_unsupported);
+        if (rc == -1)
+            goto exitagent;
+        if (rc >= 0)
+            nifaces = rc;
+    }
+
+    if (supportedTypes & VIR_DOMAIN_GUEST_INFO_LOAD) {
+        rc = qemuAgentGetLoadAvg(agent, &load1m, &load5m, &load15m, report_unsupported);
+        if (rc == -1)
+            goto exitagent;
+        if (rc >= 0)
+            format_load = true;
+    }
+
+    if (supportedTypes & VIR_DOMAIN_GUEST_INFO_DEVICES) {
+        rc = qemuAgentGetGuestDeviceInfo(agent, &devices, report_unsupported);
+        if (rc == -1)
+            goto exitagent;
+        if (rc >= 0)
+            ndevices = rc;
+    }
+
+    bhyveDomainObjExitAgent(vm, agent);
+    virDomainObjEndAgentJob(vm);
+
+    if (nfs > 0 || ndisks > 0) {
+        if (virDomainObjBeginJob(vm, VIR_JOB_QUERY) < 0)
+            goto cleanup;
+
+        if (virDomainObjCheckActive(vm) < 0)
+            goto endjob;
+
+        /* we need to convert the agent fsinfo struct to parameters and match
+         * it to the vm disk target */
+        if (nfs > 0)
+            qemuAgentFSInfoFormatParams(agentfsinfo, nfs, vm->def, list);
+
+        if (ndisks > 0)
+            qemuAgentDiskInfoFormatParams(agentdiskinfo, ndisks, vm->def, list);
+
+ endjob:
+        virDomainObjEndJob(vm);
+    }
+
+    if (nifaces > 0) {
+        qemuAgentInterfaceFormatParams(ifaces, nifaces, list);
+    }
+
+    if (format_load) {
+        virTypedParamListAddDouble(list, load1m, VIR_DOMAIN_GUEST_INFO_LOAD_1M);
+        virTypedParamListAddDouble(list, load5m, VIR_DOMAIN_GUEST_INFO_LOAD_5M);
+        virTypedParamListAddDouble(list, load15m, VIR_DOMAIN_GUEST_INFO_LOAD_15M);
+    }
+
+    if (ndevices > 0) {
+        qemuAgentGuestDeviceInfoFormatParams(devices, ndevices, list);
+    }
+
+    if (virTypedParamListSteal(list, params, nparams) < 0)
+        goto cleanup;
+
+    ret = 0;
+
+ cleanup:
+    for (i = 0; i < nfs; i++)
+        qemuAgentFSInfoFree(agentfsinfo[i]);
+    g_free(agentfsinfo);
+    for (i = 0; i < ndisks; i++)
+        qemuAgentDiskInfoFree(agentdiskinfo[i]);
+    g_free(agentdiskinfo);
+    if (ifaces && nifaces > 0) {
+        for (i = 0; i < nifaces; i++)
+            virDomainInterfaceFree(ifaces[i]);
+    }
+    g_free(ifaces);
+    if (devices && ndevices > 0) {
+        for (i = 0; i < ndevices; i++) {
+            qemuAgentGuestDeviceInfoFree(devices[i]);
+        }
+        g_free(devices);
+    }
+
+    virDomainObjEndAPI(&vm);
+    return ret;
+
+ exitagent:
+    bhyveDomainObjExitAgent(vm, agent);
+
+ endagentjob:
+    virDomainObjEndAgentJob(vm);
+    goto cleanup;
+}
+
 static virHypervisorDriver bhyveHypervisorDriver = {
     .name = "bhyve",
     .connectURIProbe = bhyveConnectURIProbe,
@@ -2886,6 +3144,8 @@ static virHypervisorDriver bhyveHypervisorDriver = {
     .domainAuthorizedSSHKeysGet = bhyveDomainAuthorizedSSHKeysGet, /* 12.5.0 */
     .domainAuthorizedSSHKeysSet = bhyveDomainAuthorizedSSHKeysSet, /* 12.5.0 */
     .domainRename = bhyveDomainRename, /* 12.6.0 */
+    .domainAgentSetResponseTimeout = bhyveDomainAgentSetResponseTimeout, /* 12.7.0 */
+    .domainGetGuestInfo = bhyveDomainGetGuestInfo, /* 12.7.0 */
 };
 
 

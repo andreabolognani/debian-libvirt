@@ -2864,6 +2864,10 @@ virDomainIOMMUDefNew(void)
 
     iommu->pci_bus = -1;
 
+    iommu->ssid_size = -1;
+
+    iommu->oas = -1;
+
     return g_steal_pointer(&iommu);
 }
 
@@ -14750,6 +14754,30 @@ virDomainIOMMUDefParseXML(virDomainXMLOption *xmlopt,
                           &iommu->pci_bus, -1) < 0)
             return NULL;
 
+        if (virXMLPropTristateSwitch(driver, "accel", VIR_XML_PROP_NONE,
+                                     &iommu->accel) < 0)
+            return NULL;
+
+        if (virXMLPropTristateSwitch(driver, "cmdqv", VIR_XML_PROP_NONE,
+                                     &iommu->cmdqv) < 0)
+            return NULL;
+
+        if (virXMLPropTristateSwitch(driver, "ats", VIR_XML_PROP_NONE,
+                                     &iommu->ats) < 0)
+            return NULL;
+
+        if (virXMLPropTristateSwitch(driver, "ril", VIR_XML_PROP_NONE,
+                                     &iommu->ril) < 0)
+            return NULL;
+
+        if (virXMLPropInt(driver, "ssidsize", 10, VIR_XML_PROP_NONE,
+                          &iommu->ssid_size, -1) < 0)
+            return NULL;
+
+        if (virXMLPropInt(driver, "oas", 10, VIR_XML_PROP_NONE,
+                          &iommu->oas, -1) < 0)
+            return NULL;
+
         if ((granule = virXPathNode("./driver/granule", ctxt))) {
             g_autofree char *mode = virXMLPropString(granule, "mode");
             unsigned long long size;
@@ -16853,6 +16881,13 @@ virDomainIOMMUDefEquals(const virDomainIOMMUDef *a,
         a->iotlb != b->iotlb ||
         a->aw_bits != b->aw_bits ||
         a->dma_translation != b->dma_translation ||
+        a->pci_bus != b->pci_bus ||
+        a->accel != b->accel ||
+        a->cmdqv != b->cmdqv ||
+        a->ats != b->ats ||
+        a->ril != b->ril ||
+        a->ssid_size != b->ssid_size ||
+        a->oas != b->oas ||
         a->xtsup != b->xtsup ||
         a->pt != b->pt ||
         a->granule != b->granule)
@@ -16988,7 +17023,9 @@ virDomainDefParseBootXML(xmlXPathContextPtr ctxt,
  *
  *     <iothreads>4</iothreads>
  *     <iothreadids>
- *       <iothread id='1' thread_pool_min="0" thread_pool_max="60"/>
+ *       <iothread id='1' thread_pool_min="0" thread_pool_max="60">
+ *         <poll max='32000' grow='2' shrink='2' weight='3'/>
+ *       </iothread>
  *       <iothread id='3'/>
  *       <iothread id='5'/>
  *       <iothread id='7'/>
@@ -17036,6 +17073,12 @@ virDomainIOThreadIDDefParseXML(xmlNodePtr node)
             return NULL;
 
         iothrid->set_poll_shrink = rc == 1;
+
+        if ((rc = virXMLPropUInt(pollNode, "weight", 10, VIR_XML_PROP_NONE,
+                                 &iothrid->poll_weight)) < 0)
+            return NULL;
+
+        iothrid->set_poll_weight = rc == 1;
     }
 
     return g_steal_pointer(&iothrid);
@@ -22735,6 +22778,42 @@ virDomainIOMMUDefCheckABIStability(virDomainIOMMUDef *src,
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                        _("Target domain IOMMU device pci_bus value '%1$d' does not match source '%2$d'"),
                        dst->pci_bus, src->pci_bus);
+        return false;
+    }
+    if (src->accel != dst->accel) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("Target domain IOMMU device accel value '%1$d' does not match source '%2$d'"),
+                       dst->accel, src->accel);
+        return false;
+    }
+    if (src->cmdqv != dst->cmdqv) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("Target domain IOMMU device cmdqv value '%1$d' does not match source '%2$d'"),
+                       dst->cmdqv, src->cmdqv);
+        return false;
+    }
+    if (src->ats != dst->ats) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("Target domain IOMMU device ATS value '%1$d' does not match source '%2$d'"),
+                       dst->ats, src->ats);
+        return false;
+    }
+    if (src->ril != dst->ril) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("Target domain IOMMU device ril value '%1$d' does not match source '%2$d'"),
+                       dst->ril, src->ril);
+        return false;
+    }
+    if (src->ssid_size != dst->ssid_size) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("Target domain IOMMU device ssid_size value '%1$d' does not match source '%2$d'"),
+                       dst->ssid_size, src->ssid_size);
+        return false;
+    }
+    if (src->oas != dst->oas) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("Target domain IOMMU device oas value '%1$d' does not match source '%2$d'"),
+                       dst->oas, src->oas);
         return false;
     }
     if (src->dma_translation != dst->dma_translation) {
@@ -29015,6 +29094,7 @@ virDomainDefIothreadShouldFormat(const virDomainDef *def)
             def->iothreadids[i]->set_poll_max_ns ||
             def->iothreadids[i]->set_poll_grow ||
             def->iothreadids[i]->set_poll_shrink ||
+            def->iothreadids[i]->set_poll_weight ||
             def->iothreadids[i]->thread_pool_min >= 0 ||
             def->iothreadids[i]->thread_pool_max >= 0)
             return true;
@@ -29087,6 +29167,9 @@ virDomainDefIOThreadsFormat(virBuffer *buf,
 
             if (iothread->set_poll_shrink)
                 virBufferAsprintf(&pollAttrBuf, " shrink='%llu'", iothread->poll_shrink);
+
+            if (iothread->set_poll_weight)
+                virBufferAsprintf(&pollAttrBuf, " weight='%u'", iothread->poll_weight);
 
             virXMLFormatElement(&iothreadChildBuf, "poll", &pollAttrBuf, NULL);
 
@@ -29206,6 +29289,30 @@ virDomainIOMMUDefFormat(virBuffer *buf,
     if (iommu->pci_bus >= 0) {
         virBufferAsprintf(&driverAttrBuf, " pciBus='%d'",
                           iommu->pci_bus);
+    }
+    if (iommu->accel != VIR_TRISTATE_SWITCH_ABSENT) {
+        virBufferAsprintf(&driverAttrBuf, " accel='%s'",
+                          virTristateSwitchTypeToString(iommu->accel));
+    }
+    if (iommu->cmdqv != VIR_TRISTATE_SWITCH_ABSENT) {
+            virBufferAsprintf(&driverAttrBuf, " cmdqv='%s'",
+                              virTristateSwitchTypeToString(iommu->cmdqv));
+        }
+    if (iommu->ats != VIR_TRISTATE_SWITCH_ABSENT) {
+        virBufferAsprintf(&driverAttrBuf, " ats='%s'",
+                          virTristateSwitchTypeToString(iommu->ats));
+    }
+    if (iommu->ril != VIR_TRISTATE_SWITCH_ABSENT) {
+        virBufferAsprintf(&driverAttrBuf, " ril='%s'",
+                          virTristateSwitchTypeToString(iommu->ril));
+    }
+    if (iommu->ssid_size >= 0) {
+        virBufferAsprintf(&driverAttrBuf, " ssidsize='%d'",
+                          iommu->ssid_size);
+    }
+    if (iommu->oas >= 0) {
+        virBufferAsprintf(&driverAttrBuf, " oas='%d'",
+                          iommu->oas);
     }
     if (iommu->granule != 0) {
         if (iommu->granule == -1) {

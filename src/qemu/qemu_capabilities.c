@@ -768,6 +768,13 @@ VIR_ENUM_IMPL(virQEMUCaps,
               /* 495 */
               "blockdev-mirror.target-is-zero", /* QEMU_CAPS_BLOCKDEV_MIRROR_TARGET_IS_ZERO */
               "object-monitor-qmp", /* QEMU_CAPS_OBJECT_MONITOR_QMP */
+              "arm-smmuv3", /* QEMU_CAPS_DEVICE_ARM_SMMUV3 */
+              "arm-smmuv3.smmu_per_bus", /* QEMU_CAPS_ARM_SMMUV3_SMMU_PER_BUS */
+              "arm-smmuv3.accel", /* QEMU_CAPS_ARM_SMMUV3_ACCEL */
+
+              /* 500 */
+              "arm-smmuv3.cmdqv", /* QEMU_CAPS_ARM_SMMUV3_CMDQV */
+              "iothread.poll-weight", /* QEMU_CAPS_IOTHREAD_POLL_WEIGHT */
     );
 
 
@@ -1481,6 +1488,7 @@ struct virQEMUCapsStringFlags virQEMUCapsObjectTypes[] = {
     { "uefi-vars-x64", QEMU_CAPS_DEVICE_UEFI_VARS },
     { "uefi-vars-sysbus", QEMU_CAPS_DEVICE_UEFI_VARS },
     { "monitor-qmp", QEMU_CAPS_OBJECT_MONITOR_QMP },
+    { "arm-smmuv3", QEMU_CAPS_DEVICE_ARM_SMMUV3 },
 };
 
 
@@ -1644,6 +1652,12 @@ static struct virQEMUCapsDevicePropsFlags virQEMUCapsDevicePropsAMDIOMMU[] = {
     { "xtsup", QEMU_CAPS_AMD_IOMMU_XTSUP, NULL },
 };
 
+static struct virQEMUCapsDevicePropsFlags virQEMUCapsDevicePropsArmSmmuv3[] = {
+    { "smmu_per_bus", QEMU_CAPS_ARM_SMMUV3_SMMU_PER_BUS, NULL },
+    { "accel", QEMU_CAPS_ARM_SMMUV3_ACCEL, NULL },
+    { "cmdqv", QEMU_CAPS_ARM_SMMUV3_CMDQV, NULL },
+};
+
 /* see documentation for virQEMUQAPISchemaPathGet for the query format */
 static struct virQEMUCapsStringFlags virQEMUCapsQMPSchemaQueries[] = {
     { "blockdev-add/arg-type/+file/drop-cache", QEMU_CAPS_MIGRATION_FILE_DROP_CACHE },
@@ -1670,6 +1684,7 @@ static struct virQEMUCapsStringFlags virQEMUCapsQMPSchemaQueries[] = {
     { "netdev_add/arg-type/+stream/reconnect-ms", QEMU_CAPS_NETDEV_STREAM_RECONNECT_MILISECONDS },
     { "object-add/arg-type/+sev-guest/kernel-hashes", QEMU_CAPS_SEV_GUEST_KERNEL_HASHES },
     { "object-add/arg-type/+iothread/thread-pool-max", QEMU_CAPS_IOTHREAD_THREAD_POOL_MAX },
+    { "object-add/arg-type/+iothread/poll-weight", QEMU_CAPS_IOTHREAD_POLL_WEIGHT },
     { "query-block/arg-type/flat", QEMU_CAPS_QUERY_BLOCK_FLAT },
     { "query-display-options/ret-type/+egl-headless/rendernode", QEMU_CAPS_EGL_HEADLESS_RENDERNODE },
     { "query-display-options/ret-type/+sdl", QEMU_CAPS_SDL },
@@ -1809,6 +1824,9 @@ static virQEMUCapsDeviceTypeProps virQEMUCapsDeviceProps[] = {
     { "amd-iommu", virQEMUCapsDevicePropsAMDIOMMU,
       G_N_ELEMENTS(virQEMUCapsDevicePropsAMDIOMMU),
       QEMU_CAPS_AMD_IOMMU },
+    { "arm-smmuv3", virQEMUCapsDevicePropsArmSmmuv3,
+      G_N_ELEMENTS(virQEMUCapsDevicePropsArmSmmuv3),
+      QEMU_CAPS_DEVICE_ARM_SMMUV3 },
     { "scsi-block", virQEMUCapsDevicePropsSCSIBlock,
       G_N_ELEMENTS(virQEMUCapsDevicePropsSCSIBlock),
       -1 },

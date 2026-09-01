@@ -140,6 +140,7 @@ Patches have also been contributed by:
 * Andrea Bolognani <abologna@redhat.com>
 * Andrea Morelli <morelliandrea973@gmail.com>
 * Andrea Righi <arighi@nvidia.com>
+* Andrei Stepanov <adem4ik@gmail.com>
 * Andres Lagar-Cavilla <andres@lagarcavilla.org>
 * Andrew Melnychenko <andrew@daynix.com>
 * Andrew Miloradovsky <andrew@interpretmath.pw>
@@ -183,7 +184,9 @@ Patches have also been contributed by:
 * Bastien Orivel <bastien.orivel@diateam.net>
 * Beat Jörg <Beat.Joerg@ssatr.ch>
 * Ben Gray <ben.r.gray@gmail.com>
+* Benjamin <benjamin.loison@CENSORED.fr>
 * Benjamin Cama <benoar@dolka.fr>
+* Benjamin Loison <benjamin.loison@orange.fr>
 * Benjamin Taubmann <benjamin.taubmann@nutanix.com>
 * Bharata B Rao <bharata@linux.vnet.ibm.com>
 * Bhavin Gandhi <bhavin192@geeksocket.in>
@@ -268,6 +271,7 @@ Patches have also been contributed by:
 * Cristian Klein <cristiklein@gmail.com>
 * Dan Horák <dan@danny.cz>
 * Daniel Berteaud <daniel@firewall-services.com>
+* Daniel Golle <daniel@makrotopia.org>
 * Daniel Gollub <gollub@b1-systems.de>
 * Daniel Hansel <daniel.hansel@linux.vnet.ibm.com>
 * Daniel Henrique Barboza <dbarboza@ventanamicro.com>
@@ -729,6 +733,7 @@ Patches have also been contributed by:
 * minglei.liu <minglei.liu@smartx.com>
 * Minoru Usui <usui@mxm.nes.nec.co.jp>
 * Miroslav Los <mirlos@cisco.com>
+* Mitsuru Kariya <Mitsuru.Kariya@oss.nttdata.com>
 * Mooli Tayer <mtayer@redhat.com>
 * MORITA Kazutaka <morita.kazutaka@lab.ntt.co.jp>
 * Moshe Levi <moshele@mellanox.com>
@@ -869,6 +874,7 @@ Patches have also been contributed by:
 * Rommer <rommer@active.by>
 * Ron Yorston <rmy@tigress.co.uk>
 * Roopa Prabhu <roprabhu@cisco.com>
+* Ross Golder <ross@golder.org>
 * Royce Lv <lvroyce@linux.vnet.ibm.com>
 * Ruben Kerkhof <ruben@rubenkerkhof.com>
 * Rudy Zhang <rudyflyzhang@gmail.com>
@@ -911,6 +917,7 @@ Patches have also been contributed by:
 * Sergey Dyasli <sergey.dyasli@nutanix.com>
 * Sergey Fionov <fionov@gmail.com>
 * Sergey Mironov <mironov@fintech.ru>
+* Sergey Zhidkih <rx1513@altlinux.org>
 * Sergio Durigan Junior <sergio.durigan@canonical.com>
 * Shahar Klein <shaharklein@yahoo.com>
 * Shaleen Bathla <shaleen.bathla@oracle.com>
@@ -991,6 +998,7 @@ Patches have also been contributed by:
 * Thomas Treutner <thomas@scripty.at>
 * Thomas Woerner <twoerner@redhat.com>
 * Thorsten Behrens <tbehrens@suse.com>
+* Tiago Gasiba <tiga@FreeBSD.org>
 * Tiago M. Vieira <tmv@redhat.com>
 * Timothée Ravier <tim@siosm.fr>
 * Tim Shearer <TShearer@adva.com>

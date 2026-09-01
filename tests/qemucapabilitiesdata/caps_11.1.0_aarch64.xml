@@ -188,9 +188,14 @@
   <flag name='query-block-flat'/>
   <flag name='blockdev-mirror.target-is-zero'/>
   <flag name='object-monitor-qmp'/>
-  <version>11000090</version>
+  <flag name='arm-smmuv3'/>
+  <flag name='arm-smmuv3.smmu_per_bus'/>
+  <flag name='arm-smmuv3.accel'/>
+  <flag name='arm-smmuv3.cmdqv'/>
+  <flag name='iothread.poll-weight'/>
+  <version>11001000</version>
   <microcodeVersion>61700287</microcodeVersion>
-  <package>v11.1.0-rc0</package>
+  <package>v11.1.0</package>
   <arch>aarch64</arch>
   <hostCPU type='kvm' model='host' migratability='no'>
     <property name='sve768' type='boolean' value='false'/>

@@ -815,7 +815,7 @@ host/guest with many LUNs. :since:`Since 1.2.8 (QEMU only)`
        <iothread id="4"/>
        <iothread id="6"/>
        <iothread id="8" thread_pool_min="2" thread_pool_max="32">
-         <poll max='123' grow='456' shrink='789'/>
+         <poll max='123' grow='456' shrink='789' weight='3'/>
        </iothread>
      </iothreadids>
      <defaultiothread thread_pool_min="8" thread_pool_max="16"/>
@@ -849,6 +849,12 @@ host/guest with many LUNs. :since:`Since 1.2.8 (QEMU only)`
    polling. Attributes ``grow`` and ``shrink`` override (or disable when set to
    ``0``) the default steps for increasing/decreasing the polling interval if
    the set interval is deemed insufficient or excessive.
+   :since:`Since 12.7.0` the optional attribute ``weight`` sets the shift value
+   for the adaptive polling algorithm, controlling how much the most recent
+   event interval affects the next polling duration calculation. Larger values
+   decrease the weight of recent events, producing more gradual adjustments.
+   Valid range is ``[0, 63]``. Omitting ``weight`` or setting it to ``0`` lets
+   the hypervisor select its default value.
 ``defaultiothread``
    This element represents the default event loop within hypervisor, where I/O
    requests from devices not assigned to a specific IOThread are processed.
@@ -9427,7 +9433,54 @@ Examples:
 
    ``pciBus``
       The ``pciBus`` attribute notes the index of the controller that an
-      IOMMU device is attached to. (QEMU/KVM and ``smmuv3`` model only)
+      IOMMU device is attached to.
+      :since:`Since 11.10.0` (QEMU/KVM and ``smmuv3`` model only)
+
+   ``accel``
+      The ``accel`` attribute with possible values ``on`` and ``off`` can
+      be used to enable hardware acceleration support for smmuv3 IOMMU
+      devices.
+      :since:`Since 12.7.0` (QEMU/KVM and ``smmuv3`` model only)
+
+   ``cmdqv``
+      The ``cmdqv`` attribute with possible values ``on`` and ``off`` can be used
+      to enable NVIDIA Tegra241 CMDQV, an extension for ARM SMMUv3 that supports
+      passthrough of physical SMMU-CMDQ linked command queue from host space to VM.
+      If ``accel`` is enabled and ``cmdqv`` is not configured, the hypervisor
+      default value is used.
+      :since:`Since 12.7.0` (QEMU/KVM and ``smmuv3`` model only)
+
+   ``ats``
+      The ``ats`` attribute with possible values ``on`` and ``off`` can be
+      used to enable reporting Address Translation Services capability to
+      the guest for smmuv3 IOMMU devices with ``accel`` set to ``on``, if
+      the host SMMUv3 supports ATS and the associated passthrough device
+      supports ATS. If ``accel`` is enabled and ``ats`` is not configured,
+      the hypervisor default value is used.
+      :since:`Since 12.7.0` (QEMU/KVM and ``smmuv3`` model only)
+
+   ``ril``
+      The ``ril`` attribute with possible values ``on`` and ``off`` can be
+      used to report whether Range Invalidation for IOMMU devices with
+      ``accel`` set to ``on`` is compatible with host SMMUv3 support. If
+      ``accel`` is enabled and ``ril`` is not configured, the hypervisor
+      default value is used.
+      :since:`Since 12.7.0` (QEMU/KVM and ``smmuv3`` model only)
+
+   ``ssidsize``
+      The ``ssidsize`` attribute sets the number of bits used to
+      represent SubstreamIDs. A value of N allows SSIDs in the range
+      [0 .. 2^N - 1]. The valid range is 0-20, and a value greater than 0
+      is required for enabling PASID support, as doing so advertises PASID
+      capability to the vIOMMU. If ``accel`` is enabled and ``ssidsize`` is
+      not configured, the hypervisor default value is used.
+      :since:`Since 12.7.0` (QEMU/KVM and ``smmuv3`` model only)
+
+   ``oas``
+      The ``oas`` attribute sets the output address size in units of bits.
+      If ``accel`` is enabled and ``oas`` is not configured, the hypervisor
+      default value is used.
+      :since:`Since 12.7.0` (QEMU/KVM and ``smmuv3`` model only)
 
 In case of ``virtio`` IOMMU device, the ``driver`` element can optionally
 contain ``granule`` subelement that allows to choose which granule will be

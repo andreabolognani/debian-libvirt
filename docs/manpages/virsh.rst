@@ -2905,6 +2905,8 @@ not available for statistical purposes.
   growth is managed by the hypervisor.
 * ``iothread.<id>.poll-shrink`` - polling time shrink value. A value of
   (zero) indicates shrink is managed by hypervisor.
+* ``iothread.<id>.poll-weight`` - polling weight shift value. A value of 0
+  (zero) indicates the hypervisor's default weight is used.
 
 *--memory* returns:
 
@@ -3277,7 +3279,7 @@ guestinfo
 ::
 
    guestinfo domain [--user] [--os] [--timezone] [--hostname] [--filesystem]
-      [--disk] [--interface]
+      [--disk] [--interface] [--devices]
 
 Print information about the guest from the point of view of the guest agent.
 Note that this command requires a guest agent to be configured and running in
@@ -3289,9 +3291,9 @@ Success is always reported in this case.
 
 You can limit the types of information that are returned by specifying one or
 more flags.  Available information types flags are *--user*, *--os*,
-*--timezone*, *--hostname*, *--filesystem*, *--disk*, *--interface* and *--load*.
-If an explicitly requested information type is not supported by the guest agent
-at that point, the processes will provide an exit code of 1.
+*--timezone*, *--hostname*, *--filesystem*, *--disk*, *--interface*, *--load*
+and *--devices*.  If an explicitly requested information type is not supported
+by the guest agent at that point, the processes will provide an exit code of 1.
 
 Note that depending on the hypervisor type and the version of the guest agent
 running within the domain, not all of the following information may be
@@ -3373,6 +3375,15 @@ returned:
 * ``load.1m``  - average load in guest for last 1 minute
 * ``load.5m``  - average load in guest for last 5 minutes
 * ``load.15m`` - average load in guest for last 15 minutes
+
+*--devices* returns:
+* ``device.count`` - the number of devices that info is returned for
+* ``device.<num>.driverName`` - name of the driver associated with device
+* ``device.<num>.driverDate`` - driver release date in seconds since the epoch
+* ``device.<num>.driverVersion`` - version of the driver associated with the device
+* ``device.<num>.idType`` - device identification type (e.g. pci)
+* ``device.<num>.pciVendor`` - vendor ID for PCI device (in decimal)
+* ``device.<num>.pciDevice`` - device ID for PCI device (in decimal)
 
 
 guestvcpus
@@ -3498,8 +3509,8 @@ iothreadset
 ::
 
    iothreadset domain iothread_id [[--poll-max-ns ns] [--poll-grow factor]
-      [--poll-shrink divisor] [--thread-pool-min value]
-      [--thread-pool-max value]]
+      [--poll-shrink divisor] [--poll-weight factor]
+      [--thread-pool-min value] [--thread-pool-max value]]
       [[--config] [--live] | [--current]]
 
 Modifies an existing iothread of the domain using the specified
@@ -3511,10 +3522,14 @@ reach the maximum polling time. If a 0 (zero) is provided, then the
 default factor will be used. The *--poll-shrink* is the quotient
 by which the current polling time will be reduced in order to get
 below the maximum polling interval. If a 0 (zero) is provided, then
-the default quotient will be used. The polling values are purely dynamic
-for a running guest. Saving, destroying, stopping, etc. the guest will
-result in the polling values returning to hypervisor defaults at the
-next start, restore, etc.
+the default quotient will be used. The *--poll-weight* sets the weight
+shift value for adaptive polling, determining how much the most recent
+event interval affects the next polling duration calculation. Larger
+values reduce the weight of recent events. Valid range is [0, 63].
+If omitted, the value is not changed. The polling values are purely
+dynamic for a running guest. Saving, destroying, stopping, etc. the
+guest will result in the polling values returning to hypervisor defaults
+at the next start, restore, etc.
 
 The *--thread-pool-min* and *--thread-pool-max* options then set lower and
 upper bound, respectively of number of threads in worker pool of given
